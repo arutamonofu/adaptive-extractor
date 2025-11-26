@@ -1,54 +1,21 @@
 # scripts/optimize.py
 
 import argparse
-import random
 import dspy
+import json
 from pathlib import Path
 from dspy.teleprompt import MIPROv2
 
+# Project imports
 from aee.core.logging import setup_logging
-from aee.core.types import ProcessedDocument
 from aee.llm import setup_student, setup_teacher
 from aee.agents.extractor import UniversalExtractor
 from aee.eval import TaskMetric
 from aee.tasks import TASK_REGISTRY
 from aee.utils.io import load_ground_truth
+from aee.utils.dataset import create_training_set
 
 logger = setup_logging()
-
-def create_training_set(processed_dir: Path, gt_data: dict, task_conf: dict, limit: int):
-    """Creates DSPy Examples from processed files and GT."""
-    dataset = []
-    
-    # Iterate over GT keys to ensure we only take labeled data
-    # (Simplified logic: taking intersection of files present in both)
-    for filename, experiments in gt_data.items():
-        # Try to find corresponding JSON
-        # Note: This simple lookup assumes filename stems match exactly.
-        # In prod, use the sha256 or ID mapping from aee.utils.io
-        json_path = processed_dir / f"{filename}.json" 
-        
-        if not json_path.exists():
-            continue
-            
-        try:
-            with open(json_path, "r") as f:
-                doc = ProcessedDocument.model_validate_json(f.read())
-            
-            # Create DSPy Example
-            out_model = task_conf["output_model"]
-            example = dspy.Example(
-                document_text=doc.text_content,
-                extracted_data=out_model(experiments=experiments)
-            ).with_inputs("document_text")
-            
-            dataset.append(example)
-        except Exception:
-            continue
-            
-    # Shuffle and limit
-    random.shuffle(dataset)
-    return dataset[:limit]
 
 def main():
     parser = argparse.ArgumentParser(description="Optimize Agent Prompt (MIPROv2).")
@@ -56,7 +23,6 @@ def main():
     parser.add_argument("--train_size", type=int, default=20)
     parser.add_argument("--trials", type=int, default=15)
     parser.add_argument("--output", type=str, default="data/artifacts/optimized_agent.json")
-    # New Argument for Split Safety
     parser.add_argument("--split_file", type=str, default=None, help="Path to splits.json")
     args = parser.parse_args()
 
@@ -74,28 +40,37 @@ def main():
     gt_path = Path("data/ground_truth") / f"{args.task}.csv"
     proc_dir = Path("data/processed")
     
-    gt_data = load_ground_truth(gt_path, task_conf["row_converter"])
+    try:
+        gt_data = load_ground_truth(gt_path, task_conf["row_converter"])
+    except FileNotFoundError:
+        logger.error(f"GT file not found: {gt_path}. Run download_data.py first.")
+        return
     
     # --- SPLIT SAFETY CHECK ---
     if args.split_file:
-        import json
-        with open(args.split_file) as f:
-            splits = json.load(f)
-        train_ids = set(splits.get("train", []))
-        # Filter GT data to keep only train files
-        gt_data = {k: v for k, v in gt_data.items() if k in train_ids}
-        logger.info(f"🛡️  Applied Split: Using {len(gt_data)} training documents.")
+        try:
+            with open(args.split_file) as f:
+                splits = json.load(f)
+            train_ids = set(splits.get("train", []))
+            # Filter GT data to keep only train files
+            gt_data = {k: v for k, v in gt_data.items() if k in train_ids}
+            logger.info(f"🛡️  Applied Split: Using {len(gt_data)} training documents.")
+        except Exception as e:
+            logger.error(f"Failed to load split file: {e}")
+            return
     else:
         logger.warning("⚠️  No split file provided! You might be overfitting on test data.")
 
+    # Используем общую функцию из src/aee/utils/dataset.py
     trainset = create_training_set(proc_dir, gt_data, task_conf, args.train_size)
     
     if not trainset:
-        logger.error("No training data found.")
+        logger.error("No training data found (check paths or split file names).")
         return
 
     # Optimizer
     logger.info(f"Starting optimization with {len(trainset)} examples...")
+    
     teleprompter = MIPROv2(
         prompt_model=teacher,
         task_model=student,
@@ -103,18 +78,19 @@ def main():
         num_candidates=5,
         init_temperature=0.5,
         verbose=True,
-        auto=None
+        auto=None # Manual control enabled
     )
     
     agent = UniversalExtractor(task_conf["signature"])
     
+    # Run Compilation
     optimized_agent = teleprompter.compile(
         agent,
         trainset=trainset,
         num_trials=args.trials,
         max_bootstrapped_demos=2,
         max_labeled_demos=2,
-        minibatch=False
+        minibatch=False # Disabled for stability on small datasets
     )
     
     # Save

@@ -50,10 +50,8 @@ data/splits.json
 !data/ground_truth/.gitkeep
 !data/results/.gitkeep
 !data/artifacts/.gitkeep
-!data/splits.json
 
 # --- ML & Library Caches ---
 dspy_cache/
 .cache/
 __pycache__/
-data/splits.json
