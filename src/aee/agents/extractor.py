@@ -1,29 +1,34 @@
 # src/aee/agents/extractor.py
 
 import dspy
+from typing import Type
 
 class UniversalExtractor(dspy.Module):
     """
-    Универсальный агент извлечения.
-    Не зависит от конкретной схемы данных — она передается через signature_class.
+    A task-agnostic extraction agent powered by DSPy.
+    
+    It wraps a specific task signature (e.g., Nanozymes) in a Chain-of-Thought 
+    reasoning module to improve extraction accuracy and handle complex logic.
     """
-    def __init__(self, signature_class: type[dspy.Signature]):
+
+    def __init__(self, signature_class: Type[dspy.Signature]):
+        """
+        Args:
+            signature_class: The DSPy signature defining input/output fields.
+        """
         super().__init__()
-        
-        # Мы используем ChainOfThought, чтобы модель сначала "подумала" (Reasoning),
-        # а потом заполнила Pydantic-модель, указанную в OutputField сигнатуры.
         self.prog = dspy.ChainOfThought(signature_class)
 
     def forward(self, document_text: str) -> dspy.Prediction:
         """
-        Запуск агента.
-        
+        Executes the extraction pipeline.
+
         Args:
-            document_text: Текст статьи.
-            
+            document_text: The full text content of the document.
+
         Returns:
-            dspy.Prediction: Объект с полями:
-                .reasoning (str) - ход мыслей
-                .extracted_data (Pydantic Model) - результат
+            A DSPy Prediction object containing:
+            - reasoning: The model's chain of thought.
+            - extracted_data: The structured output (Pydantic model).
         """
         return self.prog(document_text=document_text)

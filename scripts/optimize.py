@@ -102,7 +102,8 @@ def main():
         metric=TaskMetric(task_conf),
         num_candidates=5,
         init_temperature=0.5,
-        verbose=True
+        verbose=True,
+        auto=None
     )
     
     agent = UniversalExtractor(task_conf["signature"])
@@ -113,7 +114,7 @@ def main():
         num_trials=args.trials,
         max_bootstrapped_demos=2,
         max_labeled_demos=2,
-        requires_permission_to_run=False
+        minibatch=False
     )
     
     # Save

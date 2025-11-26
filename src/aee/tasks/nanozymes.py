@@ -22,7 +22,7 @@ class NanozymeExperiment(BaseModel):
     depth_nm: Optional[float] = Field(None, description="Depth in nm.")
 
     # Activity & Reaction
-    activity: Literal["peroxidase", "oxidase", "catalase", "laccase", "superoxide_dismutase", "other"] = Field(
+    activity: Literal["peroxidase", "oxidase", "catalase", "laccase", "superoxide_dismutase", "glucose oxidase", "other"] = Field(
         ..., description="Type of catalytic activity."
     )
     reaction_type: Optional[str] = Field(None, description="Substrate pair (e.g., 'TMB + H2O2').")

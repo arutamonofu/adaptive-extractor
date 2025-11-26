@@ -42,6 +42,7 @@ data/processed/*
 data/ground_truth/*
 data/results/*
 data/artifacts/*
+data/splits.json
 
 # Exceptions: Keep .gitkeep to preserve directory structure in Git
 !data/raw/.gitkeep
@@ -55,3 +56,4 @@ data/artifacts/*
 dspy_cache/
 .cache/
 __pycache__/
+data/splits.json

@@ -1,7 +1,7 @@
 # src/aee/eval/dspy.py
 
 import dspy
-from typing import Any
+from typing import Any, Dict
 from aee.eval.matcher import ExperimentMatcher
 
 class TaskMetric:
