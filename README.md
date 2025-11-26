@@ -40,7 +40,15 @@ Downloads the ground truth dataset (ChemX/Nanozymes) from Hugging Face.
 python scripts/download_data.py --task nanozymes
 ```
 
-### 2. Ingestion (PDF Parsing)
+### 2. Data Splitting
+
+Generates a splits.json file to strictly separate training and testing data. This ensures reproducible experiments and prevents data leakage during optimization.
+
+```bash    
+python scripts/create_splits.py --gt data/ground_truth/nanozymes.csv
+```
+
+### 3. Ingestion (PDF Parsing)
 
 Converts raw PDF files into structured JSON documents containing Markdown text and metadata.
 
@@ -48,7 +56,7 @@ Converts raw PDF files into structured JSON documents containing Markdown text a
 python scripts/ingest.py --input data/raw --output data/processed --parser docling
 ```
 
-### 3. Evolutionary Optimization
+### 4. Evolutionary Optimization
 
 Optimizes the extraction agent using DSPy.
 **Note:** A splits.json file defining train and test sets is required to prevent data leakage.
@@ -61,7 +69,7 @@ python scripts/optimize.py \
   --output data/artifacts/optimized_agent.json
 ```
 
-### 4. Inference
+### 5. Inference
 
 Runs the optimized agent (or a zero-shot baseline) on the dataset.
 
@@ -71,7 +79,7 @@ python scripts/predict.py \
   --agent_path data/artifacts/optimized_agent.json
 ```
 
-### 5. Evaluation
+### 6. Evaluation
 
 Calculates Precision, Recall, and F1-Score by comparing predictions against the Ground Truth using the Hungarian Algorithm for entity alignment.
 
