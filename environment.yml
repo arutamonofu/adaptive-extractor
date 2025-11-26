@@ -1,0 +1,44 @@
+name: aee
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Base Python & Data Science Stack (Conda-forge is stable/fast)
+  - python=3.11
+  - pip
+  - pandas
+  - numpy
+  - scipy
+  - matplotlib
+  - seaborn
+  - tqdm
+  - jupyterlab
+  - ipywidgets
+  - pytest
+  
+  # Pip dependencies (Latest versions needed for LLM/PDF tools)
+  - pip:
+      # --- Core Frameworks ---
+      - dspy-ai>=2.5.0          # LLM Orchestration
+      - pydantic>=2.0           # Data Validation
+      - pydantic-settings       # Config management
+      
+      # --- LLM Providers ---
+      - google-generativeai     # Gemini
+      - openai                  # Fallback/Tokenizer support
+      - tiktoken                # Token counting
+      
+      # --- Ingestion / PDF Parsers ---
+      - docling                 # IBM Docling (CPU optimized by default)
+      - onnxruntime
+      - pymupdf                 # fast PDF processing
+      - pdfplumber              # Table extraction legacy
+      - marker-pdf              # Marker (Note: installs PyTorch automatically)
+      
+      # --- Data Utilities ---
+      - datasets                # Hugging Face Datasets (for downloading ChemX)
+      - python-dotenv           # Loading .env files
+      
+      # --- Project Installation ---
+      # Installs the current project in editable mode
+      - -e .
