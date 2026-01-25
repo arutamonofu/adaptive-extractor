@@ -1,6 +1,6 @@
 # AutoEvoExtractor
 
-AutoEvoExtractor (AEE) is an evolutionary multi-agent system designed for structured information extraction from scientific literature. It utilizes DSPy and MIPROv2 to automatically optimize prompts and extraction strategies, adapting to complex domains like Nanochemistry.
+AutoEvoExtractor (AEE) is a system designed for structured information extraction from scientific literature. It utilizes DSPy and MIPROv2 to automatically optimize prompts and extraction strategies, adapting to complex domains like Nanochemistry (Nanozymes).
 
 ## Installation
 
@@ -20,114 +20,120 @@ The project uses Conda for environment management.
 
 ## Configuration
 
-Create a `.env` file in the root directory to configure the LLM provider (Google Gemini is the default).
+The system is configured via environment variables and the `src/aee/core/config.py` file.
 
+### 1. Environment Setup (.env)
+Create a `.env` file in the root directory.
+
+**For Cloud Mode (Gemini):**
 ```ini
 GEMINI_API_KEY=your_api_key_here
 ```
 
-You can customize model parameters in `src/aee/core/config.py` or via environment variables (e.g., `STUDENT_MODEL`, `TEACHER_MODEL`).
+**For Local Mode (Ollama):**
+No API key is required, but ensure your Ollama instance is reachable.
 
-## Usage: GUI
+### 2. Application Settings
+Settings are managed in `src/aee/core/config.py`. Key defaults:
 
-The primary way to interact with AutoEvoExtractor is through the Streamlit dashboard.
-
-Start the application:
-
-```bash 
-streamlit run app/Home.py
-```
-
-The interface consists of four main sections:
-
-1. Home: System status dashboard, API key configuration, and quick start guide.
-2. Training Studio:
-   - Library Manager: Upload and parse PDF articles to build your training corpus.
-   - Optimizer: Run evolutionary algorithms (MIPROv2) on the library data to generate optimized agents.
-3. Playground: An interactive sandbox to test agents (Zero-shot or Optimized) on individual files. Includes real-time Chain-of-Thought visualization and single-document metric calculation against Ground Truth.
-4. Evaluation: Benchmarking tool to calculate aggregate Precision, Recall, and F1-Score on the test split.
+*   `use_local_llm`: Set to `True` for Ollama, `False` for Gemini.
+*   `ollama_base_url`: Default is `https://aicltr.itmo.ru/ollama`.
+*   `local_student_model`: Default `mistral-small3.1-24b-128k:latest`.
+*   `local_teacher_model`: Default `gpt-oss:120b`.
 
 ## Usage: Command Line
 
-The workflow consists of five sequential stages. All scripts are located in the `scripts/` directory.
+The workflow consists of sequential stages. All scripts are located in the `scripts/` directory.
 
 ### 1. Download Data
-
-Downloads the ground truth dataset (ChemX/Nanozymes) from Hugging Face.
+Downloads the ground truth dataset (e.g., Nanozymes) from Hugging Face.
 
 ```bash
-python scripts/download_data.py --task nanozymes
+python scripts/download_data.py --task nanozymes --output data/ground_truth
 ```
 
-### 2. Data Splitting
+### 2. Ingestion (PDF Parsing)
+Converts raw PDF files into structured JSON documents.
+*   **Feature:** Automatically groups Main articles and Supplementary files based on naming conventions.
+*   **Note:** We output to `data/parsed` because the optimization script expects data there.
 
-Generates a splits.json file to strictly separate training and testing data. This ensures reproducible experiments and prevents data leakage during optimization.
-
-```bash    
-python scripts/create_splits.py --gt data/ground_truth/nanozymes.csv
+```bash
+python scripts/ingest.py \
+  --input data/raw \
+  --output data/parsed \
+  --parser docling \
+  --force
 ```
 
-### 3. Ingestion (PDF Parsing)
+### 3. Evolutionary Optimization
+Optimizes the extraction agent using DSPy MIPROv2.
+**Prerequisite:** A `data/splits.json` file is required to define `train_auto` and `val` sets to prevent data leakage.
 
-Converts raw PDF files into structured JSON documents containing Markdown text and metadata.
-
-```bash 
-python scripts/ingest.py --input data/raw --output data/processed --parser docling
-```
-
-### 4. Evolutionary Optimization
-
-Optimizes the extraction agent using DSPy.
-**Note:** A splits.json file defining train and test sets is required to prevent data leakage.
-
-```bash    
+```bash
+# Available modes: 'test' (quick debug) or 'production' (full optimization)
 python scripts/optimize.py \
   --task nanozymes \
-  --train_size 20 \
-  --split_file data/splits.json \
-  --output data/artifacts/optimized_agent.json
+  --mode production \
+  --output data/agents/optimized_agent.json
 ```
 
-### 5. Inference
+### 4. Inference
+Run the agent on documents. You can run in Zero-Shot mode or load an Optimized Agent.
 
-Runs the optimized agent (or a zero-shot baseline) on the dataset.
-
+**Option A: Optimized Inference**
 ```bash
 python scripts/predict.py \
   --task nanozymes \
-  --agent_path data/artifacts/optimized_agent.json
+  --input data/parsed \
+  --output data/predictions \
+  --agent_path data/agents/optimized_agent.json
 ```
 
-### 6. Evaluation
+**Option B: Static Few-Shot Inference**
+Uses a fixed set of examples (defined in the script) without optimization.
+```bash
+python scripts/predict_fewshot.py \
+  --task nanozymes \
+  --shots 2
+```
 
-Calculates Precision, Recall, and F1-Score by comparing predictions against the Ground Truth using the Hungarian Algorithm for entity alignment.
+### 5. Evaluation (Benchmark)
+Calculates Precision, Recall, and F1-Score (AEE Strict Metric) and Levenshtein distance (Legacy Metric).
 
 ```bash
 python scripts/benchmark.py \
   --task nanozymes \
-  --split_file data/splits.json
+  --gt data/ground_truth/nanozymes.csv \
+  --results data/predictions/nanozymes \
+  --split_file data/splits.json \
+  --output benchmark_report.csv
 ```
 
 ## Project Structure
 
 ```text
 .
-├── app/                    # Streamlit Web Application
-│   ├── Home.py             # Entry point and Dashboard
-│   └── pages/              # Application modules
-│       ├── Evaluation.py
-│       ├── Playground.py
-│       └── Training_Studio.py
-├── data/                   # Data storage (gitignored)
-├── scripts/                # CLI Scripts (ETL, Inference, Eval)
+├── data/                   # Data storage
+│   ├── ground_truth/       # CSVs from HuggingFace
+│   ├── raw/                # Input PDFs
+│   ├── parsed/             # Processed JSONs (after ingest.py)
+│   ├── predictions/        # Agent outputs
+│   └── agents/             # Optimized DSPy programs
+├── scripts/                # CLI Pipelines
+│   ├── benchmark.py        # Evaluation logic
+│   ├── download_data.py    # HF Dataset downloader
+│   ├── ingest.py           # PDF -> JSON (Docling/Marker)
+│   ├── optimize.py         # DSPy MIPROv2 Loop
+│   ├── predict.py          # Batch Inference
+│   └── predict_fewshot.py  # Static Few-Shot Inference
 ├── src/
 │   └── aee/                # Core Package
-│       ├── agents/         # DSPy modules and logic
-│       ├── core/           # Config, logging, types
-│       ├── eval/           # Metrics and matching logic
-│       ├── ingestion/      # PDF parsers (Docling, Marker, etc.)
-│       ├── tasks/          # Task definitions (Nanozymes, etc.)
-│       └── utils/          # Shared utilities (I/O, Dataset prep)
-├── environment.yml         # Conda environment definition
+│       ├── agents/         # UniversalExtractor & DSPy modules
+│       ├── core/           # Config (Settings), Logging, Types
+│       ├── eval/           # Matcher (Hungarian Algo) & Metrics
+│       ├── ingestion/      # Parsers (Docling, PyMuPDF, etc.)
+│       ├── llm.py          # LLM Factory (Ollama/Gemini wrapper)
+│       ├── tasks/          # Task Schemas (Nanozymes)
+│       └── utils/          # I/O and Dataset helpers
 └── README.md               # Project documentation
 ```
