@@ -12,36 +12,29 @@ _NOISY_LIBRARIES = [
     "pdfminer",
     "urllib3",
     "httpx",
+    "httpcore",
+    "filelock",
 ]
 
 def setup_logging() -> logging.Logger:
     """
-    Configures the global logging state for the application.
-
-    Sets the root logger level based on configuration, defines a standard format,
-    and silences/synchronizes specific third-party libraries to match the application level.
-
-    Returns:
-        The main application logger ('aee').
+    Configures application logging.
+    - Writes to stderr (separating logs from script output).
+    - Suppresses chatter from third-party libraries.
     """
-    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    app_level = settings.log_level.upper()
 
     logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=app_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        handlers=[logging.StreamHandler(sys.stderr)],
         force=True
     )
 
+    silence_level = max(logging.WARNING, logging.getLogger().getEffectiveLevel())
+    
     for lib in _NOISY_LIBRARIES:
-        lib_logger = logging.getLogger(lib)
-        lib_logger.setLevel(log_level)
-        
-        # Remove library-specific handlers to prevent duplicate/unformatted output
-        if lib_logger.hasHandlers():
-            lib_logger.handlers.clear()
-        
-        lib_logger.propagate = True
+        logging.getLogger(lib).setLevel(silence_level)
 
     return logging.getLogger("aee")

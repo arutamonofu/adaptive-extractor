@@ -5,16 +5,14 @@ from typing import Type
 
 class UniversalExtractor(dspy.Module):
     """
-    A task-agnostic extraction agent powered by DSPy.
-    
-    It wraps a specific task signature (e.g., Nanozymes) in a Chain-of-Thought 
-    reasoning module to improve extraction accuracy and handle complex logic.
+    Task-agnostic extraction agent.
+    Wraps a specific task signature (e.g., Nanozymes) with Chain-of-Thought reasoning.
     """
 
     def __init__(self, signature_class: Type[dspy.Signature]):
         """
         Args:
-            signature_class: The DSPy signature defining input/output fields.
+            signature_class: The DSPy signature defining input/output fields and instructions.
         """
         super().__init__()
         self.prog = dspy.ChainOfThought(signature_class)
@@ -24,11 +22,9 @@ class UniversalExtractor(dspy.Module):
         Executes the extraction pipeline.
 
         Args:
-            document_text: The full text content of the document.
+            document_text: The full content of the document (Markdown/HTML hybrid).
 
         Returns:
-            A DSPy Prediction object containing:
-            - reasoning: The model's chain of thought.
-            - extracted_data: The structured output (Pydantic model).
+            dspy.Prediction: Contains 'reasoning' (str) and 'extracted_data' (Pydantic model).
         """
         return self.prog(document_text=document_text)

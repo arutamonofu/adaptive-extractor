@@ -1,64 +1,121 @@
 # src/aee/ingestion/parsers.py
 
-import re
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Union
 
-# Third-party imports (assuming installed)
+# Third-party
 import fitz  # PyMuPDF
 import pdfplumber
+
+# Docling
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import PdfPipelineOptions, TableStructureOptions
 from docling.datamodel.accelerator_options import AcceleratorOptions, AcceleratorDevice
+from docling_core.types.doc.document import (
+    TableItem, TextItem, SectionHeaderItem, ListItem, GroupItem
+)
+from docling_core.types.doc.labels import DocItemLabel
 
-# Marker imports
+# Marker
 from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 
+# Project
 from aee.ingestion.base import BaseParser
+from aee.ingestion.cleaning import TextCleaner
 from aee.core.types import ProcessedDocument, DocumentMetadata
 
 logger = logging.getLogger(__name__)
 
-# --- 1. Docling Parser ---
+# --- 1. Docling Parser (Hybrid: HTML Tables + Clean Markdown Text) ---
 
 class DoclingParser(BaseParser):
-    """Parser based on IBM Docling (optimized for CPU)."""
+    """
+    State-of-the-art parser using IBM Docling.
+    Strategy: Manual Hybrid Export.
+    - Tables -> HTML (Preserves rowspans/colspans critical for chemistry).
+    - Text -> Markdown (Cleaned via TextCleaner).
+    """
 
     def __init__(self, num_threads: int = 4):
-        options = PdfPipelineOptions()
-        options.accelerator_options = AcceleratorOptions(
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_ocr = True
+        pipeline_options.do_table_structure = True
+        pipeline_options.table_structure_options = TableStructureOptions(
+            do_cell_matching=True 
+        )
+        
+        # Force CPU to avoid OOM and ensure stability on Free Tier/Standard VMs
+        pipeline_options.accelerator_options = AcceleratorOptions(
             num_threads=num_threads,
             device=AcceleratorDevice.CPU
         )
+
         self.converter = DocumentConverter(
-            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+            }
         )
 
-    def parse(self, file_path: str | Path) -> ProcessedDocument:
+    def _build_hybrid_content(self, doc) -> str:
+        """Constructs document content: HTML for tables, Cleaned MD for text."""
+        output = []
+        
+        for item, _ in doc.iterate_items():
+            
+            # 1. Tables: Export as HTML to preserve structure
+            if isinstance(item, TableItem):
+                # Pass 'doc' to resolve references if necessary
+                if html := item.export_to_html(doc=doc):
+                    output.append(f"\n{html}\n")
+            
+            # 2. Headers: Convert to MD & Clean
+            elif isinstance(item, SectionHeaderItem):
+                if text := TextCleaner.clean_docling_markdown(item.text):
+                    prefix = "#" * getattr(item, "level", 1)
+                    output.append(f"\n{prefix} {text}\n")
+            
+            # 3. Lists: Convert to MD & Clean
+            elif isinstance(item, ListItem):
+                if text := TextCleaner.clean_docling_markdown(item.text):
+                    marker = "1." if item.enumerated else "-"
+                    output.append(f"{marker} {text}")
+            
+            # 4. Text: Filter furniture, Clean & Append
+            elif isinstance(item, TextItem):
+                if item.label in {DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER}:
+                    continue
+                if text := TextCleaner.clean_docling_markdown(item.text):
+                    output.append(text)
+
+        return "\n\n".join(output)
+
+    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
-        logger.info(f"Docling processing: {path.name}")
+        logger.info(f"Docling processing: {path.name} (Strategy: Hybrid)")
+        
         result = self.converter.convert(path)
+        hybrid_text = self._build_hybrid_content(result.document)
         
         return ProcessedDocument(
-            text_content=result.document.export_to_markdown(),
+            text_content=hybrid_text,
             metadata=DocumentMetadata(
                 source_path=str(path.absolute()),
                 filename=path.name,
-                page_count=len(result.document.pages) if hasattr(result.document, "pages") else None
+                page_count=len(result.document.pages) if hasattr(result.document, "pages") else None,
+                extra={"parser": "Docling", "strategy": "hybrid_manual"}
             )
         )
-
 
 # --- 2. Marker Parser ---
 
 class MarkerParser(BaseParser):
-    """Parser based on Marker (requires GPU for reasonable speed)."""
+    """GPU-optimized parser using Marker."""
 
     def __init__(self, device: str = "cpu"):
         logger.info(f"Initializing Marker on {device}...")
@@ -66,7 +123,7 @@ class MarkerParser(BaseParser):
             artifact_dict=create_model_dict(device=device)
         )
 
-    def parse(self, file_path: str | Path) -> ProcessedDocument:
+    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
@@ -74,27 +131,26 @@ class MarkerParser(BaseParser):
         logger.info(f"Marker processing: {path.name}")
         rendered = self.converter(str(path))
         
-        # Handle different Marker API versions
+        # Handle API variations
         text = getattr(rendered, "markdown", None) or getattr(rendered, "text", str(rendered))
-        meta_raw = getattr(rendered, "metadata", {})
+        meta = getattr(rendered, "metadata", {})
 
         return ProcessedDocument(
             text_content=text,
             metadata=DocumentMetadata(
                 source_path=str(path.absolute()),
                 filename=path.name,
-                page_count=meta_raw.get("page_count"),
-                extra=meta_raw
+                page_count=meta.get("page_count"),
+                extra=meta
             )
         )
-
 
 # --- 3. PyMuPDF Parser ---
 
 class PyMuPDFParser(BaseParser):
-    """Fast parser using PyMuPDF (fitz). Preserves layout via heuristics."""
+    """Fast, layout-preserving heuristic parser."""
 
-    def parse(self, file_path: str | Path) -> ProcessedDocument:
+    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
@@ -104,9 +160,8 @@ class PyMuPDFParser(BaseParser):
         full_text = []
 
         for i, page in enumerate(doc):
-            # Extract blocks: (x0, y0, x1, y1, "text", block_no, block_type)
+            # Extract text blocks, filter out noise
             blocks = page.get_text("blocks")
-            # Filter text blocks (type 0) and strip content
             page_text = [b[4].strip() for b in blocks if b[6] == 0 and b[4].strip()]
             
             full_text.append(f"## Page {i + 1}\n\n" + "\n\n".join(page_text))
@@ -121,77 +176,61 @@ class PyMuPDFParser(BaseParser):
             )
         )
 
-
 # --- 4. PDFPlumber Parser ---
 
 class PlumberParser(BaseParser):
-    """Parser using pdfplumber. Good for table extraction."""
+    """Table-focused parser."""
 
-    def _table_to_markdown(self, table: List[List[Union[str, None]]]) -> str:
-        """Converts a raw list-of-lists table to a Markdown string."""
-        if not table:
-            return ""
-        # Clean None values
-        clean_rows = [[str(cell) if cell is not None else "" for cell in row] for row in table]
-        if not clean_rows:
-            return ""
+    def _table_to_markdown(self, table: List[List[str]]) -> str:
+        """Simple list-of-lists to Markdown conversion."""
+        if not table: return ""
+        # Filter None
+        rows = [[str(c) if c is not None else "" for c in r] for r in table]
+        if not rows: return ""
 
-        headers = clean_rows[0]
-        # Construct MD table
+        headers = rows[0]
         lines = [
             "| " + " | ".join(headers) + " |",
             "| " + " | ".join(["---"] * len(headers)) + " |"
         ]
-        lines.extend(["| " + " | ".join(row) + " |" for row in clean_rows[1:]])
+        lines.extend(["| " + " | ".join(r) + " |" for r in rows[1:]])
         return "\n".join(lines)
 
-    def parse(self, file_path: str | Path) -> ProcessedDocument:
+    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
         logger.info(f"Plumber processing: {path.name}")
-        text_parts = []
-        md_tables = []
-
+        content_parts = []
+        
         with pdfplumber.open(path) as pdf:
             for i, page in enumerate(pdf.pages):
-                # Extract tables
-                for table in page.extract_tables():
-                    if md_table := self._table_to_markdown(table):
-                        md_tables.append(md_table)
-
-                # Extract text
                 text = page.extract_text(layout=False) or ""
-                
-                # Compose page content
-                page_content = f"## Page {i + 1}\n\n{text}\n\n"
-                if md_tables:
-                    # Append tables found on this page (simple heuristic)
-                    # Note: Ideally tables should be inserted where they occur, 
-                    # but plumber separates these streams.
-                    page_content += "### Extracted Tables:\n\n" + "\n\n".join(md_tables[-len(page.extract_tables()):])
-                
-                text_parts.append(page_content)
+                tables = [self._table_to_markdown(t) for t in page.extract_tables()]
+                tables = [t for t in tables if t]
 
-            return ProcessedDocument(
-                text_content="\n\n".join(text_parts),
-                tables=md_tables,
-                metadata=DocumentMetadata(
-                    source_path=str(path.absolute()),
-                    filename=path.name,
-                    page_count=len(pdf.pages),
-                    extra=dict(pdf.metadata)
-                )
+                page_content = f"## Page {i + 1}\n\n{text}\n"
+                if tables:
+                    page_content += "\n### Tables:\n" + "\n\n".join(tables)
+                
+                content_parts.append(page_content)
+
+        return ProcessedDocument(
+            text_content="\n\n".join(content_parts),
+            metadata=DocumentMetadata(
+                source_path=str(path.absolute()),
+                filename=path.name,
+                page_count=len(pdf.pages)
             )
-
-
+        )
+    
 # --- 5. NanoMiner Legacy Parser ---
 
 class NanoPlumberParser(BaseParser):
     """
-    Legacy parser from nanoMINER project. 
-    Uses specific character alignment logic for scientific texts.
+    Legacy parser from the nanoMINER project. 
+    Uses specific character alignment logic for scientific texts based on pdfplumber.
     """
 
     def _align_chars(self, text: str, chars: List[Dict[str, Any]]) -> str:
@@ -224,14 +263,14 @@ class NanoPlumberParser(BaseParser):
                 result.append(t_char)
                 t_idx += 1
             else:
-                # Match: use char object (potentially richer info, though here just text)
+                # Match: use char object
                 result.append(c_text)
                 t_idx += 1
                 c_idx += 1
         
         return "".join(result) + "\n"
 
-    def parse(self, file_path: str | Path) -> ProcessedDocument:
+    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         path = Path(file_path)
         logger.info(f"NanoMiner processing: {path.name}")
         
@@ -247,7 +286,7 @@ class NanoPlumberParser(BaseParser):
                 if text:
                     extracted_text += self._align_chars(text, page.chars)
 
-        # Truncate References to save context window
+        # Truncate References section to save LLM context window
         extracted_text = re.sub(r"References.*", "References", extracted_text, flags=re.DOTALL)
 
         return ProcessedDocument(

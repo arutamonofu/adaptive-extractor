@@ -1,18 +1,14 @@
 # src/aee/core/types.py
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class DocumentMetadata(BaseModel):
     """
-    Metadata associated with a source document.
-
-    Attributes:
-        source_path: Absolute system path to the source file.
-        filename: Name of the file with extension.
-        page_count: Total number of pages in the document.
-        extra: Additional metadata extracted by parsers (DOI, authors, etc.).
+    Immutable metadata associated with a source document.
     """
+    model_config = ConfigDict(frozen=True)
+
     source_path: str
     filename: str
     page_count: Optional[int] = None
@@ -20,15 +16,16 @@ class DocumentMetadata(BaseModel):
 
 class ProcessedDocument(BaseModel):
     """
-    Unified representation of a processed document ready for AI ingestion.
-
+    Unified representation of an ingested document.
+    
     Attributes:
-        text_content: Full text content in Markdown format.
-        tables: List of extracted tables (Markdown or HTML representation).
-        images: Paths or descriptions of extracted images.
-        metadata: Document metadata object.
+        text_content: Hybrid content (Markdown text + HTML tables).
+        tables: List of raw extracted tables (optional, parser-dependent).
+        images: List of extracted image paths or descriptions.
     """
-    text_content: str = Field(..., description="Full text in Markdown format")
-    tables: List[str] = Field(default_factory=list, description="Extracted tables")
-    images: List[str] = Field(default_factory=list, description="Extracted image paths/descriptions")
+    model_config = ConfigDict(frozen=False)
+
+    text_content: str
+    tables: List[str] = Field(default_factory=list)
+    images: List[str] = Field(default_factory=list)
     metadata: DocumentMetadata

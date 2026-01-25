@@ -1,15 +1,17 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aee"
-version = "0.1.0"
+name = "autoevoextractor"
+version = "0.2.0"
+description = "Evolutionary self-optimizing system for scientific data extraction"
 requires-python = ">=3.11"
 dependencies = [
-    "dspy-ai",
-    "pydantic",
-    "docling"
+    "dspy-ai>=2.4.4",
+    "pydantic>=2.7.1",
+    "pandas",
+    "streamlit"
 ]
 
 [tool.setuptools.packages.find]

@@ -1,8 +1,8 @@
 # src/aee/ingestion/__init__.py
 
-from aee.ingestion.base import BaseParser
-from aee.ingestion.cleaning import TextCleaner
-from aee.ingestion.parsers import (
+from .base import BaseParser
+from .cleaning import TextCleaner
+from .parsers import (
     DoclingParser,
     MarkerParser,
     PyMuPDFParser,
@@ -12,10 +12,10 @@ from aee.ingestion.parsers import (
 
 __all__ = [
     "BaseParser",
-    "TextCleaner",
     "DoclingParser",
     "MarkerParser",
-    "PyMuPDFParser",
+    "NanoPlumberParser",
     "PlumberParser",
-    "NanoPlumberParser"
+    "PyMuPDFParser",
+    "TextCleaner",
 ]

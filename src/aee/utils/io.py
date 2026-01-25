@@ -4,90 +4,73 @@ import json
 import logging
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Any, Callable
+from typing import Dict, List, Any, Callable, Type
 
 logger = logging.getLogger(__name__)
 
-def load_ground_truth(csv_path: Path, converter_func: Callable) -> Dict[str, List[Any]]:
+def load_ground_truth(csv_path: Path, row_converter: Callable) -> Dict[str, List[Any]]:
     """
-    Loads Ground Truth from CSV and groups experiments by filename.
-    
-    Args:
-        csv_path: Path to the CSV file.
-        converter_func: Function to convert a pandas row to a Pydantic model.
-        
-    Returns:
-        Dict mapping filename (stem) to a list of experiment objects.
+    Loads Ground Truth from CSV, groups by filename, and converts rows to objects.
     """
     if not csv_path.exists():
         raise FileNotFoundError(f"GT file not found: {csv_path}")
     
     df = pd.read_csv(csv_path)
-    # Normalize columns
-    df.columns = [c.lower().strip() for c in df.columns]
+    df.columns = df.columns.str.lower().str.strip()
     
-    # Identify filename column
-    possible_cols = ["pdf", "filename", "source", "doi"]
-    filename_col = next((c for c in possible_cols if c in df.columns), None)
+    target_cols = ["pdf", "filename", "source", "doi"]
+    id_col = next((c for c in target_cols if c in df.columns), None)
     
-    if not filename_col:
-        raise ValueError(f"No filename column found in CSV. Available: {list(df.columns)}")
+    if not id_col:
+        raise ValueError(f"Missing ID column. Candidates: {target_cols}. Found: {list(df.columns)}")
 
-    gt_dict = {}
+    gt_data = {}
     
-    for identifier, group in df.groupby(filename_col):
-        # Normalize key: "File.pdf" -> "file"
-        key = str(identifier).replace(".pdf", "").strip().lower()
+    for filename, group in df.groupby(id_col):
+        # Normalize key: remove extension, lowercase (e.g. "File.pdf" -> "file")
+        key = Path(str(filename)).name.lower()
         
-        experiments = []
-        for _, row in group.iterrows():
-            if exp := converter_func(row):
-                experiments.append(exp)
+        # Convert valid rows only
+        experiments = [res for _, row in group.iterrows() if (res := row_converter(row))]
         
         if experiments:
-            gt_dict[key] = experiments
+            gt_data[key] = experiments
             
-    return gt_dict
+    return gt_data
 
-def load_predictions(results_dir: Path, schema_class: Any) -> Dict[str, List[Any]]:
+def load_predictions(results_dir: Path, schema_class: Type) -> Dict[str, List[Any]]:
     """
-    Loads model predictions from JSON files in a directory.
-    
-    Args:
-        results_dir: Directory containing _result.json files.
-        schema_class: Pydantic class to validate the 'experiments' list.
+    Loads and validates predictions from JSON files in a directory.
     """
-    pred_dict = {}
-    files = list(results_dir.glob("*.json"))
+    preds = {}
     
-    for f in files:
+    for file_path in results_dir.glob("*.json"):
         try:
-            with open(f, "r", encoding="utf-8") as file:
-                data = json.load(file)
+            data = json.loads(file_path.read_text(encoding="utf-8"))
             
-            # Robust name extraction
-            meta_name = data.get("source_metadata", {}).get("filename", "")
-            if not meta_name:
-                meta_name = f.stem.replace("_result", "")
+            # Determine document key from metadata or filename
+            raw_name = data.get("source_metadata", {}).get("filename") or file_path.name
+            # Remove potential suffixes like '_result' if present in filename
+            key = Path(raw_name.replace("_result", "")).stem.lower()
             
-            key = meta_name.replace(".pdf", "").strip().lower()
-            
-            # Extract and validate
             raw_exps = data.get("extraction", {}).get("experiments", [])
-            # Note: We assume schema_class expects kwargs matching the JSON dict
-            pred_dict[key] = [schema_class(**exp) for exp in raw_exps]
+            
+            # Validate against Pydantic schema
+            preds[key] = [schema_class(**exp) for exp in raw_exps]
             
         except Exception as e:
-            logger.warning(f"Skipping corrupt prediction {f.name}: {e}")
-            # IMPORTANT: We track it as empty to penalize Recall in metrics
-            pred_dict[key] = [] 
+            logger.warning(f"Skipping corrupt prediction {file_path.name}: {e}")
+            # Track as empty list to correctly penalize Recall
+            preds[key] = []
 
-    return pred_dict
+    return preds
 
-def get_split_files(split_path: Path, split_name: str) -> set:
-    """Loads a list of filenames for a specific split (train/test)."""
+def get_split_files(split_path: Path, split_name: str) -> set[str]:
+    """Loads a set of filenames for a specific split (train/test)."""
     if not split_path.exists():
         return set()
-    with open(split_path, "r") as f:
+    
+    with open(split_path, "r", encoding="utf-8") as f:
         data = json.load(f)
+        
     return set(data.get(split_name, []))

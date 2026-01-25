@@ -2,23 +2,21 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Union
 from aee.core.types import ProcessedDocument
 
 class BaseParser(ABC):
-    """Abstract base class defining the interface for all document parsers."""
+    """Interface for document parsing strategies."""
 
     @abstractmethod
-    def parse(self, file_path: str | Path) -> ProcessedDocument:
+    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         """
         Parses a source file into a structured ProcessedDocument.
 
         Args:
-            file_path: Path to the input file (e.g., PDF).
+            file_path: Path to the input file.
 
         Returns:
-            A populated ProcessedDocument instance containing text and metadata.
-
-        Raises:
-            FileNotFoundError: If the source file does not exist.
+            ProcessedDocument containing text, tables, and metadata.
         """
         pass

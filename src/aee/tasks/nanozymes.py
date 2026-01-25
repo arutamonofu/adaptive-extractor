@@ -1,112 +1,209 @@
 # src/aee/tasks/nanozymes.py
 
-from typing import List, Optional, Literal, Any, Type
-import pandas as pd
-import dspy
-from pydantic import BaseModel, Field
+import logging
+import re
+from typing import Annotated, Any, List, Literal, Optional, Type
 
-# --- 1. Data Schema ---
+import dspy
+import pandas as pd
+from pydantic import BaseModel, BeforeValidator, Field
+
+logger = logging.getLogger(__name__)
+
+def clean_number(v: Any) -> Optional[float]:
+    """
+    Robustly extracts the first valid floating point number from a string.
+    Handles OCR artifacts and scientific notation.
+    """
+    if v is None:
+        return None
+    if isinstance(v, (float, int)):
+        return float(v)
+
+    if isinstance(v, str):
+        # Normalize OCR dashes to standard hyphen
+        s = v.replace("−", "-").replace("–", "-").replace("—", "-").strip()
+        # Remove spaces in scientific notation like "10 -5" -> "10-5"
+        s = re.sub(r'(?i)10\s*[-]\s*(\d+)', r'10-\1', s)
+        
+        # Pattern to catch floats and scientific notation
+        pattern = r"[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?"
+        
+        match = re.search(pattern, s)
+        if match:
+            try:
+                return float(match.group())
+            except (ValueError, TypeError):
+                return None
+    return None
+
+RobustFloat = Annotated[Optional[float], BeforeValidator(clean_number)]
 
 class NanozymeExperiment(BaseModel):
     """
     Structured representation of a single nanozyme kinetic experiment.
+    Schema aligns with the nanoMINER ontology.
     """
-    # Material Properties
-    formula: str = Field(..., description="Chemical formula (e.g., Fe3O4).")
-    surface: Optional[str] = Field(None, description="Surface modification (e.g., PEG, naked).")
-    syngony: Optional[str] = Field(None, description="Crystal structure.")
     
+    # Material Properties
+    formula: str = Field(..., description="Chemical formula (e.g., Fe3O4, Au, CuO).")
+
+    surface: Optional[str] = Field(
+        None, 
+        description="Surface chemistry (naked, PEG, PVP, citrate), Polymer (olelic acid, BSA), or Surfactant (l-ascorbic acid, sodium citrate, etc)."
+    )
+    
+    syngony: Optional[str] = Field(
+        None,
+        description="Crystal system: cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, amorphous, triclinic."
+    )
+
     # Dimensions
-    length_nm: Optional[float] = Field(None, description="Length in nm.")
-    width_nm: Optional[float] = Field(None, description="Width in nm.")
-    depth_nm: Optional[float] = Field(None, description="Depth in nm.")
+    length: RobustFloat = Field(None, description="Length or size/diameter in nm.")
+    width: RobustFloat = Field(None, description="Width in nm (if applicable).")
+    depth: RobustFloat = Field(None, description="Depth in nm (if applicable).")
 
     # Activity & Reaction
-    activity: Literal["peroxidase", "oxidase", "catalase", "laccase", "superoxide_dismutase", "glucose oxidase", "other"] = Field(
-        ..., description="Type of catalytic activity."
+    activity: Literal[
+        "peroxidase", "oxidase", "catalase", "laccase", 
+        "superoxide_dismutase", "glucose oxidase", "other"
+    ] = Field(..., description="Type of catalytic activity.")
+    
+    reaction_type: Optional[str] = Field(
+        None, 
+        description="Format: 'Substrate + Co-substrate'. Tracks: TMB+H2O2 (TMB varies), H2O2+TMB (H2O2 varies)."
     )
-    reaction_type: Optional[str] = Field(None, description="Substrate pair (e.g., 'TMB + H2O2').")
 
     # Kinetic Parameters
-    km_value: Optional[float] = Field(None, description="Michaelis constant (Km).")
-    km_unit: Optional[str] = Field(None, description="Unit for Km.")
-    vmax_value: Optional[float] = Field(None, description="Maximum velocity (Vmax).")
-    vmax_unit: Optional[str] = Field(None, description="Unit for Vmax.")
+    km_value: RobustFloat = Field(None, description="Michaelis constant Km (Mantissa).")
+    km_unit: Optional[str] = Field(None, description="Unit for Km (e.g., mM).")
 
-    # Experimental Conditions
-    ph: Optional[float] = Field(None, description="pH level.")
-    temperature: Optional[float] = Field(None, description="Temperature in °C.")
+    vmax_value: RobustFloat = Field(None, description="Max reaction rate Vmax (Mantissa).")
+    vmax_unit: Optional[str] = Field(None, description="Unit for Vmax (e.g., M/s, mM/s).")
+
+    # Conditions
+    ph: RobustFloat = Field(None, description="pH level.")
+    temperature: RobustFloat = Field(None, description="Temperature in °C.")
+
+    # Concentrations
+    c_min: RobustFloat = Field(None, description="Min concentration of variable substrate (mM).")
+    c_max: RobustFloat = Field(None, description="Max concentration of variable substrate (mM).")
     
-    # Substrate Concentrations
-    c_min: Optional[float] = Field(None, description="Min concentration of variable substrate.")
-    c_max: Optional[float] = Field(None, description="Max concentration of variable substrate.")
-    c_const: Optional[float] = Field(None, description="Concentration of fixed co-substrate.")
+    c_const: RobustFloat = Field(None, description="Concentration of fixed co-substrate (mM).")
+    c_const_unit: Optional[str] = Field(None, description="Unit for c_const.")
+
+    ccat_value: RobustFloat = Field(None, description="Concentration of the nanozyme/catalyst.")
+    ccat_unit: Optional[str] = Field(None, description="Unit for catalyst conc (e.g., mcg/ml, mg/mL).")
+
 
 class NanozymeExtractionOutput(BaseModel):
     """Container for extracted experiments."""
     experiments: List[NanozymeExperiment] = Field(default_factory=list)
 
 
-# --- 2. DSPy Signature ---
-
 class NanozymeSignature(dspy.Signature):
     """
-    Extract structured kinetic data from scientific text about nanozymes.
+    You are helpful assistant in chemistry, specializing in nanozymes. Your task is to analyze scientific articles and extract detailed information about various experiments with nanozymes. It is crucial for you to accurately and comprehensively describe each experiment separately, without referring to other experiments in the article.
+
+    Usually, the articles contain several experiments with nanozymes with different parameters, such as:
+    - Formula (e.g. Fe3O4)
+    - Activity (usually peroxidase, oxidase, catalase or laccase)
+    - Syngony (usually cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, amorphous or triclinic)
+    - Length, width and depth (or just size or diameter)
+    - Surface chemistry (naked by default or poly(ethylene oxide), poly(N-Vinylpyrrolidone), Tetrakis(4-carboxyphenyl)porphine or other)
+    - Polymer used in synthesis (none or poly(N-Vinylpyrrolidone), oleic acid, poly(ethylene oxide), BSA or other)
+    - Surfactant (none or l-ascorbic acid, ethylene glycol, sodium citrate, cetrimonium bromide, citric acid, trisodium citrate, ascorbic acid or other)
+    - Molar mass, Michaelis constant Km, molar maximum reaction rate Vmax
+    - Reaction type (substrat + co-substrat) (TMB + H2O2, H2O2 + TMB, TMB, ABTS + H2O2, H2O2, OPD + H2O2, H2O2 + GSH or other)
+    - Minimum concentration of the substrate when measuring catalytic activity C_min (mM)
+    - Maximum concentration of the substrate when measuring catalytic activity C_max (mM)
+    - Concentration of the co-substrate when measuring the catalytic activity (mM)
+    - Concentration of nanoparticles in the measurement of catalytic (mg/mL)
+    - pH at which the catalytic activity was measured and temperature at which the research was carried out (°C).
+
+    You need to find all the experiments with different values mentioned in the article and extraction them as separate objects. It's imperative that each of these elements is addressed independently for every experiment, providing a complete and isolated description with accurate measurements in appropriate units. This approach will ensure a comprehensive and clear understanding of each experiment as an individual entity within the scientific literature on nanozymes.
+
+    CRITICAL RULES FOR EXTRACTION:
+    1. Keep the numerical values in the right units of measurement. It is critically important to extract all the numerical values as in the example, especially important are formula, activity, syngony, length, width, depth (size or diameter), Km, Vmax, reaction type.
+    2. Usually such parameters as Michaelis constant Km (mM), Vmax, mM/s are obtained in two experiments for every type of nanoparticle. You must determine what type of reaction such parameters as Michaelis constant Km (mM), Vmax, mM/s belong to.
     
-    CRITICAL INSTRUCTIONS:
-    1.  **Reaction Logic**: Determine the reaction type based on variable vs constant substrates.
-        - "H2O2 + TMB": H2O2 varies, TMB is constant.
-        - "TMB + H2O2": TMB varies, H2O2 is constant.
-    2.  **Scope**: Extract separate entries for distinct kinetic tracks. 
-    3.  **Missing Data**: Use null for unspecified values. Do not hallucinate.
+    LOGIC FOR REACTION TYPES (TRACKS):
+    - Reaction type is H2O2+TMB when H2O2 is a substrate and TMB in co-cubstrate.
+    - Reaction type is TMB +H2O2 when TMB is a substrate and H2O2 in co-cubstrate.
+    
+    For example in pair H2O2 and TMB:
+    - In first case (you call this case as Reaction type TMB+H2O2): H2O2 plays role as a co-substrate with constant concentration(C(const), mM) and TMB plays role as a substrate with concentrations from Cmin,mM to Cmax, mM.
+    - In second case (you call this case as Reaction type H2O2+TMB): TMB plays role as a co-substrate with constant concentration(C(const), mM) and H2O2 plays role as a substrate with concentrations from Cmin,mM to Cmax, mM.
+    
+    Please divide all the data into 2 tracks: where H2O2 was a substrate and its concentration varied and where H2O2 was a co-substrate and had a constant concentration. 
+    Please show data only for those nanoparticles for which the kinetic assay was performed. All other parameters from the example are also important.
+    Do not attempt to use knowledge you already have.
     """
 
     document_text: str = dspy.InputField(
-        desc="Full Markdown text of the article, including tables."
+        desc="Full text content of the scientific article."
     )
     extracted_data: NanozymeExtractionOutput = dspy.OutputField(
-        desc="JSON list of valid nanozyme experiments."
+        desc="A list of structured experiments matching the schema."
     )
 
 
-# --- 3. Utilities ---
-
-def row_to_nanozyme(row: pd.Series) -> NanozymeExperiment:
+def row_to_nanozyme(row: pd.Series) -> Optional[NanozymeExperiment]:
     """
     Converts a Pandas CSV row into a NanozymeExperiment model.
-    Handles NaN values and type casting.
     """
-    def _safe_get(key: str, cast_type: Type = str) -> Any:
+    def _get(key: str, type_cast: Type = str, alt_keys: List[str] = None) -> Any:
         val = row.get(key)
-        if pd.isna(val) or str(val).lower() == "nan" or val == "":
+        if (pd.isna(val) or val == "") and alt_keys:
+            for alt in alt_keys:
+                val = row.get(alt)
+                if not (pd.isna(val) or val == ""):
+                    break
+        
+        if pd.isna(val) or str(val).strip().lower() in ("nan", "", "none"):
             return None
+            
         try:
-            return cast_type(val)
+            return type_cast(val)
         except (ValueError, TypeError):
             return None
 
+    formula = _get("formula")
+    if not formula:
+        return None
+
+    raw_activity = str(_get("activity")).lower()
+    valid_activities = ["peroxidase", "oxidase", "catalase", "laccase", "superoxide_dismutase", "glucose oxidase"]
+    activity = next((a for a in valid_activities if a in raw_activity), "other")
+
     return NanozymeExperiment(
-        formula=_safe_get("formula") or "Unknown",
-        surface=_safe_get("surface"),
-        syngony=_safe_get("syngony"),
-        length_nm=_safe_get("length", float),
-        width_nm=_safe_get("width", float),
-        depth_nm=_safe_get("depth", float),
-        activity=_safe_get("activity") or "other",
-        reaction_type=_safe_get("reaction_type"),
-        km_value=_safe_get("km_value", float),
-        km_unit=_safe_get("km_unit"),
-        vmax_value=_safe_get("vmax_value", float),
-        vmax_unit=_safe_get("vmax_unit"),
-        ph=_safe_get("ph", float),
-        temperature=_safe_get("temperature", float),
-        c_min=_safe_get("c_min", float),
-        c_max=_safe_get("c_max", float),
-        c_const=_safe_get("c_const", float),
+        formula=formula,
+        surface=_get("surface"),
+        syngony=_get("syngony"),
+        
+        length=_get("length", float),
+        width=_get("width", float),
+        depth=_get("depth", float),
+        
+        activity=activity,
+        reaction_type=_get("reaction_type"),
+        
+        km_value=_get("km_val", float, ["km_value"]),
+        km_unit=_get("km_unit"),
+        vmax_value=_get("vmax_value", float, ["vmax_val"]),
+        vmax_unit=_get("vmax_unit"),
+        
+        ph=_get("ph", float),
+        temperature=_get("temp", float, ["temperature"]),
+        
+        c_min=_get("c_min", float),
+        c_max=_get("c_max", float),
+        c_const=_get("c_cons", float, ["c_const"]),
+        c_const_unit=_get("c_cons_unit", str, ["c_const_unit"]),
+        
+        ccat_value=_get("ccat_value", float),
+        ccat_unit=_get("ccat_unit"),
     )
-
-
-# --- 4. Export ---
 
 task_config = {
     "name": "nanozymes",
@@ -114,9 +211,15 @@ task_config = {
     "signature": NanozymeSignature,
     "output_model": NanozymeExtractionOutput,
     "row_converter": row_to_nanozyme,
-    # Fields used for calculating F1/Precision/Recall matches
+    
     "compare_fields": [
-        "formula", "activity", "reaction_type",
-        "km_value", "vmax_value", "ph", "temperature"
+        "formula", 
+        "activity", 
+        "reaction_type",
+        "km_value", 
+        "vmax_value", 
+        "ph", 
+        "temperature",
+        "ccat_value"
     ]
 }

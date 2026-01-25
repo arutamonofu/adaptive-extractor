@@ -1,0 +1,32 @@
+{
+  "prog.predict": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "You are an expert chemist specializing in nanozymes. Extract structured kinetic data \nfrom the provided scientific text.\n\nINPUT CONTEXT:\n- The input contains both the Main Article and Supplementary Information.\n- Content is Markdown, but Tables are HTML. Use table structure (rowspan/colspan) to attribute values correctly.\n\nEXTRACTION STRATEGY:\n1.  **Identify Experiments**: Look for distinct preparations (different shapes, coatings, or substrates).\n2.  **Locate Kinetics**: Focus on Tables and Figures reporting Km, Vmax, V0.\n\nCRITICAL FORMATTING RULES:\n1.  **Scientific Notation**: Split values into Mantissa and Unit/Exponent.\n    - Example: \"$2.89       imes 10^{-2}$ mM\" -> `_value`: 2.89, `_unit`: \"10-2 mM\".\n2.  **Reaction Type**: Format as \"{Variable Substrate} + {Fixed Co-substrate}\".\n3.  **Missing Data**: Return null (None) for missing fields. Do not hallucinate.",
+      "fields": [
+        {
+          "prefix": "Document Text:",
+          "description": "Full document content (Main + SI)."
+        },
+        {
+          "prefix": "Reasoning: Let's think step by step in order to",
+          "description": "${reasoning}"
+        },
+        {
+          "prefix": "Extracted Data:",
+          "description": "\n        A JSON object containing EXACTLY ONE key: \"experiments\". \n        The value of \"experiments\" must be a LIST of objects. \n        Each object matches the NanozymeExperiment schema (formula, km_value, etc.).\n        DO NOT summarize. DO NOT use keys like 'nanozyme_name' or 'findings'.\n        "
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.11",
+      "dspy": "3.0.4",
+      "cloudpickle": "3.1"
+    }
+  }
+}
