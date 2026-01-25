@@ -3,46 +3,61 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  # Base Python & Data Science Stack
+  # --- Core Python & Jupyter ---
   - python=3.11
   - pip
+  - jupyterlab
+  - ipywidgets
+  
+  # --- Data Science Stack (Stable Binaries) ---
   - pandas
   - numpy
-  - scipy
+  - scipy                 # Needed for linear_sum_assignment (Hungarian Algo)
   - matplotlib
   - seaborn
   - tqdm
-  - jupyterlab
-  - ipywidgets
-  - pytest
-  - python-levenshtein
+  - python-levenshtein    # Essential for Legacy Metrics in benchmark.py
   
-  # Pip dependencies
+  # --- PyTorch (Base) ---
+  # Installing via conda is recommended to manage CUDA/CPU versions correctly
+  # before pip installs heavy ML libraries like Marker.
+  # Remove 'cpuonly' if you have a GPU and want to use it.
+  - pytorch
+  - cpuonly 
+
   - pip:
-      # --- Core Frameworks ---
-      - dspy-ai>=2.5.0          # LLM Orchestration (MIPROv2 support)
+      # --- Frameworks & Config ---
+      - dspy-ai>=2.5.0          # LLM Orchestration (MIPROv2)
       - pydantic>=2.0           # Data Validation
-      - pydantic-settings       # Config management
-      
-      # --- Web UI (Streamlit) ---
+      - pydantic-settings       # For loading .env and managing Config
+      - python-dotenv           # Loading .env files
+      - requests                # Required for aee/llm.py (Ollama streaming)
+
+      # --- Web UI ---
       - streamlit               # Frontend
       - watchdog                # Auto-reload for development
-      
+
       # --- LLM Providers ---
       - google-generativeai     # Gemini
-      - openai                  # Fallback / Tokenizer
+      - openai                  # Fallback / Tokenizer support
       - tiktoken                # Token counting
-      
-      # --- Ingestion / PDF Parsers ---
+
+      # --- Ingestion & PDF Parsing ---
+      # Docling & Marker are heavy. We pin some versions to avoid conflicts.
       - docling                 # IBM Docling
-      - onnxruntime             # Required for RapidOCR (CPU) stability
-      - pymupdf                 # Fast PDF processing
-      - pdfplumber              # Legacy table extraction
-      - marker-pdf              # Marker (Heavy dependency, includes PyTorch)
+      - marker-pdf              # Marker (Note: Pulls in its own PyTorch dependencies if not present)
+      - pymupdf                 # Fast PDF processing (fitz)
+      - pdfplumber              # Legacy table extraction logic
       
+      # --- OCR & Runtime ---
+      # Docling relies on RapidOCR. Explicitly installing onnxruntime prevents
+      # some "missing dll" errors on Windows/Linux containers.
+      - onnxruntime             # Use onnxruntime-gpu if you have CUDA setup
+      - rapidocr-onnxruntime
+
       # --- Data Utilities ---
       - datasets                # Hugging Face Datasets
-      - python-dotenv           # Loading .env files
+      - huggingface_hub         # Authentication for HF
 
-      # --- Other ---
-      - umap-learn
+      # --- Visualization (Optional) ---
+      - umap-learn              # For embedding visualization in Playground
