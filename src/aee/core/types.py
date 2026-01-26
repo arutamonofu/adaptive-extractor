@@ -26,6 +26,4 @@ class ProcessedDocument(BaseModel):
     model_config = ConfigDict(frozen=False)
 
     text_content: str
-    tables: List[str] = Field(default_factory=list)
-    images: List[str] = Field(default_factory=list)
     metadata: DocumentMetadata

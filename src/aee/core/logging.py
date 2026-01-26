@@ -22,7 +22,7 @@ def setup_logging() -> logging.Logger:
     - Writes to stderr (separating logs from script output).
     - Suppresses chatter from third-party libraries.
     """
-    app_level = settings.log_level.upper()
+    app_level = settings.project.log_level.upper()
 
     logging.basicConfig(
         level=app_level,

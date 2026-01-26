@@ -8,27 +8,20 @@ import dspy
 import pandas as pd
 from pydantic import BaseModel, BeforeValidator, Field
 
+from aee.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 def clean_number(v: Any) -> Optional[float]:
-    """
-    Robustly extracts the first valid floating point number from a string.
-    Handles OCR artifacts and scientific notation.
-    """
     if v is None:
         return None
     if isinstance(v, (float, int)):
         return float(v)
 
     if isinstance(v, str):
-        # Normalize OCR dashes to standard hyphen
         s = v.replace("−", "-").replace("–", "-").replace("—", "-").strip()
-        # Remove spaces in scientific notation like "10 -5" -> "10-5"
         s = re.sub(r'(?i)10\s*[-]\s*(\d+)', r'10-\1', s)
-        
-        # Pattern to catch floats and scientific notation
         pattern = r"[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?"
-        
         match = re.search(pattern, s)
         if match:
             try:
@@ -39,65 +32,29 @@ def clean_number(v: Any) -> Optional[float]:
 
 RobustFloat = Annotated[Optional[float], BeforeValidator(clean_number)]
 
-class NanozymeExperiment(BaseModel):
-    """
-    Structured representation of a single nanozyme kinetic experiment.
-    Schema aligns with the nanoMINER ontology.
-    """
-    
-    # Material Properties
+class NanozymeExperiment(BaseModel):    
     formula: str = Field(..., description="Chemical formula (e.g., Fe3O4, Au, CuO).")
-
-    surface: Optional[str] = Field(
-        None, 
-        description="Surface chemistry (naked, PEG, PVP, citrate), Polymer (olelic acid, BSA), or Surfactant (l-ascorbic acid, sodium citrate, etc)."
-    )
-    
-    syngony: Optional[str] = Field(
-        None,
-        description="Crystal system: cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, amorphous, triclinic."
-    )
-
-    # Dimensions
+    surface: Optional[str] = Field(None, description="Surface chemistry (naked, PEG, PVP, citrate), Polymer (olelic acid, BSA), or Surfactant (l-ascorbic acid, sodium citrate, etc).")
+    syngony: Optional[str] = Field(None, description="Crystal system: cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, amorphous, triclinic.")
     length: RobustFloat = Field(None, description="Length or size/diameter in nm.")
     width: RobustFloat = Field(None, description="Width in nm (if applicable).")
     depth: RobustFloat = Field(None, description="Depth in nm (if applicable).")
-
-    # Activity & Reaction
-    activity: Literal[
-        "peroxidase", "oxidase", "catalase", "laccase", 
-        "superoxide_dismutase", "glucose oxidase", "other"
-    ] = Field(..., description="Type of catalytic activity.")
-    
-    reaction_type: Optional[str] = Field(
-        None, 
-        description="Format: 'Substrate + Co-substrate'. Tracks: TMB+H2O2 (TMB varies), H2O2+TMB (H2O2 varies)."
-    )
-
-    # Kinetic Parameters
+    activity: Literal["peroxidase", "oxidase", "catalase", "laccase", "superoxide_dismutase", "glucose oxidase", "other"] = Field(..., description="Type of catalytic activity.")
+    reaction_type: Optional[str] = Field(None, description="Format: 'Substrate + Co-substrate'. Tracks: TMB+H2O2 (TMB varies), H2O2+TMB (H2O2 varies).")
     km_value: RobustFloat = Field(None, description="Michaelis constant Km (Mantissa).")
     km_unit: Optional[str] = Field(None, description="Unit for Km (e.g., mM).")
-
     vmax_value: RobustFloat = Field(None, description="Max reaction rate Vmax (Mantissa).")
     vmax_unit: Optional[str] = Field(None, description="Unit for Vmax (e.g., M/s, mM/s).")
-
-    # Conditions
     ph: RobustFloat = Field(None, description="pH level.")
     temperature: RobustFloat = Field(None, description="Temperature in °C.")
-
-    # Concentrations
     c_min: RobustFloat = Field(None, description="Min concentration of variable substrate (mM).")
     c_max: RobustFloat = Field(None, description="Max concentration of variable substrate (mM).")
-    
     c_const: RobustFloat = Field(None, description="Concentration of fixed co-substrate (mM).")
     c_const_unit: Optional[str] = Field(None, description="Unit for c_const.")
-
     ccat_value: RobustFloat = Field(None, description="Concentration of the nanozyme/catalyst.")
     ccat_unit: Optional[str] = Field(None, description="Unit for catalyst conc (e.g., mcg/ml, mg/mL).")
 
-
 class NanozymeExtractionOutput(BaseModel):
-    """Container for extracted experiments."""
     experiments: List[NanozymeExperiment] = Field(default_factory=list)
 
 
@@ -147,11 +104,7 @@ class NanozymeSignature(dspy.Signature):
         desc="A list of structured experiments matching the schema."
     )
 
-
 def row_to_nanozyme(row: pd.Series) -> Optional[NanozymeExperiment]:
-    """
-    Converts a Pandas CSV row into a NanozymeExperiment model.
-    """
     def _get(key: str, type_cast: Type = str, alt_keys: List[str] = None) -> Any:
         val = row.get(key)
         if (pd.isna(val) or val == "") and alt_keys:
@@ -159,18 +112,13 @@ def row_to_nanozyme(row: pd.Series) -> Optional[NanozymeExperiment]:
                 val = row.get(alt)
                 if not (pd.isna(val) or val == ""):
                     break
-        
         if pd.isna(val) or str(val).strip().lower() in ("nan", "", "none"):
             return None
-            
-        try:
-            return type_cast(val)
-        except (ValueError, TypeError):
-            return None
+        try: return type_cast(val)
+        except: return None
 
     formula = _get("formula")
-    if not formula:
-        return None
+    if not formula: return None
 
     raw_activity = str(_get("activity")).lower()
     valid_activities = ["peroxidase", "oxidase", "catalase", "laccase", "superoxide_dismutase", "glucose oxidase"]
@@ -180,46 +128,29 @@ def row_to_nanozyme(row: pd.Series) -> Optional[NanozymeExperiment]:
         formula=formula,
         surface=_get("surface"),
         syngony=_get("syngony"),
-        
         length=_get("length", float),
         width=_get("width", float),
         depth=_get("depth", float),
-        
         activity=activity,
         reaction_type=_get("reaction_type"),
-        
         km_value=_get("km_val", float, ["km_value"]),
         km_unit=_get("km_unit"),
         vmax_value=_get("vmax_value", float, ["vmax_val"]),
         vmax_unit=_get("vmax_unit"),
-        
         ph=_get("ph", float),
         temperature=_get("temp", float, ["temperature"]),
-        
         c_min=_get("c_min", float),
         c_max=_get("c_max", float),
         c_const=_get("c_cons", float, ["c_const"]),
         c_const_unit=_get("c_cons_unit", str, ["c_const_unit"]),
-        
         ccat_value=_get("ccat_value", float),
         ccat_unit=_get("ccat_unit"),
     )
 
 task_config = {
     "name": "nanozymes",
-    "description": "Extraction of kinetic parameters for nanozymes",
     "signature": NanozymeSignature,
     "output_model": NanozymeExtractionOutput,
     "row_converter": row_to_nanozyme,
-    
-    "compare_fields": [
-        "formula", 
-        "activity", 
-        "reaction_type",
-        "km_value", 
-        "vmax_value", 
-        "ph", 
-        "temperature",
-        "ccat_value"
-    ]
+    "compare_fields": settings.task.evaluation.compare_fields
 }

@@ -36,15 +36,6 @@ class TextCleaner:
         re.IGNORECASE
     )
 
-    # Chemical formula spacing fixes:
-    # "Fe 3" -> "Fe3" (Letter-Space-Digit)
-    _CHEM_LSD_RE = re.compile(r'([a-zA-Z])\s+(\d)') 
-    # "3 O" -> "3O" (Digit-Space-Letter)
-    _CHEM_DSL_RE = re.compile(r'(\d)\s+([a-zA-Z])') 
-    
-    # Citation brackets fix: "[ 12, 13 ]" -> "[12, 13]"
-    _CITATION_RE = re.compile(r'\[\s+(\d+(?:,\s*\d+)*)\s+\]')
-
     @classmethod
     def _decode_hex_match(cls, match: re.Match) -> str:
         """Helper to convert hex code (FB01) to unicode char (ﬁ)."""
@@ -84,12 +75,5 @@ class TextCleaner:
         for bad, good in cls._SCIENTIFIC_FIXES.items():
             if bad in text:
                 text = text.replace(bad, good)
-
-        # Fix spacing in chemical formulas
-        text = cls._CHEM_LSD_RE.sub(r'\1\2', text)
-        text = cls._CHEM_DSL_RE.sub(r'\1\2', text)
-
-        # Fix spacing in citations
-        text = cls._CITATION_RE.sub(r'[\1]', text)
 
         return text
