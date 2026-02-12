@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acsomega.0c00147.pdf",
+    "filename": "acsomega.0c00147.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.5,
+        "width": 3.5,
+        "depth": 3.5,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 2.02,
+        "km_unit": "mM",
+        "vmax_value": 1.15e-06,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.018,
+        "c_max": 0.357,
+        "c_const": 300.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      },
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.5,
+        "width": 3.5,
+        "depth": 3.5,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 43.6,
+        "km_unit": "mM",
+        "vmax_value": 8.5e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.039,
+        "c_max": 0.177,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      }
+    ]
+  },
+  "reasoning": "The article reports peroxidase‑like activity of polyethyleneimine‑stabilized platinum nanoparticles (Ptₙ‑PEI, specifically Pt50‑PEI).  \nKinetic assays were performed at 30 °C and pH 4.0, varying one substrate while keeping the other at a fixed concentration. Two separate kinetic experiments are described:\n\n1. **TMB as the variable substrate** (H₂O₂ constant).  \n   - Variable TMB concentration range: 0.018 – 0.357 mM.  \n   - Fixed H₂O₂ concentration used in the assay is 0.3 M (300 mM) as stated in the kinetic‑analysis method.  \n   - Michaelis–Menten parameters for TMB: Km = 2.02 mM, Vmax = 115 × 10⁻⁸ M s⁻¹.  \n\n2. **H₂O₂ as the variable substrate** (TMB constant).  \n   - Variable H₂O₂ concentration range: 0.039 – 0.177 mM.  \n   - Fixed TMB concentration used in the assay is 0.8 mM as described in the method.  \n   - Michaelis–Menten parameters for H₂O₂: Km = 43.6 mM, Vmax = 8.50 × 10⁻⁸ M s⁻¹.  \n\nBoth experiments use Ptₙ‑PEI nanoparticles with:\n- Formula **Pt** (platinum).  \n- Activity **peroxidase**.  \n- Nanoparticle core size 3.21–3.70 nm (average ≈ 3.5 nm).  \n- Surface/Polymer **PEI** (polyethyleneimine) as stabilizer.  \n- No additional surfactant.  \n- Measured at pH 4.0 and 30 °C.  \n- Catalyst concentration in the kinetic assays: 6 µM for the TMB‑varying assay and 2 µM for the H₂O₂‑varying assay (converted to null for ccat because mass units are not provided).\n\nAccording to the required “track” logic:\n- When TMB is varied and H₂O₂ is constant → **reaction_type** = “TMB+H₂O2”.  \n- When H₂O₂ is varied and TMB is constant → **reaction_type** = “H2O2+TMB”.\n\nThese two experiments are extracted as separate objects, each containing all required fields (formula, activity, size, surface, syngony where applicable, kinetic constants, reaction type, pH, temperature, and concentration ranges)."
+}

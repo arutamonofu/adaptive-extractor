@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.talanta.2015.03.050.pdf",
+    "filename": "j.talanta.2015.03.050.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan-modified",
+        "syngony": null,
+        "length": 80.0,
+        "width": 80.0,
+        "depth": 80.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.396,
+        "km_unit": "mM",
+        "vmax_value": 1.41e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      },
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan-modified",
+        "syngony": null,
+        "length": 80.0,
+        "width": 80.0,
+        "depth": 80.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 94.7,
+        "km_unit": "mM",
+        "vmax_value": 2.92e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 50.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic parameters for the chitosan‑modified popcorn‑like Au‑Ag nanoparticles (CSPNPs) that exhibit intrinsic peroxidase‑like activity. Two separate kinetic assays were performed:\n\n1. **TMB as substrate (H₂O₂ as co‑substrate)** – the concentration of TMB was varied while H₂O₂ was kept constant (5 mM).  \n2. **H₂O₂ as substrate (TMB as co‑substrate)** – the concentration of H₂O₂ was varied while TMB was kept constant (50 mM).\n\nTable 1 provides the Michaelis constant (Kₘ) and maximal velocity (Vₘₐₓ) for each substrate. The experiments were carried out at pH 4.0, 45 °C, using CSPNPs of average size ≈ 80 nm (length/width/depth). The catalyst concentration used in the kinetic measurements is not explicitly given, so it is left null. Surface chemistry is described as “chitosan‑modified”. The crystal system (syngony) is not reported.\n\nAccordingly, two NanozymeExperiment objects are created, each containing the formula, activity, size, surface, reaction type, kinetic constants, pH, temperature and the fixed co‑substrate concentration."
+}

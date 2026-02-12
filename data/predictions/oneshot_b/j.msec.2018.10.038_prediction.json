@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": null,
+        "length": 607.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB",
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.025,
+        "c_max": 1.2,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 20.0,
+        "ccat_unit": "mg/L"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of Co3O4/CuO hollow nanocage (HNC) nanocomposites, which exhibit enhanced oxidase-like activity. The nanocomposites were prepared by hydrothermal treatment of ZIF-67 in copper nitrate solution, followed by carbonization in air. The oxidase-like activity of the Co3O4/CuO HNCs was evaluated by catalytic oxidation of TMB in the absence of H2O2, and the reaction kinetics were analyzed. The nanocomposites were then used to develop a colorimetric biosensing method for dopamine (DA) based on its inhibiting effect on TMB oxidation. The method allows for DA detection with a limit of detection of 0.027 μM and a dynamic range of 0.05 - 8 μM. The article also includes detailed characterization of the nanocomposites using various analytical techniques."
+}

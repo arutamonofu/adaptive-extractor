@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.talanta.2015.03.050.pdf",
+    "filename": "j.talanta.2015.03.050.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan-modified",
+        "syngony": null,
+        "length": 80.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.396,
+        "km_unit": "mM",
+        "vmax_value": 1.41,
+        "vmax_unit": "M s^-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 50.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      },
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan-modified",
+        "syngony": null,
+        "length": 80.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 94.7,
+        "km_unit": "mM",
+        "vmax_value": 2.92,
+        "vmax_unit": "M s^-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 10.0,
+        "c_max": 1000.0,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic studies for the chitosan‑modified popcorn‑like Au‑Ag nanoparticles (CSPNPs) that exhibit peroxidase‑like activity.  \nTwo separate kinetic assays were performed:\n\n1. **TMB as the substrate** – the concentration of TMB was varied (0.01–1.0 mM) while H₂O₂ was kept constant at 50 mM.  \n   * Km (TMB) = 0.396 mM, Vmax = 1.41 M s⁻¹ (reported as 1.41 × 10⁸ M s⁻¹ in the paper; we keep the mantissa).  \n   * Reaction type is “TMB + H₂O₂”.\n\n2. **H₂O₂ as the substrate** – the concentration of H₂O₂ was varied (0.01–1.0 M, i.e. 10–1000 mM) while TMB was kept constant at 5 mM.  \n   * Km (H₂O₂) = 94.7 mM, Vmax = 2.92 M s⁻¹ (reported as 2.92 × 10⁸ M s⁻¹; mantissa kept).  \n   * Reaction type is “H₂O₂ + TMB”.\n\nBoth assays were carried out at pH 4.0 and 45 °C, using CSPNPs of average size ≈ 80 nm (popcorn‑like morphology). The surface chemistry is chitosan‑modified. No crystal system (syngony) is reported, so it is left null. Catalyst concentration is not explicitly given; therefore the catalyst‑related fields are set to null.\n\nThese two experiments satisfy the requirement to extract only those nanozyme systems for which kinetic parameters (Km, Vmax) were measured."
+}

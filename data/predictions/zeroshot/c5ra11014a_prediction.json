@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C5RA11014A.pdf",
+    "filename": "C5RA11014A.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 100.0,
+        "width": 30.0,
+        "depth": 20.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.165,
+        "km_unit": "mM",
+        "vmax_value": 2.4e-08,
+        "vmax_unit": "M/s",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.0,
+        "c_max": 15.0,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg/mL"
+      },
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 100.0,
+        "width": 30.0,
+        "depth": 20.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.058,
+        "km_unit": "mM",
+        "vmax_value": 1.4e-08,
+        "vmax_unit": "M/s",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.0,
+        "c_max": 5.0,
+        "c_const": 100.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of VO2(A) nanoplates, which exhibit peroxidase-like activity. The key experiments involve the catalytic oxidation of TMB in the presence of H2O2, with detailed kinetic parameters provided. The experiments are conducted under specific conditions, including varying concentrations of TMB and H2O2, and the kinetic parameters (Km and Vmax) are determined for both substrates.\n\nThe article provides the following relevant data:\n1. **Formula**: VO2(A)\n2. **Activity**: Peroxidase\n3. **Syngony**: Tetragonal (P4/ncc)\n4. **Size/Diameter**: Width: 30-50 nm, Length: 100-200 nm, Thickness: 20-30 nm\n5. **Surface Chemistry**: Not explicitly mentioned, but likely naked (default)\n6. **Polymer**: Not mentioned\n7. **Surfactant**: Not mentioned\n8. **Reaction Type**: TMB + H2O2 and H2O2 + TMB\n9. **Kinetic Parameters**:\n   - For TMB as substrate: Km = 0.165 mM, Vmax = 2.4 x 10^-8 M/s\n   - For H2O2 as substrate: Km = 0.058 mM, Vmax = 1.4 x 10^-8 M/s\n10. **Concentration of Nanoparticles**: 0.3 mg/mL\n11. **pH**: 4.0\n12. **Temperature**: 25°C\n\nThe experiments are divided into two tracks based on the reaction type:\n- **Track 1 (TMB + H2O2)**: TMB is the variable substrate, and H2O2 is the fixed co-substrate.\n- **Track 2 (H2O2 + TMB)**: H2O2 is the variable substrate, and TMB is the fixed co-substrate."
+}

@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 607.0,
+        "width": 607.0,
+        "depth": 607.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB + O2",
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.025,
+        "c_max": 1.2,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 20.0,
+        "ccat_unit": "mg L-1"
+      }
+    ]
+  },
+  "reasoning": "Not supplied for this particular example."
+}

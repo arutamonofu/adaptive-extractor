@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acsomega.0c00147.pdf",
+    "filename": "acsomega.0c00147.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 2.02,
+        "km_unit": "mM",
+        "vmax_value": 1.15e-06,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.018,
+        "c_max": 0.357,
+        "c_const": 0.3,
+        "c_const_unit": "M",
+        "ccat_value": 6.0,
+        "ccat_unit": "μM"
+      },
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 43.6,
+        "km_unit": "mM",
+        "vmax_value": 8.5e-08,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.039,
+        "c_max": 0.177,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": 2.0,
+        "ccat_unit": "μM"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of polyethyleneimine-stabilized platinum nanoparticles (Pt n -PEI NPs) and their application in the colorimetric detection of glucose. The key experiments involve the peroxidase-like activity of Pt50-PEI NPs, which catalyze the oxidation of TMB in the presence of H2O2. The optimal conditions for this reaction are pH 4.0 at 30°C. The kinetic parameters (Km and Vmax) for the reaction with TMB and H2O2 as substrates are provided. The method is used to detect glucose with a linear range from 10 to 5000 μM and a detection limit of 4.2 μM. The stability and selectivity of the Pt50-PEI NPs are also discussed."
+}

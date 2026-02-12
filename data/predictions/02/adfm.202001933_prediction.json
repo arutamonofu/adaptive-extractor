@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/adfm.202001933.pdf",
+    "filename": "adfm.202001933.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "GeO2",
+        "surface": null,
+        "syngony": null,
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": 1000.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.42,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "GeO2",
+        "surface": null,
+        "syngony": null,
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": 1000.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.75,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of GeO2 nanozymes, which exhibit peroxidase-like activity without oxidase-like activity. The nanozymes are white, which eliminates color interference in colorimetric assays. The article also details the steady-state kinetics of the nanozymes and their application in detecting organophosphate pesticides using a colorimetric assay.\n\nThe experiments involve the following parameters:\n1. **Formula**: GeO2\n2. **Activity**: Peroxidase\n3. **Syngony**: Not specified\n4. **Length, Width, Depth**: Besom-like morphology with width of ≈ 100 nm and length of ≈ 1 µm\n5. **Surface**: Not specified\n6. **Polymer**: Not specified\n7. **Surfactant**: CTAB (Cetyltrimethylammonium bromide)\n8. **Michaelis constant (Km)**: 0.42 mM for TMB, 1.75 mM for H2O2\n9. **Maximal reaction rate (Vmax)**: 23.4 × 10^-8 M s^-1\n10. **Reaction type**: TMB + H2O2 and H2O2 + TMB\n11. **Minimum concentration of the substrate (C_min)**: Not specified\n12. **Maximum concentration of the substrate (C_max)**: Not specified\n13. **Concentration of the co-substrate (C_const)**: Not specified\n14. **Concentration of nanoparticles (ccat_value)**: 0.1 mg mL^-1\n15. **pH**: 4.0\n16. **Temperature**: 37 °C"
+}

@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/s00604-021-04942-7.pdf",
+    "filename": "s00604-021-04942-7.pdf",
+    "page_count": 11,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "Cr(VI)+H2O2",
+        "km_value": 0.454,
+        "km_unit": "μM",
+        "vmax_value": 30.69,
+        "vmax_unit": "nM/s",
+        "ph": null,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      },
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "H2O2+Cr(VI)",
+        "km_value": 4.375,
+        "km_unit": "μM",
+        "vmax_value": 25.0,
+        "vmax_unit": "nM/s",
+        "ph": null,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic experiments performed with negatively charged citrate‑capped gold nanoparticles (AuNPs) that act as an **oxidase‑like nanozyme**.  \nTwo separate steady‑state kinetic assays were carried out:\n\n1. **Cr(VI) as the variable substrate** while hydrogen peroxide (H₂O₂) was kept constant.  \n   – Michaelis constant **Km = 0.454 μM** and maximal rate **Vmax = 30.69 nM s⁻¹** were obtained (Table 1).  \n   – The nanozyme concentration used in the assay was **17 nM AuNPs** (the same concentration employed in the colorimetric sensing).  \n   – AuNPs are citrate‑capped, spherical with an average diameter of **≈15 nm**.  \n   – Experiments were carried out at **room temperature (≈25 °C)** in acetate buffer (pH 3), but pH and temperature are not directly linked to the kinetic parameters, so they are recorded as available.\n\n2. **H₂O₂ as the variable substrate** while Cr(VI) was kept constant.  \n   – Michaelis constant **Km = 4.375 μM** and maximal rate **Vmax = 25.00 nM s⁻¹** (Table 1).  \n   – All other nanozyme characteristics (formula, size, surface, concentration, temperature) are identical to experiment 1.\n\nBoth experiments satisfy the requirement of “kinetic assay performed” and therefore are extracted as separate NanozymeExperiment objects. The reaction type is expressed as “Substrate + Co‑substrate” following the prescribed format."
+}

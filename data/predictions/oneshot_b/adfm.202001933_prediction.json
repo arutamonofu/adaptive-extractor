@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/adfm.202001933.pdf",
+    "filename": "adfm.202001933.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "GeO2",
+        "surface": null,
+        "syngony": null,
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.42,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": 0.06,
+        "c_max": 1.0,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg/mL"
+      },
+      {
+        "formula": "GeO2",
+        "surface": null,
+        "syngony": null,
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.75,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": 0.3,
+        "c_max": 4.0,
+        "c_const": 0.6,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of GeO2 nanozymes, which exhibit peroxidase-like activity without oxidase-like activity. The nanozymes are white, eliminating color interference in colorimetric assays. The article also details the steady-state kinetics of the nanozymes and their application in detecting organophosphate pesticides using a colorimetric assay. The nanozymes show high sensitivity and specificity in detecting paraoxon, a model organophosphate pesticide, with a low limit of detection. The article concludes by discussing the potential of GeO2 nanozymes in developing reliable and sensitive colorimetric assays for various applications."
+}

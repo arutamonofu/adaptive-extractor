@@ -1,0 +1,82 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.snb.2021.130266.pdf",
+    "filename": "j.snb.2021.130266.pdf",
+    "page_count": 23,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Ru@V2O4",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.045,
+        "km_unit": "mM",
+        "vmax_value": 1.09e-07,
+        "vmax_unit": "M·s^-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.1,
+        "c_max": 1.0,
+        "c_const": 0.5,
+        "c_const_unit": "mM",
+        "ccat_value": 7.0,
+        "ccat_unit": "μg/mL"
+      },
+      {
+        "formula": "Ru@V2O4",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.183,
+        "km_unit": "mM",
+        "vmax_value": 7.9e-08,
+        "vmax_unit": "M·s^-1",
+        "ph": 4.0,
+        "temperature": 35.0,
+        "c_min": 0.1,
+        "c_max": 1.0,
+        "c_const": 0.5,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "μg/mL"
+      },
+      {
+        "formula": "Ru@V2O4",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.045,
+        "km_unit": "mM",
+        "vmax_value": 1.36e-07,
+        "vmax_unit": "M·s^-1",
+        "ph": 4.0,
+        "temperature": 35.0,
+        "c_min": 0.01,
+        "c_max": 0.1,
+        "c_const": 0.25,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "μg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of Ru@V2O4 nanowires with multi-enzyme-like activities. The experiments involve the kinetic investigation of the oxidase (OD) and peroxidase (POD) activities of Ru@V2O4 nanowires using TMB as a substrate. The kinetic parameters Km and Vmax are determined for both activities. The article also describes the application of these nanowires in the colorimetric detection of H2O2 and cysteine (Cys).\n\nThe experiments are divided into two main tracks based on the reaction type:\n1. TMB + H2O2 (TMB as substrate and H2O2 as co-substrate)\n2. H2O2 + TMB (H2O2 as substrate and TMB as co-substrate)\n\nFor the TMB + H2O2 track, the concentration of TMB varies from 0.1 to 1.0 mM, and the concentration of H2O2 is kept constant at 0.5 mM. For the H2O2 + TMB track, the concentration of H2O2 varies from 0.01 to 0.1 mM, and the concentration of TMB is kept constant at 0.25 mM.\n\nThe kinetic parameters Km and Vmax are calculated for both tracks. The Km value for TMB as a substrate is 0.183 mM, and the Vmax value is 7.9 × 10^-8 M·s^-1. The Km value for H2O2 as a substrate is 0.045 mM, and the Vmax value is 1.36 × 10^-7 M·s^-1.\n\nThe article also describes the application of Ru@V2O4 nanowires in the colorimetric detection of H2O2 and cysteine (Cys). The detection limit for H2O2 is 0.788 μM, and the detection limit for Cys is 0.139 μM."
+}

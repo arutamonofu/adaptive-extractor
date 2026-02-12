@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acs.analchem.7b02880.pdf",
+    "filename": "acs.analchem.7b02880.pdf",
+    "page_count": 44,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.0429,
+        "km_unit": "mM",
+        "vmax_value": 5.882,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 700.0,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "µg/mL"
+      },
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 138.5,
+        "km_unit": "mM",
+        "vmax_value": 4.77,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.1,
+        "c_const": 800.0,
+        "c_const_unit": "µM",
+        "ccat_value": 5.0,
+        "ccat_unit": "µg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of gold-loaded nanoporous ferric oxide nanocubes (Au-NPFe2O3NC) and their peroxidase-mimicking activity. The nanocubes exhibit enhanced peroxidase-like activity towards the catalytic oxidation of 3,3′,5,5′-tetramethylbenzidine (TMB) in the presence of H2O2 at room temperature. The activity follows Michaelis-Menten kinetics, and the kinetic parameters were determined by varying the concentrations of H2O2 and TMB.\n\nThe article also describes the use of these nanocubes in a molecular sensor for the colorimetric and electrochemical detection of p53-specific autoantibodies in serum or plasma samples. The sensor was tested on samples from patients with epithelial ovarian cancer high-grade serous subtype (EOCHGS) and controls (benign).\n\nThe experiments involve the following parameters:\n- Formula: Au-NPFe2O3NC\n- Activity: Peroxidase\n- Syngony: Not specified\n- Length, Width, Depth: Not specified\n- Surface Chemistry: Not specified\n- Polymer: Not specified\n- Surfactant: Not specified\n- Reaction Type: TMB + H2O2 and H2O2 + TMB\n- Kinetic Parameters: Km and Vmax for both TMB and H2O2\n- Concentration of Substrates: C_min and C_max for TMB and H2O2\n- Concentration of Co-substrate: Constant concentration of H2O2 or TMB\n- Concentration of Nanoparticles: 5 µg/mL\n- pH: 3.5\n- Temperature: 25°C\n\nThe kinetic assays were performed by varying the concentration of H2O2 (0.01 to 1.1 M) at a fixed concentration of TMB (800 µM) and vice versa for varying the concentration of TMB (0.01 to 1.0 mM) at 700 mM H2O2. The apparent kinetic parameters were calculated using the Michaelis-Menten equation and Lineweaver-Burk plots."
+}

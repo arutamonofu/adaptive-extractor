@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 133.78,
+        "width": 133.78,
+        "depth": 133.78,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 50.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 20.0,
+        "ccat_unit": "mg"
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 133.78,
+        "width": 133.78,
+        "depth": 133.78,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 50.0,
+        "c_min": 0.1,
+        "c_max": 1.0,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 20.0,
+        "ccat_unit": "mg"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of flower-like Cu9S8 nanoparticles and their application as peroxidase mimics for the degradation of organic dyes. The key experiments involve the catalytic oxidation of TMB (3,3',5,5'-tetramethylbenzidine) using H2O2 (hydrogen peroxide) in the presence of Cu9S8 nanoparticles. The kinetic parameters (Km and Vmax) for the reaction were determined by varying the concentrations of TMB and H2O2. The article also includes details on the degradation of various organic dyes using the Cu9S8 nanoparticles.\n\nThe experiments can be divided into two tracks based on the reaction types:\n1. **Track 1 (TMB + H2O2)**: TMB is the substrate, and H2O2 is the co-substrate.\n2. **Track 2 (H2O2 + TMB)**: H2O2 is the substrate, and TMB is the co-substrate.\n\nFor **Track 1 (TMB + H2O2)**:\n- The concentration of H2O2 is fixed at 0.1 mM.\n- The concentration of TMB varies from 0.1 mM to 0.5 mM.\n- The Km value for TMB is 0.660 mM.\n- The Vmax value for TMB is 0.716 x 10^-8 M/s.\n\nFor **Track 2 (H2O2 + TMB)**:\n- The concentration of TMB is fixed at 0.1 mM.\n- The concentration of H2O2 varies from 0.1 mM to 1.0 mM.\n- The Km value for H2O2 is 0.449 mM.\n- The Vmax value for H2O2 is 0.851 x 10^-8 M/s.\n\nThe article also provides details on the characterization of the Cu9S8 nanoparticles, including their crystal structure, morphology, and surface properties. The nanoparticles exhibit a flower-like morphology with a large pore size, which enhances their catalytic activity."
+}

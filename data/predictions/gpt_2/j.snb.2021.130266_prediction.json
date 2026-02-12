@@ -1,0 +1,82 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.snb.2021.130266.pdf",
+    "filename": "j.snb.2021.130266.pdf",
+    "page_count": 23,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Ru@V2O4",
+        "surface": null,
+        "syngony": null,
+        "length": 2000.0,
+        "width": 250.0,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": null,
+        "km_value": 0.045,
+        "km_unit": "mM",
+        "vmax_value": 1.09e-07,
+        "vmax_unit": "M s-1",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 7.0,
+        "ccat_unit": "µg mL-1"
+      },
+      {
+        "formula": "Ru@V2O4",
+        "surface": null,
+        "syngony": null,
+        "length": 2000.0,
+        "width": 250.0,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.183,
+        "km_unit": "mM",
+        "vmax_value": 7.9e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 35.0,
+        "c_min": 0.1,
+        "c_max": 1.0,
+        "c_const": 0.5,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "µg mL-1"
+      },
+      {
+        "formula": "Ru@V2O4",
+        "surface": null,
+        "syngony": null,
+        "length": 2000.0,
+        "width": 250.0,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.045,
+        "km_unit": "mM",
+        "vmax_value": 1.36e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 35.0,
+        "c_min": 0.0,
+        "c_max": 0.1,
+        "c_const": 0.25,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "µg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic data for Ru@V₂O₄ nanowires that exhibit four enzyme‑mimicking activities.  \nOnly the oxidase‑like (OD) and peroxidase‑like (POD) activities have quantitative kinetic parameters (Km and Vmax) and therefore are extracted as separate experiments.  \n\n**Oxidase‑like activity** – TMB is oxidized in acetate buffer (pH 3.5) at 25 °C. The kinetic assay varied TMB from 0.01 mM to 1.0 mM (no co‑substrate). Reported Km = 0.045 mM and Vmax = 1.09 × 10⁻⁷ M s⁻¹ (Table S1). Catalyst concentration used in the assay was 7 µg mL⁻¹. Nanowire dimensions are given as 2 µm – several µm in length and ~200–300 nm in width; a representative length of 2000 nm and width of 250 nm are recorded.\n\n**Peroxidase‑like activity – TMB as substrate** – The assay was performed in acetate buffer (pH 4, 35 °C) with a fixed H₂O₂ concentration of 0.5 mM. TMB concentration was varied from 0.1 mM to 1.0 mM. Reported Km = 0.183 mM and Vmax = 7.9 × 10⁻⁸ M s⁻¹ (Table S2). Catalyst concentration was 5 µg mL⁻¹.\n\n**Peroxidase‑like activity – H₂O₂ as substrate** – Same buffer and temperature, with a fixed TMB concentration of 0.25 mM. H₂O₂ concentration was varied from 0 mM to 0.1 mM. Reported Km = 0.045 mM and Vmax = 1.36 × 10⁻⁷ M s⁻¹ (Table S2). Catalyst concentration again 5 µg mL⁻¹.\n\nAll other required fields (formula, activity, size, pH, temperature, kinetic constants, substrate ranges, constant co‑substrate concentrations, catalyst concentration) are filled accordingly. The crystal system (syngony) is not specified, so it is left null."
+}

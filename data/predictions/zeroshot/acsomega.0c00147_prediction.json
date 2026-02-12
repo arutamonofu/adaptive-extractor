@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acsomega.0c00147.pdf",
+    "filename": "acsomega.0c00147.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Pt",
+        "surface": "polyethyleneimine",
+        "syngony": null,
+        "length": 3.21,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 2.02,
+        "km_unit": "mM",
+        "vmax_value": 115.0,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.018,
+        "c_max": 0.357,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": 6.0,
+        "ccat_unit": "μM"
+      },
+      {
+        "formula": "Pt",
+        "surface": "polyethyleneimine",
+        "syngony": null,
+        "length": 3.21,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 43.6,
+        "km_unit": "mM",
+        "vmax_value": 8.5,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.039,
+        "c_max": 0.177,
+        "c_const": 0.3,
+        "c_const_unit": "M",
+        "ccat_value": 2.0,
+        "ccat_unit": "μM"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of polyethyleneimine-stabilized platinum nanoparticles (Pt n -PEI NPs) and their use as peroxidase mimics for the colorimetric detection of glucose. The key experiments involve the catalytic oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) in the presence of H2O2, which generates blue oxidized TMB (oxTMB). The optimal conditions for this reaction were determined to be pH 4.0 at 30°C. The kinetic parameters, including the Michaelis constant (Km) and maximum reaction rate (Vmax), were measured for both TMB and H2O2 as substrates.\n\nThe article provides detailed information on the synthesis process, including the concentrations of reagents used and the conditions under which the reactions were carried out. The kinetic assays were performed by varying the concentrations of TMB and H2O2 while keeping the other substrate constant. This allows for the determination of the kinetic parameters for each substrate separately.\n\nThe experiments described in the article involve the following parameters:\n- Formula: Pt\n- Activity: Peroxidase\n- Length: 3.21 nm, 3.38 nm, 3.70 nm\n- Surface chemistry: Polyethyleneimine (PEI)\n- Polymer: Polyethyleneimine (PEI)\n- Reaction type: TMB + H2O2 and H2O2 + TMB\n- Concentration of the co-substrate when measuring the catalytic activity: 0.8 mM (TMB) and 0.3 M (H2O2)\n- Concentration of nanoparticles in the measurement of catalytic activity: 6 μM\n- pH: 4.0\n- Temperature: 30°C\n- Michaelis constant (Km) and maximum reaction rate (Vmax) for TMB and H2O2"
+}

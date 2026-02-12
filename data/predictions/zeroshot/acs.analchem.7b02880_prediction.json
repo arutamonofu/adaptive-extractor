@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acs.analchem.7b02880.pdf",
+    "filename": "acs.analchem.7b02880.pdf",
+    "page_count": 44,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.0429,
+        "km_unit": "mM",
+        "vmax_value": 5.882,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 700.0,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "µg"
+      },
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 138.5,
+        "km_unit": "mM",
+        "vmax_value": 4.77,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.1,
+        "c_const": 800.0,
+        "c_const_unit": "µM",
+        "ccat_value": 5.0,
+        "ccat_unit": "µg"
+      }
+    ]
+  },
+  "reasoning": "The article describes experiments involving gold-loaded nanoporous ferric oxide nanocubes (Au-NPFe2O3NC) with peroxidase-mimicking activity. The key parameters for the experiments are as follows:\n\n1. **Formula**: Au-NPFe2O3NC\n2. **Activity**: Peroxidase\n3. **Reaction Type**: The article mentions two types of reactions:\n   - TMB + H2O2 (TMB varies)\n   - H2O2 + TMB (H2O2 varies)\n4. **Kinetic Parameters**: Michaelis-Menten constant (Km) and maximum reaction rate (Vmax) are provided for both TMB and H2O2.\n5. **Concentration of Substrates**: The concentrations of TMB and H2O2 are varied to determine the kinetic parameters.\n6. **Temperature**: The experiments are conducted at room temperature (25°C).\n7. **pH**: The optimal pH for the peroxidase-like activity is 3.5.\n8. **Concentration of Nanoparticles**: 5 µg of Au-NPFe2O3NC is used in the experiments.\n9. **Surface Chemistry**: The nanocubes are functionalized with IgG for the detection of p53 autoantibodies.\n10. **Other Parameters**: The article provides details on the synthesis and characterization of Au-NPFe2O3NC, including TEM, SEM, and XRD data.\n\nThe experiments are divided into two tracks based on the reaction type:\n- Track 1: TMB + H2O2 (TMB varies)\n- Track 2: H2O2 + TMB (H2O2 varies)\n\nFor each track, the kinetic parameters (Km and Vmax) are determined by varying the concentration of the substrate while keeping the co-substrate concentration constant."
+}

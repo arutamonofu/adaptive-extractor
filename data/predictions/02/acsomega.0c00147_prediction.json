@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acsomega.0c00147.pdf",
+    "filename": "acsomega.0c00147.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": 3.21,
+        "depth": 3.21,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 2.02,
+        "km_unit": "mM",
+        "vmax_value": 1.15e-07,
+        "vmax_unit": "Ms−1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.018,
+        "c_max": 0.357,
+        "c_const": 0.3,
+        "c_const_unit": "M",
+        "ccat_value": 6.0,
+        "ccat_unit": "μM"
+      },
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": 3.21,
+        "depth": 3.21,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 43.6,
+        "km_unit": "mM",
+        "vmax_value": 8.5e-09,
+        "vmax_unit": "Ms−1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.039,
+        "c_max": 0.177,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": 2.0,
+        "ccat_unit": "μM"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of polyethyleneimine-stabilized platinum nanoparticles (Pt n -PEI NPs) and their application as peroxidase mimics for colorimetric detection of glucose. The key experiments involve the catalytic oxidation of TMB in the presence of H2O2, with detailed kinetic studies and optimization of reaction conditions. The experiments are conducted with varying concentrations of TMB and H2O2 to determine the Michaelis-Menten kinetic parameters. The article also includes the detection of glucose using the peroxidase-like activity of Pt50-PEI NPs, with a focus on the linear range and detection limit of the method."
+}

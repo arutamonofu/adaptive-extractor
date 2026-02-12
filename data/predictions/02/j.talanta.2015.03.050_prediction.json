@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.talanta.2015.03.050.pdf",
+    "filename": "j.talanta.2015.03.050.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": 80.0,
+        "depth": 80.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.396,
+        "km_unit": "mM",
+        "vmax_value": 1.41e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 0.01,
+        "c_max": 50.0,
+        "c_const": 50.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      },
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": 80.0,
+        "depth": 80.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 94.7,
+        "km_unit": "mM",
+        "vmax_value": 2.92e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 0.01,
+        "c_max": 50.0,
+        "c_const": 50.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of chitosan-modified popcorn-like Au-Ag nanoparticles (CSPNPs) and their application in the detection of melamine in milk powder. The CSPNPs exhibit peroxidase-like activity and can catalyze the oxidation of TMB by H2O2, producing a charge transfer complex (CTC) that generates a strong SERRS signal. The presence of melamine reduces the available H2O2 for the oxidation of TMB, leading to a decrease in the SERRS intensity of the CTC. This decrease is proportional to the concentration of melamine, allowing for its detection over a wide range with high sensitivity and selectivity.\n\nThe article provides detailed information on the synthesis of CSPNPs, their characterization, and the optimization of experimental conditions for the detection of melamine. Kinetic parameters for the catalytic oxidation of TMB by CSPNPs are also reported, along with a comparison to other catalysts such as HRP and Fe3O4 nanoparticles.\n\nThe experiments involve varying the concentrations of TMB and H2O2 to determine the kinetic parameters (Km and Vmax) for the peroxidase-like activity of CSPNPs. The reaction conditions, including pH, temperature, and the size of CSPNPs, are optimized to achieve the best catalytic performance."
+}

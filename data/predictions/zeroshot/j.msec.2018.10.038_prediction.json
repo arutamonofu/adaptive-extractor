@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 607.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB + O2",
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 20.0,
+        "ccat_unit": "mg/L"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of Co3O4/CuO hollow nanocage (HNC) hybrids and their oxidase-like activity. The experiments involve the catalytic oxidation of 3,3′,5,5′-tetramethylbenzidine (TMB) in the absence of H2O2, indicating the oxidase-like activity of the Co3O4/CuO HNCs. The kinetic measurements were performed to determine the Michaelis-Menten constant (Km) and the maximum reaction rate (Vmax) for the reaction between TMB and dissolved oxygen in the presence of Co3O4/CuO HNCs.\n\nThe key parameters extracted from the article include:\n- **Formula**: Co3O4/CuO\n- **Activity**: Oxidase\n- **Syngony**: Cubic (for Co3O4) and Monoclinic (for CuO)\n- **Length/Size/Diameter**: 607 nm (average size of Co3O4/CuO HNCs)\n- **Surface Chemistry**: Not explicitly mentioned, but likely naked or with minimal surface modification.\n- **Polymer Used in Synthesis**: None explicitly mentioned.\n- **Surfactant**: None explicitly mentioned.\n- **Michaelis Constant (Km)**: 0.22 mM (for TMB as the substrate)\n- **Maximum Reaction Rate (Vmax)**: Not explicitly provided, but the kinetic measurements were performed.\n- **Reaction Type**: TMB + O2 (since H2O2 is not used)\n- **Minimum Concentration of Substrate (C_min)**: Not explicitly provided.\n- **Maximum Concentration of Substrate (C_max)**: Not explicitly provided.\n- **Concentration of Co-substrate (C_const)**: Not explicitly provided.\n- **Concentration of Nanoparticles (ccat_value)**: 20 mg/L\n- **pH**: 4.0\n- **Temperature**: 40 °C\n\nThe article provides detailed information on the synthesis and characterization of Co3O4/CuO HNCs, including their structural properties and catalytic activity. The kinetic measurements and the conditions under which the experiments were conducted are clearly described, allowing for the extraction of the relevant parameters."
+}

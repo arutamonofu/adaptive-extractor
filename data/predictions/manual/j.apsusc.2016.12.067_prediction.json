@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.APSUSC.2016.12.067.pdf",
+    "filename": "J.APSUSC.2016.12.067.pdf",
+    "page_count": 7,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4",
+        "surface": "PVP",
+        "syngony": "cubic",
+        "length": 1.9,
+        "width": 1.9,
+        "depth": 0.6,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.012,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 5.2,
+        "c_const_unit": "μM",
+        "ccat_value": 36.0,
+        "ccat_unit": "μg"
+      },
+      {
+        "formula": "Co3O4",
+        "surface": "PVP",
+        "syngony": "cubic",
+        "length": 1.9,
+        "width": 1.9,
+        "depth": 0.6,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.0262,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 10.0,
+        "c_max": 1000.0,
+        "c_const": 6.2,
+        "c_const_unit": "μM",
+        "ccat_value": 36.0,
+        "ccat_unit": "μg"
+      }
+    ]
+  },
+  "reasoning": "The article describes the preparation of Co3O4 microbelts using an electrospinning technique combined with calcination. The peroxidase-like activity of these microbelts was investigated using H2O2 and TMB as substrates. The microbelts with the highest specific surface area exhibited the best catalytic activity and stability. The Michaelis constants (Km) for TMB and H2O2 were determined, and the microbelts showed good affinity to these substrates. The activity of the microbelts was also tested under different pH and temperature conditions, and they exhibited high activity over a wide range of pH and temperature. The recycling experiments showed that the microbelts maintained their activity even after multiple cycles.\n\nThe article provides detailed information about the synthesis, characterization, and peroxidase-like activity of Co3O4 microbelts. The experiments were conducted with varying concentrations of TMB and H2O2 to determine the kinetic parameters. The microbelts with the highest specific surface area showed the best catalytic activity, indicating that the surface area plays a crucial role in the peroxidase-like activity. The article also discusses the stability and recycling of the microbelts, which are important for their practical applications.\n\nThe experiments were conducted at a temperature of 40°C and a pH of 4.0. The concentrations of TMB and H2O2 were varied to determine the Michaelis constants (Km) and the maximum reaction rates (Vmax). The microbelts with the highest specific surface area showed the lowest Km values, indicating a stronger affinity to the substrates. The article also provides information about the stability and recycling of the microbelts, which are important for their practical applications."
+}

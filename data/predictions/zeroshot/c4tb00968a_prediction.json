@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/c4tb00968a.pdf",
+    "filename": "c4tb00968a.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.018,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.0,
+        "c_max": 0.2,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      },
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.77,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 9.0,
+        "c_max": 74.5,
+        "c_const": 25.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and catalytic activity of mesoporous nickel oxide nanoflowers (NiO NFs) with peroxidase-like activity. The experiments involve the oxidation of TMB (3,3',5,5'-tetramethylbenzidine) in the presence of H2O2, with NiO NFs acting as the catalyst. The kinetic parameters, such as Michaelis constant (Km) and maximum reaction rate (Vmax), are determined for both TMB and H2O2 as substrates. The article also discusses the inhibition of this catalytic activity by cysteine and N-acetyl cysteine (NAC).\n\nTo extract the relevant data, we need to identify the following parameters for the experiments:\n1. **Formula**: NiO (Nickel Oxide)\n2. **Activity**: Peroxidase\n3. **Syngony**: Cubic (as inferred from the XRD pattern and typical crystal structure of NiO)\n4. **Length, Width, Depth**: Not explicitly mentioned, but the size of the nanoflowers is in the nanometer range.\n5. **Surface Chemistry**: Not explicitly mentioned, but likely naked or with minimal surface modification.\n6. **Polymer Used**: Not mentioned.\n7. **Surfactant**: Not mentioned.\n8. **Michaelis Constant (Km) and Maximum Reaction Rate (Vmax)**: Provided for both TMB and H2O2.\n9. **Reaction Type**: TMB + H2O2 and H2O2 + TMB (as inferred from the kinetic studies).\n10. **Concentration of Substrates and Co-substrates**: Provided in the kinetic studies.\n11. **Concentration of Catalyst**: 0.5 mg of NiO NFs.\n12. **pH and Temperature**: pH 4.0 and room temperature (approximately 25°C).\n\nThe article provides detailed kinetic data for the oxidation of TMB in the presence of H2O2, with NiO NFs as the catalyst. The Michaelis-Menten parameters are evaluated from Lineweaver-Burk plots, and the data are fitted into the Michaelis-Menten model."
+}

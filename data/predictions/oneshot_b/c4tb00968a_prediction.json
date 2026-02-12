@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/c4tb00968a.pdf",
+    "filename": "c4tb00968a.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.018,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.0,
+        "c_max": 200.0,
+        "c_const": 100.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      },
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.77,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 9.0,
+        "c_max": 74.0,
+        "c_const": 25.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and catalytic activity of mesoporous nickel oxide nanoflowers (NiO NFs) as a peroxidase mimic. The experiments involve the oxidation of TMB (3,3',5,5'-tetramethylbenzidine) in the presence of H2O2, with NiO NFs acting as the catalyst. The article provides detailed kinetic parameters for the oxidation of TMB and H2O2, including Michaelis-Menten constants (Km) and maximum reaction rates (Vmax). The experiments are conducted under specific conditions, including pH, temperature, and concentrations of substrates and catalysts.\n\nThe article also discusses the selectivity of the NiO NFs for cysteine detection, showing that the presence of cysteine inhibits the oxidation of TMB. The kinetic parameters and experimental conditions are crucial for understanding the catalytic activity of NiO NFs and their potential applications in biosensing."
+}

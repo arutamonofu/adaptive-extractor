@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.MICROC.2019.104352.pdf",
+    "filename": "J.MICROC.2019.104352.pdf",
+    "page_count": 13,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VOxQDs",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": 3.39,
+        "depth": 3.39,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.0843,
+        "km_unit": "mM",
+        "vmax_value": 2.809e-06,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.005,
+        "c_max": 0.15,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.2,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "VOxQDs",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": 3.39,
+        "depth": 3.39,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.238,
+        "km_unit": "mM",
+        "vmax_value": 2.73e-06,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.01,
+        "c_max": 0.9,
+        "c_const": 0.3,
+        "c_const_unit": "mM",
+        "ccat_value": 0.2,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports peroxidase‑like activity of vanadium‑oxide quantum dots (VOxQDs). Kinetic parameters are provided in Table S1 and described in the text. Two kinetic tracks are present:\n\n1. **H₂O₂ as the substrate** (TMB is the co‑substrate at a fixed concentration of 1 mM).  \n   - Substrate concentration varied from 0.005 mM to 0.15 mM.  \n   - Km (H₂O₂) = 0.0843 mM, Vmax (H₂O₂) = 2.809 × 10⁻⁶ M s⁻¹.  \n   - Reaction type = “H2O2+TMB”.  \n   - Assay conditions: pH 3.0, 30 °C, VOxQDs concentration = 200 µg mL⁻¹ (0.2 mg mL⁻¹).\n\n2. **TMB as the substrate** (H₂O₂ is the co‑substrate at a fixed concentration of 0.3 mM).  \n   - Substrate concentration varied from 0.01 mM to 0.9 mM.  \n   - Km (TMB) = 0.238 mM, Vmax (TMB) = 2.73 × 10⁻⁶ M s⁻¹.  \n   - Reaction type = “TMB+H2O2”.  \n   - Same assay conditions as above.\n\nAdditional structural information: average particle diameter ≈ 3.39 nm (treated as length/width/depth). No explicit crystal system or surface chemistry is given, so those fields are left null. The activity is peroxidase.\n\nThus, two separate experiment entries are created, each containing all required fields with appropriate units."
+}

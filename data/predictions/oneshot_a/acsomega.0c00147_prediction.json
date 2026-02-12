@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acsomega.0c00147.pdf",
+    "filename": "acsomega.0c00147.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": 3.21,
+        "depth": 3.21,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 2.02,
+        "km_unit": "mM",
+        "vmax_value": 1.15e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.018,
+        "c_max": 0.357,
+        "c_const": 0.3,
+        "c_const_unit": "M",
+        "ccat_value": 0.006,
+        "ccat_unit": "mM"
+      },
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": 3.21,
+        "depth": 3.21,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 43.6,
+        "km_unit": "mM",
+        "vmax_value": 8.5e-09,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.039,
+        "c_max": 0.177,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": 0.002,
+        "ccat_unit": "mM"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of polyethyleneimine-stabilized platinum nanoparticles (Pt n -PEI NPs) and their use as peroxidase mimics for the colorimetric detection of glucose. The key experiments involve the catalytic oxidation of TMB in the presence of H2O2, with kinetic assays performed to determine the Michaelis-Menten constants (Km) and maximum reaction rates (Vmax) for both TMB and H2O2 as substrates. The experiments are conducted under specific conditions of pH and temperature, with detailed measurements of nanoparticle size, stability, and catalytic activity."
+}

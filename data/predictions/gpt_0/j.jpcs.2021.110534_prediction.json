@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": "naked",
+        "syngony": null,
+        "length": 100.0,
+        "width": 600.0,
+        "depth": 30.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "10^-8 M/s",
+        "ph": null,
+        "temperature": null,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": "naked",
+        "syngony": null,
+        "length": 100.0,
+        "width": 600.0,
+        "depth": 30.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "10^-8 M/s",
+        "ph": null,
+        "temperature": null,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic assays for the peroxidase‑like activity of the flower‑like Cu₉S₈ nanozyme.  \nTwo dual‑substrate kinetic experiments were performed:\n\n1. **TMB as the variable substrate** – H₂O₂ was kept constant at 0.1 mM while TMB concentration was varied (0.1 – 0.5 mM). The Michaelis–Menten constant for TMB is Km = 0.660 mM and the corresponding Vmax is 0.716 (units reported as 10⁻⁸ M s⁻¹). This experiment is classified as reaction type **“TMB+H2O2”** (TMB substrate, H₂O₂ co‑substrate).\n\n2. **H₂O₂ as the variable substrate** – TMB was kept constant at 0.1 mM while H₂O₂ concentration was varied (the exact series is not listed, but the kinetic constants are given). The Michaelis–Menten constant for H₂O₂ is Km = 0.449 mM and Vmax = 0.851 (10⁻⁸ M s⁻¹). This experiment is classified as reaction type **“H2O2+TMB”** (H₂O₂ substrate, TMB co‑substrate).\n\nStructural information for the nanozyme is taken from the characterization sections:\n- Formula: **Cu9S8**\n- Activity: **peroxidase**\n- Crystal system (syngony): not explicitly reported → null\n- Morphology: flower‑like microspheres composed of nanosheets; nanosheet thickness ≈ 30 nm, length ≈ 100 nm, width ≈ 600 nm (values extracted from the description of growth stages).\n- Surface chemistry: no specific modifier mentioned → assumed **naked**.\n- No catalyst concentration (Ccat) is given for the kinetic measurements → null.\n- Temperature and pH for the kinetic assay are not specified → null.\n\nBoth experiments are therefore encoded as separate objects, each containing the kinetic parameters (Km, Vmax), the reaction type, the constant co‑substrate concentration, and the substrate concentration range where available."
+}

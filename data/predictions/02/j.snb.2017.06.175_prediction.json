@@ -1,0 +1,82 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.SNB.2017.06.175.pdf",
+    "filename": "J.SNB.2017.06.175.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.2,
+        "km_unit": "mM",
+        "vmax_value": 11.3,
+        "vmax_unit": "10^-8 Ms^-1",
+        "ph": 3.0,
+        "temperature": null,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 4.7,
+        "c_const_unit": "mM",
+        "ccat_value": 50.0,
+        "ccat_unit": "μg mL^-1"
+      },
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.385,
+        "km_unit": "mM",
+        "vmax_value": 472.0,
+        "vmax_unit": "10^-8 Ms^-1",
+        "ph": 3.0,
+        "temperature": null,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 0.24,
+        "c_const_unit": "mM",
+        "ccat_value": 50.0,
+        "ccat_unit": "μg mL^-1"
+      },
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 reduction",
+        "km_value": null,
+        "km_unit": null,
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 3.0,
+        "temperature": null,
+        "c_min": 24.87,
+        "c_max": 3600.0,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 5.0,
+        "ccat_unit": "mg mL^-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuWO4 nanoparticles (CuWO4NPs) and their peroxidase-like activity. The experiments involve the oxidation of TMB in the presence of H2O2 using CuWO4NPs as a catalyst. The kinetic parameters, such as Michaelis-Menten constant (Km) and maximum reaction velocity (Vmax), are determined for different substrates (TMB and H2O2). The article also discusses the application of CuWO4NPs in the detection of NADH and hydrogen peroxide (H2O2).\n\nThe key experiments and their parameters are as follows:\n\n1. **Peroxidase-like activity of CuWO4NPs with TMB as substrate:**\n   - **Reaction type:** TMB + H2O2\n   - **Km value:** 0.20 mM\n   - **Vmax value:** 11.3 × 10^-8 Ms^-1\n   - **pH:** 3\n   - **Temperature:** Not specified\n   - **C_min:** Not specified\n   - **C_max:** Not specified\n   - **C_const:** 4.7 mM (H2O2 concentration)\n   - **Ccat value:** 50 μg mL^-1\n   - **Ccat unit:** μg mL^-1\n\n2. **Peroxidase-like activity of CuWO4NPs with H2O2 as substrate:**\n   - **Reaction type:** H2O2 + TMB\n   - **Km value:** 0.385 mM\n   - **Vmax value:** 472 × 10^-8 Ms^-1\n   - **pH:** 3\n   - **Temperature:** Not specified\n   - **C_min:** Not specified\n   - **C_max:** Not specified\n   - **C_const:** 0.24 mM (TMB concentration)\n   - **Ccat value:** 50 μg mL^-1\n   - **Ccat unit:** μg mL^-1\n\n3. **Electrochemical detection of H2O2 using CuWO4NPs modified GCE:**\n   - **Reaction type:** H2O2 reduction\n   - **Linear range:** 24.87 μM - 3.6 mM\n   - **Sensitivity:** 207.64 μA mM^-1\n   - **Applied potential:** -200 mV\n   - **pH:** 3\n   - **Temperature:** Not specified\n   - **Ccat value:** 5 mg mL^-1 (for GCE modification)\n   - **Ccat unit:** mg mL^-1\n\nThe article also mentions the inhibition of peroxidase-like activity by NADH, but the specific kinetic parameters for this interaction are not provided."
+}

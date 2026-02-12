@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.SNB.2017.06.175.pdf",
+    "filename": "J.SNB.2017.06.175.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.385,
+        "km_unit": "mM",
+        "vmax_value": 472.0,
+        "vmax_unit": "10^-8 * M/s",
+        "ph": 3.0,
+        "temperature": 80.0,
+        "c_min": 0.24,
+        "c_max": 0.24,
+        "c_const": 4.7,
+        "c_const_unit": "mM",
+        "ccat_value": 50.0,
+        "ccat_unit": "µg/mL"
+      },
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.2,
+        "km_unit": "mM",
+        "vmax_value": 11.3,
+        "vmax_unit": "10^-8 * M/s",
+        "ph": 3.0,
+        "temperature": 80.0,
+        "c_min": 4.7,
+        "c_max": 4.7,
+        "c_const": 0.24,
+        "c_const_unit": "mM",
+        "ccat_value": 50.0,
+        "ccat_unit": "µg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuWO4 nanoparticles (CuWO4NPs) and their peroxidase-like activity. The experiments involve the catalytic oxidation of TMB by H2O2, which is monitored spectrophotometrically. The kinetic parameters, such as Michaelis-Menten constant (Km) and maximum reaction rate (Vmax), are determined for both TMB and H2O2 as substrates. The article also discusses the optimization of the catalytic conditions and the application of CuWO4NPs for NADH sensing.\n\nTo extract the relevant data, we need to identify the following parameters for each experiment:\n1. **Formula**: CuWO4\n2. **Activity**: Peroxidase\n3. **Syngony**: Triclinic (as indicated by the XRD pattern and lattice parameters)\n4. **Length, Width, Depth**: The average particle size is 66 nm (spherical morphology)\n5. **Surface Chemistry**: Not explicitly mentioned, but likely naked or with minimal surface modification.\n6. **Polymer**: Not mentioned.\n7. **Surfactant**: Not mentioned.\n8. **Michaelis Constant (Km) and Maximum Reaction Rate (Vmax)**: Provided for both TMB and H2O2.\n9. **Reaction Type**: TMB + H2O2 and H2O2 + TMB (as indicated by the varying concentrations of substrates)\n10. **Concentration of Substrates (C_min, C_max, C_const)**: Provided in the text.\n11. **Concentration of Nanoparticles (ccat_value, ccat_unit)**: 50 µg/mL (from the UV-vis spectra experiments)\n12. **pH and Temperature**: pH 3 and temperature 80°C (optimal conditions for catalytic activity)\n\nThe article provides data for two tracks:\n1. **Track 1 (TMB + H2O2)**: H2O2 is the co-substrate with a constant concentration, and TMB is the variable substrate.\n2. **Track 2 (H2O2 + TMB)**: TMB is the co-substrate with a constant concentration, and H2O2 is the variable substrate."
+}

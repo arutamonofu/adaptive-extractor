@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/s00604-021-04942-7.pdf",
+    "filename": "s00604-021-04942-7.pdf",
+    "page_count": 11,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": 15.0,
+        "depth": 15.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB + Cr(VI)",
+        "km_value": 0.454,
+        "km_unit": "μM",
+        "vmax_value": 30.69,
+        "vmax_unit": "nM s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 0.008,
+        "c_max": 0.156,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      },
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": 15.0,
+        "depth": 15.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 4.375,
+        "km_unit": "μM",
+        "vmax_value": 25.0,
+        "vmax_unit": "nM s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      }
+    ]
+  },
+  "reasoning": "The article describes the use of citrate-capped gold nanoparticles (AuNPs) as peroxidase mimics to detect Cr(VI) through the oxidation of TMB. The key experiments involve the catalytic oxidation of TMB by Cr(VI) in the presence of AuNPs, with measurements of kinetic parameters such as Michaelis constant (Km) and maximum reaction rate (Vmax). The experiments are conducted under specific conditions, including pH, temperature, and concentrations of reactants. The data provided includes the kinetic parameters for the oxidation of TMB by Cr(VI) and H2O2, as well as the conditions under which these experiments were performed."
+}

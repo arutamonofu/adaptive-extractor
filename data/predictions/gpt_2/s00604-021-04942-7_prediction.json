@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/s00604-021-04942-7.pdf",
+    "filename": "s00604-021-04942-7.pdf",
+    "page_count": 11,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": 15.0,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "Cr(VI)+H2O2",
+        "km_value": 0.454,
+        "km_unit": "μM",
+        "vmax_value": 30.69,
+        "vmax_unit": "nM/s",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      },
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": 15.0,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "H2O2+Cr(VI)",
+        "km_value": 4.375,
+        "km_unit": "μM",
+        "vmax_value": 25.0,
+        "vmax_unit": "nM/s",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic assays for the negatively charged citrate‑capped gold nanoparticles (AuNPs) acting as oxidase‑like nanozymes. Two separate kinetic experiments were performed:\n\n1. **Cr(VI) as the variable substrate** – the concentration of Cr(VI) was varied while the concentration of H₂O₂ (the co‑substrate) was kept constant. Michaelis‑Menten parameters were obtained: Km = 0.454 μM and Vmax = 30.69 nM s⁻¹.\n\n2. **H₂O₂ as the variable substrate** – the concentration of H₂O₂ was varied while the concentration of Cr(VI) (the co‑substrate) was kept constant. Michaelis‑Menten parameters were obtained: Km = 4.375 μM and Vmax = 25.00 nM s⁻¹.\n\nBoth experiments were carried out at room temperature (≈25 °C) in 0.2 M acetate buffer at pH 3.0, using 17 nM citrate‑capped AuNPs (average diameter ≈15 nm). The surface chemistry is citrate (negatively charged). The activity type is “oxidase” (peroxidase‑like activity is also reported for AuNPs, but the kinetic data are described for oxidase‑mimetic behavior).  \n\nAccording to the required schema, each kinetic assay is represented as a separate `NanozymeExperiment` object, with the appropriate reaction type, kinetic constants, catalyst concentration, size, surface, pH, temperature, etc. Values that are not explicitly given (e.g., the exact constant co‑substrate concentration, substrate concentration ranges) are left as `null`."
+}

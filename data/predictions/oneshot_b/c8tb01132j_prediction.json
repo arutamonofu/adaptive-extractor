@@ -1,0 +1,15 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C8TB01132J.pdf",
+    "filename": "C8TB01132J.pdf",
+    "page_count": 40,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": []
+  },
+  "reasoning": "The provided text appears to be a scientific article or report, likely from a journal or conference proceeding. The text includes various sections such as the abstract, introduction, experimental section, results and discussion, and references. It also includes supplementary information and figures. The content seems to be related to the development and application of mesoporous iron oxide nanoparticles for detecting DNA methylation. The text is formatted with Markdown syntax, which is commonly used for writing and publishing scientific documents."
+}

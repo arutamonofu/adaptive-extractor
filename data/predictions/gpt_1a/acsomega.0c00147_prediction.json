@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acsomega.0c00147.pdf",
+    "filename": "acsomega.0c00147.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.5,
+        "width": 3.5,
+        "depth": 3.5,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 2.02,
+        "km_unit": "mM",
+        "vmax_value": 115.0,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.018,
+        "c_max": 0.357,
+        "c_const": 300.0,
+        "c_const_unit": "mM",
+        "ccat_value": 6.0,
+        "ccat_unit": "μM"
+      },
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.5,
+        "width": 3.5,
+        "depth": 3.5,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 43.6,
+        "km_unit": "mM",
+        "vmax_value": 8.5,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.039,
+        "c_max": 0.177,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": 6.0,
+        "ccat_unit": "μM"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic experiments for the polyethyleneimine‑stabilized platinum nanozyme (Pt‑PEI). Two kinetic assays were performed:\n\n1. **TMB as the variable substrate** (H₂O₂ kept constant).  \n   - Michaelis‑Menten parameters for TMB: Km = 2.02 mM, Vmax = 115 × 10⁻⁸ M s⁻¹.  \n   - Substrate concentration range: 0.018 mM – 0.357 mM.  \n   - Co‑substrate (H₂O₂) concentration fixed at 0.3 M (300 mM).  \n   - Optimal assay conditions: pH 4.0, 30 °C.  \n   - Catalyst: Pt nanoparticles (average size ≈ 3.5 nm) stabilized by PEI, concentration used in the assay 6 μM.\n\n2. **H₂O₂ as the variable substrate** (TMB kept constant).  \n   - Michaelis‑Menten parameters for H₂O₂: Km = 43.6 mM, Vmax = 8.50 × 10⁻⁸ M s⁻¹.  \n   - Substrate concentration range: 0.039 mM – 0.177 mM.  \n   - Co‑substrate (TMB) concentration fixed at 0.8 mM.  \n   - Same optimal assay conditions: pH 4.0, 30 °C.  \n   - Same catalyst description as above.\n\nBoth experiments exhibit peroxidase‑like activity. The extracted data are formatted as separate experiment objects following the required schema."
+}

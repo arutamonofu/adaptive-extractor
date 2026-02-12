@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/c4tb00968a.pdf",
+    "filename": "c4tb00968a.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "hexagonal",
+        "length": 3.0,
+        "width": 5.0,
+        "depth": 3.8,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.018,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.0,
+        "c_max": 0.2,
+        "c_const": 100.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      },
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "hexagonal",
+        "length": 3.0,
+        "width": 5.0,
+        "depth": 3.8,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.77,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 9.0,
+        "c_max": 74.0,
+        "c_const": 25.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      }
+    ]
+  },
+  "reasoning": "Not supplied for this particular example."
+}

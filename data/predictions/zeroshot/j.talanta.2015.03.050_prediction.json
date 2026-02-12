@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.talanta.2015.03.050.pdf",
+    "filename": "j.talanta.2015.03.050.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.396,
+        "km_unit": "mM",
+        "vmax_value": 1.41,
+        "vmax_unit": "M/s",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 50.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": "mg/mL"
+      },
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 94.7,
+        "km_unit": "mM",
+        "vmax_value": 2.92,
+        "vmax_unit": "M/s",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and catalytic properties of chitosan-modified popcorn-like Au-Ag nanoparticles (CSPNPs). The experiments involve the peroxidase-like activity of CSPNPs, which catalyze the oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) by H2O2. The kinetic parameters, including Michaelis constant (Km) and maximal reaction velocity (Vmax), are provided for both TMB and H2O2 as substrates. The article also details the conditions under which these experiments were conducted, including pH, temperature, and concentrations of reactants. The data for the kinetic assay is clearly presented in Table 1, which includes the Km and Vmax values for CSPNPs with TMB and H2O2 as substrates. The reaction type is identified as TMB + H2O2, where TMB is the variable substrate and H2O2 is the fixed co-substrate."
+}

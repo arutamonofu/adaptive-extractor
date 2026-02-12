@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.colsurfa.2022.129887.pdf",
+    "filename": "j.colsurfa.2022.129887.pdf",
+    "page_count": 16,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": 400.0,
+        "width": 400.0,
+        "depth": 400.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB",
+        "km_value": 0.0499,
+        "km_unit": "mM",
+        "vmax_value": 7.504e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.0,
+        "c_max": 0.8,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 0.025,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic parameters only for the oxidase‑like activity of CuMnO₂ nanoflowers (CuMnO₂NFs) toward the oxidation of TMB. Table 1 gives the Michaelis constant (Kₘ = 0.0499 mM) and the maximal rate (Vₘₐₓ = 75.04 × 10⁻⁸ M s⁻¹) for this reaction. The kinetic assay was performed by varying the TMB concentration from 0 to 0.8 mM while keeping the catalyst amount constant (5 µg in 0.2 mL, i.e. 0.025 mg mL⁻¹). The optimal experimental conditions were pH 4.0 and 30 °C. The nanoflowers have an average particle size of ~400 nm (SEM/TEM). No crystal system (syngony) or surface modification is reported, so those fields are left null. The reaction type is simply “TMB” because no H₂O₂ co‑substrate is involved in the oxidase‑like process.\n\nAll required fields (formula, activity) are filled, and the extracted values follow the units specified in the schema."
+}

@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/s00604-021-04942-7.pdf",
+    "filename": "s00604-021-04942-7.pdf",
+    "page_count": 11,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": "cubic",
+        "length": 15.0,
+        "width": 15.0,
+        "depth": 15.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB + Cr(VI)",
+        "km_value": 0.454,
+        "km_unit": "μM",
+        "vmax_value": 30.69,
+        "vmax_unit": "nM/s",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 0.15,
+        "c_max": 3.0,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      }
+    ]
+  },
+  "reasoning": "The article describes experiments involving the catalytic activity of citrate-capped gold nanoparticles (AuNPs) in the oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) by hexavalent chromium ion (Cr(VI)). The key parameters for the experiments include the formula of the nanoparticles, their catalytic activity, and the conditions under which the catalytic activity was measured.\n\n1. **Formula**: The nanoparticles used are citrate-capped gold nanoparticles (AuNPs).\n2. **Activity**: The AuNPs exhibit oxidase-like activity, which is used to catalyze the oxidation of TMB by Cr(VI).\n3. **Syngony**: The crystal structure of AuNPs is not explicitly mentioned, but gold typically forms face-centered cubic (fcc) structures.\n4. **Size**: The average particle size of negatively charged AuNPs is about 15 ± 1.5 nm, and for positively charged AuNPs, it is about 20 ± 2.1 nm.\n5. **Surface Chemistry**: The AuNPs are citrate-capped, which provides a negative charge.\n6. **Reaction Type**: The reaction involves TMB and Cr(VI). The article does not specify the exact reaction type in terms of varying substrates and co-substrates, but it implies that Cr(VI) acts as the oxidizing agent.\n7. **Kinetic Parameters**: The Michaelis-Menten constant (Km) and maximum reaction velocity (Vmax) are provided for the reaction involving Cr(VI) and hydrogen peroxide (H2O2) as a model. For Cr(VI), Km is 0.454 μM and Vmax is 30.69 nM/s. For H2O2, Km is 4.375 μM and Vmax is 25.00 nM/s.\n8. **Concentration of Substrates and Co-substrates**: The concentration of TMB is 4 mM, and the concentration of Cr(VI) varies from 0.008 to 0.156 mg/L (which converts to approximately 0.15 to 3 μM).\n9. **Concentration of Nanoparticles**: The concentration of AuNPs is 17 nM.\n10. **pH and Temperature**: The reaction is carried out at pH 3 and room temperature.\n\nThe article provides detailed information on the catalytic activity of AuNPs, including the kinetic parameters and the conditions under which the reactions were performed. This information is crucial for extracting the relevant data for each experiment."
+}

@@ -1,7 +1,7 @@
 {
     "train_manual": [
-        "10.1016/j.jallcom.2016.04.269",
-        "10.1039/C9TB00989B"
+        "j.jallcom.2016.04.269",
+        "c9tb00989b"
     ],
     "train_auto": [
         "acsami.0c07886",

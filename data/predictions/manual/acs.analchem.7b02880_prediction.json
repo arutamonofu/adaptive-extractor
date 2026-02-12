@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acs.analchem.7b02880.pdf",
+    "filename": "acs.analchem.7b02880.pdf",
+    "page_count": 44,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Fe2O3",
+        "surface": null,
+        "syngony": "cubic",
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.0429,
+        "km_unit": "mM",
+        "vmax_value": 5.882e-08,
+        "vmax_unit": "Ms-1",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 700.0,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "μg"
+      },
+      {
+        "formula": "Fe2O3",
+        "surface": null,
+        "syngony": "cubic",
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 138.5,
+        "km_unit": "mM",
+        "vmax_value": 4.77e-08,
+        "vmax_unit": "Ms-1",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.1,
+        "c_const": 800.0,
+        "c_const_unit": "μM",
+        "ccat_value": 5.0,
+        "ccat_unit": "μg"
+      }
+    ]
+  },
+  "reasoning": "Not supplied for this particular example."
+}

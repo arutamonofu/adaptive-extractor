@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/c4tb00968a.pdf",
+    "filename": "c4tb00968a.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 3.0,
+        "width": 3.0,
+        "depth": 3.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.018,
+        "km_unit": "mM",
+        "vmax_value": 1.71,
+        "vmax_unit": "10–8 M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": 20.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.003,
+        "ccat_unit": "mol mL-1"
+      },
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 3.0,
+        "width": 3.0,
+        "depth": 3.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.77,
+        "km_unit": "mM",
+        "vmax_value": 9.23,
+        "vmax_unit": "10–8 M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 2.0,
+        "c_max": 100.0,
+        "c_const": 0.2,
+        "c_const_unit": "mM",
+        "ccat_value": 0.003,
+        "ccat_unit": "mol mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of mesoporous nickel oxide nanoflowers (NiO NFs) and their peroxidase-like activity. The experiments involve the oxidation of TMB and OPDA in the presence of H2O2, with NiO NFs acting as the catalyst. The kinetic parameters, such as Michaelis constant (Km) and maximum reaction rate (Vmax), are determined for both TMB and H2O2 as substrates. The article also discusses the selective detection of cysteine and N-acetyl cysteine using the peroxidase-like activity of NiO NFs.\n\nThe key experiments involve:\n1. Synthesis of NiO NFs and their characterization.\n2. Peroxidase-like activity of NiO NFs with TMB and H2O2.\n3. Kinetic studies to determine Km and Vmax for TMB and H2O2.\n4. Selective detection of cysteine and N-acetyl cysteine.\n\nThe experiments are conducted at a pH of 4.0 and a temperature of 25°C. The concentration of NiO NFs used in the experiments is 0.003 mol/mL. The concentration of TMB varies from 0 to 200 µM, and the concentration of H2O2 varies from 9 to 74 mM."
+}

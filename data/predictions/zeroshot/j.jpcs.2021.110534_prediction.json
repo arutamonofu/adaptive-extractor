@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": "none",
+        "syngony": "cubic",
+        "length": 133.78,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "mM/s",
+        "ph": 3.0,
+        "temperature": 50.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 0.4,
+        "ccat_unit": "g/L"
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": "none",
+        "syngony": "cubic",
+        "length": 133.78,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "mM/s",
+        "ph": 3.0,
+        "temperature": 50.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 0.4,
+        "ccat_unit": "g/L"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and catalytic activity of flower-like Cu9S8 nanoparticles. The key experiments involve the peroxidase-like activity of these nanoparticles, specifically their interaction with H2O2 and TMB. The kinetic parameters, such as Michaelis constant (Km) and maximum reaction rate (Vmax), are provided for both substrates. The experiments are conducted under specific conditions, including pH, temperature, and concentrations of substrates and co-substrates.\n\nThe article mentions two sets of kinetic experiments:\n1. With H2O2 as the substrate and TMB as the co-substrate.\n2. With TMB as the substrate and H2O2 as the co-substrate.\n\nFor the first set, the concentration of H2O2 is fixed at 0.1 mM, and the concentration of TMB varies. For the second set, the concentration of TMB is fixed at 0.1 mM, and the concentration of H2O2 varies.\n\nThe article provides the following kinetic parameters:\n- Km for H2O2: 0.449 mM\n- Km for TMB: 0.660 mM\n- Vmax for H2O2: 0.851 mM/s\n- Vmax for TMB: 0.716 mM/s\n\nThe article also mentions the size of the flower-like Cu9S8 nanoparticles, which is 133.78 nm. The experiments are conducted at a temperature of 50°C and a pH range of 3.0 to 8.0."
+}

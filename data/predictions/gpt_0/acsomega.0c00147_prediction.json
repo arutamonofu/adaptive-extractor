@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acsomega.0c00147.pdf",
+    "filename": "acsomega.0c00147.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 43.6,
+        "km_unit": "mM",
+        "vmax_value": 8.5,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.039,
+        "c_max": 0.177,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": 2.0,
+        "ccat_unit": "µM"
+      },
+      {
+        "formula": "Pt",
+        "surface": "PEI",
+        "syngony": null,
+        "length": 3.21,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 2.02,
+        "km_unit": "mM",
+        "vmax_value": 115.0,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.018,
+        "c_max": 0.357,
+        "c_const": 0.3,
+        "c_const_unit": "M",
+        "ccat_value": 6.0,
+        "ccat_unit": "µM"
+      }
+    ]
+  },
+  "reasoning": "The article provides kinetic data for the peroxidase‑like activity of the polyethyleneimine‑stabilized platinum nanoparticles (Pt₅₀‑PEI). Two separate kinetic assays were performed:\n\n1. **H₂O₂ as the variable substrate** – TMB was kept at a fixed concentration (0.8 mM) while H₂O₂ concentration was varied from 0.039 mM to 0.177 mM. The Michaelis–Menten constants for this track are Km = 43.6 mM and Vmax = 8.50 × 10⁻⁸ M s⁻¹. The assay was carried out at pH 4.0, 30 °C, using a catalyst concentration of 2 µM Pt₅₀‑PEI. The reaction type is therefore **H₂O₂+TMB** (H₂O₂ substrate, TMB co‑substrate).\n\n2. **TMB as the variable substrate** – H₂O₂ was kept constant at 0.3 M while TMB concentration was varied from 0.018 mM to 0.357 mM. The kinetic parameters are Km = 2.02 mM and Vmax = 115 × 10⁻⁸ M s⁻¹. The same pH (4.0), temperature (30 °C) and catalyst concentration (6 µM) were used. This corresponds to the **TMB+H₂O₂** track (TMB substrate, H₂O₂ co‑substrate).\n\nBoth experiments involve the same nanozyme (Pt, peroxidase activity) with a core Pt nanoparticle size of ~3.21 nm, stabilized by PEI (surface chemistry). No crystal system (syngony) is reported, so it is left null.\n\nThese two distinct experiments satisfy the requirement to extract only the kinetic‑assay data and to separate them into the two reaction tracks."
+}

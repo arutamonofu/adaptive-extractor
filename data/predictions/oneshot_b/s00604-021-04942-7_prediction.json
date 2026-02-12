@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/s00604-021-04942-7.pdf",
+    "filename": "s00604-021-04942-7.pdf",
+    "page_count": 11,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": 15.0,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB + Cr(VI)",
+        "km_value": 0.454,
+        "km_unit": "μM",
+        "vmax_value": 30.69,
+        "vmax_unit": "nM s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 0.008,
+        "c_max": 0.156,
+        "c_const": 4000.0,
+        "c_const_unit": "μM",
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      }
+    ]
+  },
+  "reasoning": "The article describes the development of a colorimetric assay for detecting Cr(VI) using citrate-capped gold nanoparticles (AuNPs) with strong oxidase-like activity. The AuNPs catalyze the oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) by Cr(VI), resulting in a blue-colored oxidation product. The assay is performed at room temperature and requires about half an hour, including the preparation of AuNPs. The detection limit is estimated to be 0.52 μg/L, and the assay shows high selectivity against other interfering ions. The article also includes detailed experimental procedures, characterization of AuNPs, and the mechanism behind the catalytic activity. The kinetic parameters for the reaction are provided, including the Michaelis-Menten constant (Km) and maximum reaction rate (Vmax)."
+}

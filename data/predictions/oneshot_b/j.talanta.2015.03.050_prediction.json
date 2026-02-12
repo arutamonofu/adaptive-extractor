@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.talanta.2015.03.050.pdf",
+    "filename": "j.talanta.2015.03.050.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.396,
+        "km_unit": "mM",
+        "vmax_value": 1.41e-08,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 50.0,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μL"
+      },
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 94.7,
+        "km_unit": "mM",
+        "vmax_value": 2.92e-08,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 10.0,
+        "c_max": 1000.0,
+        "c_const": 800.0,
+        "c_const_unit": "μM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and application of chitosan-modified popcorn-like Au-Ag nanoparticles (CSPNPs) for the detection of melamine in milk powder. The CSPNPs exhibit peroxidase-like activity, catalyzing the oxidation of TMB by H2O2 to produce a charge transfer complex (CTC) that generates a strong surface-enhanced resonant Raman scattering (SERRS) signal. The presence of melamine reduces the available H2O2 for the oxidation of TMB, thereby decreasing the SERRS intensity of the CTC. This decrease in SERRS intensity is proportional to the concentration of melamine, allowing for its detection.\n\nThe article provides detailed experimental conditions and kinetic parameters for the peroxidase-like activity of CSPNPs. Specifically, it mentions the Michaelis-Menten constants (Km) and maximum reaction velocities (Vmax) for the oxidation of TMB and H2O2. The kinetic parameters are crucial for understanding the catalytic efficiency of the CSPNPs.\n\nThe experiments involve varying concentrations of TMB and H2O2 to determine the kinetic parameters. The reaction conditions, such as pH, temperature, and the amounts of CSPNPs, TMB, and H2O2, are optimized to achieve the best catalytic performance.\n\nThe article also includes a comparison of the kinetic parameters of CSPNPs with those of horseradish peroxidase (HRP) and Fe3O4 magnetic nanoparticles (MNPs), highlighting the superior performance of CSPNPs in terms of catalytic activity."
+}

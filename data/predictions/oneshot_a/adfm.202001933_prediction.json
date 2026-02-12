@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/adfm.202001933.pdf",
+    "filename": "adfm.202001933.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "GeO2",
+        "surface": "CTAB",
+        "syngony": "hexagonal",
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": 100.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.42,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 50.0,
+        "c_min": 0.06,
+        "c_max": 1.0,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "GeO2",
+        "surface": "CTAB",
+        "syngony": "hexagonal",
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": 100.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.75,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 50.0,
+        "c_min": 0.3,
+        "c_max": 4.0,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of GeO2 nanozymes, which exhibit peroxidase-like activity without oxidase-like activity. The nanozymes are white, eliminating color interference in colorimetric assays. The article also details the kinetic parameters and stability of these nanozymes, as well as their application in detecting organophosphate pesticides (OPs) using a colorimetric assay.\n\nThe experiments involve the following key parameters:\n1. **Formula**: GeO2\n2. **Activity**: Peroxidase\n3. **Syngony**: Not explicitly mentioned, but typically GeO2 is hexagonal.\n4. **Length, Width, Depth**: Besom-like morphology with width of ≈ 100 nm and length of ≈ 1 µm.\n5. **Surface Chemistry**: Not explicitly mentioned.\n6. **Polymer/Surfactant**: CTAB (Cetyltrimethylammonium bromide) used as a surfactant.\n7. **Michaelis Constant (Km) and Maximum Reaction Rate (Vmax)**: Provided for TMB and H2O2.\n8. **Reaction Type**: TMB + H2O2 and H2O2 + TMB.\n9. **pH and Temperature**: Optimal pH is 4.0, optimal temperature is 50 °C.\n10. **Concentration of Substrates and Co-substrates**: Varies in kinetic assays.\n11. **Concentration of Nanozymes**: 0.1 mg/mL for activity assays.\n\nThe kinetic assays involve varying concentrations of TMB and H2O2 to determine Km and Vmax values. The experiments are conducted under specific pH and temperature conditions to optimize the peroxidase-like activity of GeO2 nanozymes."
+}

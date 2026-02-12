@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.SNB.2017.06.175.pdf",
+    "filename": "J.SNB.2017.06.175.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.2,
+        "km_unit": "mM",
+        "vmax_value": 11.3,
+        "vmax_unit": "10^-8 Ms^-1",
+        "ph": 3.0,
+        "temperature": 80.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 4.7,
+        "c_const_unit": "mM",
+        "ccat_value": 50.0,
+        "ccat_unit": "μg mL^-1"
+      },
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.38,
+        "km_unit": "mM",
+        "vmax_value": 472.0,
+        "vmax_unit": "10^-8 Ms^-1",
+        "ph": 3.0,
+        "temperature": 80.0,
+        "c_min": 10.0,
+        "c_max": 1000.0,
+        "c_const": 0.24,
+        "c_const_unit": "mM",
+        "ccat_value": 50.0,
+        "ccat_unit": "μg mL^-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuWO4 nanoparticles (CuWO4NPs) and their peroxidase-like activity. The nanoparticles were synthesized via a chemical precipitation reaction followed by a hydrothermal process. The peroxidase-like activity of CuWO4NPs was examined using H2O2 and TMB substrates in acetate buffer solution. The kinetics of the peroxidase-like activity were studied by varying the concentrations of TMB and H2O2, and the Michaelis-Menten and Lineweaver-Burk equations were used to calculate the kinetic constants. The CuWO4NPs exhibited superior kinetics over the natural enzyme horse radish peroxidase (HRP) with lower Km values. The CuWO4NPs peroxidase mimicking system was optimized for NADH sensing in the concentration range of 0.2-380 μM with a detection limit of 0.2 μM. Additionally, the CuWO4NPs modified glassy carbon electrode (GCE) reduced H2O2 at a lower onsite potential (-200 mV), allowing for the electrochemical sensing of hydrogen peroxide with a linear range of 24.87 μM - 3.6 mM and a sensitivity of 207.64 μA mM-1."
+}

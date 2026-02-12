@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/s00604-021-04942-7.pdf",
+    "filename": "s00604-021-04942-7.pdf",
+    "page_count": 11,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": 15.0,
+        "depth": 15.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB + Cr(VI)",
+        "km_value": 0.454,
+        "km_unit": "μM",
+        "vmax_value": 30.69,
+        "vmax_unit": "nM s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 0.008,
+        "c_max": 0.156,
+        "c_const": 4000.0,
+        "c_const_unit": "μM",
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      },
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": 15.0,
+        "depth": 15.0,
+        "activity": "oxidase",
+        "reaction_type": "Cr(VI) + TMB",
+        "km_value": 4.375,
+        "km_unit": "μM",
+        "vmax_value": 25.0,
+        "vmax_unit": "nM s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 0.008,
+        "c_max": 0.156,
+        "c_const": 4000.0,
+        "c_const_unit": "μM",
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      }
+    ]
+  },
+  "reasoning": "Not supplied for this particular example."
+}

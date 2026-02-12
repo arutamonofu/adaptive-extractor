@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.MICROC.2019.104352.pdf",
+    "filename": "J.MICROC.2019.104352.pdf",
+    "page_count": 13,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VOxQDs",
+        "surface": "naked",
+        "syngony": null,
+        "length": 3.39,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.0843,
+        "km_unit": "mM",
+        "vmax_value": 2.809,
+        "vmax_unit": "10^-6 M/s",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.005,
+        "c_max": 0.15,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.2,
+        "ccat_unit": "mg/mL"
+      },
+      {
+        "formula": "VOxQDs",
+        "surface": "naked",
+        "syngony": null,
+        "length": 3.39,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.238,
+        "km_unit": "mM",
+        "vmax_value": 2.73,
+        "vmax_unit": "10^-6 M/s",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.01,
+        "c_max": 0.9,
+        "c_const": 0.3,
+        "c_const_unit": "mM",
+        "ccat_value": 0.2,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic characterization of vanadium oxide quantum dots (VOxQDs) that exhibit peroxidase‑like activity. Two separate kinetic assays were performed:\n\n1. **H₂O₂ as the variable substrate** (TMB kept constant at 1 mM).  \n   - H₂O₂ concentration was varied from 0.005 mM to 0.15 mM.  \n   - Km for H₂O₂ = 0.0843 mM, Vmax (when H₂O₂ is the substrate) = 2.809 × 10⁻⁶ M s⁻¹.  \n   - Reaction type is therefore **H₂O₂+TMB** (H₂O₂ substrate, TMB co‑substrate).  \n   - Other experimental conditions: pH 3.0 (acetate buffer), 30 °C, VOxQDs concentration 200 µg mL⁻¹ (0.2 mg mL⁻¹), particle size ≈3.39 nm, surface described as naked (no surfactant or polymer mentioned).\n\n2. **TMB as the variable substrate** (H₂O₂ kept constant at 0.3 mM).  \n   - TMB concentration was varied from 0.01 mM to 0.9 mM.  \n   - Km for TMB = 0.238 mM, Vmax (when TMB is the substrate) = 2.73 × 10⁻⁶ M s⁻¹.  \n   - Reaction type is **TMB+H₂O₂** (TMB substrate, H₂O₂ co‑substrate).  \n   - Same buffer, pH, temperature, catalyst concentration and particle size as above.\n\nBoth experiments share the same nanozyme formula (VOxQDs), activity (peroxidase), size, surface condition, catalyst concentration, pH and temperature. The extracted data are formatted as two distinct `NanozymeExperiment` objects, each containing the relevant kinetic parameters, substrate concentration ranges, and reaction type."
+}

@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.SNB.2017.06.175.pdf",
+    "filename": "J.SNB.2017.06.175.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuWO4",
+        "surface": "naked",
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.38,
+        "km_unit": "mM",
+        "vmax_value": 472.0,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.0,
+        "temperature": 80.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 0.24,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg/mL"
+      },
+      {
+        "formula": "CuWO4",
+        "surface": "naked",
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.2,
+        "km_unit": "mM",
+        "vmax_value": 11.3,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.0,
+        "temperature": 80.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 4.7,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic characterization of CuWO₄ nanoparticles (CuWO₄NPs) as a peroxidase‑like nanozyme.  \nKey information extracted:\n\n* **Catalyst identity** – chemical formula **CuWO₄**, crystal system **triclinic** (distorted wolframite), particle size ≈ 66 nm, surface described as naked (no coating mentioned).  \n* **Catalytic activity** – peroxidase‑like.  \n* **Optimal assay conditions** – acetate buffer 0.1 M, **pH 3**, temperature **80 °C** (maximum activity).  \n* **Kinetic assay** – two separate experiments were performed:\n  1. **H₂O₂ as the variable substrate** (TMB kept constant). The constant TMB concentration used in the spectrophotometric assay is reported as **0.24 mM** (Fig. 6a).  \n  2. **TMB as the variable substrate** (H₂O₂ kept constant). The constant H₂O₂ concentration used is **4.7 mM** (Fig. 6a).  \n* **Nanozyme concentration in the assay** – UV‑vis measurements were carried out with **50 µg mL⁻¹** CuWO₄NPs, i.e. **0.05 mg mL⁻¹**.  \n* **Kinetic parameters** (Table 1) for each substrate:\n  * For **H₂O₂**: Km = 0.38 mM, Vmax = 472 × 10⁻⁸ M s⁻¹.  \n  * For **TMB**: Km = 0.20 mM, Vmax = 11.3 × 10⁻⁸ M s⁻¹.  \n\nThe extracted data are organized into two independent experiment objects, each reflecting one of the two reaction tracks (H₂O₂ + TMB and TMB + H₂O₂). All required fields of the schema are filled; missing quantitative ranges (C_min, C_max, width, depth, etc.) are left as null."
+}

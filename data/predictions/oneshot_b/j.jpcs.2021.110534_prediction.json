@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": 133.78,
+        "width": 1.0,
+        "depth": 30.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 50.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 20.0,
+        "ccat_unit": "mg"
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": 133.78,
+        "width": 1.0,
+        "depth": 30.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 50.0,
+        "c_min": 10.0,
+        "c_max": 120.0,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 20.0,
+        "ccat_unit": "mg"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of flower-like Cu9S8 nanoparticles and their application as peroxidase mimics for the degradation of organic dyes. The key experiments involve the catalytic oxidation of TMB (3,3',5,5'-tetramethylbenzidine) using H2O2 (hydrogen peroxide) in the presence of Cu9S8. The kinetic parameters Km and Vmax are determined for both TMB and H2O2 as substrates. The article provides detailed information on the synthesis process, structural characterization, and catalytic performance of the Cu9S8 nanoparticles.\n\nThe synthesis involves the preparation of Cu-MOF, which is then calcined to form CuO. The CuO is subsequently transformed into flower-like Cu9S8 via an anion exchange method using Na2S. The resulting Cu9S8 nanoparticles exhibit a flower-like morphology with a super-large macroporous structure, which enhances their catalytic activity.\n\nThe catalytic activity of Cu9S8 is evaluated by measuring the oxidation of TMB in the presence of H2O2. The kinetic parameters Km and Vmax are determined for both TMB and H2O2 as substrates. The Km value for H2O2 is found to be 0.449 mM, which is significantly lower than that of horseradish peroxidase (HRP), indicating a higher affinity of Cu9S8 for H2O2. The Km value for TMB is 0.660 mM, which is slightly higher than that of HRP.\n\nThe article also discusses the degradation of various organic dyes using Cu9S8 as a catalyst. The degradation rates for different dyes are reported, and the total organic carbon (TOC) removal efficiency is measured. The Cu9S8 nanoparticles show high catalytic stability and can be reused multiple times without significant loss of activity."
+}

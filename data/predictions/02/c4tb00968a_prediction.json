@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/c4tb00968a.pdf",
+    "filename": "c4tb00968a.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.018,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.0,
+        "c_max": 200.0,
+        "c_const": 100.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      },
+      {
+        "formula": "NiO",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.77,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 9.0,
+        "c_max": 74.0,
+        "c_const": 25.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.5,
+        "ccat_unit": "mg"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of mesoporous nickel oxide nanoflowers (NiO NFs) and their peroxidase-like activity. The experiments involve the oxidation of TMB (3,3',5,5'-tetramethylbenzidine) in the presence of H2O2 using NiO NFs as a catalyst. The kinetic parameters, such as Michaelis constant (Km) and maximum reaction rate (Vmax), are determined for both TMB and H2O2 as substrates. The article also discusses the selective detection of cysteine using the peroxidase-like activity of NiO NFs.\n\nThe experiments are conducted under specific conditions, including pH, temperature, and concentrations of substrates and catalysts. The data provided in the article include the kinetic parameters for the oxidation of TMB and H2O2, as well as the conditions under which these experiments were performed."
+}

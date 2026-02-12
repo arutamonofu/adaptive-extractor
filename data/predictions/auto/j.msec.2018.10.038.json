@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": null,
+        "length": 607.0,
+        "width": 607.0,
+        "depth": 607.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB + O2",
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.025,
+        "c_max": 1.2,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 20.0,
+        "ccat_unit": "mg/L"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of Co3O4/CuO hollow nanocage (HNC) nanocomposites and their oxidase-like activity. The nanocomposites were prepared by hydrothermal treatment of ZIF-67 in copper nitrate solution, followed by carbonization in air. The obtained nanocomposites were characterized by various techniques, including scanning electron microscopy (SEM), transmission electron microscopy (TEM), X-ray photoelectron spectroscopy (XPS), and X-ray diffraction (XRD).\n\nThe article reports that the Co3O4/CuO HNCs possess enhanced oxidase-like activity compared with pure Co3O4 and CuO. The nanocomposites can catalytically oxidize the 3,3′,5,5′-tetramethylbenzidine (TMB) substrate in the absence of H2O2 to produce an intense blue product. Reactive oxygen species (ROS) measurements indicate that 1O2 and O2− radicals are the major ROS in the catalytic oxidation of TMB by dissolved oxygen in the TMB-Co3O4/CuO HNC system.\n\nThe article also describes the development of a simple, sensitive, visual, and colorimetric biosensing method for dopamine (DA) based on its inhibiting effect on TMB oxidation. The proposed method allows for DA detection with a limit of detection of 0.027 μM and a dynamic range of 0.05-8 μM. The method was successfully used to detect DA in biological samples.\n\nThe article provides detailed information about the synthesis, characterization, and oxidase-like activity of the Co3O4/CuO HNCs. It also describes the development of a colorimetric biosensing method for DA detection using the nanocomposites."
+}

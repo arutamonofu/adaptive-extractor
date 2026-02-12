@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.MICROC.2019.104352.pdf",
+    "filename": "J.MICROC.2019.104352.pdf",
+    "page_count": 13,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VOx",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": 3.39,
+        "depth": 3.39,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.238,
+        "km_unit": "mM",
+        "vmax_value": 2.73e-06,
+        "vmax_unit": "Ms-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.01,
+        "c_max": 0.9,
+        "c_const": 0.3,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μg mL-1"
+      },
+      {
+        "formula": "VOx",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": 3.39,
+        "depth": 3.39,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.0843,
+        "km_unit": "mM",
+        "vmax_value": 2.809e-06,
+        "vmax_unit": "Ms-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.005,
+        "c_max": 0.15,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μg mL-1"
+      }
+    ]
+  },
+  "reasoning": "Not supplied for this particular example."
+}

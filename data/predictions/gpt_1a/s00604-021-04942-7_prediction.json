@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/s00604-021-04942-7.pdf",
+    "filename": "s00604-021-04942-7.pdf",
+    "page_count": 11,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "Cr(VI)+TMB",
+        "km_value": 0.454,
+        "km_unit": "µM",
+        "vmax_value": 30.69,
+        "vmax_unit": "nM/s",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      },
+      {
+        "formula": "Au",
+        "surface": "citrate",
+        "syngony": null,
+        "length": 15.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 4.375,
+        "km_unit": "µM",
+        "vmax_value": 25.0,
+        "vmax_unit": "nM/s",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 17.0,
+        "ccat_unit": "nM"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic assays for the negatively charged citrate‑capped gold nanoparticles (AuNPs) acting as oxidase mimics. Two separate kinetic experiments are described:\n\n1. **Cr(VI) as the variable substrate** – the concentration of Cr(VI) is varied while TMB is kept constant (4 mM). Michaelis–Menten parameters are given (Km = 0.454 µM, Vmax = 30.69 nM s⁻¹). This corresponds to the reaction type **Cr(VI)+TMB** (Cr(VI) substrate, TMB co‑substrate).\n\n2. **H₂O₂ as the variable substrate** – the concentration of H₂O₂ is varied while TMB is kept constant (4 mM). Michaelis–Menten parameters are given (Km = 4.375 µM, Vmax = 25.00 nM s⁻¹). This corresponds to the reaction type **H₂O₂+TMB** (H₂O₂ substrate, TMB co‑substrate).\n\nBoth experiments were performed at room temperature (≈ 25 °C) and pH 3.0, using citrate‑capped AuNPs of average diameter ≈ 15 nm at a catalyst concentration of 17 nM. The activity is oxidase‑like. All required fields (formula, activity) are filled; optional fields are populated where data are available."
+}

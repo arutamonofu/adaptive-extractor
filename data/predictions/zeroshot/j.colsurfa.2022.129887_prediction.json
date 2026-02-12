@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.colsurfa.2022.129887.pdf",
+    "filename": "j.colsurfa.2022.129887.pdf",
+    "page_count": 16,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": 385.0,
+        "width": 526.0,
+        "depth": 3.9,
+        "activity": "oxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.0499,
+        "km_unit": "mM",
+        "vmax_value": 75.04,
+        "vmax_unit": "10^-8 MS^-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.0,
+        "c_max": 0.5,
+        "c_const": 0.4,
+        "c_const_unit": "mM",
+        "ccat_value": 65.0,
+        "ccat_unit": "µg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuMnO2 nanoflowers (CuMnO2NFs) and their application in the colorimetric detection of ascorbic acid (AA). The nanoflowers exhibit oxidase-like catalytic activity, which allows them to catalyze the oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) to its oxidized form (ox-TMB) without the need for hydrogen peroxide. This reaction is used to detect AA, as AA reduces ox-TMB back to its colorless form, TMB.\n\nThe article provides detailed information on the synthesis conditions, characterization techniques, and kinetic parameters of the CuMnO2NFs. Specifically, the kinetic parameters Km and Vmax are determined for the reaction where TMB is the substrate and H2O2 is the co-substrate. The reaction conditions, including pH, temperature, and concentrations of TMB and CuMnO2NFs, are optimized for the catalytic activity.\n\nThe extracted data focuses on the kinetic assay performed to determine the Michaelis constant (Km) and the maximum reaction rate (Vmax) for the CuMnO2NFs when TMB is the substrate and H2O2 is the co-substrate. The relevant parameters are extracted and structured according to the provided schema."
+}

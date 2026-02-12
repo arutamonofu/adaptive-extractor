@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.MICROC.2019.104352.pdf",
+    "filename": "J.MICROC.2019.104352.pdf",
+    "page_count": 13,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VOx",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": 3.39,
+        "depth": 3.39,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.0843,
+        "km_unit": "mM",
+        "vmax_value": 2.809e-06,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 200.0,
+        "ccat_unit": "μg mL-1"
+      },
+      {
+        "formula": "VOx",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": 3.39,
+        "depth": 3.39,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.238,
+        "km_unit": "mM",
+        "vmax_value": 2.73e-06,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 200.0,
+        "ccat_unit": "μg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of vanadium oxide quantum dots (VOxQDs) and their application in a colorimetric sensor for detecting glucose levels in blood. The VOxQDs exhibit peroxidase-like activity, which is utilized in conjunction with glucose oxidase (GOx) to detect glucose. The kinetic parameters (Km and Vmax) for the peroxidase-like activity of VOxQDs are provided, along with details on the experimental conditions and the performance of the sensor in detecting glucose.\n\nThe article mentions two sets of kinetic parameters for the VOxQDs:\n1. Using H2O2 as the substrate: Km = 0.0843 mM, Vmax = 2.809 × 10^-6 M s^-1.\n2. Using TMB as the substrate: Km = 0.238 mM, Vmax = 2.73 × 10^-6 M s^-1.\n\nThe experiments were conducted at pH 3.0 and a temperature of 30 °C. The concentration of VOxQDs used in the experiments was 200 μg mL^-1."
+}

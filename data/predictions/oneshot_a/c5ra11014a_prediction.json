@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C5RA11014A.pdf",
+    "filename": "C5RA11014A.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 100.0,
+        "width": 30.0,
+        "depth": 20.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.165,
+        "km_unit": "mM",
+        "vmax_value": 2.4,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": 20.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL^-1"
+      },
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 100.0,
+        "width": 30.0,
+        "depth": 20.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.058,
+        "km_unit": "mM",
+        "vmax_value": 1.4,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 2.0,
+        "c_max": 100.0,
+        "c_const": 0.2,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL^-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of VO2(A) nanoplates, which exhibit peroxidase-like activity. The experiments involve the catalytic oxidation of TMB in the presence of H2O2. The kinetic parameters Km and Vmax are determined for two different reaction types: one where TMB is the variable substrate and H2O2 is the fixed co-substrate, and another where H2O2 is the variable substrate and TMB is the fixed co-substrate.\n\nThe article provides detailed information on the synthesis conditions, including the use of VO(acac)2 as the vanadium source, the hydrothermal synthesis temperature of 220°C, and the reaction time of 24 hours. The morphology and structure of the VO2(A) nanoplates are characterized using various techniques, including PXRD, TEM, and SEM.\n\nThe peroxidase-like activity of the VO2(A) nanoplates is evaluated by measuring the absorbance change of TMB at 652 nm. The kinetic parameters Km and Vmax are calculated using the Michaelis-Menten equation and Lineweaver-Burk plots. The article also compares the kinetic parameters of VO2(A) nanoplates with those of other natural and artificial enzymes.\n\nThe article provides sufficient information to extract the relevant data for the experiments involving the peroxidase-like activity of VO2(A) nanoplates. The data includes the formula of the nanozyme, the type of catalytic activity, the syngony, the dimensions of the nanoplates, the surface chemistry, the reaction type, the kinetic parameters Km and Vmax, the pH and temperature of the reaction, and the concentrations of the substrates and the nanozyme."
+}

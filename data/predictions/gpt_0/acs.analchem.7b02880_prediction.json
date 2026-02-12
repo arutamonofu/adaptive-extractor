@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acs.analchem.7b02880.pdf",
+    "filename": "acs.analchem.7b02880.pdf",
+    "page_count": 44,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.0429,
+        "km_unit": "mM",
+        "vmax_value": 5.882e-08,
+        "vmax_unit": "M/s",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 700.0,
+        "c_const_unit": "mM",
+        "ccat_value": 83.33,
+        "ccat_unit": "µg/mL"
+      },
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 138.5,
+        "km_unit": "mM",
+        "vmax_value": 4.77e-08,
+        "vmax_unit": "M/s",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 10.0,
+        "c_max": 1100.0,
+        "c_const": 0.8,
+        "c_const_unit": "mM",
+        "ccat_value": 83.33,
+        "ccat_unit": "µg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic assays for the gold‑loaded nanoporous ferric oxide nanocubes (Au‑NPFe₂O₃NC) that exhibit peroxidase‑like activity. Two separate kinetic experiments were performed:\n\n1. **TMB as the substrate (H₂O₂ constant)** – the concentration of TMB was varied from 0.01 mM to 1.0 mM while H₂O₂ was kept constant at 700 mM. Michaelis–Menten parameters for the TMB oxidation were given (Km = 0.0429 mM, Vmax = 5.882 × 10⁻⁸ M s⁻¹).\n\n2. **H₂O₂ as the substrate (TMB constant)** – the concentration of H₂O₂ was varied from 0.01 M to 1.1 M (10 mM to 1100 mM) while TMB was kept constant at 800 µM (0.8 mM). Michaelis–Menten parameters for the H₂O₂ oxidation were given (Km = 138.5 mM, Vmax = 4.770 × 10⁻⁸ M s⁻¹).\n\nBoth experiments were carried out at room temperature (25 °C) in 0.2 M sodium acetate buffer, pH 3.5, using 5 µg of nanocubes in a total reaction volume of 60 µL (≈83.3 µg mL⁻¹). The reaction types are identified according to the substrate/co‑substrate convention required:  \n- TMB varied → **reaction_type = \"TMB+H2O2\"** (H₂O₂ is the co‑substrate).  \n- H₂O₂ varied → **reaction_type = \"H2O2+TMB\"** (TMB is the co‑substrate).\n\nAll other fields not explicitly reported (size, crystal system, surface chemistry, etc.) are left null."
+}

@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/adfm.202001933.pdf",
+    "filename": "adfm.202001933.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "GeO2",
+        "surface": null,
+        "syngony": null,
+        "length": 100.0,
+        "width": 1000.0,
+        "depth": 10.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.42,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": 0.06,
+        "c_max": 1.0,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "GeO2",
+        "surface": null,
+        "syngony": null,
+        "length": 100.0,
+        "width": 1000.0,
+        "depth": 10.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.75,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": 0.3,
+        "c_max": 4.0,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "Not supplied for this particular example."
+}

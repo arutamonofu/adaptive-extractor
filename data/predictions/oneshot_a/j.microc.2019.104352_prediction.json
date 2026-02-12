@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.MICROC.2019.104352.pdf",
+    "filename": "J.MICROC.2019.104352.pdf",
+    "page_count": 13,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VOxQDs",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.238,
+        "km_unit": "mM",
+        "vmax_value": 2.73,
+        "vmax_unit": "10^-6 M s^-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.01,
+        "c_max": 0.9,
+        "c_const": 0.3,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μg mL^-1"
+      },
+      {
+        "formula": "VOxQDs",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.0843,
+        "km_unit": "mM",
+        "vmax_value": 2.809,
+        "vmax_unit": "10^-6 M s^-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.005,
+        "c_max": 0.15,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μg mL^-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of vanadium oxide quantum dots (VOxQDs) and their application in a colorimetric assay for detecting glucose levels in blood. The VOxQDs exhibit peroxidase-like activity, which is utilized in the assay. The kinetic parameters for the peroxidase-like activity of VOxQDs are provided, including the Michaelis constant (Km) and maximum reaction rate (Vmax) for different substrates. The article also details the experimental conditions and results for the colorimetric detection of hydrogen peroxide (H2O2) and glucose using the VOxQDs.\n\nThe experiments involve varying concentrations of TMB and H2O2 to determine the kinetic parameters. The article provides specific values for Km and Vmax for both TMB and H2O2, which are crucial for understanding the catalytic efficiency of the VOxQDs. The experiments are conducted at a pH of 3.0 and a temperature of 30°C. The concentration of VOxQDs used in the experiments is 200 μg/mL.\n\nThe article also includes information on the synthesis of VOxQDs, their characterization using TEM, and the optimization of synthesis conditions. The VOxQDs are synthesized using a one-pot solvothermal method with VCl3 as the precursor and ethanol as the solvent. The optimal synthesis temperature is found to be 180°C, resulting in VOxQDs with an average diameter of 3.39 ± 0.57 nm.\n\nThe article provides detailed experimental procedures and results for the colorimetric detection of H2O2 and glucose. The linear range and limit of detection (LOD) for H2O2 and glucose are reported, demonstrating the sensitivity and specificity of the assay."
+}

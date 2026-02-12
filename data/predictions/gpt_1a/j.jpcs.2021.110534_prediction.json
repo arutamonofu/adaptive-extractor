@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.2,
+        "c_max": 100.0,
+        "c_const": 0.2,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic data for the flower‑like Cu₉S₈ nanozyme that mimics peroxidase activity.  \nTwo dual‑substrate kinetic assays were performed:\n\n1. **TMB as substrate, H₂O₂ as constant co‑substrate** – TMB concentrations were varied from 0.10 mM to 0.50 mM while H₂O₂ was kept at 0.10 mM. The Michaelis constant for TMB is Km = 0.660 mM and the maximum rate Vmax = 0.716 × 10⁻⁸ M s⁻¹. The assay was carried out in acetate buffer at pH 4.0 (the usual condition for TMB oxidation) and at ambient temperature (≈25 °C).  \n\n2. **H₂O₂ as substrate, TMB as constant co‑substrate** – H₂O₂ concentrations were varied from 0.20 mM to 100 mM while TMB was kept at 0.20 mM. The Michaelis constant for H₂O₂ is Km = 0.449 mM and the maximum rate Vmax = 0.851 × 10⁻⁸ M s⁻¹. The same pH 4.0 acetate buffer and ≈25 °C were used.\n\nNo explicit values for catalyst loading, particle dimensions, crystal system or surface chemistry are given, so those fields are left null. Both experiments share the same nanozyme formula (Cu₉S₈) and activity (peroxidase). The reaction types are expressed according to the required “Substrate + Co‑substrate” format."
+}

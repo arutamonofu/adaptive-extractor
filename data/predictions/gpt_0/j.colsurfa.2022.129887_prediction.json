@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.colsurfa.2022.129887.pdf",
+    "filename": "j.colsurfa.2022.129887.pdf",
+    "page_count": 16,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuMnO2",
+        "surface": "naked",
+        "syngony": null,
+        "length": 400.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": null,
+        "km_value": 0.0499,
+        "km_unit": "mM",
+        "vmax_value": 75.04,
+        "vmax_unit": "10^8 M/s",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.0,
+        "c_max": 0.5,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 65.0,
+        "ccat_unit": "µg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic characterization of the oxidase‑like activity of CuMnO₂ nanoflowers (CuMnO₂NFs) toward the oxidation of TMB. The kinetic assay was performed by varying the TMB concentration from 0 to 0.5 mM while keeping the nanozyme concentration at 65 µg mL⁻¹, pH 4.0, and temperature 30 °C. From the Lineweaver‑Burk analysis the Michaelis constant (Km) and the maximal reaction rate (Vmax) were obtained (Km = 0.0499 mM, Vmax = 75.04 × 10⁸ M s⁻¹). The particle size distribution is reported (average diameter ≈ 400 nm, range 300–500 nm). No hydrogen peroxide is involved; the reaction is an oxidase‑like process where TMB is the substrate and molecular oxygen acts as the co‑substrate (not quantified). Therefore a single NanozymeExperiment entry is created with all available quantitative parameters, leaving unspecified fields as null."
+}

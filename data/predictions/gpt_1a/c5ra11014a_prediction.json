@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C5RA11014A.pdf",
+    "filename": "C5RA11014A.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 150.0,
+        "width": 40.0,
+        "depth": 25.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.165,
+        "km_unit": "mM",
+        "vmax_value": 2.4e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 150.0,
+        "width": 40.0,
+        "depth": 25.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.058,
+        "km_unit": "mM",
+        "vmax_value": 1.4e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 100.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports peroxidase-like activity of VO₂(A) nanoplates. Kinetic parameters are provided in Table 1 for both substrates (TMB and H₂O₂). Two kinetic tracks can be defined:\n\n1. **TMB + H₂O₂** – TMB is the variable substrate, H₂O₂ is kept constant at 5 mM. Km = 0.165 mM, Vmax = 2.4 × 10⁻⁸ M s⁻¹ (peroxidase activity).  \n2. **H₂O₂ + TMB** – H₂O₂ is the variable substrate, TMB is kept constant at 100 mM. Km = 0.058 mM, Vmax = 1.4 × 10⁻⁸ M s⁻¹.\n\nAdditional experimental details:\n- Catalyst formula: VO₂(A) (tetragonal crystal system).  \n- Nanoplate dimensions: width 30–50 nm, length 100–200 nm, thickness 20–30 nm → average values used (width 40 nm, length 150 nm, depth 25 nm).  \n- Catalyst concentration in activity assays: 0.3 mg mL⁻¹.  \n- Reaction buffer: 0.1 M acetate, pH 4.0.  \n- Temperature: 25 °C.  \n- No explicit C_min/C_max values for the substrate concentration ranges are given in the text, so they are left null.\n\nThese data are formatted into two separate NanozymeExperiment objects, one for each kinetic track."
+}

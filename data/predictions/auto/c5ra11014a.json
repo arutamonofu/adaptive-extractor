@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C5RA11014A.pdf",
+    "filename": "C5RA11014A.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 100.0,
+        "width": 30.0,
+        "depth": 20.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.165,
+        "km_unit": "mM",
+        "vmax_value": 2.4e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 100.0,
+        "width": 30.0,
+        "depth": 20.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.058,
+        "km_unit": "mM",
+        "vmax_value": 1.4e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 15.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of VO2(A) nanoplates, which exhibit peroxidase-like activity. The experiments involve the catalytic oxidation of TMB in the presence of H2O2. The kinetic parameters Km and Vmax are determined for both TMB and H2O2 as substrates. The article provides detailed information on the synthesis conditions, characterization techniques, and the peroxidase-like activity of the VO2(A) nanoplates."
+}

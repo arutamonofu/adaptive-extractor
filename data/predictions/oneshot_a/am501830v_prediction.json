@@ -1,0 +1,82 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/am501830v.pdf",
+    "filename": "am501830v.pdf",
+    "page_count": 18,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CS-AgI",
+        "surface": "chitosan",
+        "syngony": "hexagonal",
+        "length": 40.0,
+        "width": 40.0,
+        "depth": 40.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.0238,
+        "km_unit": "mM",
+        "vmax_value": 1.31e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 35.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": 10.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.051,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "CS-AgI",
+        "surface": "chitosan",
+        "syngony": "hexagonal",
+        "length": 40.0,
+        "width": 40.0,
+        "depth": 40.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 2.86,
+        "km_unit": "mM",
+        "vmax_value": 1.19e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 35.0,
+        "c_min": 2.0,
+        "c_max": 100.0,
+        "c_const": 0.06,
+        "c_const_unit": "mM",
+        "ccat_value": 0.051,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "CS-AgI",
+        "surface": "chitosan",
+        "syngony": "hexagonal",
+        "length": 40.0,
+        "width": 40.0,
+        "depth": 40.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB",
+        "km_value": 22.8,
+        "km_unit": "µM",
+        "vmax_value": 169.0,
+        "vmax_unit": "nM s-1",
+        "ph": 7.0,
+        "temperature": 25.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 0.051,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of chitosan-modified silver halide (AgX, X = Cl, Br, I) nanoparticles (CS-AgX NPs) that exhibit dual responsive enzyme mimetic activities. The nanoparticles can act as peroxidase mimetics in the presence of H2O2 and as photostimulated enzyme mimetics under visible light irradiation. The article provides detailed information on the synthesis, characterization, and catalytic activities of these nanoparticles, including their peroxidase-like activity and photostimulated enzyme-like activity.\n\nThe article mentions several experiments involving the oxidation of substrates (TMB, OPD, ABTS) using CS-AgX NPs as catalysts. The kinetic parameters for the oxidation of TMB using CS-AgI NPs are provided, including the Michaelis constant (Km) and maximum reaction rate (Vmax) for both H2O2-dependent and photostimulated reactions. The article also discusses the effects of pH, temperature, and H2O2 concentration on the catalytic activity of CS-AgI NPs.\n\nThe article provides specific values for the kinetic parameters (Km and Vmax) for the oxidation of TMB using CS-AgI NPs under different conditions. These values are crucial for extracting the relevant data for the experiments."
+}

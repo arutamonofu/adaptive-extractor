@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.colsurfa.2022.129887.pdf",
+    "filename": "j.colsurfa.2022.129887.pdf",
+    "page_count": 16,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB",
+        "km_value": 0.0499,
+        "km_unit": "mM",
+        "vmax_value": 7.504e-07,
+        "vmax_unit": "MS^-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 1.0,
+        "c_max": 105.0,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 65.0,
+        "ccat_unit": "µg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuMnO2 nanoflowers (CuMnO2NFs) and their application in the colorimetric detection of ascorbic acid (AA). The CuMnO2NFs exhibit oxidase-like catalytic activity, which allows them to catalyze the oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) to its oxidized form (ox-TMB) without the need for hydrogen peroxide. The presence of AA reduces ox-TMB back to its colorless form, providing a basis for the colorimetric detection of AA.\n\nThe article provides detailed information on the experimental conditions and kinetic parameters for the oxidase-like activity of CuMnO2NFs. Specifically, it mentions that the reaction conditions include a pH of 4.0, a reaction temperature of 30°C, a TMB concentration of 0.4 mM, and a CuMnO2NFs concentration of 65 µg/mL. The kinetic parameters Km and Vmax are determined to be 0.0499 mM and 75.04 × 10^-8 MS^-1, respectively.\n\nThe article also describes the application of CuMnO2NFs in the colorimetric detection of AA in fruit and vegetable juices. The detection range for AA is 1-105 µM with a limit of detection (LOD) of 0.39 µM. The method is validated through spike-and-recovery experiments, showing good accuracy and reliability.\n\nBased on the information provided in the article, the following data can be extracted for the experiments involving the kinetic assay of CuMnO2NFs:\n\n1. **Formula**: CuMnO2\n2. **Activity**: oxidase\n3. **Reaction Type**: TMB (without H2O2)\n4. **Km Value**: 0.0499 mM\n5. **Km Unit**: mM\n6. **Vmax Value**: 75.04 × 10^-8 MS^-1\n7. **Vmax Unit**: MS^-1\n8. **pH**: 4.0\n9. **Temperature**: 30°C\n10. **C_min**: Not specified (assumed to be the lowest concentration in the detection range, 1 µM)\n11. **C_max**: Not specified (assumed to be the highest concentration in the detection range, 105 µM)\n12. **C_const**: Not applicable (no co-substrate)\n13. **C_const Unit**: Not applicable\n14. **Ccat Value**: 65 µg/mL\n15. **Ccat Unit**: µg/mL"
+}

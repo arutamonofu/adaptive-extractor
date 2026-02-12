@@ -35,10 +35,6 @@ dspy_cache/
 .dspy_cache/
 joblib_memory/
 
-# Hugging Face and model weights
-.cache/huggingface/
-models/
-
 # Data
 data/downloaded/*
 data/pdf/*

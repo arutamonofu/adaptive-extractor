@@ -1,6 +1,7 @@
 # src/aee/tasks/__init__.py
+"""Task registry for AutoEvoExtractor."""
 
-from aee.tasks.nanozymes import task_config as nanozymes_config
+from aee.models.nanozymes import task_config as nanozymes_config
 
 TASK_REGISTRY = {
     "nanozymes": nanozymes_config,

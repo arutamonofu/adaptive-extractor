@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.SNB.2017.06.175.pdf",
+    "filename": "J.SNB.2017.06.175.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.2,
+        "km_unit": "mM",
+        "vmax_value": 11.3,
+        "vmax_unit": "10–8 M s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": 20.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.38,
+        "km_unit": "mM",
+        "vmax_value": 472.0,
+        "vmax_unit": "10–8 M s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 2.0,
+        "c_max": 100.0,
+        "c_const": 0.2,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuWO4 nanoparticles (CuWO4NPs) and their peroxidase-like activity. The experiments involve the oxidation of TMB in the presence of H2O2, with CuWO4NPs acting as a catalyst. The kinetic parameters, such as Michaelis constant (Km) and maximum reaction rate (Vmax), are determined for both TMB and H2O2. The article also discusses the inhibition of the peroxidase-like activity of CuWO4NPs by NADH, leading to the development of a NADH sensor. Additionally, the electrochemical behavior of CuWO4NPs is studied using cyclic voltammetry and amperometry.\n\nThe key experiments involve:\n1. Synthesis of CuWO4NPs.\n2. Characterization of CuWO4NPs using XRD, SEM, HR-TEM, and XPS.\n3. Peroxidase-like activity of CuWO4NPs with TMB and H2O2.\n4. Kinetic studies to determine Km and Vmax for TMB and H2O2.\n5. Development of a NADH sensor based on the inhibition of peroxidase-like activity.\n6. Electrochemical studies using cyclic voltammetry and amperometry.\n\nThe experiments are conducted under specific conditions, including pH, temperature, and concentrations of substrates and catalysts. The kinetic parameters are derived from Michaelis-Menten and Lineweaver-Burk plots."
+}

@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.APSUSC.2016.12.067.pdf",
+    "filename": "J.APSUSC.2016.12.067.pdf",
+    "page_count": 7,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4",
+        "surface": "PVP",
+        "syngony": "cubic",
+        "length": 1.9,
+        "width": 1.9,
+        "depth": 0.6,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.012,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.012,
+        "c_max": 0.015,
+        "c_const": 0.0262,
+        "c_const_unit": "mM",
+        "ccat_value": 0.036,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "Co3O4",
+        "surface": "PVP",
+        "syngony": "cubic",
+        "length": 1.9,
+        "width": 1.9,
+        "depth": 0.6,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.0262,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.0262,
+        "c_max": 0.091,
+        "c_const": 0.012,
+        "c_const_unit": "mM",
+        "ccat_value": 0.036,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the preparation of Co3O4 microbelts using an electrospinning technique and their peroxidase-like activity. The experiments involve the catalytic oxidation of TMB in the presence of H2O2. The key parameters for the experiments are the Michaelis constants (Km) for TMB and H2O2, the maximum reaction rate (Vmax), and the conditions under which the reactions were performed.\n\nThe article provides detailed information on the synthesis and characterization of Co3O4 microbelts, including their morphology, crystal structure, and surface area. The peroxidase-like activity of the microbelts was investigated by varying the concentrations of TMB and H2O2 and measuring the absorbance of the oxidation product at 652 nm.\n\nThe Michaelis constants (Km) for TMB and H2O2 were determined for three different samples (F1, F2, and F3) and compared with natural HRP. The Km values indicate the affinity of the microbelts for the substrates. The sample with the highest specific surface area (F3) exhibited the best catalytic activity and stability.\n\nThe experiments were conducted at a pH of 4.0 and a temperature of 40 °C. The concentration of the catalyst (Co3O4 microbelts) was 36 μg/mL. The concentration of TMB varied from 0.012 mM to 0.015 mM, and the concentration of H2O2 varied from 0.0262 mM to 0.091 mM."
+}

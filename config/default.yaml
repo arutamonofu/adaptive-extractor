@@ -7,7 +7,7 @@ project:
 llm:
   student:
     use_ollama: true
-    model: "mistral-small3.1-24b-128k:latest"
+    model: "gpt-oss:120b"
     timeout: 600
     max_retries: 5
     temperature: 0.0
@@ -27,7 +27,7 @@ llm:
   teacher:
     use_ollama: true
     model: "gpt-oss:120b"
-    timeout: 1200
+    timeout: 600
     max_retries: 2
     temperature: 0.5
     rate_limit_delay: 10.0
@@ -68,10 +68,10 @@ optimization:
   train_split: 20
   num_candidates: 10
   num_trials: 70
-  max_bootstrapped_demos: 1
+  max_bootstrapped_demos: 2
   max_labeled_demos: 2
   minibatch: false
-  minibatch_size: 1
+  minibatch_size: 10
   view_data_batch_size: 3
   metric_threshold: 1.0
   init_temperature: 0.5

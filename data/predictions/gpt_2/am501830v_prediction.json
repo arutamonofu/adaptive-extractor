@@ -1,0 +1,82 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/am501830v.pdf",
+    "filename": "am501830v.pdf",
+    "page_count": 18,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "AgI",
+        "surface": "chitosan",
+        "syngony": "hexagonal",
+        "length": 40.0,
+        "width": 40.0,
+        "depth": 40.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.0238,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 10.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.051,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "AgI",
+        "surface": "chitosan",
+        "syngony": "hexagonal",
+        "length": 40.0,
+        "width": 40.0,
+        "depth": 40.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 2.86,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1000.0,
+        "c_const": 0.06,
+        "c_const_unit": "mM",
+        "ccat_value": 0.051,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "AgI",
+        "surface": "chitosan",
+        "syngony": "hexagonal",
+        "length": 40.0,
+        "width": 40.0,
+        "depth": 40.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.0228,
+        "km_unit": "mM",
+        "vmax_value": 1.69e-07,
+        "vmax_unit": "M s-1",
+        "ph": 7.0,
+        "temperature": 25.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 0.051,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic data for chitosan‑modified silver‑iodide nanoparticles (CS‑AgI) under two different activation modes:\n\n1. **Peroxidase‑like activity with H₂O₂** – TMB is the substrate while H₂O₂ is the co‑substrate kept at a fixed concentration (10 mM). Michaelis–Menten parameters were obtained for both TMB (Kₘ = 0.0238 mM) and H₂O₂ (Kₘ = 2.86 mM). The experiments varied the concentration of the substrate (TMB: 0.01–1.0 mM; H₂O₂: 0.01–1.0 M) while keeping the other component constant. The optimal pH and temperature are pH 4.0 and 25 °C. Catalyst loading is 51 µg mL⁻¹ (0.051 mg mL⁻¹). Particle size from TEM is ~40 nm; the crystal phase is hexagonal β‑AgI; the surface is coated with chitosan.\n\n2. **Photo‑activated activity (no H₂O₂)** – Under visible‑light irradiation (λ ≥ 420 nm) CS‑AgI catalyzes TMB oxidation without any H₂O₂. Kinetic analysis gave Kₘ = 22.8 µM (0.0228 mM) and Vₘₐₓ = 169 nM s⁻¹ (1.69 × 10⁻⁷ M s⁻¹). The substrate concentration range studied was 0.025–0.30 mM TMB. Experiments were performed at neutral pH (≈7.0) and 25 °C, with the same catalyst loading (51 µg mL⁻¹). The same particle characteristics apply.\n\nBoth activation modes are extracted as separate experiments, each containing all required fields (formula, activity, syngony, size, surface, kinetic parameters, reaction type, substrate concentration range, co‑substrate concentration when applicable, catalyst concentration, pH and temperature)."
+}

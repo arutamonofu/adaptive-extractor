@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": 133.78,
+        "width": 133.78,
+        "depth": 133.78,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "10–8 M s–1",
+        "ph": 3.6,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 0.4,
+        "ccat_unit": "g L–1"
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": 133.78,
+        "width": 133.78,
+        "depth": 133.78,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "10–8 M s–1",
+        "ph": 3.6,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 0.4,
+        "ccat_unit": "g L–1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of flower-like Cu9S8 nanoparticles and their application as peroxidase mimetics for the degradation of organic dyes. The kinetic parameters for the peroxidase-like activity of Cu9S8 were determined using TMB and H2O2 as substrates. The experiments involved varying the concentrations of TMB and H2O2 to measure the Michaelis-Menten constants (Km) and maximum reaction velocities (Vmax). The article provides detailed information on the experimental conditions, including pH, temperature, and the concentrations of the substrates and catalysts. The data extracted includes the formula of the nanoparticle, its activity, syngony, dimensions, surface chemistry, and the kinetic parameters obtained from the experiments."
+}

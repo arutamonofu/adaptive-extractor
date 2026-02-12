@@ -1,0 +1,15 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C8TB01132J.pdf",
+    "filename": "C8TB01132J.pdf",
+    "page_count": 40,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": []
+  },
+  "reasoning": "The provided text appears to be a scientific document, likely a research article or supplementary information from a journal. The text includes tables, figures, and references, which are typical components of such documents. The content seems to focus on the properties and applications of mesoporous iron oxide, particularly its peroxidase-mimetic activity and its use in detecting DNA methylation. The text also includes experimental details and comparisons with other nanoparticles."
+}

@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/adfm.202001933.pdf",
+    "filename": "adfm.202001933.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "GeO2",
+        "surface": "CTAB",
+        "syngony": null,
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.42,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": 0.0,
+        "c_max": 1.0,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "GeO2",
+        "surface": "CTAB",
+        "syngony": null,
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 1.75,
+        "km_unit": "mM",
+        "vmax_value": 2.34e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 37.0,
+        "c_min": 0.0,
+        "c_max": 4.0,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic assays for the peroxidase‑like activity of GeO₂ nanozymes. Two sets of Michaelis–Menten experiments were performed:\n\n1. **TMB as substrate, H₂O₂ as co‑substrate** – the concentration of H₂O₂ was kept constant at 4 mM while TMB was varied from 0 to 1 mM. The kinetic parameters obtained were Km (TMB) = 0.42 mM and Vmax = 23.4 × 10⁻⁸ M s⁻¹.\n\n2. **H₂O₂ as substrate, TMB as co‑substrate** – the concentration of TMB was kept constant at 1 mM while H₂O₂ was varied from 0 to 4 mM. The kinetic parameters obtained were Km (H₂O₂) = 1.75 mM and the same Vmax = 23.4 × 10⁻⁸ M s⁻¹.\n\nBoth experiments used GeO₂ nanozymes synthesized hydrothermally (besom‑like morphology, width ≈ 100 nm, length ≈ 1 µm) dispersed in acetate buffer (pH 4.0) at 37 °C with a catalyst concentration of 0.1 mg mL⁻¹. The nanozymes were stabilized with CTAB surfactant; no polymer coating is reported. No crystal syngony is specified.\n\nAccording to the required schema, each kinetic assay is represented as a separate `NanozymeExperiment` object, with the appropriate reaction type, substrate concentration ranges, constant co‑substrate concentration, kinetic constants, and experimental conditions."
+}

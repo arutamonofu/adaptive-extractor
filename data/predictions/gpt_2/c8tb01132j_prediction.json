@@ -1,0 +1,15 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C8TB01132J.pdf",
+    "filename": "C8TB01132J.pdf",
+    "page_count": 40,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": []
+  },
+  "reasoning": "The supporting information provides a table (Table S1) that lists kinetic parameters (K_m and V_max) for mesoporous Fe2O3 nanozyme with the two substrates H2O2 and TMB. The nanozyme is described as mesoporous iron oxide (Fe2O3) with peroxidase‑mimetic activity. The supplementary figures describe both UV‑vis (colorimetric) and amperometric (electrochemical) detection of DNA methylation using the Fe2O3 nanozyme, indicating that the detection methods employed are colorimetric (UV‑vis absorbance) and electrochemical (amperometric current). No explicit limits of detection or linear range values are given in the ESI, so those fields are left empty. Sample types mentioned include synthetic heterogeneous DNA samples with 5 % and 10 % methylation and methylated DNA inputs (e.g., 50 ng). References cited for kinetic comparisons are listed as S1–S4, and the kinetic data for the mesoporous Fe2O3 itself are marked as \"This assay\" in the table. All extracted information is organized into the NanozymeExtractionOutput schema."
+}

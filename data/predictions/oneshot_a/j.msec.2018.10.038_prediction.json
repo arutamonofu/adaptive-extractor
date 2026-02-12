@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 607.0,
+        "width": 607.0,
+        "depth": 607.0,
+        "activity": "oxidase",
+        "reaction_type": "TMB",
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.025,
+        "c_max": 1.2,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 20.0,
+        "ccat_unit": "mg/L"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of Co3O4/CuO hollow nanocage (HNC) nanocomposites, which exhibit enhanced oxidase-like activity. The experiments involve the catalytic oxidation of 3,3′,5,5′-tetramethylbenzidine (TMB) in the absence of H2O2, using dissolved oxygen. The kinetic parameters, such as the Michaelis-Menten constant (Km) and maximum reaction rate (Vmax), are determined for the oxidation of TMB. The article also discusses the application of these nanocomposites in the detection of dopamine (DA) based on its inhibiting effect on TMB oxidation.\n\nThe key experiments involve:\n1. The synthesis of Co3O4/CuO HNCs and their characterization using SEM, TEM, XPS, and XRD.\n2. The evaluation of the oxidase-like activity of the Co3O4/CuO HNCs by monitoring the oxidation of TMB.\n3. The determination of the kinetic parameters (Km and Vmax) for the oxidation of TMB.\n4. The application of the Co3O4/CuO HNCs in the detection of dopamine (DA) based on its inhibiting effect on TMB oxidation.\n\nThe experiments provide detailed information on the catalytic activity and kinetic parameters of the Co3O4/CuO HNCs, which are crucial for understanding their potential applications in biosensing and clinical diagnosis."
+}

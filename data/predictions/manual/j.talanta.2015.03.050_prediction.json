@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.talanta.2015.03.050.pdf",
+    "filename": "j.talanta.2015.03.050.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": 80.0,
+        "depth": 80.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.396,
+        "km_unit": "mM",
+        "vmax_value": 1.41e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 50.0,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μL"
+      },
+      {
+        "formula": "Au-Ag",
+        "surface": "chitosan",
+        "syngony": null,
+        "length": 80.0,
+        "width": 80.0,
+        "depth": 80.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 94.7,
+        "km_unit": "mM",
+        "vmax_value": 2.92e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 45.0,
+        "c_min": 10.0,
+        "c_max": 1000.0,
+        "c_const": 800.0,
+        "c_const_unit": "μM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μL"
+      }
+    ]
+  },
+  "reasoning": "Not supplied for this particular example."
+}

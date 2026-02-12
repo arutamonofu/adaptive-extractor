@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/acs.analchem.7b02880.pdf",
+    "filename": "acs.analchem.7b02880.pdf",
+    "page_count": 44,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": 5.0,
+        "width": 5.0,
+        "depth": 5.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.0429,
+        "km_unit": "mM",
+        "vmax_value": 5.882e-08,
+        "vmax_unit": "Ms−1",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.0,
+        "c_const": 700.0,
+        "c_const_unit": "mM",
+        "ccat_value": 5.0,
+        "ccat_unit": "μg"
+      },
+      {
+        "formula": "Au-NPFe2O3NC",
+        "surface": null,
+        "syngony": null,
+        "length": 5.0,
+        "width": 5.0,
+        "depth": 5.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 138.5,
+        "km_unit": "mM",
+        "vmax_value": 4.77e-08,
+        "vmax_unit": "Ms−1",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.01,
+        "c_max": 1.1,
+        "c_const": 800.0,
+        "c_const_unit": "μM",
+        "ccat_value": 5.0,
+        "ccat_unit": "μg"
+      }
+    ]
+  },
+  "reasoning": "The article describes the peroxidase-like activity of gold-loaded nanoporous ferric oxide nanocubes (Au-NPFe2O3NC) and their application in the detection of autoantibodies. The experiments involve the catalytic oxidation of TMB in the presence of H2O2, with the nanocubes acting as peroxidase mimetics. The kinetic parameters for the reaction were determined by varying the concentrations of TMB and H2O2. The experiments were conducted at room temperature (25°C) and pH 3.5. The nanocubes were characterized by their size, surface modifications, and catalytic activity. The data provided includes the Michaelis-Menten constants (Km) and maximum reaction rates (Vmax) for the substrates TMB and H2O2."
+}

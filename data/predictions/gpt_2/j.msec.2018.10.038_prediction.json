@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": null,
+        "length": 607.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB + O2",
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 0.02,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports oxidase‑like activity of the Co₃O₄/CuO hollow nanocage (HNC) composite.  \nKinetic parameters are given for the oxidation of TMB by dissolved oxygen (no H₂O₂). The Michaelis–Menten constant (Km) for TMB is explicitly stated as 0.22 mM (Table S2). A Vmax value is not provided, so it is left null.  \n\nThe kinetic assay was performed under the optimized conditions:  \n- catalyst concentration = 20 mg L⁻¹ → 0.02 mg mL⁻¹,  \n- pH = 4.0 (acetate buffer),  \n- temperature = 40 °C,  \n- TMB concentration varied from 0.025 mM to 0.3 mM (substrate), while dissolved O₂ acts as the constant co‑substrate.  \n\nThe nanocomposite size is reported as an average particle diameter of 607 nm, which is recorded as the length. The crystal system is not unambiguously defined for the composite, so it is left null.  \n\nAll required fields are filled according to the schema, with optional fields set to null where information is unavailable."
+}

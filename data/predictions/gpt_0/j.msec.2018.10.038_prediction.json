@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 607.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": null,
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.025,
+        "c_max": 1.2,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 20.0,
+        "ccat_unit": "mg/L"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic measurements only for the oxidase‑like activity of the Co₃O₄/CuO hollow nanocage (HNC) composite.  \n- **Catalyst**: Co₃O₄/CuO HNCs, identified by formula “Co3O4/CuO”.  \n- **Activity**: oxidase (oxygen from dissolved O₂ oxidizes TMB, no H₂O₂ added).  \n- **Catalyst concentration used in the kinetic assay**: 20 mg L⁻¹ (equivalent to 0.02 mg mL⁻¹).  \n- **Reaction conditions**: acetate buffer 0.2 M, pH 4.0, temperature 40 °C, incubation 20 min.  \n- **Substrate**: TMB, varied from 0.025 mM to 1.2 mM while the catalyst amount was kept constant; thus these values are recorded as C_min and C_max. No co‑substrate concentration is reported (C_const = null).  \n- **Kinetic parameters**: Michaelis–Menten constant Km = 0.22 mM (V_max is not reported).  \n- **Nanostructure size**: average particle size of the HNCs is 607 nm (length/diameter).  \n- **Crystal system**: the Co₃O₄ component shows cubic diffraction peaks; the composite is therefore annotated as “cubic”.  \nAll other optional fields (width, depth, surface chemistry, polymer, surfactant, Vmax, etc.) are not provided in the text and are left null.\n\nOnly one experiment satisfies the requirement of having kinetic data, so a single `NanozymeExperiment` object is generated."
+}

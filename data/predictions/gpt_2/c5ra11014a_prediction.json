@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C5RA11014A.pdf",
+    "filename": "C5RA11014A.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 150.0,
+        "width": 40.0,
+        "depth": 25.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.165,
+        "km_unit": "mM",
+        "vmax_value": 2.4e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 150.0,
+        "width": 40.0,
+        "depth": 25.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.058,
+        "km_unit": "mM",
+        "vmax_value": 1.4e-08,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 100.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.3,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports peroxidase‑like activity of tetragonal VO₂(A) nanoplates. Kinetic parameters are given in Table 1 for both substrates (TMB and H₂O₂). According to the required “track” division:\n\n* **Track 1 – TMB + H₂O₂**: TMB is the variable substrate, H₂O₂ is the co‑substrate kept constant (5 mM).  \n* **Track 2 – H₂O₂ + TMB**: H₂O₂ is the variable substrate, TMB is the co‑substrate kept constant (100 mM in the assay mixture).\n\nBoth experiments use the same nanozyme (VO₂(A) nanoplates) with the same physical characteristics (tetragonal crystal system, average dimensions ≈ 150 nm × 40 nm × 25 nm) and are performed at pH 4.0, 25 °C. The catalyst concentration in the reaction mixture originates from a 0.3 mg mL⁻¹ dispersion; the final concentration in the assay is therefore taken as 0.3 mg mL⁻¹. The kinetic constants are taken directly from Table 1:\n\n* TMB: Km = 0.165 mM, Vmax = 2.4 × 10⁻⁸ M s⁻¹.  \n* H₂O₂: Km = 0.058 mM, Vmax = 1.4 × 10⁻⁸ M s⁻¹.\n\nNo explicit substrate concentration ranges (C_min, C_max) are reported for the kinetic assays, so these fields are left null."
+}

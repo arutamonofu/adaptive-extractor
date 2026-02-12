@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.msec.2018.10.038.pdf",
+    "filename": "j.msec.2018.10.038.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4/CuO",
+        "surface": null,
+        "syngony": null,
+        "length": 607.0,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB + O2",
+        "km_value": 0.22,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 0.02,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic analysis only for the oxidase‑like activity of the Co₃O₄/CuO hollow nanocage (HNC) composite when catalyzing the oxidation of 3,3′,5,5′‑tetramethylbenzidine (TMB) by dissolved O₂ (no H₂O₂ is involved).  \n- The nanozyme formula is **Co₃O₄/CuO**.  \n- Activity is **oxidase**.  \n- The kinetic assay was performed at **pH 4.0** (acetate buffer) and **40 °C** with a catalyst concentration of **20 mg L⁻¹** (i.e., 0.02 mg mL⁻¹).  \n- TMB concentration was varied from **0.025 mM** to **0.30 mM** while dissolved O₂ acted as the constant co‑substrate (its concentration is not reported, so it is left null).  \n- The Michaelis constant for TMB was determined as **Km = 0.22 mM**. No Vmax value is given in the text, so it is left null.  \n- Particle size from SEM/TEM is reported as an average diameter of **≈ 607 nm**; this is recorded as the length (size) of the nanozyme.  \n- No explicit crystal system (syngony) or surface modification is mentioned for the composite, so those fields are left null.  \n\nAll required fields are filled according to the schema, and optional fields are populated where data are available."
+}

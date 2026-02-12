@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 3.5,
+        "temperature": 25.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": null,
+        "ccat_unit": null
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic measurements for the peroxidase‑like activity of the flower‑like Cu₉S₈ nanozyme.  \nTwo dual‑substrate kinetic assays were performed:\n\n1. **TMB + H₂O₂** – TMB is the variable substrate (0.1 mM → 0.5 mM) while H₂O₂ is kept constant at 0.1 mM.  \n   – Km (TMB) = 0.660 mM, Vmax (TMB) = 0.716 × 10⁻⁸ M s⁻¹.  \n\n2. **H₂O₂ + TMB** – H₂O₂ is the variable substrate (0.1 mM → 0.5 mM) while TMB is kept constant at 0.1 mM.  \n   – Km (H₂O₂) = 0.449 mM, Vmax (H₂O₂) = 0.851 × 10⁻⁸ M s⁻¹.  \n\nBoth assays were carried out at pH 3.5 (0.2 M sodium acetate buffer) and 25 °C (room temperature). The catalyst concentration used in the kinetic experiments is not explicitly stated, so it is left null. The crystal system (syngony) of Cu₉S₈ is not given in the text, so it is also left null. All required fields are filled according to the schema, separating the two reaction tracks."
+}

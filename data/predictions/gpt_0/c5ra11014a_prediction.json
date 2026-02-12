@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/C5RA11014A.pdf",
+    "filename": "C5RA11014A.pdf",
+    "page_count": 9,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 150.0,
+        "width": 40.0,
+        "depth": 25.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.165,
+        "km_unit": "mM",
+        "vmax_value": 2.4,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 5.0,
+        "c_const_unit": "mM",
+        "ccat_value": 3.0,
+        "ccat_unit": "mg/mL"
+      },
+      {
+        "formula": "VO2(A)",
+        "surface": null,
+        "syngony": "tetragonal",
+        "length": 150.0,
+        "width": 40.0,
+        "depth": 25.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.058,
+        "km_unit": "mM",
+        "vmax_value": 1.4,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 100.0,
+        "c_const_unit": "mM",
+        "ccat_value": 3.0,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic assays for the peroxidase‑like activity of VO₂(A) nanoplates.  \nTwo kinetic experiments are described:\n\n1. **TMB as the variable substrate** – the concentration of H₂O₂ is kept constant (5 mM) while TMB is varied. This corresponds to the reaction type **“TMB+H₂O₂”** (TMB is the substrate, H₂O₂ the co‑substrate). The Michaelis–Menten parameters for this track are given in Table 1: Km = 0.165 mM (TMB) and Vmax = 2.4 × 10⁻⁸ M s⁻¹. The assay was performed at pH 4.0, 25 °C, with a catalyst concentration of 3.0 mg mL⁻¹. The nanoplates are tetragonal VO₂(A) nanoplates with average dimensions length ≈ 150 nm, width ≈ 40 nm, thickness ≈ 25 nm.\n\n2. **H₂O₂ as the variable substrate** – the concentration of TMB is kept constant (100 mM) while H₂O₂ is varied. This corresponds to the reaction type **“H₂O₂+TMB”** (H₂O₂ is the substrate, TMB the co‑substrate). The kinetic parameters for this track are: Km = 0.058 mM (H₂O₂) and Vmax = 1.4 × 10⁻⁸ M s⁻¹. The same experimental conditions (pH 4.0, 25 °C, catalyst 3.0 mg mL⁻¹, nanoplates dimensions and crystal system) apply.\n\nBoth experiments involve the same nanozyme (VO₂(A) nanoplates) with peroxidase activity. No surface functionalisation, polymer or surfactant is reported, so those fields are left null. The extracted data are formatted as two separate `NanozymeExperiment` objects."
+}

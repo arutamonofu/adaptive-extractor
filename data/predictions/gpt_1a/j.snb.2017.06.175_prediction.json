@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.SNB.2017.06.175.pdf",
+    "filename": "J.SNB.2017.06.175.pdf",
+    "page_count": 8,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.2,
+        "km_unit": "mM",
+        "vmax_value": 1.13e-07,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 0.025,
+        "c_max": 0.3,
+        "c_const": 20.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "CuWO4",
+        "surface": null,
+        "syngony": "triclinic",
+        "length": 66.0,
+        "width": 66.0,
+        "depth": 66.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.38,
+        "km_unit": "mM",
+        "vmax_value": 4.72e-06,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 25.0,
+        "c_min": 2.0,
+        "c_max": 100.0,
+        "c_const": 0.2,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic characterization of CuWO₄ nanoparticles (CuWO₄NPs) as peroxidase mimics.  \nTwo kinetic tracks are described:\n\n1. **TMB + H₂O₂** – TMB is the substrate (its concentration varied) while H₂O₂ is kept constant (20 mM).  \n   - Km for TMB = 0.20 mM, Vmax = 11.3 × 10⁻⁸ M s⁻¹ (≈1.13 × 10⁻⁷ M s⁻¹).  \n   - Substrate concentration range: 0.025 mM – 0.30 mM.  \n   - Catalyst concentration used in assays: 0.05 mg mL⁻¹.  \n   - Reaction performed in 0.1 M acetate buffer, pH 3, at 25 °C.\n\n2. **H₂O₂ + TMB** – H₂O₂ is the substrate (its concentration varied) while TMB is kept constant (0.20 mM).  \n   - Km for H₂O₂ = 0.38 mM, Vmax = 472 × 10⁻⁸ M s⁻¹ (≈4.72 × 10⁻⁶ M s⁻¹).  \n   - Substrate concentration range: 2 mM – 100 mM.  \n   - Same catalyst loading (0.05 mg mL⁻¹), buffer, pH and temperature as above.\n\nAdditional physicochemical details for the nanozyme:\n- Chemical formula: **CuWO₄**.  \n- Crystal system (syngony): **triclinic** (distorted wolframite).  \n- Particle morphology: roughly spherical with an average diameter of **66 nm** (length/width/depth = 66 nm).  \n- Surface chemistry: not functionalized (naked).  \n\nAll required fields of the schema are filled for each experiment, separating the two reaction tracks."
+}

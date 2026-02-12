@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.jpcs.2021.110534.pdf",
+    "filename": "j.jpcs.2021.110534.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 133.78,
+        "width": 133.78,
+        "depth": 133.78,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.66,
+        "km_unit": "mM",
+        "vmax_value": 0.716,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.1,
+        "c_max": 0.5,
+        "c_const": 0.1,
+        "c_const_unit": "mM",
+        "ccat_value": 0.4,
+        "ccat_unit": "g L^-1"
+      },
+      {
+        "formula": "Cu9S8",
+        "surface": null,
+        "syngony": "cubic",
+        "length": 133.78,
+        "width": 133.78,
+        "depth": 133.78,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.449,
+        "km_unit": "mM",
+        "vmax_value": 0.851,
+        "vmax_unit": "10^-8 M s^-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 2.0,
+        "c_max": 100.0,
+        "c_const": 0.2,
+        "c_const_unit": "mM",
+        "ccat_value": 0.4,
+        "ccat_unit": "g L^-1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of flower-like Cu9S8 nanoparticles and their application as peroxidase mimics for the degradation of organic dyes. The key experiments involve the catalytic oxidation of TMB using H2O2, with detailed kinetic studies to determine the Michaelis-Menten constants (Km) and maximum reaction rates (Vmax). The experiments are conducted under varying conditions of pH, temperature, and substrate concentrations to optimize the catalytic activity.\n\nThe article provides specific details about the synthesis process, including the use of Cu-MOF as a sacrificial template to create porous CuO, which is then converted to flower-like Cu9S8 through an anion exchange method. The characterization of the nanoparticles includes XRD, SEM, TEM, and XPS analyses, which confirm the structure and composition of the Cu9S8 nanoparticles.\n\nThe kinetic studies involve measuring the absorbance of the oxidation product of TMB at 652 nm under different concentrations of TMB and H2O2. The data are fitted to the Michaelis-Menten equation to determine the Km and Vmax values for both substrates. The article also discusses the stability and reusability of the Cu9S8 nanoparticles, demonstrating their potential for practical applications in wastewater treatment."
+}

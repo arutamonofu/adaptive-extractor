@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.APSUSC.2016.12.067.pdf",
+    "filename": "J.APSUSC.2016.12.067.pdf",
+    "page_count": 7,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "Co3O4",
+        "surface": "PVP",
+        "syngony": "cubic",
+        "length": 1.9,
+        "width": 1.9,
+        "depth": 0.6,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.012,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 5.2,
+        "c_const_unit": "μM",
+        "ccat_value": 36.0,
+        "ccat_unit": "μg · mL−1"
+      },
+      {
+        "formula": "Co3O4",
+        "surface": "PVP",
+        "syngony": "cubic",
+        "length": 1.9,
+        "width": 1.9,
+        "depth": 0.6,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.0262,
+        "km_unit": "mM",
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 40.0,
+        "c_min": null,
+        "c_max": null,
+        "c_const": 6.2,
+        "c_const_unit": "μM",
+        "ccat_value": 36.0,
+        "ccat_unit": "μg · mL−1"
+      }
+    ]
+  },
+  "reasoning": "The article describes the preparation of Co3O4 microbelts using the electrospinning technique and their peroxidase-like activity. The experiments involve varying the concentration of TMB and H2O2 to determine the Michaelis constants (Km) and maximum reaction rates (Vmax). The article provides detailed information on the synthesis, characterization, and catalytic activity of the Co3O4 microbelts. The experiments are conducted under specific conditions of pH, temperature, and substrate concentrations."
+}

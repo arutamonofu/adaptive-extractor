@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.colsurfa.2022.129887.pdf",
+    "filename": "j.colsurfa.2022.129887.pdf",
+    "page_count": 16,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": 400.0,
+        "width": 400.0,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.0499,
+        "km_unit": "mM",
+        "vmax_value": 75.04,
+        "vmax_unit": "10^-8 M s-1",
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 0.0,
+        "c_max": 0.8,
+        "c_const": 20.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": 400.0,
+        "width": 400.0,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": null,
+        "km_unit": null,
+        "vmax_value": null,
+        "vmax_unit": null,
+        "ph": 4.0,
+        "temperature": 25.0,
+        "c_min": 2.0,
+        "c_max": 100.0,
+        "c_const": 0.2,
+        "c_const_unit": "mM",
+        "ccat_value": 0.05,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic studies for the oxidase‑like activity of CuMnO₂ nanoflowers (CuMnO₂NFs).  \nTwo distinct kinetic assays are described:\n\n1. **TMB as the variable substrate** – the concentration of TMB is varied (0 – 0.8 mM) while H₂O₂ is kept constant at 20 mM. This corresponds to the reaction track **“TMB+H₂O₂”** (TMB is the substrate, H₂O₂ the co‑substrate). The Michaelis–Menten parameters for this track are given in Table 1:  \n   * Km = 0.0499 mM, Vmax = 75.04 × 10⁻⁸ M s⁻¹.  \n   * Experiments were performed at pH 4.0 (acetate buffer), 25 °C, with a catalyst concentration of 0.05 mg mL⁻¹.  \n   * The nanoflowers have an average diameter of ~400 nm (size range 300–500 nm).\n\n2. **H₂O₂ as the variable substrate** – the concentration of H₂O₂ is varied (2 – 100 mM) while TMB is kept constant at 0.2 mM. This corresponds to the reaction track **“H₂O₂+TMB”** (H₂O₂ is the substrate, TMB the co‑substrate). Kinetic constants for this track are not reported, but the assay conditions (pH, temperature, catalyst loading, particle size) are the same as in the first track.\n\nBoth experiments involve the same nanozyme (CuMnO₂ nanoflowers) with oxidase activity. The extracted data therefore consists of two separate experiment objects, each describing the relevant parameters and the appropriate reaction type."
+}

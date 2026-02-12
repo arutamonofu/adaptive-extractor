@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.colsurfa.2022.129887.pdf",
+    "filename": "j.colsurfa.2022.129887.pdf",
+    "page_count": 16,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.0499,
+        "km_unit": "mM",
+        "vmax_value": 7.504e-07,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.0,
+        "c_max": 0.8,
+        "c_const": 500.0,
+        "c_const_unit": "mM",
+        "ccat_value": 65.0,
+        "ccat_unit": "μg/mL"
+      },
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": null,
+        "width": null,
+        "depth": null,
+        "activity": "oxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 144.3,
+        "km_unit": "mM",
+        "vmax_value": 1.84e-08,
+        "vmax_unit": "Ms-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 10.0,
+        "c_max": 1000.0,
+        "c_const": 800.0,
+        "c_const_unit": "μM",
+        "ccat_value": 65.0,
+        "ccat_unit": "μg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuMnO2 nanoflowers (CuMnO2NFs) and their application in the colorimetric detection of ascorbic acid (AA). The CuMnO2NFs exhibit oxidase-like catalytic activity, which allows them to catalyze the oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) to form a blue-colored product (ox-TMB). The presence of AA reduces ox-TMB back to its colorless form, providing a basis for the colorimetric detection of AA.\n\nThe article provides detailed information on the synthesis conditions, characterization techniques, and catalytic properties of CuMnO2NFs. Key parameters include the formula (CuMnO2), activity (oxidase), and various experimental conditions such as pH, temperature, and concentrations of reactants. The kinetic parameters Km and Vmax are also provided, which are crucial for understanding the catalytic efficiency of the nanozymes.\n\nThe experiments involve varying concentrations of TMB and H2O2 to determine the kinetic parameters. The reaction types are identified based on whether TMB or H2O2 is the substrate and the other is the co-substrate. The article also includes details on the stability and reproducibility of the catalytic system, as well as its application in detecting AA in fruit and vegetable juices."
+}

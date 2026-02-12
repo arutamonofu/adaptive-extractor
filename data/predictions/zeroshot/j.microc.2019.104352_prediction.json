@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.MICROC.2019.104352.pdf",
+    "filename": "J.MICROC.2019.104352.pdf",
+    "page_count": 13,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VOx",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.238,
+        "km_unit": "mM",
+        "vmax_value": 2.73,
+        "vmax_unit": "10^-6 M/s",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.01,
+        "c_max": 0.9,
+        "c_const": 0.3,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μg/mL"
+      },
+      {
+        "formula": "VOx",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 0.0843,
+        "km_unit": "mM",
+        "vmax_value": 2.809,
+        "vmax_unit": "10^-6 M/s",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.005,
+        "c_max": 0.15,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 200.0,
+        "ccat_unit": "μg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of vanadium oxide quantum dots (VOxQDs) and their application in detecting glucose levels in blood. The key experiments involve the peroxidase-like activity of VOxQDs, which is studied using TMB and H2O2 as substrates. The kinetic parameters, such as Michaelis constant (Km) and maximum reaction rate (Vmax), are determined for the catalytic activity of VOxQDs. The experiments are conducted under specific conditions, including pH, temperature, and concentrations of substrates and co-substrates.\n\nThe article provides detailed information on the synthesis of VOxQDs, their characterization, and the kinetic studies of their peroxidase-like activity. The experiments involve varying concentrations of H2O2 and TMB to determine the kinetic parameters. The data is presented in tables and figures, which include the values of Km and Vmax for different substrates.\n\nThe experiments are conducted in two tracks:\n1. **Track 1 (Reaction type: TMB + H2O2)**: TMB is the substrate with varying concentrations (Cmin to Cmax), and H2O2 is the co-substrate with a constant concentration (Cconst).\n2. **Track 2 (Reaction type: H2O2 + TMB)**: H2O2 is the substrate with varying concentrations (Cmin to Cmax), and TMB is the co-substrate with a constant concentration (Cconst).\n\nThe article also mentions the use of different substrates (OPD, ABTS) to confirm the peroxidase-like activity of VOxQDs. However, the kinetic parameters are only provided for the TMB and H2O2 system.\n\nThe experiments are conducted at a pH of 3.0 and a temperature of 30°C. The concentration of VOxQDs used in the experiments is 200 μg/mL."
+}

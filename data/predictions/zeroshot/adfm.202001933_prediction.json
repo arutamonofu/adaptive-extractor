@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/adfm.202001933.pdf",
+    "filename": "adfm.202001933.pdf",
+    "page_count": 10,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "GeO2",
+        "surface": "CTAB",
+        "syngony": "intermediate mesostructure",
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": 10.0,
+        "activity": "peroxidase",
+        "reaction_type": "TMB + H2O2",
+        "km_value": 0.42,
+        "km_unit": "mM",
+        "vmax_value": 23.4,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 50.0,
+        "c_min": 0.0,
+        "c_max": 1.0,
+        "c_const": 4.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg/mL"
+      },
+      {
+        "formula": "GeO2",
+        "surface": "CTAB",
+        "syngony": "intermediate mesostructure",
+        "length": 1000.0,
+        "width": 100.0,
+        "depth": 10.0,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2 + TMB",
+        "km_value": 1.75,
+        "km_unit": "mM",
+        "vmax_value": 23.4,
+        "vmax_unit": "10^-8 M/s",
+        "ph": 4.0,
+        "temperature": 50.0,
+        "c_min": 0.0,
+        "c_max": 4.0,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.1,
+        "ccat_unit": "mg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes experiments involving GeO2 nanozymes, focusing on their peroxidase-like activity and the absence of oxidase-like activity. The key parameters for the experiments include the formula (GeO2), activity (peroxidase), and various kinetic and structural details.\n\n1. **Formula and Activity**: The nanozyme is GeO2, and it exhibits peroxidase-like activity without oxidase-like activity.\n2. **Syngony**: The article does not explicitly mention the crystal system, but it implies an intermediate mesostructure based on XRD patterns.\n3. **Size and Morphology**: The nanozymes have a besom-like morphology with a width of approximately 100 nm and a length of approximately 1 µm. The 'head of besom' has a width of approximately 10 nm.\n4. **Surface Chemistry and Surfactant**: The synthesis involves cetyltrimethylammonium bromide (CTAB) as a surfactant.\n5. **Kinetic Parameters**: The Michaelis-Menten kinetics were studied with varying concentrations of H2O2 and TMB. The Km values are 0.42 mM for TMB and 1.75 mM for H2O2. The Vmax value is 23.4 × 10^-8 M/s.\n6. **Reaction Type**: The experiments involve the reaction type TMB + H2O2 and H2O2 + TMB.\n7. **Concentration Parameters**: The concentrations of substrates and co-substrates are varied to determine kinetic parameters.\n8. **Temperature and pH**: The optimal conditions for catalytic activity are pH 4.0 and 50°C.\n9. **Stability**: The nanozymes show stability over a range of pH and temperatures, with specific stability to TCh.\n\nThe experiments are divided into two tracks based on the reaction type:\n- Track 1: H2O2 + TMB (H2O2 is the substrate, TMB is the co-substrate)\n- Track 2: TMB + H2O2 (TMB is the substrate, H2O2 is the co-substrate)"
+}

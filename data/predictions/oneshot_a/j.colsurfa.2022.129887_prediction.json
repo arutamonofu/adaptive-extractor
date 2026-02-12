@@ -1,0 +1,38 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/j.colsurfa.2022.129887.pdf",
+    "filename": "j.colsurfa.2022.129887.pdf",
+    "page_count": 16,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "CuMnO2",
+        "surface": null,
+        "syngony": null,
+        "length": 385.0,
+        "width": 385.0,
+        "depth": 3.9,
+        "activity": "oxidase",
+        "reaction_type": "TMB",
+        "km_value": 0.0499,
+        "km_unit": "mM",
+        "vmax_value": 7.504e-07,
+        "vmax_unit": "M s-1",
+        "ph": 4.0,
+        "temperature": 30.0,
+        "c_min": 0.0,
+        "c_max": 0.8,
+        "c_const": null,
+        "c_const_unit": null,
+        "ccat_value": 65.0,
+        "ccat_unit": "µg/mL"
+      }
+    ]
+  },
+  "reasoning": "The article describes the synthesis and characterization of CuMnO2 nanoflowers (CuMnO2NFs) and their application in the colorimetric detection of ascorbic acid (AA). The nanoflowers exhibit oxidase-like catalytic activity, which allows them to catalyze the oxidation of 3,3',5,5'-tetramethylbenzidine (TMB) without the need for hydrogen peroxide. The presence of AA reduces the oxidized TMB (ox-TMB), leading to a color change that can be quantified. The article provides detailed kinetic parameters and reaction conditions for the oxidase-like activity of CuMnO2NFs. The experiments involve varying the concentration of TMB and measuring the kinetic parameters such as the Michaelis constant (Km) and the maximum reaction rate (Vmax). The data indicates that CuMnO2NFs have a high affinity for TMB and exhibit excellent oxidase-like properties. The detection of AA is performed under optimal conditions, and the method shows a wide detection range and low limit of detection (LOD). The article also includes a comparison of the proposed method with other detection methods and validates the accuracy of the method through spike-and-recovery experiments."
+}

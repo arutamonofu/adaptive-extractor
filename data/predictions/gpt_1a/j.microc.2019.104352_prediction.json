@@ -1,0 +1,60 @@
+{
+  "source_metadata": {
+    "source_path": "/home/arutamonofu/projects/autoevoextractor/data/pdf/test/J.MICROC.2019.104352.pdf",
+    "filename": "J.MICROC.2019.104352.pdf",
+    "page_count": 13,
+    "extra": {
+      "parser": "Docling",
+      "strategy": "hybrid_manual"
+    }
+  },
+  "extraction": {
+    "experiments": [
+      {
+        "formula": "VOxQDs",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "H2O2+TMB",
+        "km_value": 0.0843,
+        "km_unit": "mM",
+        "vmax_value": 2.809e-06,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.005,
+        "c_max": 0.15,
+        "c_const": 1.0,
+        "c_const_unit": "mM",
+        "ccat_value": 0.2,
+        "ccat_unit": "mg mL-1"
+      },
+      {
+        "formula": "VOxQDs",
+        "surface": null,
+        "syngony": null,
+        "length": 3.39,
+        "width": null,
+        "depth": null,
+        "activity": "peroxidase",
+        "reaction_type": "TMB+H2O2",
+        "km_value": 0.238,
+        "km_unit": "mM",
+        "vmax_value": 2.73e-06,
+        "vmax_unit": "M s-1",
+        "ph": 3.0,
+        "temperature": 30.0,
+        "c_min": 0.01,
+        "c_max": 0.9,
+        "c_const": 0.3,
+        "c_const_unit": "mM",
+        "ccat_value": 0.2,
+        "ccat_unit": "mg mL-1"
+      }
+    ]
+  },
+  "reasoning": "The article reports kinetic characterization of vanadium oxide quantum dots (VOxQDs) as peroxidase‑like nanozymes. Two kinetic assays were performed:\n\n1. **H₂O₂ as the variable substrate** (TMB kept constant at 1 mM).  \n   - H₂O₂ concentration varied from 0.005 mM to 0.15 mM.  \n   - Km (H₂O₂) = 0.0843 mM, Vmax (H₂O₂) = 2.809 × 10⁻⁶ M s⁻¹.  \n   - Reaction type is **H₂O₂+TMB** (H₂O₂ substrate, TMB co‑substrate).  \n\n2. **TMB as the variable substrate** (H₂O₂ kept constant at 0.3 mM).  \n   - TMB concentration varied from 0.01 mM to 0.9 mM.  \n   - Km (TMB) = 0.238 mM, Vmax (TMB) = 2.73 × 10⁻⁶ M s⁻¹.  \n   - Reaction type is **TMB+H₂O₂** (TMB substrate, H₂O₂ co‑substrate).  \n\nBoth assays were carried out in 100 mM acetate buffer, pH 3.0, at 30 °C, using a catalyst concentration of 200 µg mL⁻¹ (0.2 mg mL⁻¹). The VOxQDs have an average diameter of 3.39 nm (size parameter). No explicit crystal system or surface functionalisation is reported, so those fields are left null.\n\nAccordingly, two separate experiment objects are created, each fully describing the corresponding kinetic track."
+}
