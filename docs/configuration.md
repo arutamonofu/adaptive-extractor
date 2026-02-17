@@ -8,6 +8,16 @@ Configuration is stored in YAML files under `config/`. The system uses a hierarc
 
 ## Complete Configuration Schema
 
+| Section | Description |
+|---------|-------------|
+| [`project`](#project-settings) | Project name and logging level |
+| [`paths`](#paths-configuration) | File system paths for data directories |
+| [`llm`](#llm-configuration) | Student and teacher LLM settings |
+| [`parsing`](#parsing-configuration) | Document parser settings |
+| [`optimization`](#optimization-configuration) | DSPy MIPROv2 optimization parameters |
+| [`task`](#task-configuration) | Task definition and evaluation settings |
+| [`prediction`](#prediction-configuration) | Batch prediction behavior |
+
 ### Project Settings
 
 ```yaml
@@ -221,6 +231,25 @@ task:
 - `TASK__NAME` - Task name
 - `TASK__INITIAL_INSTRUCTION_FILE` - Path to initial instruction file (relative to config/)
 - `TASK__EVALUATION__FLOAT_TOLERANCE` - Float comparison tolerance
+
+---
+
+### Prediction Configuration
+
+Settings for batch prediction behavior.
+
+```yaml
+prediction:
+  enable_cache: false                        # Enable LLM response caching for predictions
+```
+
+**Environment Variables:**
+- `PREDICTION__ENABLE_CACHE` - Enable caching (true/false)
+
+**Notes:**
+- Caching is disabled by default for predictions to ensure fresh results
+- Enable caching to speed up repeated predictions on the same documents
+- Cache is stored in the LLM infrastructure layer
 
 ---
 

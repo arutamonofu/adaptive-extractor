@@ -143,6 +143,11 @@ class TaskConfig(BaseModel):
         return v
 
 
+class PredictionConfig(BaseModel):
+    """Prediction configuration."""
+    enable_cache: bool = False
+
+
 class Settings(BaseSettings):
     """Main application settings with environment variable support."""
     project: ProjectConfig = Field(default_factory=ProjectConfig)
@@ -151,6 +156,7 @@ class Settings(BaseSettings):
     parsing: IngestionConfig = Field(default_factory=IngestionConfig)
     optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
     task: TaskConfig = Field(default_factory=TaskConfig)
+    prediction: PredictionConfig = Field(default_factory=PredictionConfig)
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",

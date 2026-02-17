@@ -107,3 +107,6 @@ task:
       - "vmax_unit"
       - "c_const_unit"
       - "ccat_unit"
+
+prediction:
+  enable_cache: false

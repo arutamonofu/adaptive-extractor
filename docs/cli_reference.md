@@ -145,10 +145,8 @@ python scripts/predict.py [OPTIONS] --agent AGENT_PATH
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--task` | `str` | `None` | Task name (e.g., `nanozymes`). If not provided, uses `task.name` from config |
 | `--agent` | `Path` | **Required** | Path to trained agent JSON file |
 | `--config` | `Path` | **Required** | Path to YAML configuration file |
-| `--enable-cache` | `flag` | `false` | Enable LLM response caching (speeds up repeated predictions) |
 
 ### Examples
 
@@ -156,25 +154,28 @@ python scripts/predict.py [OPTIONS] --agent AGENT_PATH
 ```bash
 python scripts/predict.py \
     --config config/default.yaml \
-    --agent data/agents/nanozymes_latest.json \
-    --task nanozymes
-```
-
-**Predict with cache enabled (for speed):**
-```bash
-python scripts/predict.py \
-    --config config/default.yaml \
-    --agent data/agents/nanozymes_latest.json \
-    --task nanozymes \
-    --enable-cache
+    --agent data/agents/nanozymes_latest.json
 ```
 
 **Predict with custom config:**
 ```bash
 python scripts/predict.py \
     --config config/default_fast.yaml \
-    --agent data/agents/nanozymes_latest.json \
-    --task nanozymes
+    --agent data/agents/nanozymes_latest.json
+```
+
+### Configuration
+
+**LLM caching** is controlled via `prediction.enable_cache` in YAML config:
+```yaml
+prediction:
+  enable_cache: false  # Set to true to enable caching
+```
+
+**Task name** is specified in YAML config:
+```yaml
+task:
+  name: "nanozymes"
 ```
 
 ### Output
@@ -241,8 +242,7 @@ python scripts/generate_manual_agent.py --output data/agents/my_manual_agent.jso
 | `--overwrite` | ✅ | ❌ | ❌ | ❌ |
 | `--run-name` | ❌ | ✅ | ❌ | ❌ |
 | `--no-mlflow` | ❌ | ✅ | ❌ | ❌ |
-| `--enable-cache` | ❌ | ❌ | ✅ | ❌ |
-| `--task` | ❌ | ❌ | ✅ | ❌ |
+| `--task` | ❌ | ❌ | ❌ | ❌ |
 | `--agent` | ❌ | ❌ | ✅ | ❌ |
 | `--output` | ❌ | ❌ | ❌ | ✅ |
 

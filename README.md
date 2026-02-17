@@ -63,11 +63,10 @@ python scripts/optimize.py --config config/default.yaml
 # 3. Extract data from new documents
 python scripts/predict.py \
     --config config/default.yaml \
-    --agent data/agents/nanozymes_latest.json \
-    --task nanozymes
+    --agent data/agents/nanozymes_latest.json
 
 # 4. Evaluate (optional)
-# Evaluation is performed manually or with custom scripts.
+# Evaluation is performed manually or custom scripts.
 ```
 
 [**Full CLI reference →**](docs/cli_reference.md)

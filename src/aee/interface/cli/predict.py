@@ -31,20 +31,6 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--task",
-        type=str,
-        default=None,
-        help="Task name (default: from config)",
-    )
-
-    parser.add_argument(
-        "--agent",
-        type=Path,
-        required=True,
-        help="Path to trained agent JSON file",
-    )
-
-    parser.add_argument(
         "--config",
         type=Path,
         required=True,
@@ -52,10 +38,10 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--enable-cache",
-        action="store_true",
-        default=False,
-        help="Enable LLM response caching (default: disabled)",
+        "--agent",
+        type=Path,
+        required=True,
+        help="Path to trained agent JSON file",
     )
 
     return parser
@@ -84,12 +70,12 @@ def predict_command(argv: Optional[list] = None) -> int:
     try:
         logger.info("Starting batch prediction")
 
-        # Configure LLM cache (disabled by default for predictions)
+        # Configure LLM cache (from config)
         from aee.infrastructure.llm import create_lm
 
         create_lm(
             custom_settings.llm.student,
-            enable_cache=args.enable_cache,
+            enable_cache=custom_settings.prediction.enable_cache,
             enable_circuit_breaker=True,
         )
 
@@ -100,7 +86,7 @@ def predict_command(argv: Optional[list] = None) -> int:
             return 1
 
         # Load task definition
-        task_name = args.task if args.task else custom_settings.task.name
+        task_name = custom_settings.task.name
         task = get_task(task_name)
         logger.info(f"Task loaded: {task.name}")
 
@@ -126,7 +112,7 @@ def predict_command(argv: Optional[list] = None) -> int:
         logger.info(f"Agent: {args.agent}")
         logger.info(f"Documents: {len(document_ids)}")
         logger.info(f"Output: {output_dir}")
-        logger.info(f"LLM cache: {'ENABLED' if args.enable_cache else 'DISABLED'}")
+        logger.info(f"LLM cache: {'ENABLED' if custom_settings.prediction.enable_cache else 'DISABLED'}")
         logger.info("=" * 60)
 
         # Create dependencies
