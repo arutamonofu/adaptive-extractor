@@ -559,7 +559,7 @@ ls -lt data/agents/proteins_*.json | head -1
 # Run batch extraction
 python scripts/extract.py \
     --config proteins.yaml \
-    --agent data/agents/proteins_v1_2024-01-15.json \
+    --agent proteins_v1_2024-01-15.json \
     --task proteins
 ```
 

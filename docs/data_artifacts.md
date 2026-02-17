@@ -443,7 +443,7 @@ python scripts/optimize.py --task nanozymes
 ### Stage 5: Extraction
 
 ```bash
-python scripts/extract.py --agent data/agents/nanozymes_latest.json
+python scripts/extract.py --agent nanozymes_latest.json
 ```
 
 | Input | Output |

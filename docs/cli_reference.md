@@ -154,14 +154,14 @@ python scripts/extract.py [OPTIONS] --agent AGENT_PATH
 ```bash
 python scripts/extract.py \
     --config default.yaml \
-    --agent data/agents/nanozymes_latest.json
+    --agent nanozymes_latest.json
 ```
 
 **Extract with custom config:**
 ```bash
 python scripts/extract.py \
     --config default_fast.yaml \
-    --agent data/agents/nanozymes_latest.json
+    --agent nanozymes_latest.json
 ```
 
 ### Configuration

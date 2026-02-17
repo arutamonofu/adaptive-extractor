@@ -80,9 +80,14 @@ def extract_command(argv: Optional[list] = None) -> int:
         )
 
         # Validate agent path
-        if not args.agent.exists():
-            logger.error(f"Agent not found: {args.agent}")
-            print(f"✗ Error: Agent not found: {args.agent}")
+        # Resolve relative paths relative to agents/ directory
+        agent_path = Path(args.agent)
+        if not agent_path.is_absolute():
+            base_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
+            agent_path = base_dir / "data" / "agents" / agent_path
+        if not agent_path.exists():
+            logger.error(f"Agent not found: {agent_path}")
+            print(f"✗ Error: Agent not found: {agent_path}")
             return 1
 
         # Load task definition
@@ -132,7 +137,7 @@ def extract_command(argv: Optional[list] = None) -> int:
         # Build request
         request = BatchPredictionRequest(
             task=task,
-            agent_path=args.agent,
+            agent_path=agent_path,
             document_ids=document_ids,
             output_dir=output_dir,
             batch_size=1,
