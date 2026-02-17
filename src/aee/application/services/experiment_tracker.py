@@ -362,6 +362,10 @@ class ExperimentTracker:
 
         This uses MLflow's DSPy integration to properly save and version
         DSPy models, including their prompts, demonstrations, and state.
+        
+        Uses DSPy's native save method (use_dspy_model_save=True) to avoid
+        pickle serialization issues with non-serializable objects like thread locks.
+        Requires dspy>=3.1.0.
 
         Args:
             dspy_model: The DSPy model/program to log.
@@ -383,11 +387,14 @@ class ExperimentTracker:
             return
 
         try:
+            # Use DSPy's native save method to avoid pickle issues with thread locks
+            # This requires dspy>=3.1.0 (currently using dspy-ai 3.1.3)
             self.mlflow.dspy.log_model(
                 dspy_model=dspy_model,
                 name=name,
                 signature=signature,
                 input_example=input_example,
+                use_dspy_model_save=True,
                 **kwargs,
             )
             logger.info(f"Logged DSPy model to {name}")

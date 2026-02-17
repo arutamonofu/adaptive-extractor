@@ -345,10 +345,11 @@ class RateLimiter:
                     elapsed = time.monotonic() - self.last_call_time
                     if elapsed < self.delay:
                         time.sleep(self.delay - elapsed)
-                
+
                 result = func(*args, **kwargs)
-                self.last_call_time = time.monotonic()
-                return result
+
+            self.last_call_time = time.monotonic()
+            return result
         return wrapper
 
 
