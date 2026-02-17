@@ -565,18 +565,7 @@ python scripts/predict.py \
 
 ### Step 11: Evaluate Results
 
-```bash
-python scripts/evaluate.py \
-    --task proteins \
-    --predictions data/predictions/proteins_predictions.json \
-    --ground-truth data/ground_truth/proteins.csv
-```
-
-This will show:
-- Precision, Recall, F1 scores
-- Per-field accuracy
-- Confusion matrix
-- Missed experiments
+Evaluation is performed manually or with custom scripts.
 
 ## Advanced Topics
 

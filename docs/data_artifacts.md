@@ -454,11 +454,7 @@ python scripts/predict.py --agent data/agents/nanozymes_latest.json
 
 ### Stage 6: Evaluation (optional)
 
-```bash
-python scripts/evaluate.py \
-    --predictions data/predictions/output.json \
-    --ground-truth data/ground_truth/nanozymes.csv
-```
+Evaluation is performed manually or with custom scripts.
 
 ---
 

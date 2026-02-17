@@ -67,10 +67,7 @@ python scripts/predict.py \
     --task nanozymes
 
 # 4. Evaluate (optional)
-python scripts/evaluate.py \
-    --task nanozymes \
-    --predictions data/predictions/nanozymes_predictions.json \
-    --ground-truth data/ground_truth/nanozymes.csv
+# Evaluation is performed manually or with custom scripts.
 ```
 
 [**Full CLI reference →**](docs/cli_reference.md)
