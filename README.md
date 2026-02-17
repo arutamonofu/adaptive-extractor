@@ -55,14 +55,14 @@ paper2.pdf,Fe-TEMPO,oxidation,12,0.08,150
 
 ```bash
 # 1. Parse PDFs (PDF directory configured via paths.pdf_dir in YAML config)
-python scripts/parse.py --config config/default.yaml
+python scripts/parse.py --config default.yaml
 
 # 2. Optimize agent (requires ground truth and splits file)
-python scripts/optimize.py --config config/default.yaml
+python scripts/optimize.py --config default.yaml
 
 # 3. Extract data from new documents
 python scripts/extract.py \
-    --config config/default.yaml \
+    --config default.yaml \
     --agent data/agents/nanozymes_latest.json
 
 # 4. Evaluate (optional)
