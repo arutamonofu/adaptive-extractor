@@ -548,7 +548,6 @@ Configuration is managed through multiple layers with clear precedence:
 3. **YAML Config Files** (`config/`):
    - `default.yaml` - Production configuration
    - `default_fast.yaml` - Fast optimization settings (fewer trials)
-   - `student_gptoss.yaml` - Alternative model configurations
    - Custom configs can be specified via `--config` flag
 
 **Configuration Precedence** (highest to lowest):

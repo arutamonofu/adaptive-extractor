@@ -165,7 +165,6 @@ export PROJECT__LOG_LEVEL="DEBUG"
 ### YAML Configs
 
 - `config/default.yaml` — production settings
-- `config/default_fast.yaml` — fast optimization (testing)
 
 [**Full configuration reference →**](docs/configuration.md)
 

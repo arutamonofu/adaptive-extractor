@@ -204,7 +204,7 @@ Task-specific settings including the initial instruction for prompt optimization
 ```yaml
 task:
   name: "nanozymes"                          # Task name (must match registered task)
-  initial_instruction_file: "initial_instructions/nanozymes_v1.txt"  # Initial instruction file
+  initial_instruction_file: "initial_instructions/nanozymes_sota.txt"  # Initial instruction file
 
   evaluation:
     float_tolerance: 0.05                    # Tolerance for float comparisons
@@ -254,13 +254,13 @@ IMPORTANT: Extract each experiment separately. Be precise with numerical values 
 
 | File | Description |
 |------|-------------|
-| `initial_instructions/nanozymes_v1.txt` | Default nanozyme extraction instruction |
+| `initial_instructions/nanozymes_sota.txt` | Default nanozyme extraction instruction |
 
 **Creating Custom Instructions:**
 
 1. Create a new file in `config/initial_instructions/`:
    ```bash
-   cp config/initial_instructions/nanozymes_v1.txt config/initial_instructions/nanozymes_v2.txt
+   cp config/initial_instructions/nanozymes_sota.txt config/initial_instructions/nanozymes_v2.txt
    ```
 
 2. Edit the instruction text (no YAML escaping needed!)
@@ -300,11 +300,6 @@ This allows you to track exactly which instruction was used for each agent.
    - Smaller datasets (3 examples)
    - Quick testing and development
    - Use with `--config config/default_fast.yaml`
-
-3. **`config/student_gptoss.yaml`** - Alternative models
-   - Uses gpt-oss:120b model
-   - Custom Ollama endpoint configuration
-   - Higher context windows
 
 ### Using Custom Config Files
 

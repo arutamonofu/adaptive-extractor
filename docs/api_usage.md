@@ -218,7 +218,7 @@ from aee.infrastructure.storage import AgentRepository
 agent_repo = AgentRepository(agents_dir=Path("data/agents"))
 
 # Load specific agent by path
-agent_path = Path("data/agents/nanozymes_v1_2026-02-17.json")
+agent_path = Path("data/agents/nanozymes_sota_2026-02-17.json")
 agent, metadata = agent_repo.load(agent_path)
 
 print(f"Agent loaded: {metadata.task_name}")
@@ -585,7 +585,7 @@ def extract_from_pdf(pdf_path: Path, task_name: str, agent_path: Path):
 experiments = extract_from_pdf(
     pdf_path=Path("data/pdfs/new_paper.pdf"),
     task_name="nanozymes",
-    agent_path=Path("data/agents/nanozymes_v1_2026-02-17.json")
+    agent_path=Path("data/agents/nanozymes_sota_2026-02-17.json")
 )
 
 for exp in experiments:
@@ -723,13 +723,13 @@ from pathlib import Path
 
 # Load instruction for task
 loader = InstructionLoader(config_dir=Path("config"))
-instruction = loader.load("initial_instructions/nanozymes_v1.txt")
+instruction = loader.load("initial_instructions/nanozymes_sota.txt")
 
 print(f"Instruction length: {len(instruction)} characters")
 print(f"Instruction hash: {loader.compute_hash(instruction)}")
 
 # Load with metadata
-metadata = loader.load_with_metadata("initial_instructions/nanozymes_v1.txt")
+metadata = loader.load_with_metadata("initial_instructions/nanozymes_sota.txt")
 print(f"File: {metadata['instruction_file']}")
 print(f"Hash: {metadata['instruction_hash']}")
 ```

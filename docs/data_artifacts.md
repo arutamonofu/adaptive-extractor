@@ -267,8 +267,8 @@ paths:
 **Directory structure:**
 ```
 data/agents/
-├── nanozymes_v1_2026-02-17.json
-├── nanozymes_v1_2026-02-17.meta.json
+├── nanozymes_sota_2026-02-17.json
+├── nanozymes_sota_2026-02-17.meta.json
 ├── nanozymes_latest.json
 └── manual_nanozymes.json
 ```

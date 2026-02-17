@@ -37,6 +37,10 @@ research/*
 mlruns/
 mlflow.db
 
+# --- Configs ---
+config/*.yaml
+!config/default.yaml
+
 # --- Secrets ---
 .env
 !.env.example

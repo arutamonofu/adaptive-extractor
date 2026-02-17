@@ -23,7 +23,7 @@ class InstructionLoader:
     Example:
         ```python
         loader = InstructionLoader(config_dir=Path("config"))
-        instruction = loader.load("initial_instructions/nanozymes_v1.txt")
+        instruction = loader.load("initial_instructions/nanozymes_sota.txt")
         ```
     """
 

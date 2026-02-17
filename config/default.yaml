@@ -83,7 +83,7 @@ optimization:
 
 task:
   name: "nanozymes"
-  initial_instruction_file: "initial_instructions/nanozymes_v1.txt"
+  initial_instruction_file: "initial_instructions/nanozymes_sota.txt"
   evaluation:
     float_tolerance: 0.05
     compare_fields:
