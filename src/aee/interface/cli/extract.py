@@ -17,7 +17,7 @@ from aee.domain.tasks import get_task
 from aee.infrastructure.storage import (
     AgentRepository,
     DocumentRepository,
-    PredictionRepository,
+    ExtractionRepository,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ def extract_command(argv: Optional[list] = None) -> int:
         # Create dependencies
         doc_repo = DocumentRepository(parsed_dir=custom_settings.paths.parsed_dir)
         agent_repo = AgentRepository(agents_dir=custom_settings.paths.agents_dir)
-        pred_repo = PredictionRepository()
+        pred_repo = ExtractionRepository()
 
         agent_manager = AgentManager(agent_repo=agent_repo)
 

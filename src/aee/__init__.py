@@ -10,7 +10,7 @@ from aee.domain.tasks.nanozymes import NanozymeExperiment, NanozymeExtractionOut
 from aee.infrastructure.agents import UniversalExtractor
 from aee.domain.evaluation import TaskMetric, ExperimentMatcher
 from aee.infrastructure.llm import setup_student, setup_teacher, create_lm
-from aee.infrastructure.storage import GroundTruthRepository, PredictionRepository, DataSplitRepository
+from aee.infrastructure.storage import GroundTruthRepository, ExtractionRepository, DataSplitRepository
 from aee.application.services import DatasetBuilder
 
 __all__ = [
@@ -50,7 +50,7 @@ __all__ = [
 
     # Infrastructure - Storage (Repositories)
     "GroundTruthRepository",
-    "PredictionRepository",
+    "ExtractionRepository",
     "DataSplitRepository",
 
     # Application - Services

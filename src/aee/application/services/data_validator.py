@@ -140,7 +140,11 @@ class DataValidator:
                 return result
 
             # Validate each split
+            # Note: train_manual is allowed to overlap with train (few-shot examples)
+            main_splits = ["train", "val", "test"]
             all_split_ids: Set[str] = set()
+            main_split_ids: Set[str] = set()
+            
             for split_name, split_ids in splits.items():
                 split_ids_set = set(split_ids)
 
@@ -148,12 +152,16 @@ class DataValidator:
                 if len(split_ids) != len(split_ids_set):
                     result.add_warning(f"Split '{split_name}' contains duplicate IDs")
 
-                # Check for overlap with other splits
-                overlap = all_split_ids & split_ids_set
-                if overlap:
-                    result.add_error(
-                        f"Split '{split_name}' overlaps with previous splits: {overlap}"
-                    )
+                # Check for overlap with other main splits (train/val/test)
+                # train_manual is excluded from this check
+                if split_name in main_splits:
+                    overlap = main_split_ids & split_ids_set
+                    if overlap:
+                        result.add_error(
+                            f"Split '{split_name}' overlaps with previous splits: {overlap}"
+                        )
+                    main_split_ids.update(split_ids_set)
+                
                 all_split_ids.update(split_ids_set)
 
                 # Check if split documents exist in ground truth
