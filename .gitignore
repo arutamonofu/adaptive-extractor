@@ -28,13 +28,13 @@ data/extractions/*
 data/splits/*
 
 # --- Notebooks ---
-notebooks/*
+notebooks
 
 # --- Research ---
-research/*
+research
 
 # --- MLflow ---
-mlruns/
+mlruns
 mlflow.db
 
 # --- Configs ---
