@@ -1,55 +1,58 @@
 # src/aee/__init__.py
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"
 
 # Core modules
-from aee.config import settings, setup_logging
-from aee.data import DocumentMetadata, ProcessedDocument
-from aee.ingestion import BaseParser, DoclingParser, MarkerParser, TextCleaner
-from aee.models import NanozymeExperiment, NanozymeExtractionOutput, NanozymeSignature
-from aee.agents import UniversalExtractor
-from aee.evaluation import TaskMetric, ExperimentMatcher
-from aee.llm import setup_student, setup_teacher, create_lm
-from aee.utils import load_ground_truth, load_predictions, get_split_files, create_dataset_from_ids
+from aee.infrastructure.config import settings, setup_logging
+from aee.domain.entities import DocumentMetadata, ProcessedDocument
+from aee.infrastructure.parsers import BaseParser, DoclingParser, MarkerParser, TextCleaner
+from aee.domain.tasks.nanozymes import NanozymeExperiment, NanozymeExtractionOutput, create_nanozyme_signature
+from aee.infrastructure.agents import UniversalExtractor
+from aee.domain.evaluation import TaskMetric, ExperimentMatcher
+from aee.infrastructure.llm import setup_student, setup_teacher, create_lm
+from aee.infrastructure.storage import GroundTruthRepository, PredictionRepository, DataSplitRepository
+from aee.application.services import DatasetBuilder
 
 __all__ = [
     # Version
     "__version__",
-    
+
     # Config
-    "settings", 
+    "settings",
     "setup_logging",
-    
-    # Data
-    "DocumentMetadata", 
+
+    # Domain Entities
+    "DocumentMetadata",
     "ProcessedDocument",
-    
-    # Ingestion
-    "BaseParser", 
-    "DoclingParser", 
-    "MarkerParser", 
+
+    # Infrastructure - Parsers
+    "BaseParser",
+    "DoclingParser",
+    "MarkerParser",
     "TextCleaner",
-    
-    # Models
-    "NanozymeExperiment", 
-    "NanozymeExtractionOutput", 
-    "NanozymeSignature",
-    
+
+    # Domain - Task Models
+    "NanozymeExperiment",
+    "NanozymeExtractionOutput",
+    "create_nanozyme_signature",
+
     # Agents
     "UniversalExtractor",
-    
-    # Evaluation
-    "TaskMetric", 
+
+    # Domain - Evaluation
+    "TaskMetric",
     "ExperimentMatcher",
-    
-    # LLM
-    "setup_student", 
-    "setup_teacher", 
+
+    # Infrastructure - LLM
+    "setup_student",
+    "setup_teacher",
     "create_lm",
-    
-    # Utils
-    "load_ground_truth",
-    "load_predictions",
-    "get_split_files",
-    "create_dataset_from_ids",
+
+    # Infrastructure - Storage (Repositories)
+    "GroundTruthRepository",
+    "PredictionRepository",
+    "DataSplitRepository",
+
+    # Application - Services
+    "DatasetBuilder",
 ]

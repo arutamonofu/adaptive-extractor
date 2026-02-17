@@ -3,9 +3,11 @@ import argparse
 from pathlib import Path
 import dspy
 
-from aee import settings, setup_logging, ProcessedDocument, UniversalExtractor
-from aee.tasks import TASK_REGISTRY
-from aee.utils import load_ground_truth
+from aee import settings, setup_logging
+from aee.domain.entities import ProcessedDocument
+from aee.infrastructure.agents import UniversalExtractor
+from aee.domain.tasks import get_task
+from aee.infrastructure.storage import GroundTruthRepository
 
 logger = setup_logging()
 
@@ -15,9 +17,12 @@ def main():
     args = parser.parse_args()
 
     task_name = settings.task.name
-    task_conf = TASK_REGISTRY.get(task_name)
-    if not task_conf:
-        logger.error(f"Task {task_name} not found in registry.")
+
+    # Get task definition using new task system
+    try:
+        task = get_task(task_name)
+    except Exception as e:
+        logger.error(f"Task {task_name} not found: {e}")
         return
 
     splits_path = settings.paths.splits_file
@@ -27,42 +32,45 @@ def main():
 
     with open(splits_path, "r", encoding="utf-8") as f:
         splits = json.load(f)
-    
+
     manual_ids = splits.get("train_manual", [])
     if not manual_ids:
         logger.warning("No IDs found in 'train_manual' split.")
         return
-    
+
     logger.info(f"Found {len(manual_ids)} manual IDs: {manual_ids}")
 
+    # Load ground truth using new repository
     gt_path = settings.paths.ground_truth_dir / f"{task_name}.csv"
-    gt_data = load_ground_truth(gt_path, task_conf["row_converter"])
+    gt_repo = GroundTruthRepository()
+    gt_data = gt_repo.load(gt_path, task.row_converter)
 
-    agent = UniversalExtractor(task_conf["signature"])
+    # Use task properties
+    agent = UniversalExtractor(task.signature)
     manual_demos = []
     proc_dir = settings.paths.parsed_dir / "train" / "manual"
-    OutputModel = task_conf["output_model"]
+    OutputModel = task.output_model
 
     for doc_id in manual_ids:
         key = doc_id.lower()
         json_path = proc_dir / f"{doc_id}.json"
-        
+
         if not json_path.exists():
             logger.warning(f"File {json_path} not found, skipping.")
             continue
-            
+
         if key not in gt_data:
             logger.warning(f"ID {key} not found in Ground Truth, skipping.")
             continue
 
         try:
             doc = ProcessedDocument.model_validate_json(json_path.read_text(encoding="utf-8"))
-            
+
             example = dspy.Example(
                 document_text=doc.text_content,
                 extracted_data=OutputModel(experiments=gt_data[key])
             ).with_inputs("document_text")
-            
+
             manual_demos.append(example)
             logger.info(f"Added demo: {doc_id}")
         except Exception as e:
@@ -73,11 +81,11 @@ def main():
         return
 
     agent.prog.predict.demos = manual_demos
-    
+
     default_output = settings.paths.agents_dir / f"manual_{task_name}.json"
     output_path = Path(args.output) if args.output else default_output
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     agent.save(str(output_path))
     logger.info(f"Manual agent saved to: {output_path.absolute()}")
 

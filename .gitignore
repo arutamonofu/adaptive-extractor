@@ -1,43 +1,47 @@
-# Python core
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
-# Security, environment
-.env
-.env.*
-!.env.example
+# --- Environments ---
+.venv/
 venv/
 env/
-.venv/
 .conda/
+environment.yml.local
 
-# Distribution, build
-build/
-dist/
-*.egg-info/
-.eggs/
-src/*.egg-info/
-
-# IDEs & OS
+# --- IDEs ---
 .vscode/
 .idea/
-.DS_Store
-Thumbs.db
+*.swp
+*.swo
+*~
+.claude/
 
-# Logs, debug output
-*.log
-logs/
-dspy_llm_history.log
-
-# DSPy and ML cache
-dspy_cache/
-.dspy_cache/
-joblib_memory/
-
-# Data
-data/downloaded/*
+# --- Data (raw & intermediate) ---
+data/agents/*
+data/ground_truth/*
+data/parsed/*
 data/pdf/*
+data/prediction/*
+data/splits/*
 
-# Literature
-literature/*
+# --- Notebooks ---
+notebooks/*
+
+# --- Research ---
+research/*
+
+# --- MLflow ---
+mlruns/
+mlflow.db
+
+# --- Secrets ---
+.env
+!.env.example
+*.pem
+*.key
+
+# --- GitKeep (always track) ---
+!.gitkeep

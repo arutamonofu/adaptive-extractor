@@ -2,27 +2,37 @@ name: aee
 channels:
   - conda-forge
   - defaults
+
 dependencies:
+  # Python and base utilities
   - python=3.11
   - pip
+
+  # Data processing
   - pandas
   - numpy
-  - scipy
-  - tqdm
-  - pytorch
-  - cpuonly
+
+  # Installed via pip
   - pip:
+      # LLM Framework
       - dspy-ai>=2.5.0
+
+      # Validation and configuration
       - pydantic>=2.0
       - pydantic-settings
       - pyyaml
       - python-dotenv
+
+      # HTTP client
       - requests
+
+      # PDF parsing
       - docling
+      - docling-core
       - marker-pdf
-      - onnxruntime
-      - rapidocr-onnxruntime
-      - huggingface_hub
-      - python-levenshtein
-      - jupyterlab
-      - ipywidgets
+
+      # Scientific computing
+      - scipy
+
+      # Experiment tracking
+      - mlflow>=2.10.0

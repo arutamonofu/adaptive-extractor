@@ -15,6 +15,7 @@ llm:
     top_p: 0.1
     repeat_penalty: 1.2
     repeat_last_n: 2048
+    enable_cache: true  # Enable caching for optimization (improves speed/cost)
     ollama:
       ollama_base_url: "https://aicltr.itmo.ru/ollama"
       num_ctx: 128000
@@ -34,6 +35,7 @@ llm:
     top_p: 0.9
     repeat_penalty: 1.1
     repeat_last_n: 512
+    enable_cache: true  # Enable caching for optimization (improves speed/cost)
     ollama:
       ollama_base_url: "https://aicltr.itmo.ru/ollama"
       num_ctx: 100000
@@ -58,7 +60,7 @@ paths:
   pdf_dir: "data/pdf"
   parsed_dir: "data/parsed"
   ground_truth_dir: "data/ground_truth"
-  splits_file: "data/splits.json"
+  splits_file: "data/splits/nanozymes.json"
   agents_dir: "data/agents"
   predictions_dir: "data/predictions"
   logs_dir: "logs"
@@ -81,6 +83,7 @@ optimization:
 
 task:
   name: "nanozymes"
+  initial_instruction_file: "initial_instructions/nanozymes_v1.txt"
   evaluation:
     float_tolerance: 0.05
     compare_fields:
