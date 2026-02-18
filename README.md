@@ -26,7 +26,7 @@ pip install -e .
 
 #### Step 1: Data Preparation
 
-**Place PDF files in `data/pdfs/` directory:**
+**Place PDF files in `data/pdf/` directory:**
 ```bash
 mkdir -p data/pdfs
 cp /path/to/your/papers/*.pdf data/pdfs/
@@ -99,7 +99,7 @@ autoevoextractor/
 │   ├── infrastructure/   # LLM, parsers, storage, MLflow
 │   ├── interface/        # CLI commands
 │   └── shared/           # Exceptions, utilities
-├── scripts/              # Entry points: parse.py, optimize.py, extract.py, generate_manual_agent.py
+├── scripts/              # Entry points: parse.py, optimize.py, extract.py...
 ├── config/
 │   ├── *.yaml            # YAML configurations
 │   └── initial_instructions/  # Initial instructions for optimization
@@ -134,30 +134,6 @@ mkdir -p src/aee/domain/tasks/mytask
 
 ## Configuration
 
-### Environment Variables
-
-```bash
-# LLM (Ollama)
-export LLM__STUDENT__OLLAMA__OLLAMA_BASE_URL="http://localhost:11434"
-export LLM__STUDENT__MODEL="llama3.2:3b"
-
-# LLM (OpenAI/Anthropic)
-export LLM__STUDENT__USE_OLLAMA=false
-export LLM__STUDENT__MODEL="gpt-4"
-export LLM__STUDENT__NON_OLLAMA__API_KEY="sk-..."
-
-# Paths
-export PATHS__PARSED_DIR="data/parsed"
-export PATHS__AGENTS_DIR="data/agents"
-
-# Optimization
-export OPTIMIZATION__NUM_TRIALS="50"
-export OPTIMIZATION__USE_CACHE="true"
-
-# Logging
-export PROJECT__LOG_LEVEL="DEBUG"
-```
-
 ### YAML Configs
 
 - `config/default.yaml` — production settings
@@ -181,4 +157,3 @@ export PROJECT__LOG_LEVEL="DEBUG"
 | pydantic | >=2.7.1,<3.0.0 |
 | pandas | >=2.0.0,<3.0.0 |
 | mlflow | >=2.10.0,<3.0.0 |
-| streamlit | >=1.28.0,<2.0.0 |
