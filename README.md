@@ -29,7 +29,7 @@ pip install -e .
 **Place PDF files in `data/pdf/` directory:**
 ```bash
 mkdir -p data/pdfs
-cp /path/to/your/papers/*.pdf data/pdfs/
+cp /path/to/your/papers/*.pdf data/pdf/
 ```
 
 **Create ground truth data** (`data/ground_truth/{task}.csv`):
