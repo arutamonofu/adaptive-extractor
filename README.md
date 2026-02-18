@@ -138,6 +138,8 @@ mkdir -p src/aee/domain/tasks/mytask
 
 - `config/default.yaml` — an example of settings
 
+**New in v2.0:** All LLM, optimization, and infrastructure parameters are now **explicitly required** in YAML configuration. Only safe path defaults are provided.
+
 [**Full configuration reference →**](docs/configuration.md)
 
 ---

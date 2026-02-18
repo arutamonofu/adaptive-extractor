@@ -6,6 +6,30 @@ Complete reference for all configuration options in AutoEvoExtractor.
 
 Configuration is stored in YAML files under `config/`. The system uses a hierarchical structure organized into sections.
 
+## Configuration Priority
+
+Settings are loaded in the following order (highest to lowest priority):
+
+1. **Environment variables** (`.env` file or shell exports)
+2. **YAML configuration files** (`config/default.yaml`, `config/*.yaml`)
+3. **Internal defaults** (fallback values in code)
+
+> ⚠️ **Important:** Most configuration fields are **required** and must be explicitly set in your YAML config or via environment variables. Only infrastructure paths have safe defaults.
+
+## Required vs. Optional Fields
+
+| Category | Required Fields | Optional Fields |
+|----------|-----------------|-----------------|
+| **LLM** | `use_ollama`, `model`, `temperature`, `timeout`, `max_retries`, `rate_limit_delay`, `top_p`, `repeat_penalty`, `repeat_last_n`, `enable_cache`, `ollama.*`, `non_ollama.max_tokens` | — |
+| **Optimization** | `total_load`, `train_split`, `num_candidates`, `num_trials`, `max_bootstrapped_demos`, `max_labeled_demos`, `minibatch`, `minibatch_size`, `view_data_batch_size`, `metric_threshold`, `init_temperature`, `random_seed`, `use_cache`, `verbose` | — |
+| **Task** | `name`, `evaluation.float_tolerance`, `evaluation.compare_fields` | `initial_instruction_file` |
+| **Parsing** | `parser`, `overwrite` | — |
+| **Paths** | `splits_file` | `pdf_dir`, `parsed_dir`, `ground_truth_dir`, `agents_dir`, `extractions_dir`, `logs_dir` |
+| **Extraction** | `enable_cache` | — |
+| **Cache** | `disk_size_limit_bytes`, `memory_max_entries` | — |
+| **Circuit Breaker** | `failure_threshold`, `reset_timeout`, `half_open_max_calls` | — |
+| **Project** | — | `name`, `log_level` |
+
 ## Complete Configuration Schema
 
 | Section | Description |
@@ -17,6 +41,8 @@ Configuration is stored in YAML files under `config/`. The system uses a hierarc
 | [`optimization`](#optimization-configuration) | DSPy MIPROv2 optimization parameters |
 | [`task`](#task-configuration) | Task definition and evaluation settings |
 | [`extraction`](#extraction-configuration) | Batch extraction behavior |
+| [`cache`](#cache-configuration) | DSPy response cache settings |
+| [`circuit_breaker`](#circuit-breaker-configuration) | LLM circuit breaker protection |
 
 ### Project Settings
 
@@ -250,6 +276,54 @@ extraction:
 - Caching is disabled by default for extractions to ensure fresh results
 - Enable caching to speed up repeated extractions on the same documents
 - Cache is stored in the LLM infrastructure layer
+
+---
+
+### Cache Configuration
+
+Settings for DSPy LLM response caching (disk and memory).
+
+```yaml
+cache:
+  disk_size_limit_bytes: 30000000000         # Maximum disk cache size (30 GB)
+  memory_max_entries: 1000000                # Maximum in-memory cache entries
+```
+
+**Environment Variables:**
+- `CACHE__DISK_SIZE_LIMIT_BYTES` - Maximum disk cache size in bytes
+- `CACHE__MEMORY_MAX_ENTRIES` - Maximum number of in-memory cache entries
+
+**Notes:**
+- Disk cache persists between program runs
+- Memory cache is faster but cleared on exit
+- Both caches can be enabled simultaneously
+- Cache is automatically used by all DSPy LLM calls
+- Default cache directory: `~/.dspy_cache` (override via `DSPY_CACHE_DIR` env var)
+
+---
+
+### Circuit Breaker Configuration
+
+Settings for circuit breaker protection against LLM API failures.
+
+```yaml
+circuit_breaker:
+  failure_threshold: 5                       # Failures before opening circuit
+  reset_timeout: 60.0                        # Seconds before attempting reset
+  half_open_max_calls: 1                     # Max test calls in half-open state
+```
+
+**Environment Variables:**
+- `CIRCUIT_BREAKER__FAILURE_THRESHOLD` - Number of failures before opening
+- `CIRCUIT_BREAKER__RESET_TIMEOUT` - Reset timeout in seconds
+- `CIRCUIT_BREAKER__HALF_OPEN_MAX_CALLS` - Max test calls in half-open state
+
+**Notes:**
+- Circuit breaker prevents cascade failures during LLM API outages
+- States: CLOSED (normal) → OPEN (failing) → HALF_OPEN (testing)
+- When OPEN, requests fail immediately without calling the API
+- After `reset_timeout`, transitions to HALF_OPEN for a test request
+- Success in HALF_OPEN resets to CLOSED; failure returns to OPEN
 
 ---
 

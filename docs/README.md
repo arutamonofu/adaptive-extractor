@@ -45,9 +45,9 @@ New to AutoEvoExtractor? Start here:
 
 **Parse → Optimize → Predict:**
 ```bash
-python scripts/parse.py --config default.yaml --parser docling data/pdfs/
-python scripts/optimize.py --task nanozymes --config default.yaml --trials 20
-python scripts/extract.py --agent nanozymes_latest.json --task nanozymes
+python scripts/parse.py --config default.yaml
+python scripts/optimize.py --config default.yaml
+python scripts/extract.py --agent nanozymes_latest.json --config default.yaml
 ```
 
 **Add a new task:**
@@ -62,20 +62,27 @@ See [Adding Tasks Guide](adding_tasks.md) for details.
 
 ```bash
 # LLM (Ollama)
-export LLM__STUDENT__OLLAMA__OLLAMA_BASE_URL="http://localhost:11434"
+export OLLAMA_STUDENT_BASE_URL="http://localhost:11434"
+export OLLAMA_TEACHER_BASE_URL="http://localhost:11434"
 export LLM__STUDENT__MODEL="llama3.2:3b"
 
 # LLM (API provider)
 export LLM__STUDENT__USE_OLLAMA=false
 export LLM__STUDENT__MODEL="gpt-4"
-export LLM__STUDENT__NON_OLLAMA__API_KEY="sk-..."
+export OPENAI_API_KEY="sk-..."
 
 # Paths
-export PATHS__PARSED_DIR="data/parsed"
+export PATHS__SPLITS_FILE="data/splits/mytask.json"
 
 # Optimization
 export OPTIMIZATION__NUM_TRIALS="50"
 export OPTIMIZATION__USE_CACHE="true"
+
+# Cache
+export CACHE__DISK_SIZE_LIMIT_BYTES="30000000000"
+
+# Circuit Breaker
+export CIRCUIT_BREAKER__FAILURE_THRESHOLD="5"
 ```
 
 ---

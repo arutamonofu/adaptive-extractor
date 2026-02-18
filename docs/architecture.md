@@ -546,15 +546,15 @@ Configuration is managed through multiple layers with clear precedence:
      - `OPTIMIZATION__NUM_TRIALS` - Number of optimization trials
 
 3. **YAML Config Files** (`config/`):
-   - `default.yaml` - Production configuration
+   - `default.yaml` - Production configuration with all required fields explicitly set
    - `default_fast.yaml` - Fast optimization settings (fewer trials)
    - Custom configs can be specified via `--config` flag
 
 **Configuration Precedence** (highest to lowest):
-1. Environment variables
+1. Environment variables (`.env` file)
 2. Custom YAML file (if specified via --config)
-3. Default YAML file
-4. Built-in defaults in Settings classes
+3. Default YAML file (`config/default.yaml`)
+4. Internal defaults (minimal - only for safe infrastructure paths)
 
 ## Testing Strategy
 

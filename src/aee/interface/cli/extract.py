@@ -6,6 +6,7 @@ on documents using trained agents.
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,7 @@ from aee import setup_logging
 from aee.application.services import AgentManager
 from aee.application.use_cases import BatchPredictionRequest, BatchPredictionUseCase
 from aee.domain.tasks import get_task
+from aee.infrastructure.config.settings import Settings
 from aee.infrastructure.storage import (
     AgentRepository,
     DocumentRepository,
@@ -33,8 +35,8 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=Path,
-        required=True,
-        help="Path to configuration file (required)",
+        default=None,
+        help="Path to configuration file (optional, uses AEE_ENV or default.yaml if not set)",
     )
 
     parser.add_argument(
@@ -60,9 +62,17 @@ def extract_command(argv: Optional[list] = None) -> int:
     parser = create_argument_parser()
     args = parser.parse_args(argv)
 
-    # Load settings with required config
-    from aee.infrastructure.config.settings import Settings
-    custom_settings = Settings.load(config_path=args.config)
+    # Load settings with priority: CLI --config > AEE_ENV > default.yaml
+    from aee.infrastructure.config.environments import load_settings_for_environment
+
+    if args.config:
+        # CLI argument has highest priority
+        custom_settings = Settings.load(config_path=args.config)
+        logger.info(f"Loaded configuration from CLI argument: {args.config}")
+    else:
+        # Use AEE_ENV environment variable or default to default.yaml
+        custom_settings = load_settings_for_environment()
+        logger.info(f"Loaded configuration from AEE_ENV={os.getenv('AEE_ENV', 'dev')} (or default.yaml)")
 
     # Setup logging with custom settings
     setup_logging(custom_settings)
@@ -70,12 +80,13 @@ def extract_command(argv: Optional[list] = None) -> int:
     try:
         logger.info("Starting batch prediction")
 
-        # Configure LLM cache (from config)
+        # Configure LLM cache and circuit breaker (from config)
         from aee.infrastructure.llm import create_lm
 
         create_lm(
             custom_settings.llm.student,
-            enable_cache=custom_settings.prediction.enable_cache,
+            circuit_breaker_config=custom_settings.circuit_breaker,
+            enable_cache=custom_settings.extraction.enable_cache,
             enable_circuit_breaker=True,
         )
 

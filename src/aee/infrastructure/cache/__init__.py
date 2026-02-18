@@ -8,15 +8,16 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from aee.infrastructure.config.settings import CacheConfig
+
 logger = logging.getLogger(__name__)
 
 
 def setup_dspy_cache(
+    config: Optional[CacheConfig] = None,
     cache_dir: Optional[str] = None,
     enable_disk_cache: bool = True,
     enable_memory_cache: bool = True,
-    disk_size_limit_bytes: int = 30_000_000_000,  # 30 GB
-    memory_max_entries: int = 1_000_000,
 ) -> None:
     """Configure DSPy cache for improved performance and cost reduction.
 
@@ -24,23 +25,24 @@ def setup_dspy_cache(
     The cache is shared across all DSPy programs and persists between runs.
 
     Args:
-        cache_dir: Directory for disk cache. Defaults to ~/.dspy_cache.
+        config: Cache configuration from settings. If None, uses hardcoded defaults.
+        cache_dir: Directory for disk cache. Defaults to settings.dspy_cache_dir
+                   or ~/.dspy_cache if not set.
         enable_disk_cache: Whether to enable persistent disk caching.
         enable_memory_cache: Whether to enable fast in-memory caching.
-        disk_size_limit_bytes: Maximum disk cache size in bytes (default: 30GB).
-        memory_max_entries: Maximum in-memory cache entries (default: 1M).
 
     Example:
         ```python
         from aee.infrastructure.cache import setup_dspy_cache
+        from aee.infrastructure.config import settings
 
-        # Setup cache with default settings
-        setup_dspy_cache()
+        # Setup cache with settings from config
+        setup_dspy_cache(config=settings.cache)
 
-        # Or customize cache location and size
+        # Or use custom configuration
         setup_dspy_cache(
             cache_dir="/path/to/cache",
-            disk_size_limit_bytes=10_000_000_000,  # 10GB
+            enable_disk_cache=True,
         )
         ```
 
@@ -52,20 +54,30 @@ def setup_dspy_cache(
     """
     import dspy
 
-    # Use default cache directory if not specified
+    # Use default cache directory from settings if not specified
     if cache_dir is None:
-        cache_dir = str(Path.home() / ".dspy_cache")
+        from aee.infrastructure.config import settings
+        cache_dir = settings.dspy_cache_dir or str(Path.home() / ".dspy_cache")
 
     # Create cache directory if it doesn't exist
     cache_path = Path(cache_dir)
     cache_path.mkdir(parents=True, exist_ok=True)
+
+    # Get cache limits from config or use fallback defaults
+    if config:
+        disk_size_limit = config.disk_size_limit_bytes
+        memory_max_entries = config.memory_max_entries
+    else:
+        # Fallback defaults if no config provided
+        disk_size_limit = 30_000_000_000  # 30 GB
+        memory_max_entries = 1_000_000
 
     # Configure DSPy cache
     dspy.configure_cache(
         enable_disk_cache=enable_disk_cache,
         enable_memory_cache=enable_memory_cache,
         disk_cache_dir=cache_dir,
-        disk_size_limit_bytes=disk_size_limit_bytes,
+        disk_size_limit_bytes=disk_size_limit,
         memory_max_entries=memory_max_entries,
     )
 

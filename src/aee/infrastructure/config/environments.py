@@ -2,6 +2,11 @@
 
 This module provides utilities for loading environment-specific
 configurations (dev, test, prod).
+
+Configuration priority (highest to lowest):
+    1. CLI argument --config (explicit file path)
+    2. AEE_ENV environment variable (dev, test, prod)
+    3. default.yaml (fallback)
 """
 
 import os
@@ -21,7 +26,7 @@ class Environment(str, Enum):
 
 
 def get_environment() -> Environment:
-    """Get current environment from environment variable.
+    """Get current environment from AEE_ENV variable.
 
     Returns:
         Current environment (defaults to DEVELOPMENT).
@@ -40,13 +45,23 @@ def load_settings_for_environment(
 ) -> Settings:
     """Load settings for a specific environment.
 
+    Configuration priority (highest to lowest):
+        1. custom_config (explicit file path from CLI)
+        2. env (AEE_ENV environment variable)
+        3. default.yaml (fallback)
+
     Args:
         env: Environment to load settings for (auto-detected if None).
-        custom_config: Optional custom configuration file.
+        custom_config: Optional custom configuration file path.
 
     Returns:
         Loaded settings instance.
     """
+    # CLI argument has highest priority
+    if custom_config:
+        return Settings.load(config_path=custom_config)
+
+    # Use AEE_ENV or default to development
     if env is None:
         env = get_environment()
 
@@ -56,9 +71,8 @@ def load_settings_for_environment(
 
     if env_config_path.exists():
         return Settings.load(env_config_path)
-    elif custom_config:
-        return Settings.load(custom_config)
     else:
+        # Fallback to default.yaml
         return Settings.load()
 
 

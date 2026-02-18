@@ -12,7 +12,7 @@ from time import monotonic
 
 import dspy
 from aee.infrastructure.config import settings
-from aee.infrastructure.config.settings import LLMInstanceConfig, Settings
+from aee.infrastructure.config.settings import LLMInstanceConfig, Settings, CircuitBreakerConfig
 from aee.infrastructure.llm.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 logger = logging.getLogger(__name__)
@@ -371,18 +371,16 @@ def _apply_rate_limit(lm: dspy.LM, delay: float) -> dspy.LM:
 
 def create_lm(
     config: LLMInstanceConfig,
+    circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
     enable_circuit_breaker: bool = True,
-    circuit_breaker_failure_threshold: int = 5,
-    circuit_breaker_reset_timeout: float = 60.0,
     enable_cache: Optional[bool] = None,  # Override config if provided
 ) -> dspy.LM:
     """Create a language model instance.
 
     Args:
         config: Configuration for the LLM instance.
+        circuit_breaker_config: Circuit breaker configuration. If None, uses defaults.
         enable_circuit_breaker: Whether to enable circuit breaker protection.
-        circuit_breaker_failure_threshold: Failures before opening circuit.
-        circuit_breaker_reset_timeout: Seconds before attempting reset.
         enable_cache: Override config's enable_cache setting (optional).
 
     Returns:
@@ -417,15 +415,24 @@ def create_lm(
     # Create circuit breaker if enabled
     circuit_breaker = None
     if enable_circuit_breaker and config.use_ollama:
+        # Get circuit breaker settings from config or use fallback defaults
+        if circuit_breaker_config:
+            failure_threshold = circuit_breaker_config.failure_threshold
+            reset_timeout = circuit_breaker_config.reset_timeout
+        else:
+            # Fallback defaults if no config provided
+            failure_threshold = 5
+            reset_timeout = 60.0
+
         circuit_breaker = CircuitBreaker(
-            failure_threshold=circuit_breaker_failure_threshold,
-            reset_timeout=circuit_breaker_reset_timeout,
+            failure_threshold=failure_threshold,
+            reset_timeout=reset_timeout,
             name=f"ollama-{config.model}",
         )
         logger.info(
             f"Circuit breaker enabled for {config.model} "
-            f"(threshold={circuit_breaker_failure_threshold}, "
-            f"timeout={circuit_breaker_reset_timeout}s)"
+            f"(threshold={failure_threshold}, "
+            f"timeout={reset_timeout}s)"
         )
 
     if config.use_ollama:
@@ -470,6 +477,7 @@ def setup_student(
 
     lm = create_lm(
         current_settings.llm.student,
+        circuit_breaker_config=current_settings.circuit_breaker,
         enable_circuit_breaker=enable_circuit_breaker,
         enable_cache=enable_cache,
     )
@@ -497,6 +505,7 @@ def setup_teacher(
 
     lm = create_lm(
         current_settings.llm.teacher,
+        circuit_breaker_config=current_settings.circuit_breaker,
         enable_circuit_breaker=enable_circuit_breaker,
         enable_cache=enable_cache,
     )
