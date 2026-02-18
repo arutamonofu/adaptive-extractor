@@ -136,7 +136,7 @@ mkdir -p src/aee/domain/tasks/mytask
 
 ### YAML Configs
 
-- `config/default.yaml` — production settings
+- `config/default.yaml` — an example of settings
 
 [**Full configuration reference →**](docs/configuration.md)
 
