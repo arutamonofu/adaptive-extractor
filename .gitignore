@@ -19,6 +19,7 @@ environment.yml.local
 *.swo
 *~
 .claude/
+QWEN.md
 
 # --- Data (raw & intermediate) ---
 data/agents/*

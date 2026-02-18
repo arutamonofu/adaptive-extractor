@@ -23,11 +23,11 @@ llm:
     ollama:
       # URL is set via OLLAMA_STUDENT_BASE_URL env var, this is fallback
       ollama_base_url: "http://localhost:11434"
-      num_ctx: 128000
-      num_predict: 4096
+      num_ctx: 64000
+      num_predict: 2048
       repeat_penalty: 1.2
       repeat_last_n: 2048
-      stream: true
+      stream: false
     non_ollama:
       max_tokens: 4096
 
@@ -45,11 +45,11 @@ llm:
     ollama:
       # URL is set via OLLAMA_TEACHER_BASE_URL env var, this is fallback
       ollama_base_url: "http://localhost:11434"
-      num_ctx: 100000
-      num_predict: 8192
+      num_ctx: 64000
+      num_predict: 2048
       repeat_penalty: 1.1
       repeat_last_n: 512
-      stream: true
+      stream: false
     non_ollama:
       max_tokens: 8192
 
@@ -78,8 +78,8 @@ optimization:
   train_split: 20
   num_candidates: 10
   num_trials: 70
-  max_bootstrapped_demos: 2
-  max_labeled_demos: 2
+  max_bootstrapped_demos: 1
+  max_labeled_demos: 1
   minibatch: false
   minibatch_size: 10
   view_data_batch_size: 3
@@ -124,6 +124,6 @@ cache:
   memory_max_entries: 1000000
 
 circuit_breaker:
-  failure_threshold: 5
-  reset_timeout: 60.0
+  failure_threshold: 8
+  reset_timeout: 30.0
   half_open_max_calls: 1
