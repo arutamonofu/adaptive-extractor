@@ -21,7 +21,7 @@ This is more powerful than generic MLflow logging because it understands DSPy's 
 
 ### Automatic Logging (DSPy Autolog)
 
-When enabled, `mlflow.dspy.autolog()` automatically captures:
+By default, `mlflow.dspy.autolog()` automatically captures:
 
 - Every DSPy program invocation
 - Prompt templates and their changes
@@ -50,19 +50,7 @@ python scripts/optimize.py --no-mlflow
 python scripts/optimize.py
 ```
 
-### Disable DSPy Autologging
-
-By default, DSPy autologging is enabled for comprehensive tracking. To disable it:
-
-```bash
-# Disable DSPy autologging (still logs metrics and artifacts)
-python scripts/optimize.py --task nanozymes --no-dspy-autolog
-```
-
-**When to disable autologging:**
-- Debugging specific DSPy operations
-- Reducing log verbosity for large experiments
-- Using custom logging logic
+**Note:** DSPy autologging is enabled by default when creating `ExperimentTracker`. Disabling is only possible through code (parameter `enable_dspy_autolog=False` in the constructor).
 
 ### Run Naming
 
@@ -70,16 +58,16 @@ For sequential experiments (e.g., A1 → A2 → A3), use the `--run-name` argume
 
 ```bash
 # Experiment A1: Prompt quality comparison
-python scripts/optimize.py --task nanozymes --run-name "A1_high"
-python scripts/optimize.py --task nanozymes --run-name "A1_low"
+python scripts/optimize.py --config default.yaml --run-name "A1_high"
+python scripts/optimize.py --config default.yaml --run-name "A1_low"
 
 # Experiment A2: Teacher temperature comparison
-python scripts/optimize.py --task nanozymes --run-name "A2_temp1.0"
-python scripts/optimize.py --task nanozymes --run-name "A2_temp0.5"
+python scripts/optimize.py --config default.yaml --run-name "A2_temp1.0"
+python scripts/optimize.py --config default.yaml --run-name "A2_temp0.5"
 
 # Experiment A3: Parameter set comparison
-python scripts/optimize.py --task nanozymes --run-name "A3_full"
-python scripts/optimize.py --task nanozymes --run-name "A3_limited"
+python scripts/optimize.py --config default.yaml --run-name "A3_full"
+python scripts/optimize.py --config default.yaml --run-name "A3_limited"
 ```
 
 The system automatically appends a timestamp to ensure unique run names (e.g., `A1_high_20260217_143022`).
@@ -97,6 +85,8 @@ export MLFLOW_TRACKING_URI="sqlite:///mlflow.db"
 # Remote MLflow server
 export MLFLOW_TRACKING_URI="http://mlflow-server:5000"
 ```
+
+This setting can also be specified in YAML configuration via `mlflow_tracking_uri`.
 
 ---
 
@@ -119,64 +109,62 @@ Then navigate to `http://localhost:5000` to view:
 
 ### Programmatic Access
 
+For programmatic use via Python API:
+
 ```python
 from aee.application.services import ExperimentTracker
 
-# Create tracker with DSPy autologging enabled
+# Create tracker (DSPy autologging enabled by default)
 tracker = ExperimentTracker(
     experiment_name="nanozyme_optimization",
-    enable_dspy_autolog=True,  # Enable automatic DSPy tracking
+    tracking_uri="sqlite:///mlflow.db",
 )
 
-# Start a run
+# Start experiment
 with tracker.start_run(run_name="trial_1"):
     # DSPy operations are automatically logged
-    optimized_agent = optimize_my_agent()
-
+    
     # Log metrics
     tracker.log_metrics({"f1": 0.85, "precision": 0.82})
-
-    # Log DSPy model with proper serialization
-    tracker.log_dspy_model(optimized_agent, name="agent")
-
-    # Regular artifacts still work
+    
+    # Log artifacts
     tracker.log_artifact(Path("agent.json"))
 ```
 
-### Disabling DSPy Autolog
-
-If you only want manual logging:
+To disable DSPy autologging (manual logging only):
 
 ```python
 tracker = ExperimentTracker(
     experiment_name="test",
-    enable_dspy_autolog=False,  # Disable automatic tracking
+    enable_dspy_autolog=False,
 )
 ```
 
 ---
 
-## Implementation Details
+## Architecture
 
-### ExperimentTracker Service
+### ExperimentTracker
 
-Located at `src/aee/application/services/experiment_tracker.py`
+The service is located at `src/aee/application/services/experiment_tracker.py`.
 
 **Key Methods:**
 
-- `enable_dspy_autolog()` - Enable automatic DSPy tracking
-- `disable_dspy_autolog()` - Disable automatic tracking
-- `log_dspy_model()` - Log DSPy model with proper serialization
-- `log_optimization_results()` - Convenience method for complete optimization logging
+- `start_run(run_name)` — start a new experiment
+- `log_params(params)` — log parameters
+- `log_metrics(metrics)` — log metrics
+- `log_artifact(path)` — log files
+- `log_dspy_model(model)` — log DSPy model with proper serialization
+- `log_optimization_results(...)` — convenient logging of optimization results
 
 ### Integration in Optimization Workflow
 
-The `OptimizeAgentUseCase` automatically:
+`OptimizeAgentUseCase` automatically:
 
-1. Enables DSPy autologging when tracker is provided
+1. Enables DSPy autologging when the run starts
 2. Logs configuration parameters
 3. Tracks all MIPROv2 operations
-4. Saves final model using `log_dspy_model()`
+4. Saves the final model via `log_dspy_model()`
 5. Logs metrics and artifacts
 
 ---
@@ -190,7 +178,7 @@ mlflow>=2.10.0
 dspy-ai>=2.5.0
 ```
 
-If using an older MLflow version, the system gracefully falls back to regular artifact logging.
+When using an older MLflow version, the system automatically falls back to regular artifact logging.
 
 ---
 
@@ -207,9 +195,9 @@ pip install --upgrade mlflow
 
 ### "Failed to log DSPy model"
 
-**Cause:** Model serialization issue
+**Cause:** Model serialization issue (e.g., non-serializable objects like thread locks)
 
-**Fallback:** The system automatically logs as regular artifact if DSPy logging fails.
+**Solution:** The system automatically falls back to logging as a JSON artifact if DSPy logging fails.
 
 ### Experiments not appearing in UI
 
@@ -227,59 +215,40 @@ ls -lh mlflow.db
 
 ## Best Practices
 
-1. **Enable autolog for optimization** - Let MLflow capture all DSPy operations automatically
-2. **Use meaningful run names** - Helps identify experiments later
-3. **Log both DSPy model and JSON artifact** - Provides compatibility and flexibility
-4. **Set tags for filtering** - Use `tracker.set_tag()` for task name, model version, etc.
-5. **Compare runs in UI** - Use MLflow UI to compare metrics across trials
+1. **Use CLI for optimization** — all tracking settings are enabled by default
+2. **Use meaningful run names** — helps identify experiments later
+3. **Compare runs in UI** — use MLflow UI to compare metrics across trials
+4. **Configure tracking URI for production** — use a remote server for team collaboration
 
 ---
 
-## Example: Complete Optimization with Tracking
+## Example: Complete Optimization via CLI
 
-```python
-from pathlib import Path
-from aee.application.services import ExperimentTracker, AgentManager, DatasetBuilder
-from aee.application.use_cases import OptimizeAgentRequest, OptimizeAgentUseCase
-from aee.domain.tasks import get_task
+```bash
+# Basic optimization (MLflow enabled by default)
+python scripts/optimize.py --config default.yaml
 
-# Setup tracker with DSPy autologging
-tracker = ExperimentTracker(
-    experiment_name="nanozyme_optimization",
-    tracking_uri="sqlite:///mlflow.db",
-    enable_dspy_autolog=True,
-)
+# With named run
+python scripts/optimize.py --config default.yaml --run-name "A1_temp0.5"
 
-# Create use case
-use_case = OptimizeAgentUseCase(
-    dataset_builder=builder,
-    agent_manager=manager,
-    gt_repo=gt_repo,
-    tracker=tracker,  # Pass tracker here
-)
-
-# Execute optimization
-request = OptimizeAgentRequest(
-    task=get_task("nanozymes"),
-    gt_path=Path("data/ground_truth/nanozymes.csv"),
-    splits_dir=Path("data/splits"),
-    task_name="nanozymes",
-    student_lm=student_lm,
-    num_trials=20,
-)
-
-response = use_case.execute(request)
-
-# All DSPy operations are automatically tracked in MLflow!
+# Without MLflow tracking
+python scripts/optimize.py --config default.yaml --no-mlflow
 ```
+
+All optimization parameters are automatically logged to MLflow, including:
+- MIPROv2 configuration (num_trials, seed, num_candidates, etc.)
+- LLM parameters (model, temperature)
+- Final metrics (F1, precision, recall)
+- Optimized agent (as both DSPy model and JSON artifact)
 
 ---
 
 ## Related Documentation
 
-- [Configuration Guide](configuration.md) - General configuration options
-- [Architecture](architecture.md) - System design and layers
-- [Troubleshooting](troubleshooting.md) - Common issues
+- [CLI Reference](cli_reference.md) — complete command reference
+- [Configuration Guide](configuration.md) — YAML settings and environment variables
+- [Architecture](architecture.md) — system design for developers
+- [README](README.md) — quick start guide
 
 ---
 

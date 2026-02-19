@@ -33,12 +33,6 @@ Complete guide to all files and directories in AutoEvoExtractor.
                                  │
                                  ▼
                     ┌─────────────────────────┐
-                    │   data/agents/          │
-                    │   (trained agents)      │
-                    └─────────────────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
                     │   extract.py            │
                     │   (data extraction)     │
                     └─────────────────────────┘
@@ -63,29 +57,30 @@ autoevoextractor/
 │   ├── splits/                 # Task-specific split files
 │   │   └── nanozymes.json      # Train/test/val split for nanozymes task
 │   ├── agents/                 # Trained agents
-│   ├── extractions/            # Extraction results
+│   └── extractions/            # Extraction results
 ├── config/
 │   ├── *.yaml                  # YAML configurations
 │   └── initial_instructions/   # Instructions for optimization
-├── logs/                       # Execution logs
-└── mlruns/                     # MLflow artifacts (optional)
+└── src/aee/domain/tasks/
+    └── [task_name]/
+        └── task.yaml           # Task definition (YAML-backed tasks, v2.0+)
 ```
 
 ---
 
 ## Detailed Artifact Description
 
-### 1. `data/pdf/` or `data/pdfs/`
+### 1. `data/pdf/`
 
-**Type:** Input data  
-**Created by:** User  
+**Type:** Input data
+**Created by:** User
 **Format:** PDF files
 
 **Description:** Directory for source PDF documents. Place scientific articles here for processing.
 
 **Example structure:**
 ```
-data/pdfs/
+data/pdf/
 ├── paper1.pdf
 ├── paper2.pdf
 ├── article_2024.pdf
@@ -95,13 +90,10 @@ data/pdfs/
 **Configuration:**
 ```yaml
 paths:
-  pdf_dir: "data/pdfs"
+  pdf_dir: "data/pdf"
 ```
 
-**Environment variable:**
-```bash
-export PATHS__PDF_DIR="data/my_pdfs"
-```
+> **For environment variables reference**, see [Configuration Guide](configuration.md#environment-variables).
 
 ---
 
@@ -151,8 +143,8 @@ paths:
 
 ### 3. `data/ground_truth/`
 
-**Type:** Input data (training)  
-**Created by:** User  
+**Type:** Input data (training)
+**Created by:** User
 **Format:** CSV
 
 **Description:** CSV files with annotated data for agent training and validation.
@@ -166,8 +158,13 @@ paper2.pdf,Mn-Salen,epoxidation,8,0.12,80
 ```
 
 **Required columns:**
-- `filename` — PDF filename (with `.pdf` extension)
+- `filename` — Document identifier. Supported formats:
+  - With extension: `paper1.pdf`
+  - Without extension: `paper1`
+  - Alternative column names: `pdf`, `source`, `doi`, `document`
 - Other columns depend on task (defined in task definition)
+
+> **Note:** The system normalizes document identifiers by removing file extensions and converting to lowercase. Both formats (with/without `.pdf`) are supported.
 
 **Directory structure:**
 ```
@@ -254,12 +251,14 @@ paths:
   splits_file: "data/splits/nanozymes.json"
 ```
 
+> **For environment variables reference**, see [Configuration Guide](configuration.md#environment-variables).
+
 ---
 
 ### 5. `data/agents/`
 
-**Type:** Output data (models)  
-**Created by:** `scripts/optimize.py`  
+**Type:** Output data (models)
+**Created by:** `scripts/optimize.py`
 **Format:** JSON + metadata
 
 **Description:** Optimized agents for data extraction. Each agent contains trained prompts and examples.
@@ -267,35 +266,38 @@ paths:
 **Directory structure:**
 ```
 data/agents/
-├── nanozymes_sota_2026-02-17.json
-├── nanozymes_sota_2026-02-17.meta.json
-├── nanozymes_latest.json
+├── nanozymes_v1_2026-02-17T15-30-00.json
+├── nanozymes_v1_2026-02-17T15-30-00.meta.json
+├── nanozymes_v2_2026-02-18T10-00-00.json
 └── manual_nanozymes.json
 ```
 
 **Files:**
-- `*.json` — the agent itself (DSPy module)
-- `*.meta.json` — metadata (metrics, date, model version)
+- `*_v{version}_{timestamp}.json` — the agent itself (DSPy module)
+- `*_v{version}_{timestamp}.meta.json` — metadata (metrics, date, model version)
 
 **Metadata structure:**
 ```json
 {
   "task_name": "nanozymes",
   "created_at": "2026-02-17T15:30:00",
-  "model_version": "llama3.2:3b",
+  "model_version": "mistral-small3.1-24b-128k:latest",
   "metrics": {
     "f1": 0.85,
     "precision": 0.87,
     "recall": 0.83
   },
   "config_snapshot": {
-    "num_trials": 20,
-    "train_split": 15
+    "num_trials": 70,
+    "train_split": 20
   },
   "instruction_hash": "a1b2c3d4e5f6",
-  "description": "Optimized with 20 trials"
+  "initial_instruction_file": "config/initial_instructions/nanozymes_sota.txt",
+  "description": "Optimized with 70 trials"
 }
 ```
+
+**New in v2.0:** Agents track instruction provenance via `instruction_hash` (SHA256, first 12 chars) and `initial_instruction_file` for reproducibility.
 
 **Configuration:**
 ```yaml
@@ -348,47 +350,37 @@ paths:
   extractions_dir: "data/extractions"
 ```
 
+> **For environment variables reference**, see [Configuration Guide](configuration.md#environment-variables).
+
 ---
 
 ### 7. `logs/`
 
-**Type:** Logs  
-**Created by:** Automatically during script execution  
+**Type:** Logs
+**Created by:** Automatically during script execution
 **Format:** Text files
 
-**Description:** Execution logs.
+**Description:** Execution logs are configured via `project.log_level` in YAML config. Log output destination depends on your logging configuration (console, file, or both).
 
-**Structure:**
-```
-logs/
-├── parse_2026-02-17_10-30-00.log
-├── optimize_2026-02-17_15-00-00.log
-└── predict_2026-02-17_16-00-00.log
-```
-
-**Configuration:**
-```yaml
-paths:
-  logs_dir: "logs"
-project:
-  log_level: "INFO"
-```
+> **For logging configuration reference**, see [Configuration Guide](configuration.md#project-settings).
 
 ---
 
-### 9. `mlruns/`
+## Task Configuration (YAML-backed Tasks)
 
-**Type:** MLflow artifacts (optional)  
-**Created by:** `scripts/optimize.py` (when MLflow enabled)  
-**Format:** MLflow binary files
+**Type:** Task definition
+**Format:** YAML
 
-**Description:** Experiment tracking via MLflow.
+**Description:** New in v2.0, tasks can be defined via YAML configuration files instead of Python code. This allows adding new extraction tasks without code changes.
 
-**Configuration:**
-```bash
-# Disable MLflow
-python scripts/optimize.py --no-mlflow
+**Location:**
 ```
+src/aee/domain/tasks/
+└── [task_name]/
+    └── task.yaml
+```
+
+> **For complete task configuration guide**, including field specifications, examples, and step-by-step instructions, see [Adding New Extraction Tasks](adding_tasks.md).
 
 ---
 
@@ -398,8 +390,9 @@ python scripts/optimize.py --no-mlflow
 
 | Artifact | Action |
 |----------|--------|
-| `data/pdfs/` | Place PDF files |
+| `data/pdf/` | Place PDF files |
 | `data/ground_truth/` | Create CSV with annotations |
+| `data/splits/[task].json` | Create data split configuration |
 
 ### Stage 2: Parsing
 
@@ -411,7 +404,7 @@ python scripts/parse.py --config default.yaml
 
 | Input | Output |
 |-------|--------|
-| `data/pdfs/*.pdf` | `data/parsed/*.json` |
+| `data/pdf/*.pdf` | `data/parsed/*.json` |
 
 ### Stage 3: Data Splitting
 
@@ -431,19 +424,20 @@ python scripts/parse.py --config default.yaml
 ### Stage 4: Agent Optimization
 
 ```bash
-python scripts/optimize.py --task nanozymes
+python scripts/optimize.py --config default.yaml
 ```
 
 | Input | Output |
 |-------|--------|
-| `data/ground_truth/nanozymes.csv` | `data/agents/nanozymes_*.json` |
+| `data/ground_truth/nanozymes.csv` | `data/agents/nanozymes_v*.json` |
 | `data/splits/nanozymes.json` | |
 | `data/parsed/*.json` | |
+| `config/initial_instructions/*.txt` | |
 
 ### Stage 5: Extraction
 
 ```bash
-python scripts/extract.py --agent nanozymes_latest.json
+python scripts/extract.py --config default.yaml --agent data/agents/nanozymes_latest.json
 ```
 
 | Input | Output |
@@ -509,16 +503,13 @@ for doc_id in all_docs:
 
 ## Environment Variables for Paths
 
-All paths can be overridden via environment variables:
+All paths can be overridden via environment variables. See [Configuration Guide](configuration.md#environment-variables) for the complete reference.
 
+**Common path overrides:**
 ```bash
 # Input data
 export PATHS__PDF_DIR="data/my_pdfs"
 export PATHS__GROUND_TRUTH_DIR="data/my_gt"
-
-# Intermediate data
-export PATHS__PARSED_DIR="data/my_parsed"
-export PATHS__SPLITS_FILE="data/my_splits.json"
 
 # Output data
 export PATHS__AGENTS_DIR="data/my_agents"

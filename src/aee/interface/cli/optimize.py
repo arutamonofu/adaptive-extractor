@@ -132,6 +132,8 @@ def create_dependencies(args, task, settings):
 def load_task_with_instruction(task_name: str, config) -> tuple:
     """Load task with initial instruction from config.
 
+    Supports both classic TaskDefinition approach and new YAML-based approach.
+
     Args:
         task_name: Name of the task to load.
         config: Settings object containing task configuration.
@@ -143,6 +145,34 @@ def load_task_with_instruction(task_name: str, config) -> tuple:
         MissingConfigError: If instruction file is not found or empty.
         ValueError: If task cannot be created with the instruction.
     """
+    # Try new YAML-based approach first
+    yaml_path = Path(__file__).resolve().parent.parent.parent / "domain" / "tasks" / task_name / "task.yaml"
+
+    if yaml_path.exists():
+        # Use new YAML-based task configuration
+        from aee.domain.tasks import load_task_from_yaml, ConfigBackedTask
+
+        task_config = load_task_from_yaml(yaml_path)
+        task = ConfigBackedTask(task_config)
+
+        # Get instruction metadata
+        instruction = task_config.get_instruction()
+        instruction_hash = task_config.get_instruction_hash()
+
+        logger.info(
+            f"Loaded task from YAML: {yaml_path} "
+            f"(instruction: {len(instruction)} chars, hash: {instruction_hash})"
+        )
+
+        return task, {
+            "instruction": instruction,
+            "instruction_length": len(instruction),
+            "instruction_hash": instruction_hash,
+        }
+
+    # Fallback to classic approach
+    logger.info(f"YAML config not found at {yaml_path}, using classic approach")
+
     # Calculate config directory for instruction loader
     config_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / "config"
 

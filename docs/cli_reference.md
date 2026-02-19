@@ -11,7 +11,20 @@ The system provides 4 main scripts:
 | [`parse.py`](#parsepy) | Parse PDFs into structured JSON |
 | [`optimize.py`](#optimizepy) | Optimize extraction agent via MIPROv2 |
 | [`extract.py`](#extractpy) | Extract data from documents using trained agent |
-| [`generate_manual_agent.py`](#generate_manual_agentpy) | Create manual agent from examples |
+| [`generate_manual_agent.py`](#generate_manual_agentpy) | Create manual agent from train_manual split examples |
+
+---
+
+## Configuration
+
+All scripts load configuration following the priority defined in [Configuration Guide](configuration.md#configuration-priority):
+
+1. **Environment variables** (`.env` file via pydantic-settings, `AEE_ENV`, `AEE__*` overrides)
+2. **CLI arguments** (`--config`, `--overwrite`, etc.)
+3. **YAML configuration files** (`config/default.yaml`, `config/<env>.yaml`)
+4. **Internal defaults**
+
+> **For complete configuration reference**, see [Configuration Guide](configuration.md).
 
 ---
 
@@ -31,31 +44,39 @@ python scripts/parse.py [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `--config` | `Path` | `None` | Path to YAML configuration file. If not set, uses `AEE_ENV` env var or `default.yaml` |
 | `--overwrite` | `flag` | `false` | Overwrite existing parsed files |
-| `--config` | `Path` | **Required** | Path to YAML configuration file |
 
 ### Examples
 
-**Parse all PDFs from configured directory:**
+**Parse all PDFs from configured directory (uses AEE_ENV or default.yaml):**
 ```bash
-python scripts/parse.py --config default.yaml
+python scripts/parse.py
+```
+
+**Parse with explicit config:**
+```bash
+python scripts/parse.py --config config/default.yaml
 ```
 
 **Parse with overwrite:**
 ```bash
-python scripts/parse.py --config default.yaml --overwrite
+python scripts/parse.py --config config/default.yaml --overwrite
 ```
 
-**Parse with custom config:**
+**Parse with custom environment:**
 ```bash
-python scripts/parse.py --config default_fast.yaml
+AEE_ENV=config/fast.yaml python scripts/parse.py
 ```
 
 ### Notes
 
 - **PDF directory:** Configured via `paths.pdf_dir` in YAML config (default: `data/pdf`)
-- **Parser selection:** Configured via `parser.name` in YAML config (e.g., `docling` or `marker`)
-- **Output directory:** Configured via `paths.parsed_dir` in YAML config
+- **Parser selection:** Configured via `parsing.parser` in YAML config (e.g., `docling` or `marker`)
+- **Output directory:** Configured via `paths.parsed_dir` in YAML config (default: `data/parsed`)
+- **Recursive search:** Automatically finds all `.pdf` and `.PDF` files in the configured directory
+
+> **For path configuration reference**, see [Configuration Guide](configuration.md#paths-configuration).
 
 ### Output
 
@@ -84,30 +105,35 @@ python scripts/optimize.py [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--config` | `Path` | **Required** | Path to YAML configuration file |
+| `--config` | `Path` | `None` | Path to YAML configuration file. If not set, uses `AEE_ENV` env var or `default.yaml` |
 | `--run-name` | `str` | `None` | Prefix for MLflow run name (e.g., `A1_high`, `A2_temp1.0`). Timestamp added automatically |
 | `--no-mlflow` | `flag` | `false` | Disable MLflow tracking |
 
 ### Examples
 
-**Basic optimization:**
+**Basic optimization (uses AEE_ENV or default.yaml):**
 ```bash
-python scripts/optimize.py --config default.yaml
+python scripts/optimize.py
 ```
 
-**Fast test optimization:**
+**Optimization with explicit config:**
 ```bash
-python scripts/optimize.py --config default_fast.yaml
+python scripts/optimize.py --config config/default.yaml
 ```
 
 **With MLflow run naming:**
 ```bash
-python scripts/optimize.py --config default.yaml --run-name "A1_temp0.5"
+python scripts/optimize.py --config config/default.yaml --run-name "A1_temp0.5"
 ```
 
 **Without MLflow:**
 ```bash
-python scripts/optimize.py --config default.yaml --no-mlflow
+python scripts/optimize.py --config config/default.yaml --no-mlflow
+```
+
+**With custom environment:**
+```bash
+AEE_ENV=config/fast.yaml python scripts/optimize.py
 ```
 
 ### Prerequisites
@@ -115,9 +141,11 @@ python scripts/optimize.py --config default.yaml --no-mlflow
 Before running optimization, prepare:
 
 1. **Ground truth data:** `data/ground_truth/{task}.csv`
-2. **Data splits:** `data/splits/{task}.json` with train/test/val split
+2. **Data splits:** `data/splits/{task}.json` with train/test/val splits
 3. **Parsed documents:** `data/parsed/` must contain JSON for all documents in splits
-4. **Initial instruction:** Configured via `task.initial_instruction_file` in YAML (e.g., `instructions/v1_standard.md`)
+4. **Initial instruction:** Configured via `task.initial_instruction_file` in YAML or loaded from `config/domain/tasks/{task}/task.yaml`
+
+> **For MIPROv2 parameters reference**, see [Configuration Guide](configuration.md#optimization-configuration).
 
 ### Output
 
@@ -145,42 +173,40 @@ python scripts/extract.py [OPTIONS] --agent AGENT_PATH
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--agent` | `Path` | **Required** | Path to trained agent JSON file |
-| `--config` | `Path` | **Required** | Path to YAML configuration file |
+| `--config` | `Path` | `None` | Path to YAML configuration file. If not set, uses `AEE_ENV` env var or `default.yaml` |
+| `--agent` | `Path` | **Required** | Path to trained agent JSON file (relative to `data/agents/` or absolute) |
 
 ### Examples
 
-**Extract from all documents:**
+**Extract from all documents (uses AEE_ENV or default.yaml):**
+```bash
+python scripts/extract.py --agent nanozymes_latest.json
+```
+
+**Extract with explicit config:**
 ```bash
 python scripts/extract.py \
-    --config default.yaml \
+    --config config/default.yaml \
     --agent nanozymes_latest.json
 ```
 
 **Extract with custom config:**
 ```bash
 python scripts/extract.py \
-    --config default_fast.yaml \
+    --config config/fast.yaml \
     --agent nanozymes_latest.json
 ```
 
-### Configuration
-
-**LLM caching** is controlled via `extraction.enable_cache` in YAML config:
-```yaml
-extraction:
-  enable_cache: false  # Set to true to enable caching
+**With custom environment:**
+```bash
+AEE_ENV=config/prod.yaml python scripts/extract.py --agent nanozymes_latest.json
 ```
 
-**Task name** is specified in YAML config:
-```yaml
-task:
-  name: "nanozymes"
-```
+> **For extraction and circuit breaker configuration**, see [Configuration Guide](configuration.md#extraction-configuration) and [Configuration Guide](configuration.md#circuit-breaker-configuration).
 
 ### Output
 
-- **Success:** JSON files with extracted data in `data/extractions/` (directory configured in YAML)
+- **Success:** JSON files with extracted data in `data/extractions/` (directory configured via `paths.extractions_dir`)
 - **Exit codes:**
   - `0` — All documents processed successfully
   - `1` — Extraction error
@@ -205,11 +231,11 @@ python scripts/generate_manual_agent.py [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--output` | `str` | `data/agents/manual_{task}.json` | Output path for agent |
+| `--output` | `str` | `data/agents/manual_{task}.json` | Output path for agent (overrides default) |
 
 ### Examples
 
-**Create manual agent:**
+**Create manual agent (uses config from AEE_ENV or default.yaml):**
 ```bash
 python scripts/generate_manual_agent.py
 ```
@@ -224,6 +250,7 @@ python scripts/generate_manual_agent.py --output data/agents/my_manual_agent.jso
 1. **Splits file** with `train_manual` split: `data/splits/{task}.json`
 2. **Parsed documents** in `data/parsed/train/manual/`
 3. **Ground truth data:** `data/ground_truth/{task}.csv`
+4. **Task definition:** Configured via `task.name` in YAML or `config/domain/tasks/{task}/task.yaml`
 
 ### Output
 
@@ -238,13 +265,12 @@ python scripts/generate_manual_agent.py --output data/agents/my_manual_agent.jso
 
 | Argument | parse.py | optimize.py | extract.py | generate_manual_agent.py |
 |----------|:--------:|:-----------:|:----------:|:------------------------:|
-| `--config` | ✅ | ✅ | ✅ | ❌ |
+| `--config` | ✅ (optional) | ✅ (optional) | ✅ (optional) | ❌ |
 | `--overwrite` | ✅ | ❌ | ❌ | ❌ |
 | `--run-name` | ❌ | ✅ | ❌ | ❌ |
 | `--no-mlflow` | ❌ | ✅ | ❌ | ❌ |
-| `--task` | ❌ | ❌ | ❌ | ❌ |
-| `--agent` | ❌ | ❌ | ✅ | ❌ |
-| `--output` | ❌ | ❌ | ❌ | ✅ |
+| `--agent` | ❌ | ❌ | ✅ (required) | ❌ |
+| `--output` | ❌ | ❌ | ❌ | ✅ (optional) |
 
 ---
 
@@ -263,39 +289,40 @@ All scripts use standard exit codes:
 
 ## Logging
 
-All commands output logs to console and (optionally) to log files.
-
-**Log level** is configured in YAML:
-```yaml
-project:
-  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-```
-
-**Override via environment variable:**
-```bash
-export PROJECT__LOG_LEVEL="DEBUG"
-```
+**Log level** is configured via `project.log_level` in YAML. See [Configuration Guide](configuration.md#project-settings) for details.
 
 ---
 
 ## Environment Variables
 
-Any setting can be overridden via environment variables:
+### Configuration Loading
+
+The primary environment variable for configuration is `AEE_ENV`:
 
 ```bash
-# Configuration
-export PATHS__PDF_DIR="data/my_pdfs"
-export PATHS__PARSED_DIR="data/my_parsed"
-export PATHS__AGENTS_DIR="data/my_agents"
+# Use specific config file via environment
+export AEE_ENV=config/dev.yaml
+python scripts/parse.py
+
+# Or inline
+AEE_ENV=config/prod.yaml python scripts/optimize.py
+```
+
+### Override Individual Settings
+
+Any YAML setting can be overridden using double-underscore notation with `AEE__` prefix. See [Configuration Guide](configuration.md#environment-variables) for the complete reference.
+
+**Common examples:**
+```bash
+# Paths
+export AEE__PATHS__PDF_DIR="data/my_pdfs"
 
 # LLM
-export LLM__STUDENT__MODEL="llama3.2:3b"
-export LLM__STUDENT__OLLAMA__OLLAMA_BASE_URL="http://localhost:11434"
+export AEE__LLM__STUDENT__MODEL="llama3.2:3b"
 
 # Optimization
-export OPTIMIZATION__NUM_TRIALS="50"
-export OPTIMIZATION__USE_CACHE="true"
+export AEE__OPTIMIZATION__NUM_TRIALS="50"
 
 # Logging
-export PROJECT__LOG_LEVEL="DEBUG"
+export AEE__PROJECT__LOG_LEVEL="DEBUG"
 ```

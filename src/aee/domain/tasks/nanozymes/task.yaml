@@ -1,0 +1,286 @@
+# Task configuration for nanozyme extraction
+# This YAML manifest defines the complete task specification
+
+name: nanozymes
+description: >
+  Extract nanozyme experiment data including chemical formulas,
+  catalytic activities, kinetic parameters (Km, Vmax), reaction
+  conditions (pH, temperature), and material properties.
+
+version: 1.0.0
+tags:
+  - chemistry
+  - nanozymes
+  - catalysis
+
+# Instruction for DSPy signature
+# Can be inline text or path to file
+# Use path relative to project root
+instruction_file: config/initial_instructions/nanozymes_sota.txt
+
+# Fields to extract from documents
+fields:
+  formula:
+    type: str
+    description: "Chemical formula (e.g., Fe3O4, Au, CuO)"
+    required: true
+    alt_names:
+      - chemical_formula
+      - name
+
+  surface:
+    type: str
+    description: "Surface chemistry (naked, PEG, PVP, citrate), Polymer (oleic acid, BSA), or Surfactant (l-ascorbic acid, sodium citrate, etc)"
+    required: false
+    alt_names:
+      - surface_chemistry
+      - coating
+
+  syngony:
+    type: str
+    description: "Crystal system: cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, amorphous, triclinic"
+    required: false
+    alt_names:
+      - crystal_system
+      - crystal_structure
+
+  length:
+    type: float
+    description: "Length or size/diameter in nm"
+    required: false
+    min_value: 0
+    alt_names:
+      - size
+      - diameter
+      - particle_size
+
+  width:
+    type: float
+    description: "Width in nm (if applicable)"
+    required: false
+    min_value: 0
+
+  depth:
+    type: float
+    description: "Depth in nm (if applicable)"
+    required: false
+    min_value: 0
+
+  activity:
+    type: str
+    description: "Type of catalytic activity"
+    required: true
+    choices:
+      - peroxidase
+      - oxidase
+      - catalase
+      - laccase
+      - superoxide_dismutase
+      - glucose oxidase
+      - other
+    alt_names:
+      - catalytic_activity
+      - enzyme_type
+
+  reaction_type:
+    type: str
+    description: "Format: 'Substrate + Co-substrate'. Tracks: TMB+H2O2 (TMB varies), H2O2+TMB (H2O2 varies)"
+    required: false
+    alt_names:
+      - reaction
+      - substrate_type
+
+  km_value:
+    type: float
+    description: "Michaelis constant Km (Mantissa)"
+    required: false
+    min_value: 0
+    alt_names:
+      - km
+      - km_val
+      - michaelis_constant
+
+  km_unit:
+    type: str
+    description: "Unit for Km (e.g., mM)"
+    required: false
+
+  vmax_value:
+    type: float
+    description: "Max reaction rate Vmax (Mantissa)"
+    required: false
+    min_value: 0
+    alt_names:
+      - vmax
+      - vmax_val
+
+  vmax_unit:
+    type: str
+    description: "Unit for Vmax (e.g., M/s, mM/s)"
+    required: false
+
+  ph:
+    type: float
+    description: "pH level"
+    required: false
+    min_value: 0
+    max_value: 14
+    alt_names:
+      - pH
+
+  temperature:
+    type: float
+    description: "Temperature in °C"
+    required: false
+    alt_names:
+      - temp
+      - temperature_c
+
+  c_min:
+    type: float
+    description: "Min concentration of variable substrate (mM)"
+    required: false
+    min_value: 0
+    alt_names:
+      - cmin
+      - min_concentration
+
+  c_max:
+    type: float
+    description: "Max concentration of variable substrate (mM)"
+    required: false
+    min_value: 0
+    alt_names:
+      - cmax
+      - max_concentration
+
+  c_const:
+    type: float
+    description: "Concentration of fixed co-substrate (mM)"
+    required: false
+    min_value: 0
+    alt_names:
+      - cconst
+      - c_cons
+      - constant_concentration
+
+  c_const_unit:
+    type: str
+    description: "Unit for c_const"
+    required: false
+    alt_names:
+      - ccons_unit
+
+  ccat_value:
+    type: float
+    description: "Concentration of the nanozyme/catalyst"
+    required: false
+    min_value: 0
+    alt_names:
+      - ccat
+      - catalyst_concentration
+      - nanozyme_concentration
+
+  ccat_unit:
+    type: str
+    description: "Unit for catalyst conc (e.g., mcg/ml, mg/mL)"
+    required: false
+
+# Fields to compare during evaluation
+compare_fields:
+  - formula
+  - activity
+  - syngony
+  - surface
+  - length
+  - width
+  - depth
+  - reaction_type
+  - km_value
+  - km_unit
+  - vmax_value
+  - vmax_unit
+  - ph
+  - temperature
+  - c_min
+  - c_max
+  - c_const
+  - c_const_unit
+  - ccat_value
+  - ccat_unit
+
+# Tolerance for float comparisons (5% = 0.05)
+float_tolerance: 0.05
+
+# Row converter configuration - maps CSV columns to fields
+row_converter:
+  formula:
+    - formula
+    - name
+  surface:
+    - surface
+    - surface_chemistry
+    - coating
+  syngony:
+    - syngony
+    - crystal_system
+  length:
+    - length
+    - size
+    - diameter
+  width:
+    - width
+  depth:
+    - depth
+  activity:
+    - activity
+    - catalytic_activity
+  reaction_type:
+    - reaction_type
+    - reaction
+  km_value:
+    - km_value
+    - km
+    - km_val
+  km_unit:
+    - km_unit
+  vmax_value:
+    - vmax_value
+    - vmax
+    - vmax_val
+  vmax_unit:
+    - vmax_unit
+  ph:
+    - ph
+    - pH
+  temperature:
+    - temperature
+    - temp
+  c_min:
+    - c_min
+    - cmin
+  c_max:
+    - c_max
+    - cmax
+  c_const:
+    - c_const
+    - ccons
+    - c_cons
+  c_const_unit:
+    - c_const_unit
+    - ccons_unit
+  ccat_value:
+    - ccat_value
+    - ccat
+  ccat_unit:
+    - ccat_unit
+
+# Model names (optional, defaults will be used if not specified)
+experiment_model_name: NanozymeExperiment
+output_model_name: NanozymeExtractionOutput
+
+# Additional metadata
+metadata:
+  author: AutoEvoExtractor Team
+  created: 2026-02-19
+  license: MIT
