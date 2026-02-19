@@ -1,0 +1,6 @@
+filename,formula,activity,length,km_value,vmax_value,ph,temperature,surface,syngony
+paper1.pdf,Fe3O4,peroxidase,10,0.05,100,7.0,25.0,naked,cubic
+paper2.pdf,CuO,oxidase,20,0.08,150,7.5,30.0,PVP,monoclinic
+paper3.pdf,ZnO,catalase,15,0.06,120,6.8,28.0,PEG,hexagonal
+paper4.pdf,Au,peroxidase,5,0.03,80,7.2,25.0,citrate,cubic
+paper5.pdf,CeO2,oxidase,25,0.09,180,7.0,37.0,naked,cubic

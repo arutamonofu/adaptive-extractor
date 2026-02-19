@@ -35,6 +35,10 @@ notebooks
 # --- Research ---
 research
 
+# --- Docs ---
+docs/refactoring_project.md
+docs/TESTING_GUIDE.md
+
 # --- MLflow ---
 mlruns
 mlflow.db

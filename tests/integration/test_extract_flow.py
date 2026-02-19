@@ -1,0 +1,211 @@
+"""Integration tests for extraction pipeline.
+
+Tests cover:
+- Batch extraction with mock agent
+- Extraction output format
+- Handling empty agents
+
+Note: These tests use mock data to avoid actual LLM calls.
+"""
+
+import json
+from pathlib import Path
+from typing import Any, Dict, List
+
+import pytest
+
+from aee.domain.tasks.nanozymes import (
+    NanozymeExperiment,
+    NanozymeExtractionOutput,
+)
+
+
+class TestExtractFlow:
+    """Integration tests for extraction pipeline."""
+
+    @pytest.fixture
+    def extraction_test_setup(self, tmp_path: Path):
+        """Setup test environment for extraction tests."""
+        # Create directories
+        parsed_dir = tmp_path / "parsed"
+        parsed_dir.mkdir()
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        extractions_dir = tmp_path / "extractions"
+        extractions_dir.mkdir()
+        
+        # Create parsed documents
+        for i in range(1, 4):
+            doc_path = parsed_dir / f"paper{i}_parsed.json"
+            doc_data = {
+                "text_content": f"Sample scientific content about nanozymes from paper {i}. "
+                               f"Fe3O4 nanoparticles show peroxidase activity.",
+                "metadata": {
+                    "source_path": f"/path/to/paper{i}.pdf",
+                    "filename": f"paper{i}.pdf",
+                    "page_count": 10,
+                },
+                "tables": [],
+                "images": [],
+            }
+            doc_path.write_text(json.dumps(doc_data), encoding="utf-8")
+        
+        # Create mock agent
+        agent_data = {
+            "lm": {"model": "test-model", "type": "mock"},
+            "traces": [],
+            "settings": {"num_trials": 5},
+        }
+        agent_path = agents_dir / "nanozymes_test.json"
+        agent_path.write_text(json.dumps(agent_data), encoding="utf-8")
+        
+        # Create agent metadata
+        meta_data = {
+            "task_name": "nanozymes",
+            "created_at": "2026-02-19T10:00:00",
+            "model_version": "test-v1",
+            "metrics": {"f1": 0.85},
+            "config_snapshot": {},
+        }
+        meta_path = agent_path.with_suffix(".meta.json")
+        meta_path.write_text(json.dumps(meta_data), encoding="utf-8")
+        
+        return {
+            "tmp_path": tmp_path,
+            "parsed_dir": parsed_dir,
+            "agents_dir": agents_dir,
+            "extractions_dir": extractions_dir,
+            "agent_path": agent_path,
+        }
+
+    def test_extraction_output_format(self):
+        """Test extraction output format is valid JSON."""
+        # Create mock extraction result
+        experiments = [
+            NanozymeExperiment(
+                formula="Fe3O4",
+                activity="peroxidase",
+                length=10.0,
+                km_value=0.05,
+                vmax_value=100.0,
+                ph=7.0,
+                temperature=25.0,
+            ),
+            NanozymeExperiment(
+                formula="CuO",
+                activity="oxidase",
+                length=20.0,
+                km_value=0.08,
+                vmax_value=150.0,
+                ph=7.5,
+                temperature=30.0,
+            ),
+        ]
+        
+        output = NanozymeExtractionOutput(experiments=experiments)
+        
+        # Verify serialization
+        output_dict = output.model_dump()
+        assert "experiments" in output_dict
+        assert len(output_dict["experiments"]) == 2
+        assert output_dict["experiments"][0]["formula"] == "Fe3O4"
+        
+        # Verify JSON serialization
+        json_str = output.model_dump_json(indent=2)
+        assert isinstance(json_str, str)
+        
+        # Verify deserialization
+        loaded = NanozymeExtractionOutput.model_validate_json(json_str)
+        assert len(loaded.experiments) == 2
+        assert loaded.experiments[0].formula == "Fe3O4"
+
+    def test_extraction_with_empty_agent(self, extraction_test_setup):
+        """Test extraction handles empty/minimal agent gracefully."""
+        from aee.infrastructure.storage.agents import AgentRepository
+        
+        repo = AgentRepository(agents_dir=extraction_test_setup["agents_dir"])
+        
+        # Load agent
+        agent, metadata = repo.load(extraction_test_setup["agent_path"])
+        
+        # Verify agent structure
+        assert isinstance(agent, dict)
+        assert "lm" in agent
+        assert metadata.task_name == "nanozymes"
+
+    def test_document_loading_for_extraction(self, extraction_test_setup):
+        """Test loading documents for extraction."""
+        from aee.infrastructure.storage.documents import DocumentRepository
+        
+        repo = DocumentRepository(parsed_dir=extraction_test_setup["parsed_dir"])
+        
+        # Load all documents
+        docs = repo.load_all()
+        
+        # Verify loading
+        assert len(docs) == 3
+        assert "paper1" in docs
+        assert "paper2" in docs
+        assert "paper3" in docs
+        
+        # Verify document structure
+        doc = docs["paper1"]
+        assert "nanozymes" in doc.text_content.lower()
+        assert doc.metadata.filename == "paper1.pdf"
+
+
+class TestTaskPluginIntegration:
+    """Integration tests for task plugin system."""
+
+    def test_nanozyme_task_creation(self):
+        """Test NanozymeTask can be created and validated."""
+        from aee.domain.tasks.nanozymes import NanozymeTask
+        
+        instruction = "Extract nanozyme experiments from scientific articles."
+        task = NanozymeTask(initial_instruction=instruction)
+        
+        # Validate task
+        task.validate()
+        
+        # Verify properties
+        assert task.name == "nanozymes"
+        assert len(task.compare_fields) > 0
+        assert "formula" in task.compare_fields
+        assert "activity" in task.compare_fields
+        assert task.float_tolerance == 0.10
+
+    def test_task_registry_integration(self):
+        """Test task registration and retrieval."""
+        from aee.domain.tasks import TaskRegistry
+        from aee.domain.tasks.nanozymes import NanozymeTask
+        
+        registry = TaskRegistry()
+        
+        # Create and register task
+        instruction = "Extract nanozyme experiments."
+        task = NanozymeTask(initial_instruction=instruction)
+        registry.register(task)
+        
+        # Verify registration
+        assert registry.count() == 1
+        assert registry.has("nanozymes")
+        
+        # Retrieve task
+        retrieved = registry.get("nanozymes")
+        assert retrieved.name == "nanozymes"
+        assert retrieved.description is not None
+
+    def test_task_validate_compare_fields(self):
+        """Test that compare_fields validation works."""
+        from aee.domain.tasks.nanozymes import NanozymeTask
+        
+        instruction = "Extract nanozyme experiments."
+        task = NanozymeTask(initial_instruction=instruction)
+        
+        # Validate - should pass
+        task.validate()
+        
+        # Verify all compare_fields exist in experiment model
+        experiment_fields = set(task.experiment_model.model_fields.keys())
+        for field in task.compare_fields:
+            assert field in experiment_fields, f"Field '{field}' not in experiment model"

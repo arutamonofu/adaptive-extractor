@@ -1,0 +1,5 @@
+{
+  "train": ["paper1", "paper2", "paper3"],
+  "val": ["paper4"],
+  "test": ["paper5"]
+}
