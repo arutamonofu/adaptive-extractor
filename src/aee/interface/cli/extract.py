@@ -6,7 +6,6 @@ on documents using trained agents.
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -174,7 +173,7 @@ def extract_command(argv: Optional[list] = None) -> int:
             )
             logger.info(f"✓ Output directory: {response.output_dir}")
 
-            print(f"\n✓ Success!")
+            print("\n✓ Success!")
             print(f"✓ Processed: {response.extractions_saved}/{response.total_documents}")
             print(f"✓ Failed: {response.failed_documents}")
             print(f"✓ Results saved to: {response.output_dir}")

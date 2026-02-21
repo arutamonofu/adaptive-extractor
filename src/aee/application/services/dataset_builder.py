@@ -7,11 +7,10 @@ documents and ground truth data, with support for filtering and sampling.
 import logging
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 import dspy
 
-from aee.domain.entities import ProcessedDocument
 from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import DocumentRepository, GroundTruthRepository, DataSplitRepository
 from aee.shared.exceptions import DataValidationError, UseCaseExecutionError
@@ -174,7 +173,7 @@ class DatasetBuilder:
             if not dataset:
                 raise UseCaseExecutionError(
                     "DatasetBuilder.build_from_ids",
-                    f"Built dataset is empty. Check that documents exist and have content."
+                    "Built dataset is empty. Check that documents exist and have content."
                 )
 
             logger.info(

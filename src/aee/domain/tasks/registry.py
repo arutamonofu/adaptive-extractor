@@ -6,12 +6,12 @@ type-safe access to task definitions with validation.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from aee.domain.tasks.config import TaskConfig
 from aee.domain.tasks.dynamic_models import create_all_models, create_row_converter
 from aee.domain.tasks.signature import create_signature
-from aee.shared.exceptions import TaskNotFoundError, TaskValidationError
+from aee.shared.exceptions import TaskNotFoundError
 
 logger = logging.getLogger(__name__)
 

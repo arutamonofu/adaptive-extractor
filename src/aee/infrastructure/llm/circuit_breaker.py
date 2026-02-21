@@ -152,7 +152,7 @@ class CircuitBreaker:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             self._on_failure()
             raise
 
@@ -224,10 +224,10 @@ class CircuitBreaker:
 
     def __deepcopy__(self, memo) -> 'CircuitBreaker':
         """Create a deep copy of the circuit breaker.
-        
+
         Args:
             memo: Deepcopy memo dictionary.
-            
+
         Returns:
             New CircuitBreaker instance with the same configuration but fresh state.
         """
@@ -241,7 +241,7 @@ class CircuitBreaker:
 
     def __copy__(self) -> 'CircuitBreaker':
         """Create a shallow copy of the circuit breaker.
-        
+
         Returns:
             New CircuitBreaker instance with the same configuration but fresh state.
         """

@@ -5,7 +5,7 @@ from TaskConfig, enabling flexible task definitions without hardcoded signatures
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Optional, Type
 
 import dspy
 from pydantic import BaseModel

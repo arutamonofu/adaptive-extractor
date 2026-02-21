@@ -6,17 +6,13 @@ using the OptimizeAgentUseCase.
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Optional
 
-import dspy
-
 from aee import setup_logging
 from aee.application.services import AgentManager, DatasetBuilder, ExperimentTracker
 from aee.application.use_cases import OptimizeAgentRequest, OptimizeAgentUseCase
-from aee.domain.tasks import get_task
 from aee.infrastructure.config.settings import Settings
 from aee.infrastructure.storage import (
     AgentRepository,
@@ -152,7 +148,7 @@ def load_task_with_instruction(task_name: str, config) -> tuple:
 
     # Load and register task from YAML
     load_task_from_yaml(yaml_path)
-    
+
     # Get task components from registry
     task = get_task(task_name)
 
@@ -248,7 +244,10 @@ def optimize_command(argv: Optional[list] = None) -> int:
         logger.info("=" * 60)
         logger.info(f"Task: {task_name}")
         logger.info(f"Config file: {args.config}")
-        logger.info(f"Instruction: {custom_settings.task.initial_instruction_file} (hash: {instruction_metadata['instruction_hash']})")
+        logger.info(
+            f"Instruction: {custom_settings.task.initial_instruction_file} "
+            f"(hash: {instruction_metadata['instruction_hash']})"
+        )
         logger.info("-" * 60)
         logger.info("DATASET:")
         logger.info(f"  Ground truth: {gt_path}")
@@ -262,7 +261,10 @@ def optimize_command(argv: Optional[list] = None) -> int:
         logger.info(f"  num_candidates: {custom_settings.optimization.num_candidates}")
         logger.info(f"  max_bootstrapped_demos: {custom_settings.optimization.max_bootstrapped_demos}")
         logger.info(f"  max_labeled_demos: {custom_settings.optimization.max_labeled_demos}")
-        logger.info(f"  minibatch: {custom_settings.optimization.minibatch} (size={custom_settings.optimization.minibatch_size})")
+        logger.info(
+            f"  minibatch: {custom_settings.optimization.minibatch} "
+            f"(size={custom_settings.optimization.minibatch_size})"
+        )
         logger.info(f"  view_data_batch_size: {custom_settings.optimization.view_data_batch_size}")
         logger.info(f"  metric_threshold: {custom_settings.optimization.metric_threshold}")
         logger.info(f"  init_temperature: {custom_settings.optimization.init_temperature}")
@@ -319,7 +321,7 @@ def optimize_command(argv: Optional[list] = None) -> int:
             logger.info(f"Metrics: {response.final_metrics}")
             logger.info(f"Trials: {response.trial_count}")
             print(f"\n✓ Success! Agent saved to: {response.agent_path}")
-            print(f"✓ Final F1 Score: {response.final_metrics.get('f1', 0):.3f}") # type: ignore
+            print(f"✓ Final F1 Score: {response.final_metrics.get('f1', 0):.3f}")  # type: ignore
             return 0
         else:
             logger.error(f"Optimization failed: {response.error_message}")

@@ -341,29 +341,29 @@ class AgentManager:
         # For DSPy agents with dump_state method
         if isinstance(agent, SerializableAgent):
             return agent.dump_state()
-        
+
         # For dict agents (already serialized)
         if isinstance(agent, dict):
             return agent
-        
+
         # For agents with save() method - save to temp file and load
         if isinstance(agent, SaveableAgent):
             import tempfile
             import json
-            
+
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".json", delete=False
             ) as f:
                 temp_path = f.name
                 agent.save(temp_path)
-            
+
             try:
                 with open(temp_path, "r", encoding="utf-8") as f:
                     return json.load(f)
             finally:
                 import os
                 os.unlink(temp_path)
-        
+
         # Cannot serialize
         raise UseCaseExecutionError(
             "AgentManager._serialize_agent",

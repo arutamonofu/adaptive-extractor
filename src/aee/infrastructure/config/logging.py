@@ -3,7 +3,7 @@
 
 import logging
 import sys
-from typing import Optional, Any
+from typing import Any
 
 _NOISY_LIBRARIES = [
     "RapidOCR",
@@ -16,6 +16,7 @@ _NOISY_LIBRARIES = [
     "httpcore",
     "filelock",
 ]
+
 
 def setup_logging(config: Any) -> logging.Logger:
     """Configure application logging.
@@ -34,7 +35,7 @@ def setup_logging(config: Any) -> logging.Logger:
     """
     if config is None:
         raise ValueError("Configuration object is required for setup_logging()")
-    
+
     app_level = config.project.log_level.upper()
 
     logging.basicConfig(

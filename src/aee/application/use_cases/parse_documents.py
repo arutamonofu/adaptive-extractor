@@ -11,7 +11,6 @@ from typing import List, Optional
 
 from aee.infrastructure.parsers import get_parser
 from aee.infrastructure.storage import DocumentRepository
-from aee.shared.exceptions import UseCaseExecutionError
 
 logger = logging.getLogger(__name__)
 

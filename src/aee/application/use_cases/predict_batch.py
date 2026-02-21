@@ -7,14 +7,11 @@ using a trained agent.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from pydantic import BaseModel
+from typing import Any, List, Optional
 
 from aee.application.services import AgentManager
 from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import DocumentRepository, ExtractionRepository
-from aee.shared.exceptions import UseCaseExecutionError
 
 logger = logging.getLogger(__name__)
 

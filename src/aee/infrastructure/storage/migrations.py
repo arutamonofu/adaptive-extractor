@@ -9,8 +9,6 @@ import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from aee.shared.exceptions import InvalidDataFormatError
-
 logger = logging.getLogger(__name__)
 
 

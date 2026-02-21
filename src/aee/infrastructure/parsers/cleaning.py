@@ -4,9 +4,10 @@
 import re
 from typing import Dict, Pattern
 
+
 class TextCleaner:
     """Post-processing utilities to clean and normalize raw text extracted from PDFs.
-    
+
     Handles OCR artifacts, broken Unicode, ligatures, and scientific formatting.
     """
 
@@ -46,10 +47,10 @@ class TextCleaner:
     @classmethod
     def _decode_hex_match(cls, match: re.Match) -> str:
         """Helper to convert hex code (FB01) to unicode char (ﬁ).
-        
+
         Args:
             match: Regex match object containing the hex code.
-            
+
         Returns:
             str: Decoded unicode character or original string if decoding fails.
         """
@@ -63,12 +64,12 @@ class TextCleaner:
     @classmethod
     def clean_docling_markdown(cls, text: str) -> str:
         """Main entry point for text cleaning.
-        
+
         Applies a cascade of cleaning rules in a safe order.
-        
+
         Args:
             text: Input text to clean. Can be None or empty.
-            
+
         Returns:
             str: Cleaned text. Returns empty string if input is None or empty.
         """

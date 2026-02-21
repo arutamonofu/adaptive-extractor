@@ -5,7 +5,6 @@ This module provides the command-line interface for parsing PDF documents.
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -61,7 +60,7 @@ def collect_pdf_paths(paths: list[Path]) -> list[Path]:
             logger.warning(f"Path does not exist: {path}")
             print(f"⚠ Path does not exist: {path}")
             continue
-            
+
         if path.is_file() and path.suffix.lower() == ".pdf":
             pdf_files.append(path)
         elif path.is_dir():
@@ -172,7 +171,7 @@ def parse_command(argv: Optional[list] = None) -> int:
                 f"✓ Parsed: {response.documents_parsed}/{response.total_documents}"
             )
 
-            print(f"\n✓ Success!")
+            print("\n✓ Success!")
             print(f"✓ Parsed: {response.documents_parsed}/{response.total_documents}")
             print(f"✓ Failed: {response.failed_documents}")
             print(f"✓ Results saved to: {response.output_dir}")

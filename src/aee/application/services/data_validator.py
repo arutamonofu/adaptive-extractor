@@ -7,11 +7,10 @@ and data splits to ensure data integrity before experiments.
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import DataSplitRepository, GroundTruthRepository
-from aee.shared.exceptions import DataValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +143,7 @@ class DataValidator:
             main_splits = ["train", "val", "test"]
             all_split_ids: Set[str] = set()
             main_split_ids: Set[str] = set()
-            
+
             for split_name, split_ids in splits.items():
                 split_ids_set = set(split_ids)
 
@@ -161,7 +160,7 @@ class DataValidator:
                             f"Split '{split_name}' overlaps with previous splits: {overlap}"
                         )
                     main_split_ids.update(split_ids_set)
-                
+
                 all_split_ids.update(split_ids_set)
 
                 # Check if split documents exist in ground truth

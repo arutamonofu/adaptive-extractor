@@ -5,7 +5,7 @@ from TaskConfig, enabling flexible task definitions without hardcoded models.
 """
 
 import logging
-from typing import Any, Dict, List, Literal, Optional, Type, Union
+from typing import Any, Dict, Literal, Optional, Type, Union
 
 from pydantic import BaseModel, Field, create_model
 

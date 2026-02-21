@@ -8,13 +8,13 @@ import requests
 from threading import Lock
 from typing import Any, List, Union, Optional, Dict
 from functools import wraps
-from time import monotonic
 
 import dspy
 from aee.infrastructure.config.settings import LLMInstanceConfig, Settings, CircuitBreakerConfig
 from aee.infrastructure.llm.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 logger = logging.getLogger(__name__)
+
 
 class OllamaLM(dspy.LM):
     """Custom LLM provider for Ollama with circuit breaker protection."""
@@ -71,17 +71,17 @@ class OllamaLM(dspy.LM):
 
     def __call__(self, prompt: Optional[Union[str, List[Dict[str, str]]]] = None, **kwargs) -> List[str]:
         """Call the LLM with a prompt.
-        
+
         Args:
             prompt: Prompt string or list of messages.
             **kwargs: Additional arguments.
-            
+
         Returns:
             List of response strings.
         """
         if prompt is None:
             prompt = kwargs.get("messages")
-            
+
         if prompt is None:
             return [""]
 
@@ -101,10 +101,10 @@ class OllamaLM(dspy.LM):
 
     def _normalize_prompt(self, prompt: Union[str, List[Dict[str, str]]]) -> List[Dict[str, str]]:
         """Normalize prompt to messages format.
-        
+
         Args:
             prompt: Prompt string or list of messages.
-            
+
         Returns:
             List of message dictionaries.
         """
@@ -114,10 +114,10 @@ class OllamaLM(dspy.LM):
 
     def _prepare_payload(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         """Prepare the request payload.
-        
+
         Args:
             messages: List of message dictionaries.
-            
+
         Returns:
             Dictionary with request payload.
         """
@@ -171,7 +171,7 @@ class OllamaLM(dspy.LM):
                     # Exponential backoff with jitter
                     sleep_time = (2 ** attempt) + (0.1 * attempt)
                     time.sleep(sleep_time)
-        
+
         if last_exception:
             logger.error(f"Ollama failed after {self.max_retries} retries: {last_exception}")
             raise last_exception
@@ -181,13 +181,13 @@ class OllamaLM(dspy.LM):
 
     def _make_request(self, payload: Dict[str, Any]) -> str:
         """Make a single request to the Ollama API.
-        
+
         Args:
             payload: Request payload.
-            
+
         Returns:
             Response text.
-            
+
         Raises:
             requests.RequestException: If the request fails.
         """
@@ -199,11 +199,11 @@ class OllamaLM(dspy.LM):
                 timeout=self.timeout
             ) as response:
                 response.raise_for_status()
-                
+
                 full_content = []
                 if self.stream:
                     logger.info(f"[LLM] Streaming response from {self.model}...")
-                
+
                 for line in response.iter_lines():
                     if line:
                         try:
@@ -220,7 +220,7 @@ class OllamaLM(dspy.LM):
                         except json.JSONDecodeError:
                             logger.warning("Failed to decode JSON response line")
                             continue
-                
+
                 return "".join(full_content)
         except requests.Timeout:
             logger.error(f"Request to Ollama timed out after {self.timeout} seconds")
@@ -237,7 +237,7 @@ class OllamaLM(dspy.LM):
 
     def _update_history(self, messages: List[Dict[str, str]], response: str, kwargs: Dict[str, Any]) -> None:
         """Update the history with the latest interaction.
-        
+
         Args:
             messages: List of message dictionaries.
             response: Response text.
@@ -311,10 +311,10 @@ class RateLimiter:
 
     def __deepcopy__(self, memo) -> 'RateLimiter':
         """Create a deep copy of the rate limiter.
-        
+
         Args:
             memo: Deepcopy memo dictionary.
-            
+
         Returns:
             New RateLimiter instance with the same delay but fresh state.
         """
@@ -323,7 +323,7 @@ class RateLimiter:
 
     def __copy__(self) -> 'RateLimiter':
         """Create a shallow copy of the rate limiter.
-        
+
         Returns:
             New RateLimiter instance with the same delay but fresh state.
         """
@@ -331,10 +331,10 @@ class RateLimiter:
 
     def __call__(self, func):
         """Apply rate limiting to a function.
-        
+
         Args:
             func: Function to wrap.
-            
+
         Returns:
             Wrapped function with rate limiting.
         """
@@ -355,11 +355,11 @@ class RateLimiter:
 
 def _apply_rate_limit(lm: dspy.LM, delay: float) -> dspy.LM:
     """Apply a thread-safe rate limit specific to this LM instance.
-    
+
     Args:
         lm: Language model instance.
         delay: Delay in seconds.
-        
+
     Returns:
         dspy.LM: Rate-limited language model.
     """
@@ -460,55 +460,63 @@ def create_lm(
 
 
 def setup_student(
-    config: Optional[Settings] = None,
+    config: Settings,
     enable_circuit_breaker: bool = True,
     enable_cache: Optional[bool] = None,
 ) -> dspy.LM:
     """Set up the student language model.
 
     Args:
-        config: Configuration for the LLM instance.
+        config: Configuration for the LLM instance. Required.
         enable_circuit_breaker: Whether to enable circuit breaker.
         enable_cache: Override config's enable_cache setting (optional).
 
     Returns:
         dspy.LM: Student language model.
+
+    Raises:
+        ValueError: If config is None.
     """
-    current_settings = config or settings
+    if config is None:
+        raise ValueError("config is required for setup_student")
 
     lm = create_lm(
-        current_settings.llm.student,
-        circuit_breaker_config=current_settings.circuit_breaker,
+        config.llm.student,
+        circuit_breaker_config=config.circuit_breaker,
         enable_circuit_breaker=enable_circuit_breaker,
         enable_cache=enable_cache,
     )
     dspy.settings.configure(lm=lm)
-    logger.info(f"Student LLM configured: {current_settings.llm.student.model}")
+    logger.info(f"Student LLM configured: {config.llm.student.model}")
     return lm
 
 
 def setup_teacher(
-    config: Optional[Settings] = None,
+    config: Settings,
     enable_circuit_breaker: bool = True,
     enable_cache: Optional[bool] = None,
 ) -> dspy.LM:
     """Set up the teacher language model.
 
     Args:
-        config: Configuration for the LLM instance.
+        config: Configuration for the LLM instance. Required.
         enable_circuit_breaker: Whether to enable circuit breaker.
         enable_cache: Override config's enable_cache setting (optional).
 
     Returns:
         dspy.LM: Teacher language model.
+
+    Raises:
+        ValueError: If config is None.
     """
-    current_settings = config or settings
+    if config is None:
+        raise ValueError("config is required for setup_teacher")
 
     lm = create_lm(
-        current_settings.llm.teacher,
-        circuit_breaker_config=current_settings.circuit_breaker,
+        config.llm.teacher,
+        circuit_breaker_config=config.circuit_breaker,
         enable_circuit_breaker=enable_circuit_breaker,
         enable_cache=enable_cache,
     )
-    logger.info(f"Teacher LLM configured: {current_settings.llm.teacher.model}")
+    logger.info(f"Teacher LLM configured: {config.llm.teacher.model}")
     return lm

@@ -22,6 +22,7 @@ from marker.models import create_model_dict
 # Project
 from aee.infrastructure.parsers.base import BaseParser
 from aee.infrastructure.parsers.cleaning import TextCleaner
+from aee.infrastructure.config.settings import MarkerConfig
 from aee.domain.entities import ProcessedDocument, DocumentMetadata
 
 logger = logging.getLogger(__name__)
@@ -82,10 +83,10 @@ class DoclingParser(BaseParser):
 
     def _build_hybrid_content(self, doc) -> str:
         """Build hybrid content from document items.
-        
+
         Args:
             doc: Document object.
-            
+
         Returns:
             str: Hybrid content string.
         """
@@ -95,14 +96,14 @@ class DoclingParser(BaseParser):
             if content:
                 output.append(content)
         return "\n\n".join(output)
-    
+
     def _extract_item_content(self, item, doc) -> Optional[str]:
         """Extract content from a document item based on its type.
-        
+
         Args:
             item: Document item to extract content from.
             doc: Parent document object.
-            
+
         Returns:
             str: Extracted content or None if no content.
         """
@@ -115,27 +116,27 @@ class DoclingParser(BaseParser):
         elif isinstance(item, TextItem):
             return self._extract_text_content(item)
         return None
-    
+
     def _extract_table_content(self, item: TableItem, doc) -> Optional[str]:
         """Extract table content as HTML.
-        
+
         Args:
             item: Table item to extract.
             doc: Parent document object.
-            
+
         Returns:
             str: HTML representation of the table or None.
         """
         if html := item.export_to_html(doc=doc):
             return f"\n{html}\n"
         return None
-    
+
     def _extract_header_content(self, item: SectionHeaderItem) -> Optional[str]:
         """Extract section header content as markdown.
-        
+
         Args:
             item: Section header item to extract.
-            
+
         Returns:
             str: Markdown header or None.
         """
@@ -143,13 +144,13 @@ class DoclingParser(BaseParser):
             prefix = "#" * getattr(item, "level", 1)
             return f"\n{prefix} {text}\n"
         return None
-    
+
     def _extract_list_item_content(self, item: ListItem) -> Optional[str]:
         """Extract list item content as markdown.
-        
+
         Args:
             item: List item to extract.
-            
+
         Returns:
             str: Markdown list item or None.
         """
@@ -157,48 +158,48 @@ class DoclingParser(BaseParser):
             marker = "1." if item.enumerated else "-"
             return f"{marker} {text}"
         return None
-    
+
     def _extract_text_content(self, item: TextItem) -> Optional[str]:
         """Extract text content, filtering out headers/footers.
-        
+
         Args:
             item: Text item to extract.
-            
+
         Returns:
             str: Cleaned text content or None.
         """
         # Skip headers and footers
         if item.label in {DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER}:
             return None
-        
+
         if text := TextCleaner.clean_docling_markdown(item.text):
             return text
         return None
 
     def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         """Parse a PDF file using Docling.
-        
+
         Args:
             file_path: Path to the PDF file.
-            
+
         Returns:
             ProcessedDocument: Parsed document.
-            
+
         Raises:
             Exception: If parsing fails.
         """
         path = Path(file_path)
         logger.info(f"Docling processing: {path.name} (device: {self.cfg.device})")
-        
+
         try:
             result = self.converter.convert(path)
             hybrid_text = self._build_hybrid_content(result.document)
-            
+
             # Get page count safely
             page_count = None
             if hasattr(result.document, "pages"):
                 page_count = len(result.document.pages)
-            
+
             return ProcessedDocument(
                 text_content=hybrid_text,
                 metadata=DocumentMetadata(
@@ -215,14 +216,19 @@ class DoclingParser(BaseParser):
 
 class MarkerParser(BaseParser):
     """Parser using Marker library."""
-    
-    def __init__(self, config: Optional[Any] = None):
+
+    def __init__(self, config: MarkerConfig):
         """Initialize the Marker parser.
-        
+
         Args:
-            config: Configuration for the parser. If None, uses settings.parsing.marker.
+            config: Configuration for the parser. Required.
+
+        Raises:
+            ValueError: If config is None.
         """
-        self.cfg = config or settings.parsing.marker
+        if config is None:
+            raise ValueError("Configuration object is required for MarkerParser")
+        self.cfg = config
         logger.info(f"Initializing Marker on {self.cfg.device}...")
         self.converter = PdfConverter(
             artifact_dict=create_model_dict(device=self.cfg.device)
@@ -230,31 +236,31 @@ class MarkerParser(BaseParser):
 
     def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
         """Parse a PDF file using Marker.
-        
+
         Args:
             file_path: Path to the PDF file.
-            
+
         Returns:
             ProcessedDocument: Parsed document.
-            
+
         Raises:
             Exception: If parsing fails.
         """
         path = Path(file_path)
         logger.info(f"Marker processing: {path.name}")
-        
+
         try:
             rendered = self.converter(str(path))
-            
+
             # Extract text content with fallback chain
             text = (
                 getattr(rendered, "markdown", None) or
                 getattr(rendered, "text", str(rendered))
             )
-            
+
             # Extract metadata safely
             meta = getattr(rendered, "metadata", {})
-            
+
             return ProcessedDocument(
                 text_content=text,
                 metadata=DocumentMetadata(

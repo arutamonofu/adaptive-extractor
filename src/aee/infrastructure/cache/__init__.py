@@ -6,7 +6,7 @@ system with persistent disk storage.
 
 import logging
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 
 from aee.infrastructure.config.settings import CacheConfig
 

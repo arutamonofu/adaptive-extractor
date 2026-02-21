@@ -6,7 +6,7 @@ using TaskConfig and FieldSpec, enabling dynamic model and signature generation.
 
 import hashlib
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel, Field as PydanticField
 

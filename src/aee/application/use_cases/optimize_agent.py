@@ -14,7 +14,6 @@ import dspy
 from dspy.teleprompt import MIPROv2
 
 from aee.application.services import AgentManager, DatasetBuilder, DataValidator, ExperimentTracker
-from aee.application.services.data_validator import ValidationResult
 from aee.domain.agents.base import BaseAgent
 from aee.domain.evaluation import TaskMetric
 from aee.domain.tasks import TaskConfig
@@ -171,11 +170,11 @@ class OptimizeAgentUseCase:
         self.tracker = tracker
         self.validator = validator
         self.enable_preflight_check = enable_preflight_check
-        
+
         # Only create default validator if explicitly enabled
         if enable_preflight_check and validator is None:
             self.validator = DataValidator(gt_repo=gt_repo)
-        
+
         logger.debug(
             f"Initialized OptimizeAgentUseCase "
             f"(preflight_check={enable_preflight_check}, validator={validator is not None})"

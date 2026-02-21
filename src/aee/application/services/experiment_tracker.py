@@ -7,13 +7,7 @@ abstracting away MLflow specifics and providing convenience methods.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
-
-from aee.shared.exceptions import UseCaseExecutionError
-
-if TYPE_CHECKING:
-    import mlflow
-    from mlflow import MlflowClient
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -328,7 +322,7 @@ class ExperimentTracker:
 
         This uses MLflow's DSPy integration to properly save and version
         DSPy models, including their prompts, demonstrations, and state.
-        
+
         Uses DSPy's native save method (use_dspy_model_save=True) to avoid
         pickle serialization issues with non-serializable objects like thread locks.
         Requires dspy>=3.1.0.

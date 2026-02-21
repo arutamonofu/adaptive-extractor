@@ -1,8 +1,6 @@
 """Task-agnostic extraction agent for AutoEvoExtractor."""
 
-import json
-from pathlib import Path
-from typing import Any, Type
+from typing import Type
 
 import dspy
 

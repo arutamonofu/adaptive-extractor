@@ -4,7 +4,7 @@
 Configuration loading:
     YAML configuration file is REQUIRED. Use Settings.load(config_path=...)
     to load settings from a YAML file. There is no fallback to internal defaults.
-    
+
     All configuration values must be provided either:
     - In the YAML configuration file (application settings)
     - Via environment variables (secrets and infrastructure URLs only)
@@ -21,7 +21,7 @@ Note: Environment variables with double underscores (e.g., OPTIMIZATION__NUM_TRI
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -556,13 +556,13 @@ class Settings(BaseSettings):
         """Safe representation that hides sensitive fields."""
         safe_fields = {}
         sensitive_patterns = ("api_key", "secret", "password", "token", "key")
-        
+
         for field_name, value in self.__dict__.items():
             if any(pattern in field_name.lower() for pattern in sensitive_patterns):
                 safe_fields[field_name] = "***REDACTED***" if value is not None else None
             else:
                 safe_fields[field_name] = value
-        
+
         return f"{self.__class__.__name__}({safe_fields})"
 
     @classmethod
@@ -778,7 +778,7 @@ class Settings(BaseSettings):
     @staticmethod
     def _deep_update(base_dict: dict, update_with: dict) -> None:
         """Recursively update a dictionary with another dictionary.
-        
+
         Args:
             base_dict: The dictionary to update.
             update_with: The dictionary to update with.
