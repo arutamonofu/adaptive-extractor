@@ -130,14 +130,16 @@ class TestAgentRepository:
         
         # Save two agents
         path1 = repo.save(sample_agent_dict, "nanozymes", metadata)
-        
+
         # Modify metadata for second agent
+        import time
+        time.sleep(0.01)  # Ensure different mtime
         metadata.created_at = datetime.now().isoformat()
         path2 = repo.save(sample_agent_dict, "nanozymes", metadata)
-        
+
         # Get latest
         latest = repo.get_latest("nanozymes")
-        
+
         assert latest is not None
         # Latest should be the second one (by creation time)
         assert latest == path2
