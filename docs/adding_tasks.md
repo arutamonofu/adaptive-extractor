@@ -6,8 +6,6 @@ Guide for adding new extraction tasks to AutoEvoExtractor.
 
 AutoEvoExtractor uses **YAML-based configuration** for defining extraction tasks.
 
-**Time:** 15-30 minutes for simple tasks
-
 The system automatically generates from YAML:
 - Pydantic models for experiments
 - DSPy signatures for LLM extraction
@@ -42,7 +40,15 @@ tags:
   - biology
   - proteins
 
-# Instruction for DSPy
+# Evaluation settings (all required)
+compare_fields:
+  - protein_name
+  - structure_method
+  - resolution
+
+float_tolerance: 0.05
+
+# Instruction file for DSPy (required)
 instruction_file: config/initial_instructions/proteins_v1.txt
 
 # Fields to extract
@@ -75,14 +81,6 @@ fields:
     description: "PDB ID (e.g., '1A2B')"
     required: false
     pattern: "^[0-9][A-Za-z0-9]{3}$"
-
-# Evaluation settings
-compare_fields:
-  - protein_name
-  - structure_method
-  - resolution
-
-float_tolerance: 0.05
 
 # CSV column mapping
 row_converter:
@@ -162,7 +160,7 @@ python scripts/optimize.py --config default.yaml
 
 | Property | Type | Description | Required |
 |----------|------|-------------|----------|
-| `type` | str | Python type: `str`, `int`, `float`, `bool`, или `Literal` (через `choices`) | Yes |
+| `type` | str | Python type: `str`, `int`, `float`, `bool`, or `Literal` (via `choices`) | Yes |
 | `description` | str | Human-readable description | Yes |
 | `required` | bool | Whether field is required | No (default: true) |
 | `default` | any | Default value | No |
@@ -173,11 +171,11 @@ python scripts/optimize.py --config default.yaml
 | `alt_names` | list[str] | Alternative CSV column names | No |
 
 **Type examples:**
-- `type: str` — строковое значение
-- `type: int` — целое число
-- `type: float` — число с плавающей точкой
-- `type: bool` — булево значение
-- `choices: ["A", "B", "C"]` — создает `Literal["A", "B", "C"]`
+- `type: str` — string value
+- `type: int` — integer value
+- `type: float` — floating-point number
+- `type: bool` — boolean value
+- `choices: ["A", "B", "C"]` — creates `Literal["A", "B", "C"]`
 
 ---
 
@@ -204,43 +202,6 @@ python scripts/optimize.py --config default.yaml
 - Include both required and optional fields
 - Leave optional fields empty (not "N/A")
 - Start with 10-20 examples, expand to 50+
-
----
-
-## Troubleshooting
-
-### Task Not Found
-
-**Error:** `TaskNotFoundError: Task 'proteins' not found`
-
-**Solutions:**
-1. Ensure YAML exists: `src/aee/domain/tasks/proteins/task.yaml`
-2. Check task name matches `--task` argument
-3. Verify YAML is valid
-
-### Instruction File Not Found
-
-**Error:** `FileNotFoundError: Instruction file not found`
-
-**Solutions:**
-1. Create instruction file in `config/initial_instructions/`
-2. Check path in `task.yaml`
-
-### Validation Errors
-
-**Error:** `TaskConfig validation failed`
-
-**Common causes:**
-- `compare_fields` reference non-existent fields
-- Missing required properties
-- Invalid field types
-
-### Low Accuracy
-
-**Causes:**
-1. Insufficient ground truth (add more examples)
-2. Ambiguous instruction (make more specific)
-3. Poor `compare_fields` (choose identifying fields)
 
 ---
 

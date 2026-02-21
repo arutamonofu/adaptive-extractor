@@ -169,13 +169,16 @@ class TestTaskPluginIntegration:
 
     def test_task_registry_integration(self):
         """Test task registration and retrieval."""
-        from aee.domain.tasks import TaskRegistry
+        from aee.domain.tasks import TaskRegistry, load_task_from_yaml
 
         registry = TaskRegistry()
 
         # Load and register task from YAML
         yaml_path = "src/aee/domain/tasks/nanozymes/task.yaml"
-        registry.register_from_yaml(yaml_path)
+        config = load_task_from_yaml(yaml_path)
+        # Set instruction file as it would be set from config/default.yaml
+        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        registry.register_config(config)
 
         # Verify registration
         assert registry.count() == 1
@@ -184,7 +187,6 @@ class TestTaskPluginIntegration:
         # Retrieve task
         retrieved = registry.get_task("nanozymes")
         assert retrieved["config"].name == "nanozymes"
-        assert retrieved["config"].description is not None
 
     def test_task_validate_compare_fields(self):
         """Test that compare_fields validation works."""

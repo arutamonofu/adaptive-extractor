@@ -1,12 +1,7 @@
 # config/default.yaml
-#
-# Configuration priority (highest → lowest):
-# 1. Environment variables (.env)
-# 2. YAML files (this file)
-# 3. Internal defaults
 
 project:
-  name: "autoevoextractor"
+  log_level: "INFO"
 
 llm:
   student:
@@ -21,8 +16,6 @@ llm:
     repeat_last_n: 2048
     enable_cache: true
     ollama:
-      # URL is set via OLLAMA_STUDENT_BASE_URL env var, this is fallback
-      ollama_base_url: "http://localhost:11434"
       num_ctx: 64000
       num_predict: 2048
       repeat_penalty: 1.2
@@ -43,8 +36,6 @@ llm:
     repeat_last_n: 512
     enable_cache: true
     ollama:
-      # URL is set via OLLAMA_TEACHER_BASE_URL env var, this is fallback
-      ollama_base_url: "http://localhost:11434"
       num_ctx: 64000
       num_predict: 2048
       repeat_penalty: 1.1
@@ -72,7 +63,6 @@ paths:
   splits_file: "data/splits/nanozymes.json"
   agents_dir: "data/agents"
   extractions_dir: "data/extractions"
-  logs_dir: "logs"
 
 optimization:
   total_load: 20
@@ -93,28 +83,29 @@ optimization:
 task:
   name: "nanozymes"
   initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"
-  compare_fields:
-    - "formula"
-    - "activity"
-    - "reaction_type"
-    - "ph"
-    - "temperature"
-    - "surface"
-    - "syngony"
-    - "length"
-    - "width"
-    - "depth"
-    - "km_value"
-    - "vmax_value"
-    - "c_min"
-    - "c_max"
-    - "c_const"
-    - "ccat_value"
-    - "km_unit"
-    - "vmax_unit"
-    - "c_const_unit"
-    - "ccat_unit"
-  float_tolerance: 0.05
+  evaluation:
+    compare_fields:
+      - "formula"
+      - "activity"
+      - "reaction_type"
+      - "ph"
+      - "temperature"
+      - "surface"
+      - "syngony"
+      - "length"
+      - "width"
+      - "depth"
+      - "km_value"
+      - "vmax_value"
+      - "c_min"
+      - "c_max"
+      - "c_const"
+      - "ccat_value"
+      - "km_unit"
+      - "vmax_unit"
+      - "c_const_unit"
+      - "ccat_unit"
+    float_tolerance: 0.05
 
 extraction:
   enable_cache: false

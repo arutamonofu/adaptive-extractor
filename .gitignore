@@ -45,7 +45,7 @@ mlflow.db
 
 # --- Configs ---
 config/*.yaml
-!config/default.yaml
+!config/example.yaml
 
 # --- Secrets ---
 .env

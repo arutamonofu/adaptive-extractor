@@ -3,7 +3,7 @@
 __version__ = "0.4.0"
 
 # Core modules
-from aee.infrastructure.config import settings, setup_logging
+from aee.infrastructure.config import Settings, setup_logging
 from aee.domain.entities import DocumentMetadata, ProcessedDocument
 from aee.infrastructure.parsers import BaseParser, DoclingParser, MarkerParser, TextCleaner
 from aee.infrastructure.agents import UniversalExtractor
@@ -17,7 +17,7 @@ __all__ = [
     "__version__",
 
     # Config
-    "settings",
+    "Settings",
     "setup_logging",
 
     # Domain Entities

@@ -72,7 +72,7 @@ class TaskRegistry:
 
         # Register config
         self._configs[config.name] = config
-        logger.info(f"Registered task config: '{config.name}' - {config.description}")
+        logger.info(f"Registered task config: '{config.name}'")
 
     def register_from_yaml(
         self,

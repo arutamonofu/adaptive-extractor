@@ -174,127 +174,135 @@ class TestTaskConfig:
             ),
         }
 
-    def test_create_minimal_task_config(self, sample_fields):
+    def test_create_minimal_task_config(self, sample_fields, tmp_path):
         """Test creating minimal TaskConfig."""
+        # Create temporary instruction file
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test instruction")
+
         config = TaskConfig(
             name="test_task",
-            description="Test task description",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         assert config.name == "test_task"
-        assert config.description == "Test task description"
         assert len(config.experiment_fields) == 3
-        assert config.float_tolerance == 0.05  # default
+        assert config.float_tolerance == 0.05
 
-    def test_task_config_with_all_options(self, sample_fields):
+    def test_task_config_with_all_options(self, sample_fields, tmp_path):
         """Test creating TaskConfig with all options."""
+        # Create temporary instruction file
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test instruction")
+        
         config = TaskConfig(
             name="test_task",
-            description="Test task",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
             float_tolerance=0.10,
-            initial_instruction="Test instruction",
+            initial_instruction_file=str(instruction_file),
             tags=["test", "chemistry"],
             version="2.0.0",
         )
 
         assert config.float_tolerance == 0.10
-        assert config.initial_instruction == "Test instruction"
+        assert config.initial_instruction_file == str(instruction_file)
         assert config.tags == ["test", "chemistry"]
         assert config.version == "2.0.0"
 
-    def test_empty_name_raises(self, sample_fields):
+    def test_empty_name_raises(self, sample_fields, tmp_path):
         """Test that empty name raises error."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         with pytest.raises(ValueError, match="name must be a non-empty string"):
             TaskConfig(
                 name="",
-                description="Test",
                 experiment_fields=sample_fields,
                 compare_fields=["formula"],
+                float_tolerance=0.05,
+                initial_instruction_file=str(instruction_file),
             )
 
-    def test_empty_description_raises(self, sample_fields):
-        """Test that empty description raises error."""
-        with pytest.raises(ValueError, match="description must be a non-empty string"):
-            TaskConfig(
-                name="test",
-                description="",
-                experiment_fields=sample_fields,
-                compare_fields=["formula"],
-            )
-
-    def test_empty_fields_raises(self):
+    def test_empty_fields_raises(self, tmp_path):
         """Test that empty experiment_fields raises error."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         with pytest.raises(ValueError, match="must have at least one experiment field"):
             TaskConfig(
                 name="test",
-                description="Test",
                 experiment_fields={},
                 compare_fields=["formula"],
+                float_tolerance=0.05,
+                initial_instruction_file=str(instruction_file),
             )
 
-    def test_empty_compare_fields_raises(self, sample_fields):
+    def test_empty_compare_fields_raises(self, sample_fields, tmp_path):
         """Test that empty compare_fields raises error."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         with pytest.raises(ValueError, match="must have at least one compare field"):
             TaskConfig(
                 name="test",
-                description="Test",
                 experiment_fields=sample_fields,
                 compare_fields=[],
+                float_tolerance=0.05,
+                initial_instruction_file=str(instruction_file),
             )
 
-    def test_invalid_float_tolerance_raises(self, sample_fields):
+    def test_invalid_float_tolerance_raises(self, sample_fields, tmp_path):
         """Test that invalid float_tolerance raises error."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+        
         with pytest.raises(ValueError, match="float_tolerance must be between 0 and 1"):
             TaskConfig(
                 name="test",
-                description="Test",
                 experiment_fields=sample_fields,
                 compare_fields=["formula"],
                 float_tolerance=1.5,
+                initial_instruction_file=str(instruction_file),
             )
 
         with pytest.raises(ValueError, match="float_tolerance must be between 0 and 1"):
             TaskConfig(
                 name="test",
-                description="Test",
                 experiment_fields=sample_fields,
                 compare_fields=["formula"],
                 float_tolerance=-0.1,
+                initial_instruction_file=str(instruction_file),
             )
 
-    def test_compare_fields_not_in_experiment_fields_raises(self, sample_fields):
+    def test_compare_fields_not_in_experiment_fields_raises(self, sample_fields, tmp_path):
         """Test that compare_fields not in experiment_fields raises error."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         with pytest.raises(ValueError, match="not found in experiment_fields"):
             TaskConfig(
                 name="test",
-                description="Test",
                 experiment_fields=sample_fields,
                 compare_fields=["formula", "nonexistent_field"],
+                float_tolerance=0.05,
+                initial_instruction_file=str(instruction_file),
             )
 
-    def test_both_instruction_and_file_raises(self, sample_fields):
-        """Test that specifying both instruction types raises error."""
-        with pytest.raises(ValueError, match="Cannot specify both"):
-            TaskConfig(
-                name="test",
-                description="Test",
-                experiment_fields=sample_fields,
-                compare_fields=["formula"],
-                initial_instruction="Test",
-                instruction_file_path="test.txt",
-            )
-
-    def test_get_required_fields(self, sample_fields):
+    def test_get_required_fields(self, sample_fields, tmp_path):
         """Test getting required field names."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         required = config.get_required_fields()
@@ -302,26 +310,34 @@ class TestTaskConfig:
         assert "activity" in required
         assert "km_value" not in required  # optional
 
-    def test_get_optional_fields(self, sample_fields):
+    def test_get_optional_fields(self, sample_fields, tmp_path):
         """Test getting optional field names."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         optional = config.get_optional_fields()
         assert "km_value" in optional
         assert "formula" not in optional
 
-    def test_get_field_choices(self, sample_fields):
+    def test_get_field_choices(self, sample_fields, tmp_path):
         """Test getting field choices."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         choices = config.get_field_choices("activity")
@@ -330,81 +346,88 @@ class TestTaskConfig:
         # No choices for field without choices
         assert config.get_field_choices("formula") is None
 
-    def test_to_dict(self, sample_fields):
+    def test_to_dict(self, sample_fields, tmp_path):
         """Test converting TaskConfig to dictionary."""
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         config_dict = config.to_dict()
         assert config_dict["name"] == "test"
-        assert config_dict["description"] == "Test"
+        assert "description" not in config_dict
         assert len(config_dict["experiment_fields"]) == 3
 
-    def test_validate_success(self, sample_fields):
+    def test_validate_success(self, sample_fields, tmp_path):
         """Test successful validation."""
+        # Create temporary instruction file
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test instruction")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
-            initial_instruction="Test instruction",
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         errors = config.validate()
         assert errors == []
 
-    def test_validate_missing_instruction(self, sample_fields):
-        """Test validation fails without instruction."""
-        config = TaskConfig(
-            name="test",
-            description="Test",
-            experiment_fields=sample_fields,
-            compare_fields=["formula", "activity"],
-        )
-
-        errors = config.validate()
-        # Should have error about missing instruction
-        assert len(errors) > 0
-        assert any("instruction" in e.lower() for e in errors)
 
     def test_validate_instruction_file_not_found(self, sample_fields):
         """Test validation fails when instruction file not found."""
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
-            instruction_file_path="/nonexistent/path.txt",
+            float_tolerance=0.05,
+            initial_instruction_file="/nonexistent/path.txt",
         )
 
         errors = config.validate()
         assert any("not found" in e for e in errors)
 
-    def test_validate_or_raise_success(self, sample_fields):
+    def test_validate_or_raise_success(self, sample_fields, tmp_path):
         """Test validate_or_raise with valid config."""
+        # Create temporary instruction file
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test instruction")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
-            initial_instruction="Test",
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         # Should not raise
         config.validate_or_raise()
 
-    def test_validate_or_raise_raises(self, sample_fields):
+    def test_validate_or_raise_raises(self, sample_fields, tmp_path):
         """Test validate_or_raise with invalid config."""
+        # Create temporary instruction file
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test instruction")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields=sample_fields,
             compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
+
+        # Force validation error by setting invalid compare_fields
+        config.compare_fields = ["nonexistent_field"]
 
         with pytest.raises(ValueError, match="validation failed"):
             config.validate_or_raise()

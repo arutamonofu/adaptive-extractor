@@ -119,12 +119,10 @@ class TaskConfig:
 
     Attributes:
         name: Unique task identifier (e.g., "nanozymes", "catalysts")
-        description: Human-readable description of the task
         experiment_fields: Dictionary of field specifications
         compare_fields: List of field names to compare during evaluation
         float_tolerance: Tolerance for float comparisons (0.0 to 1.0)
-        initial_instruction: Instruction text for DSPy signature
-        instruction_file_path: Path to file containing instruction (alternative to initial_instruction)
+        initial_instruction_file: Path to instruction file for DSPy signature (from config/default.yaml)
         row_converter: Configuration for CSV row conversion
         output_model_name: Name for the generated output model class
         experiment_model_name: Name for the generated experiment model class
@@ -135,12 +133,10 @@ class TaskConfig:
     """
 
     name: str
-    description: str
     experiment_fields: Dict[str, FieldSpec]
     compare_fields: List[str]
-    float_tolerance: float = 0.05
-    initial_instruction: Optional[str] = None
-    instruction_file_path: Optional[str] = None
+    float_tolerance: float
+    initial_instruction_file: Optional[str] = None
     row_converter: RowConverterConfig = field(default_factory=RowConverterConfig)
     output_model_name: str = "ExtractionOutput"
     experiment_model_name: str = "Experiment"
@@ -154,9 +150,6 @@ class TaskConfig:
         if not self.name or not isinstance(self.name, str):
             raise ValueError("Task name must be a non-empty string")
 
-        if not self.description or not isinstance(self.description, str):
-            raise ValueError("Task description must be a non-empty string")
-
         if not self.experiment_fields:
             raise ValueError("Task must have at least one experiment field")
 
@@ -169,11 +162,6 @@ class TaskConfig:
         if not 0 <= self.float_tolerance <= 1:
             raise ValueError("float_tolerance must be between 0 and 1")
 
-        if self.initial_instruction and self.instruction_file_path:
-            raise ValueError(
-                "Cannot specify both initial_instruction and instruction_file_path"
-            )
-
         # Validate compare_fields exist in experiment_fields
         field_names = set(self.experiment_fields.keys())
         invalid_fields = [f for f in self.compare_fields if f not in field_names]
@@ -184,29 +172,30 @@ class TaskConfig:
             )
 
     def get_instruction(self) -> str:
-        """Get the instruction text from config or file.
+        """Get the instruction text from instruction file.
 
         Returns:
             Instruction text.
 
         Raises:
-            ValueError: If no instruction is specified.
+            ValueError: If no instruction file is specified.
             FileNotFoundError: If instruction file not found.
         """
-        if self.initial_instruction:
-            return self.initial_instruction
+        if not self.initial_instruction_file:
+            raise ValueError(
+                f"No instruction file specified for task '{self.name}'. "
+                "Set 'task.initial_instruction_file' in config/default.yaml"
+            )
 
-        if self.instruction_file_path:
-            from pathlib import Path
+        from pathlib import Path
 
-            instruction_path = Path(self.instruction_file_path)
-            if not instruction_path.exists():
-                raise FileNotFoundError(
-                    f"Instruction file not found: {self.instruction_file_path}"
-                )
-            return instruction_path.read_text(encoding="utf-8")
-
-        raise ValueError("No instruction specified in TaskConfig")
+        instruction_path = Path(self.initial_instruction_file)
+        if not instruction_path.exists():
+            raise FileNotFoundError(
+                f"Instruction file not found: {self.initial_instruction_file}. "
+                "Check 'task.initial_instruction_file' in config/default.yaml"
+            )
+        return instruction_path.read_text(encoding="utf-8")
 
     def get_instruction_hash(self) -> str:
         """Get SHA256 hash of the instruction.
@@ -275,10 +264,6 @@ class TaskConfig:
         # Validate name
         if not self.name or not isinstance(self.name, str):
             errors.append("Task name must be a non-empty string")
-
-        # Validate description
-        if not self.description or not isinstance(self.description, str):
-            errors.append("Task description must be a non-empty string")
 
         # Validate experiment_fields
         if not self.experiment_fields:

@@ -42,23 +42,23 @@ class OptimizeAgentRequest:
         val_split_name: Name of validation split (default: "val").
         student_lm: Student language model for optimization.
         teacher_lm: Optional teacher model for demonstrations.
-        num_trials: Number of optimization trials.
+        num_trials: Number of optimization trials (required).
         train_limit: Optional limit on training examples.
         val_limit: Optional limit on validation examples.
         model_version: Version string for the model.
         description: Optional description for the agent.
-        seed: Random seed for reproducibility.
+        seed: Random seed for reproducibility (required).
         mlflow_experiment_name: Optional MLflow experiment name.
         run_name_prefix: Optional prefix for MLflow run name (e.g., "A1_high").
-        num_candidates: Number of candidate prompts to generate.
-        max_bootstrapped_demos: Maximum number of bootstrapped demonstrations.
-        max_labeled_demos: Maximum number of labeled demonstrations.
-        minibatch: Whether to use minibatch evaluation.
-        minibatch_size: Size of minibatches for evaluation.
-        view_data_batch_size: Number of data examples to view per batch.
-        metric_threshold: Metric threshold for early stopping.
-        init_temperature: Initial temperature for prompt generation.
-        verbose: Whether to enable verbose logging.
+        num_candidates: Number of candidate prompts to generate (required).
+        max_bootstrapped_demos: Maximum number of bootstrapped demonstrations (required).
+        max_labeled_demos: Maximum number of labeled demonstrations (required).
+        minibatch: Whether to use minibatch evaluation (required).
+        minibatch_size: Size of minibatches for evaluation (required).
+        view_data_batch_size: Number of data examples to view per batch (required).
+        metric_threshold: Metric threshold for early stopping (required).
+        init_temperature: Initial temperature for prompt generation (required).
+        verbose: Whether to enable verbose logging (default: True).
         initial_instruction_file: Path to the initial instruction file (relative to config dir).
         instruction_hash: SHA256 hash (first 12 chars) of the initial instruction.
     """
@@ -68,26 +68,26 @@ class OptimizeAgentRequest:
     gt_path: Path
     split_path: Path
     student_lm: "LM"
+    num_trials: int
+    seed: int
+    num_candidates: int
+    max_bootstrapped_demos: int
+    max_labeled_demos: int
+    minibatch: bool
+    minibatch_size: int
+    view_data_batch_size: int
+    metric_threshold: float
+    init_temperature: float
     train_split_name: str = "train"
     val_split_name: str = "val"
     teacher_lm: Optional["LM"] = None
-    num_trials: int = 10
     train_limit: Optional[int] = None
     val_limit: Optional[int] = None
     model_version: str = "unknown"
     description: Optional[str] = None
-    seed: int = 42
     mlflow_experiment_name: Optional[str] = None
     run_name_prefix: Optional[str] = None
-    num_candidates: int = 10
-    max_bootstrapped_demos: int = 4
-    max_labeled_demos: int = 4
-    minibatch: bool = True
-    minibatch_size: int = 35
-    view_data_batch_size: int = 10
-    metric_threshold: Optional[float] = None
-    init_temperature: float = 1.0
-    verbose: bool = False
+    verbose: bool = True
     initial_instruction_file: Optional[str] = None
     instruction_hash: Optional[str] = None
 

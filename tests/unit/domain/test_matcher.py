@@ -25,16 +25,16 @@ class TestStringNormalization:
 
     def test_normalize_exact_match(self):
         """Test exact string match after normalization."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         assert matcher._normalize_text("Fe3O4") == "fe3o4"
         assert matcher._normalize_text("FE3O4") == "fe3o4"
         assert matcher._normalize_text("  Fe3O4  ") == "fe3o4"
 
     def test_normalize_dash_variants(self):
         """Test normalization of different dash characters."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         # Different dash types should normalize to same string
         assert matcher._normalize_text("Fe−3O4") == matcher._normalize_text("Fe-3O4")
         assert matcher._normalize_text("Fe–3O4") == matcher._normalize_text("Fe-3O4")
@@ -42,21 +42,21 @@ class TestStringNormalization:
 
     def test_normalize_whitespace(self):
         """Test whitespace removal in normalization."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         assert matcher._normalize_text("Fe 3 O4") == "fe3o4"
         assert matcher._normalize_text("Fe   3   O4") == "fe3o4"
 
     def test_normalize_none_value(self):
         """Test None value normalization."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         assert matcher._normalize_text(None) == ""
 
     def test_normalize_numeric_value(self):
         """Test numeric value normalization."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         assert matcher._normalize_text(123) == "123"
         assert matcher._normalize_text(12.5) == "12.5"
 
@@ -124,8 +124,8 @@ class TestIsMatch:
 
     def test_string_match(self):
         """Test string value matching."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         assert matcher._is_match("Fe3O4", "Fe3O4") is True
         assert matcher._is_match("FE3O4", "fe3o4") is True
         assert matcher._is_match("Fe3O4", "CuO") is False
@@ -140,8 +140,8 @@ class TestIsMatch:
 
     def test_none_comparison(self):
         """Test None value comparison."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         # Both None = match
         assert matcher._is_match(None, None) is True
         # One None = no match
@@ -150,8 +150,8 @@ class TestIsMatch:
 
     def test_mixed_types(self):
         """Test comparison of mixed types."""
-        matcher = ExperimentMatcher(fields_to_compare=["length"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["length"], float_tolerance=0.05)
+
         # String number vs float
         assert matcher._is_match("10.0", 10.0) is True
         assert matcher._is_match(10.0, "10.0") is True
@@ -163,14 +163,14 @@ class TestAlignPairs:
     @pytest.mark.usefixtures("experiment_model")
     def test_align_empty_lists(self):
         """Test alignment of empty lists."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
+
         pairs = matcher.align_pairs([], [])
         assert pairs == []
 
     def test_align_preds_empty(self):
         """Test alignment when predictions are empty."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
         gts = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
             experiment_model(formula="CuO", activity="oxidase"),
@@ -184,7 +184,7 @@ class TestAlignPairs:
 
     def test_align_gts_empty(self):
         """Test alignment when ground truths are empty."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula"])
+        matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
             experiment_model(formula="CuO", activity="oxidase"),
@@ -198,7 +198,7 @@ class TestAlignPairs:
 
     def test_align_perfect_match(self):
         """Test alignment with perfect matches."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"])
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"], float_tolerance=0.05)
 
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
@@ -217,7 +217,7 @@ class TestAlignPairs:
 
     def test_align_partial_match(self):
         """Test alignment with partial matches."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"])
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"], float_tolerance=0.05)
 
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
@@ -243,7 +243,7 @@ class TestAlignPairs:
 
     def test_align_multiple_candidates(self):
         """Test alignment with multiple similar candidates."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity", "length"])
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity", "length"], float_tolerance=0.05)
 
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase", length=10.0),
@@ -271,8 +271,8 @@ class TestF1Computation:
 
     def test_perfect_prediction(self):
         """Test F1 for perfect prediction."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"], float_tolerance=0.05)
+
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
             experiment_model(formula="CuO", activity="oxidase"),
@@ -290,8 +290,8 @@ class TestF1Computation:
 
     def test_false_positives(self):
         """Test F1 with false positives."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"], float_tolerance=0.05)
+
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
             experiment_model(formula="Au", activity="catalase"),  # FP
@@ -308,8 +308,8 @@ class TestF1Computation:
 
     def test_false_negatives(self):
         """Test F1 with false negatives."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"], float_tolerance=0.05)
+
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
         ]
@@ -326,8 +326,8 @@ class TestF1Computation:
 
     def test_complete_miss(self):
         """Test F1 for complete miss (no correct predictions)."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"], float_tolerance=0.05)
+
         preds = [
             experiment_model(formula="Au", activity="catalase"),
         ]
@@ -343,8 +343,8 @@ class TestF1Computation:
 
     def test_optimization_score(self):
         """Test get_optimization_score returns F1."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity"], float_tolerance=0.05)
+
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
         ]
@@ -360,8 +360,8 @@ class TestF1Computation:
 
     def test_field_level_scores(self):
         """Test per-field score computation."""
-        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity", "length"])
-        
+        matcher = ExperimentMatcher(fields_to_compare=["formula", "activity", "length"], float_tolerance=0.05)
+
         preds = [
             experiment_model(formula="Fe3O4", activity="peroxidase", length=10.0),
         ]
@@ -388,7 +388,7 @@ class TestMatcherInitialization:
     def test_empty_fields_raises(self):
         """Test that empty fields_to_compare raises ValueError."""
         with pytest.raises(ValueError, match="fields_to_compare"):
-            ExperimentMatcher(fields_to_compare=[])
+            ExperimentMatcher(fields_to_compare=[], float_tolerance=0.05)
 
     def test_invalid_tolerance_raises(self):
         """Test that invalid tolerance raises ValueError."""

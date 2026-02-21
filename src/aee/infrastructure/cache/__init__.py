@@ -6,7 +6,7 @@ system with persistent disk storage.
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from aee.infrastructure.config.settings import CacheConfig
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def setup_dspy_cache(
-    config: Optional[CacheConfig] = None,
+    config: CacheConfig,
     cache_dir: Optional[str] = None,
     enable_disk_cache: bool = True,
     enable_memory_cache: bool = True,
@@ -25,18 +25,21 @@ def setup_dspy_cache(
     The cache is shared across all DSPy programs and persists between runs.
 
     Args:
-        config: Cache configuration from settings. If None, uses hardcoded defaults.
-        cache_dir: Directory for disk cache. Defaults to settings.dspy_cache_dir
-                   or ~/.dspy_cache if not set.
+        config: Cache configuration from settings. Required.
+        cache_dir: Directory for disk cache. If None, uses config.dspy_cache_dir
+                   or ~/.dspy_cache.
         enable_disk_cache: Whether to enable persistent disk caching.
         enable_memory_cache: Whether to enable fast in-memory caching.
+
+    Raises:
+        ValueError: If config is not provided.
 
     Example:
         ```python
         from aee.infrastructure.cache import setup_dspy_cache
-        from aee.infrastructure.config import settings
+        from aee.infrastructure.config.settings import Settings
 
-        # Setup cache with settings from config
+        settings = Settings.load(config_path="config/default.yaml")
         setup_dspy_cache(config=settings.cache)
 
         # Or use custom configuration
@@ -54,23 +57,22 @@ def setup_dspy_cache(
     """
     import dspy
 
-    # Use default cache directory from settings if not specified
+    if config is None:
+        raise ValueError("Cache config is required")
+
+    # Use default cache directory from config if not specified
     if cache_dir is None:
-        from aee.infrastructure.config import settings
-        cache_dir = settings.dspy_cache_dir or str(Path.home() / ".dspy_cache")
+        # dspy_cache_dir is on Settings, not CacheConfig
+        # Caller should pass cache_dir explicitly or use Settings.dspy_cache_dir
+        cache_dir = str(Path.home() / ".dspy_cache")
 
     # Create cache directory if it doesn't exist
     cache_path = Path(cache_dir)
     cache_path.mkdir(parents=True, exist_ok=True)
 
-    # Get cache limits from config or use fallback defaults
-    if config:
-        disk_size_limit = config.disk_size_limit_bytes
-        memory_max_entries = config.memory_max_entries
-    else:
-        # Fallback defaults if no config provided
-        disk_size_limit = 30_000_000_000  # 30 GB
-        memory_max_entries = 1_000_000
+    # Get cache limits from config
+    disk_size_limit = config.disk_size_limit_bytes
+    memory_max_entries = config.memory_max_entries
 
     # Configure DSPy cache
     dspy.configure_cache(

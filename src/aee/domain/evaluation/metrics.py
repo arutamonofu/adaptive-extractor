@@ -2,12 +2,11 @@
 """Task-specific evaluation metrics for AutoEvoExtractor."""
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import dspy
 from pydantic import BaseModel
 
-from aee.infrastructure.config.settings import settings
 from aee.domain.evaluation.matcher import ExperimentEntity, ExperimentMatcher
 
 logger = logging.getLogger(__name__)
@@ -20,17 +19,14 @@ class TaskMetric:
     by comparing predictions against ground truth data.
     """
     
-    def __init__(self, task_config: Dict[str, Any], float_tolerance: Optional[float] = None) -> None:
+    def __init__(self, task_config: Dict[str, Any], float_tolerance: float) -> None:
         """Initialize the task metric.
 
         Args:
             task_config: Configuration dictionary for the task.
                          Must contain 'compare_fields' key with list of field names.
-            float_tolerance: Optional float tolerance for comparisons.
-                           If None, uses value from settings.task.evaluation.float_tolerance.
+            float_tolerance: Float tolerance for comparisons (0.0 to 1.0).
         """
-        if float_tolerance is None:
-            float_tolerance = settings.task.evaluation.float_tolerance
 
         self.matcher = ExperimentMatcher(
             fields_to_compare=task_config["compare_fields"],

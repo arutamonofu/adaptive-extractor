@@ -17,7 +17,9 @@ def setup_nanozyme_task():
     registry = get_global_registry()
     if not registry.has("nanozymes"):
         yaml_path = "src/aee/domain/tasks/nanozymes/task.yaml"
-        register_config(load_task_from_yaml(yaml_path))
+        config = load_task_from_yaml(yaml_path)
+        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        register_config(config)
     yield
     # Cleanup after test
     if registry.has("nanozymes"):
@@ -58,7 +60,9 @@ class TestTaskPlugins:
 
         # Load and register task from YAML
         yaml_path = "src/aee/domain/tasks/nanozymes/task.yaml"
-        registry.register_from_yaml(yaml_path)
+        config = load_task_from_yaml(yaml_path)
+        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        registry.register_config(config)
 
         # Verify registration
         assert registry.count() == 1
@@ -82,11 +86,13 @@ class TestTaskPlugins:
 
         # Load and register task from YAML
         yaml_path = "src/aee/domain/tasks/nanozymes/task.yaml"
-        registry.register_from_yaml(yaml_path)
+        config = load_task_from_yaml(yaml_path)
+        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        registry.register_config(config)
 
         # Second registration - should fail
         with pytest.raises(ValueError, match="already registered"):
-            registry.register_from_yaml(yaml_path)
+            registry.register_config(config)
 
     def test_task_not_found_raises(self):
         """Test that getting non-existent task raises error."""

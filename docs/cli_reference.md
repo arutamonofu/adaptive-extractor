@@ -164,23 +164,4 @@ python scripts/generate_manual_agent.py --output data/agents/manual_custom.json
 
 ---
 
-## Environment Variables
-
-Override settings via environment:
-
-```bash
-# LLM Provider
-export LLM__STUDENT__USE_OLLAMA=false
-export OPENAI_API_KEY="sk-..."
-
-# Paths
-export PATHS__PDF_DIR="data/my_pdfs"
-
-# Optimization
-export OPTIMIZATION__NUM_TRIALS="50"
-
-# Logging
-export LOG_LEVEL="DEBUG"
-```
-
-> **Full reference:** [Configuration Guide](configuration.md)
+> **Configuration:** For environment variables and settings, see [Configuration Reference](configuration.md).

@@ -6,7 +6,8 @@ configurations (dev, test, prod).
 Configuration priority (highest to lowest):
     1. CLI argument --config (explicit file path)
     2. AEE_ENV environment variable (dev, test, prod)
-    3. default.yaml (fallback)
+
+Note: Configuration file is required. There is no fallback to default.yaml.
 """
 
 import os
@@ -47,8 +48,7 @@ def load_settings_for_environment(
 
     Configuration priority (highest to lowest):
         1. custom_config (explicit file path from CLI)
-        2. env (AEE_ENV environment variable)
-        3. default.yaml (fallback)
+        2. env (AEE_ENV environment variable -> config/{env}.yaml)
 
     Args:
         env: Environment to load settings for (auto-detected if None).
@@ -56,6 +56,10 @@ def load_settings_for_environment(
 
     Returns:
         Loaded settings instance.
+
+    Raises:
+        ValueError: If no configuration source is specified.
+        FileNotFoundError: If configuration file does not exist.
     """
     # CLI argument has highest priority
     if custom_config:
@@ -65,15 +69,11 @@ def load_settings_for_environment(
     if env is None:
         env = get_environment()
 
-    # Try to load environment-specific config
+    # Load environment-specific config (no fallback)
     base_dir = Path(__file__).resolve().parent.parent.parent.parent
     env_config_path = base_dir / "config" / f"{env.value}.yaml"
 
-    if env_config_path.exists():
-        return Settings.load(env_config_path)
-    else:
-        # Fallback to default.yaml
-        return Settings.load()
+    return Settings.load(config_path=env_config_path)
 
 
 # Convenience functions

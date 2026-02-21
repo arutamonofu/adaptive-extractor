@@ -161,31 +161,6 @@ task = get_task("nanozymes")
 
 ---
 
-## Configuration System
-
-### Priority Order
-
-1. Environment variables (`.env`, `AEE__*`)
-2. CLI arguments (`--config`, `--run-name`)
-3. YAML files (`config/default.yaml`)
-4. Internal defaults
-
-### Example
-
-```bash
-# Environment (highest priority)
-export OPTIMIZATION__NUM_TRIALS="50"
-
-# CLI
-python scripts/optimize.py --config config/fast.yaml
-
-# YAML (config/fast.yaml)
-optimization:
-  num_trials: 10
-```
-
----
-
 ## Key Design Patterns
 
 ### 1. Configuration-Backed Design
@@ -255,15 +230,6 @@ model = task["experiment_model"]  # ← Generated here
 | `tests/unit/` | Component tests |
 | `tests/integration/` | Interaction tests |
 | `tests/e2e/` | Workflow tests |
-
----
-
-## Version History
-
-| Version | Changes |
-|---------|---------|
-| 2.0 | YAML-based tasks, removed TaskDefinition |
-| 1.0 | Initial release with TaskDefinition |
 
 ---
 

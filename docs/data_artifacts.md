@@ -106,24 +106,13 @@ Structured document content.
 {
   "text_content": "...",
   "metadata": {
-    "source_path": "...",
     "filename": "paper1.pdf",
-    "page_count": 10,
-    "extra": {
-      "parser": "Docling",
-      "device": "cpu"
-    }
+    "page_count": 10
   },
   "tables": [],
   "images": []
 }
 ```
-
-**Structure:**
-- `text_content` — Extracted text (hybrid format with markdown tables)
-- `metadata` — Document metadata including source path, filename, page count, extra parser info
-- `tables` — List of extracted tables (HTML format, parser-dependent)
-- `images` — List of extracted image paths or descriptions (parser-dependent)
 
 > **Config:** `paths.parsed_dir`
 > **Source:** `aee.domain.entities.ProcessedDocument`
@@ -132,10 +121,8 @@ Structured document content.
 
 ### 5. Trained Agents (`data/agents/`)
 
-**Format:** JSON + metadata JSON  
+**Format:** JSON + metadata JSON
 **Created by:** `optimize.py`
-
-Optimized extraction agent.
 
 ```
 data/agents/
@@ -143,31 +130,7 @@ data/agents/
 └── nanozymes_v1_20260218.meta.json  # Metadata
 ```
 
-**Metadata example:**
-```json
-{
-  "task_name": "nanozymes",
-  "created_at": "2026-02-18T17:58:09",
-  "model_version": "mistral-small3.1-24b-128k:latest",
-  "metrics": {"f1": 0.74},
-  "config_snapshot": {...},
-  "git_commit": "abc1234",
-  "description": "Optimized with 70 trials",
-  "initial_instruction_file": "config/initial_instructions/nanozymes_sota.txt",
-  "instruction_hash": "a1b2c3d4e5f6"
-}
-```
-
-**Fields:**
-- `task_name` — Task this agent was trained for
-- `created_at` — ISO timestamp of creation
-- `model_version` — LLM model used
-- `metrics` — Performance metrics (F1, precision, recall)
-- `config_snapshot` — Configuration used during training
-- `git_commit` — Git commit hash at creation (optional)
-- `description` — Human-readable description (optional)
-- `initial_instruction_file` — Path to initial instruction (optional)
-- `instruction_hash` — SHA256 hash (first 12 chars) of instruction (optional)
+**Metadata fields:** `task_name`, `created_at`, `model_version`, `metrics`, `config_snapshot`, `git_commit` (optional), `description` (optional), `initial_instruction_file` (optional), `instruction_hash` (optional)
 
 > **Config:** `paths.agents_dir`
 > **Source:** `aee.infrastructure.storage.agents_fn.AgentMetadata`
@@ -179,8 +142,6 @@ data/agents/
 **Format:** JSON
 **Created by:** `extract.py`
 
-Extracted data per document.
-
 ```json
 {
   "extraction": {
@@ -188,8 +149,7 @@ Extracted data per document.
       {
         "formula": "Fe3O4",
         "activity": "peroxidase",
-        "length": 10.0,
-        "km_value": 0.05
+        "length": 10.0
       }
     ]
   },
@@ -200,51 +160,10 @@ Extracted data per document.
 }
 ```
 
-**Structure:**
-- `extraction.experiments` — List of extracted experiments
-- `source_metadata` — Optional metadata from the source document
-
-> **Note:** The extraction loader supports multiple formats for compatibility:
-> - `{"extraction": {"experiments": [...]}}` — Standard format
-> - `{"experiments": [...]}` — Direct experiments list
-> - `{"extracted_data": {"experiments": [...]}}` — Alternative format
-> - `[...]` — Direct list of experiments
->
-> See `aee.infrastructure.storage.extractions.ExtractionRepository._extract_experiments()` for details.
+> **Note:** Supports multiple formats for compatibility: `{"extraction": {"experiments": [...]}}`, `{"experiments": [...]}`, `{"extracted_data": {"experiments": [...]}}`, or direct list.
 
 > **Config:** `paths.extractions_dir`
 > **Source:** `aee.infrastructure.storage.extractions.ExtractionRepository.save()`
-
----
-
-## Task Configuration
-
-### Task YAML (`src/aee/domain/tasks/{task_name}/task.yaml`)
-
-**Format:** YAML  
-**Created by:** User
-
-Defines extraction task.
-
-```yaml
-name: nanozymes
-description: Extract nanozyme experiments
-
-fields:
-  formula:
-    type: str
-    description: "Chemical formula"
-    required: true
-
-compare_fields:
-  - formula
-  - activity
-float_tolerance: 0.05
-
-instruction_file: config/initial_instructions/nanozymes_sota.txt
-```
-
-> **Guide:** [Adding Tasks](adding_tasks.md)
 
 ---
 

@@ -54,9 +54,9 @@ class CircuitBreaker:
 
     def __init__(
         self,
-        failure_threshold: int = 5,
-        reset_timeout: float = 60.0,
-        half_open_max_calls: int = 1,
+        failure_threshold: int,
+        reset_timeout: float,
+        half_open_max_calls: int,
         name: str = "default",
     ):
         """Initialize circuit breaker.

@@ -2,21 +2,12 @@
 # This YAML manifest defines the complete task specification
 
 name: nanozymes
-description: >
-  Extract nanozyme experiment data including chemical formulas,
-  catalytic activities, kinetic parameters (Km, Vmax), reaction
-  conditions (pH, temperature), and material properties.
 
 version: 1.0.0
 tags:
   - chemistry
   - nanozymes
   - catalysis
-
-# Instruction for DSPy signature
-# Can be inline text or path to file
-# Use path relative to project root
-instruction_file: config/initial_instructions/nanozymes_sota.txt
 
 # Fields to extract from documents
 fields:

@@ -11,7 +11,6 @@ from functools import wraps
 from time import monotonic
 
 import dspy
-from aee.infrastructure.config import settings
 from aee.infrastructure.config.settings import LLMInstanceConfig, Settings, CircuitBreakerConfig
 from aee.infrastructure.llm.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
@@ -45,7 +44,6 @@ class OllamaLM(dspy.LM):
         self.top_p = config.top_p
 
         oc = config.ollama
-        self.base_url = oc.ollama_base_url.rstrip("/") + "/api/chat"
         self.num_ctx = oc.num_ctx
         self.num_predict = oc.num_predict
         self.stream = oc.stream
@@ -55,19 +53,21 @@ class OllamaLM(dspy.LM):
         self.history: List[Dict[str, Any]] = []
 
         # Initialize circuit breaker
-        self._circuit_breaker = circuit_breaker or CircuitBreaker(
-            failure_threshold=5,
-            reset_timeout=60.0,
-            name=f"ollama-{self.model}",
-        )
+        if circuit_breaker is None:
+            raise ValueError("circuit_breaker is required")
+        self._circuit_breaker = circuit_breaker
 
         # Validate configuration
         if self.timeout <= 0:
             raise ValueError("Timeout must be positive")
         if self.max_retries < 0:
             raise ValueError("Max retries cannot be negative")
-        if not self.base_url:
-            raise ValueError("Base URL cannot be empty")
+        if not oc.ollama_base_url:
+            raise ValueError(
+                "OLLAMA_BASE_URL environment variable must be set in .env file. "
+                "Set OLLAMA_STUDENT_BASE_URL or OLLAMA_TEACHER_BASE_URL as appropriate."
+            )
+        self.base_url = oc.ollama_base_url.rstrip("/") + "/api/chat"
 
     def __call__(self, prompt: Optional[Union[str, List[Dict[str, str]]]] = None, **kwargs) -> List[str]:
         """Call the LLM with a prompt.
@@ -415,14 +415,10 @@ def create_lm(
     # Create circuit breaker if enabled
     circuit_breaker = None
     if enable_circuit_breaker and config.use_ollama:
-        # Get circuit breaker settings from config or use fallback defaults
-        if circuit_breaker_config:
-            failure_threshold = circuit_breaker_config.failure_threshold
-            reset_timeout = circuit_breaker_config.reset_timeout
-        else:
-            # Fallback defaults if no config provided
-            failure_threshold = 5
-            reset_timeout = 60.0
+        if circuit_breaker_config is None:
+            raise ValueError("circuit_breaker_config is required when enable_circuit_breaker is True")
+        failure_threshold = circuit_breaker_config.failure_threshold
+        reset_timeout = circuit_breaker_config.reset_timeout
 
         circuit_breaker = CircuitBreaker(
             failure_threshold=failure_threshold,
@@ -441,8 +437,13 @@ def create_lm(
         # Validate non-Ollama configuration
         if config.non_ollama.max_tokens <= 0:
             raise ValueError("Max tokens must be positive")
+        if config.non_ollama.api_key is None:
+            raise ValueError(
+                "API key must be set for non-Ollama providers. "
+                "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in .env file."
+            )
 
-        api_key = config.non_ollama.api_key.get_secret_value() if config.non_ollama.api_key else None
+        api_key = config.non_ollama.api_key.get_secret_value()
         lm = dspy.LM(
             model=config.model,
             api_key=api_key,

@@ -1,15 +1,21 @@
 # src/aee/infrastructure/config/settings.py
 """Configuration settings for AutoEvoExtractor.
 
-Configuration priority (highest to lowest):
-1. Environment variables (.env file, processed by pydantic-settings)
-2. YAML configuration files (config/default.yaml, config/*.yaml)
-3. Internal defaults (defined in Field default_factory)
+Configuration loading:
+    YAML configuration file is REQUIRED. Use Settings.load(config_path=...)
+    to load settings from a YAML file. There is no fallback to internal defaults.
+    
+    All configuration values must be provided either:
+    - In the YAML configuration file (application settings)
+    - Via environment variables (secrets and infrastructure URLs only)
 
 Security notes:
 - API keys MUST be set via environment variables only (never in YAML)
 - Infrastructure URLs (OLLAMA_*, MLFLOW_*) should be in .env for environment portability
 - Application parameters belong in YAML files for version control
+
+Note: Environment variables with double underscores (e.g., OPTIMIZATION__NUM_TRIALS)
+    are NOT supported. All application configuration should be set in YAML files.
 """
 
 import logging
@@ -18,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -26,10 +32,9 @@ logger = logging.getLogger(__name__)
 
 class ProjectConfig(BaseModel):
     """Project-level configuration settings."""
-    name: str = "autoevoextractor"
     log_level: str = Field(
-        default="INFO",
-        description="Logging level (from YAML or LOG_LEVEL env var)"
+        ...,
+        description="Logging level (from YAML config)"
     )
 
     @field_validator("log_level", mode="before")
@@ -72,10 +77,6 @@ class PathsConfig(BaseModel):
         default_factory=lambda: Path("data/extractions"),
         description="Directory for extraction outputs"
     )
-    logs_dir: Path = Field(
-        default_factory=lambda: Path("logs"),
-        description="Directory for log files"
-    )
 
     @field_validator("*", mode="before")
     @classmethod
@@ -88,16 +89,18 @@ class OllamaConfig(BaseModel):
     """Ollama-specific configuration.
 
     Environment variables (set in .env, NOT in YAML):
-        OLLAMA_STUDENT_BASE_URL: Ollama server URL for student model
-        OLLAMA_TEACHER_BASE_URL: Ollama server URL for teacher model
-        OLLAMA_BASE_URL: Fallback URL for both (if specific ones not set)
+        OLLAMA_STUDENT_BASE_URL: Ollama server URL for student model (required)
+        OLLAMA_TEACHER_BASE_URL: Ollama server URL for teacher model (required)
 
     YAML configuration (config/default.yaml):
-        ollama_base_url, num_ctx, num_predict, repeat_penalty, stream: Model-specific parameters
+        num_ctx, num_predict, repeat_penalty, stream: Model-specific parameters
+
+    Note: ollama_base_url is NOT set in YAML. It must be provided via environment
+        variables only. Validation will fail if the environment variable is not set.
     """
-    ollama_base_url: str = Field(
-        ...,
-        description="Ollama base URL (from YAML or OLLAMA_*_BASE_URL env var)"
+    ollama_base_url: Optional[str] = Field(
+        default=None,
+        description="Ollama base URL (from OLLAMA_*_BASE_URL env var only)"
     )
     num_ctx: int = Field(
         ...,
@@ -120,6 +123,17 @@ class OllamaConfig(BaseModel):
         description="Enable streaming responses"
     )
 
+    @field_validator("ollama_base_url", mode="after")
+    @classmethod
+    def validate_ollama_base_url(cls, v: Optional[str]) -> str:
+        """Validate that Ollama base URL is set via environment variable."""
+        if v is None or v.strip() == "":
+            raise ValueError(
+                "OLLAMA_*_BASE_URL environment variable must be set in .env file. "
+                "Set OLLAMA_STUDENT_BASE_URL or OLLAMA_TEACHER_BASE_URL as appropriate."
+            )
+        return v.strip()
+
 
 class OllamaStudentConfig(OllamaConfig):
     """Ollama configuration for student model with dedicated env var."""
@@ -137,12 +151,15 @@ class NonOllamaConfig(BaseModel):
     """Non-Ollama LLM configuration.
 
     Environment variables:
-        OPENAI_API_KEY: OpenAI API key
-        ANTHROPIC_API_KEY: Anthropic API key
-        GEMINI_API_KEY: Google Gemini API key
+        OPENAI_API_KEY: OpenAI API key (required when use_ollama=False)
+        ANTHROPIC_API_KEY: Anthropic API key (required when use_ollama=False)
+        GEMINI_API_KEY: Google Gemini API key (required when use_ollama=False)
 
     YAML configuration (config/default.yaml):
         max_tokens: Maximum tokens for non-Ollama providers
+
+    Note: API key must be set via environment variable. Validation will fail
+        if api_key is not provided.
     """
     # API key from environment - pydantic-settings will automatically
     # map field name to uppercase env var (e.g., api_key -> API_KEY)
@@ -155,6 +172,17 @@ class NonOllamaConfig(BaseModel):
         ...,
         description="Maximum tokens for non-Ollama providers"
     )
+
+    @field_validator("api_key", mode="after")
+    @classmethod
+    def validate_api_key(cls, v: Optional[SecretStr]) -> Optional[SecretStr]:
+        """Validate that API key is set for non-Ollama providers.
+
+        Note: This validator only checks if the key is provided. The actual
+            requirement (use_ollama=False) is validated at the LLMInstanceConfig level.
+        """
+        # Validation is deferred to LLMInstanceConfig level where we know use_ollama
+        return v
 
 
 class LLMInstanceConfig(BaseModel):
@@ -203,6 +231,17 @@ class LLMInstanceConfig(BaseModel):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     non_ollama: NonOllamaConfig = Field(default_factory=NonOllamaConfig)
 
+    @model_validator(mode="after")
+    def validate_non_ollama_api_key(self) -> "LLMInstanceConfig":
+        """Validate that API key is set when using non-Ollama providers."""
+        if not self.use_ollama:
+            if self.non_ollama.api_key is None:
+                raise ValueError(
+                    "API key must be set for non-Ollama providers. "
+                    "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in .env file."
+                )
+        return self
+
 
 class LLMConfig(BaseModel):
     """Configuration for LLM instances."""
@@ -220,16 +259,34 @@ class LLMConfig(BaseModel):
 
 class DoclingConfig(BaseModel):
     """Docling parser configuration."""
-    device: Literal["cpu", "cuda", "mps"] = "cpu"
-    num_threads: int = 4
-    do_ocr: bool = True
-    do_table_structure: bool = True
-    ocr_backend: Literal["onnxruntime", "torch", "openvino", "paddlepaddle"] = "onnxruntime"
+    device: Literal["cpu", "cuda", "mps"] = Field(
+        ...,
+        description="Device to run Docling on: 'cpu', 'cuda', or 'mps'"
+    )
+    num_threads: int = Field(
+        ...,
+        description="Number of threads for Docling processing"
+    )
+    do_ocr: bool = Field(
+        ...,
+        description="Enable OCR processing"
+    )
+    do_table_structure: bool = Field(
+        ...,
+        description="Enable table structure detection"
+    )
+    ocr_backend: Literal["onnxruntime", "torch", "openvino", "paddlepaddle"] = Field(
+        ...,
+        description="OCR backend to use"
+    )
 
 
 class MarkerConfig(BaseModel):
     """Marker parser configuration."""
-    device: Literal["cpu", "cuda"] = "cpu"
+    device: Literal["cpu", "cuda"] = Field(
+        ...,
+        description="Device to run Marker on: 'cpu' or 'cuda'"
+    )
 
 
 class IngestionConfig(BaseModel):
@@ -239,7 +296,7 @@ class IngestionConfig(BaseModel):
         description="Document parser to use: 'docling' or 'marker'"
     )
     overwrite: bool = Field(
-        ...,
+        default=False,
         description="Overwrite existing parsed files"
     )
 
@@ -325,18 +382,18 @@ class TaskConfig(BaseModel):
         ...,
         description="Task name identifier"
     )
-    initial_instruction_file: Optional[str] = Field(
-        default=None,
-        description="Path to initial instruction file (optional)"
+    initial_instruction_file: str = Field(
+        ...,
+        description="Path to initial instruction file for DSPy optimization"
     )
-    evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
+    evaluation: EvaluationConfig = Field(...)
 
     @field_validator("initial_instruction_file", mode="before")
     @classmethod
-    def validate_initial_instruction_file(cls, v: Optional[str]) -> Optional[str]:
-        """Validate that initial_instruction_file exists if provided."""
-        if v is None or (isinstance(v, str) and v.strip() == ""):
-            return None
+    def validate_initial_instruction_file(cls, v: str) -> str:
+        """Validate that initial_instruction_file exists."""
+        if not v or (isinstance(v, str) and v.strip() == ""):
+            raise ValueError("initial_instruction_file is required and cannot be empty")
         path = Path(v)
         if not path.exists():
             raise ValueError(f"Initial instruction file not found: {v}")
@@ -382,41 +439,44 @@ class CircuitBreakerConfig(BaseModel):
 class Settings(BaseSettings):
     """Main application settings with environment variable support.
 
-    Configuration priority (highest to lowest):
-        1. Environment variables from .env file (secrets, infrastructure)
-        2. YAML configuration files (application parameters)
-        3. Internal defaults (fallback values)
+    YAML configuration file is REQUIRED. Use Settings.load(config_path=...)
+    to load settings. There is no fallback to internal defaults.
 
-    Environment variables (set in .env):
+    Environment variables (set in .env) — ONLY for secrets and infrastructure:
         # API Keys (required for non-Ollama providers)
         GEMINI_API_KEY: Google Gemini API key
         OPENAI_API_KEY: OpenAI API key
         ANTHROPIC_API_KEY: Anthropic API key
 
-        # Infrastructure URLs (environment-specific)
-        OLLAMA_STUDENT_BASE_URL: Ollama server URL for student model
-        OLLAMA_TEACHER_BASE_URL: Ollama server URL for teacher model
-        OLLAMA_BASE_URL: Fallback Ollama server URL (if specific ones not set)
+        # Infrastructure URLs (environment-specific, required)
+        OLLAMA_STUDENT_BASE_URL: Ollama server URL for student model (required)
+        OLLAMA_TEACHER_BASE_URL: Ollama server URL for teacher model (required)
         MLFLOW_TRACKING_URI: MLflow tracking URI (e.g., sqlite:///mlflow.db)
-        DSPY_CACHE_DIR: DSPy cache directory (default: ~/.dspy_cache)
-        LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        DSPY_CACHE_DIR: DSPy cache directory
+        AEE_ENV: Environment selection (dev, test, prod)
 
-    YAML configuration (config/default.yaml):
-        # All other application settings:
-        # - LLM models, temperatures, timeouts
-        # - File paths
-        # - Optimization parameters
-        # - Task-specific settings
+    YAML configuration — all other application settings:
+        # LLM models, temperatures, timeouts
+        # File paths
+        # Optimization parameters
+        # Task-specific settings
+        # Logging level (project.log_level)
+
+    Note: Environment variables with double underscores (e.g., OPTIMIZATION__NUM_TRIALS)
+        are NOT supported. All application configuration should be set in YAML files.
+
+    Note: Ollama URLs (OLLAMA_STUDENT_BASE_URL, OLLAMA_TEACHER_BASE_URL) must be set
+        in .env file. No fallback or default value is provided.
     """
-    project: ProjectConfig = Field(default_factory=ProjectConfig)
-    paths: PathsConfig = Field(default_factory=PathsConfig)
-    llm: LLMConfig = Field(default_factory=LLMConfig)
-    parsing: IngestionConfig = Field(default_factory=IngestionConfig)
-    optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
-    task: TaskConfig = Field(default_factory=TaskConfig)
-    extraction: ExtractionConfig = Field(default_factory=ExtractionConfig)
-    cache: CacheConfig = Field(default_factory=CacheConfig)
-    circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig)
+    project: ProjectConfig
+    paths: PathsConfig
+    llm: LLMConfig
+    parsing: IngestionConfig
+    optimization: OptimizationConfig
+    task: TaskConfig
+    extraction: ExtractionConfig
+    cache: CacheConfig
+    circuit_breaker: CircuitBreakerConfig
 
     # Infrastructure settings from environment variables only
     # These are read directly from env and not overridden by YAML
@@ -425,26 +485,25 @@ class Settings(BaseSettings):
         description="MLflow tracking URI (from MLFLOW_TRACKING_URI env var)"
     )
     dspy_cache_dir: Optional[str] = Field(
-        default_factory=lambda: os.getenv("DSPY_CACHE_DIR"),
+        default=None,
         description="DSPy cache directory (from DSPY_CACHE_DIR env var)"
     )
 
     # API keys for non-Ollama providers (read from env vars)
     gemini_api_key: Optional[SecretStr] = Field(
-        default_factory=lambda: os.getenv("GEMINI_API_KEY"),
+        default=None,
         description="Google Gemini API key (from GEMINI_API_KEY env var)"
     )
     openai_api_key: Optional[SecretStr] = Field(
-        default_factory=lambda: os.getenv("OPENAI_API_KEY"),
+        default=None,
         description="OpenAI API key (from OPENAI_API_KEY env var)"
     )
     anthropic_api_key: Optional[SecretStr] = Field(
-        default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"),
+        default=None,
         description="Anthropic API key (from ANTHROPIC_API_KEY env var)"
     )
 
     model_config = SettingsConfigDict(
-        env_nested_delimiter="__",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
@@ -507,149 +566,156 @@ class Settings(BaseSettings):
         return f"{self.__class__.__name__}({safe_fields})"
 
     @classmethod
-    def load(cls, config_path: Optional[Union[str, Path]] = None) -> "Settings":
-        """Load settings with the following priority:
-
-        1. Default YAML (relative to this file)
-        2. Custom YAML (if provided)
-        3. Environment variables (handled by Pydantic)
+    def load(
+        cls,
+        config_path: Optional[Union[str, Path]] = None,
+        load_env_file: bool = True,
+    ) -> "Settings":
+        """Load settings from YAML configuration file.
 
         Args:
-            config_path: Path to custom configuration YAML file.
+            config_path: Path to YAML configuration file. Required.
+            load_env_file: Whether to load .env file. Default is True.
+                Set to False for testing.
 
         Returns:
             Settings: Loaded settings instance.
+
+        Raises:
+            ValueError: If config_path is not provided.
+            FileNotFoundError: If config file does not exist.
         """
+        if config_path is None:
+            raise ValueError(
+                "Configuration file path is required. "
+                "Provide --config CLI argument or set AEE_ENV environment variable."
+            )
+
         # Load .env file before applying env overrides
-        from dotenv import load_dotenv
-        base_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
-        env_file = base_dir / ".env"
-        if env_file.exists():
-            load_dotenv(env_file)
-            logger.info(f"Loaded environment variables from {env_file}")
+        if load_env_file:
+            from dotenv import load_dotenv
+            base_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
+            env_file = base_dir / ".env"
+            if env_file.exists():
+                load_dotenv(env_file)
+                logger.info(f"Loaded environment variables from {env_file}")
 
         # Calculate base directory correctly (project root)
         base_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
-        default_path = base_dir / "config" / "default.yaml"
 
-        config_data = {}
+        # Resolve config path
+        config_path = Path(config_path)
+        if not config_path.is_absolute():
+            config_path = base_dir / config_path
 
-        # Load default config if it exists
-        if default_path.exists():
-            try:
-                with open(default_path, "r", encoding="utf-8") as f:
-                    config_data = yaml.safe_load(f) or {}
-                logger.info(f"Loaded default configuration from {default_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load default config from {default_path}: {e}")
-                config_data = {}
-        else:
-            logger.warning(f"Default config not found at {default_path}. Using internal defaults.")
+        if not config_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-        # Load custom config if provided
-        if config_path:
-            custom_path = Path(config_path)
-            # If path is not absolute, resolve it relative to config/ directory
-            if not custom_path.is_absolute():
-                custom_path = base_dir / "config" / custom_path
-            if custom_path.exists():
-                try:
-                    with open(custom_path, "r", encoding="utf-8") as f:
-                        custom_data = yaml.safe_load(f) or {}
-                        cls._deep_update(config_data, custom_data)
-                    logger.info(f"Loaded custom configuration from {custom_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to load custom config from {custom_path}: {e}")
-            else:
-                logger.warning(f"Custom config {custom_path} not found. Using defaults.")
-
-        # Set default task config if not present
-        if "task" not in config_data:
-            config_data["task"] = {
-                "name": "nanozymes",
-                "evaluation": {
-                    "float_tolerance": 0.05,
-                    "compare_fields": []
-                }
-            }
-        else:
-            # Normalize task config: convert legacy flat structure to nested evaluation structure
-            # YAML uses: task.compare_fields, task.float_tolerance
-            # Settings expects: task.evaluation.compare_fields, task.evaluation.float_tolerance
-            task_data = config_data["task"]
-            if "evaluation" not in task_data:
-                # Extract flat fields and move to evaluation
-                compare_fields = task_data.pop("compare_fields", [])
-                float_tolerance = task_data.pop("float_tolerance", 0.05)
-                task_data["evaluation"] = {
-                    "compare_fields": compare_fields,
-                    "float_tolerance": float_tolerance,
-                }
+        # Load config file
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f) or {}
+            logger.info(f"Loaded configuration from {config_path}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to load configuration from {config_path}: {e}")
 
         # Resolve all paths relative to project root
         config_data = cls._resolve_paths(config_data, base_dir)
 
-        # Apply environment variables that should override YAML config
-        # This ensures .env takes priority over config/default.yaml
+        # Apply Ollama URL overrides from environment variables
         cls._apply_env_overrides(config_data)
 
+        # Apply API keys from environment variables to non_ollama config
+        cls._apply_api_keys(config_data)
+
         return cls(**config_data)
+
+    @classmethod
+    def _apply_api_keys(cls, config_data: dict) -> None:
+        """Apply API keys from environment variables to non_ollama config.
+
+        API keys are read from environment variables and injected into the
+        llm.student.non_ollama and llm.teacher.non_ollama configurations.
+
+        Env vars applied:
+            - OPENAI_API_KEY: OpenAI API key
+            - ANTHROPIC_API_KEY: Anthropic API key
+            - GEMINI_API_KEY: Google Gemini API key
+
+        Args:
+            config_data: Configuration dictionary to update.
+        """
+        openai_key = os.getenv("OPENAI_API_KEY")
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        gemini_key = os.getenv("GEMINI_API_KEY")
+
+        # Use the first available API key (priority: OpenAI > Anthropic > Gemini)
+        api_key = openai_key or anthropic_key or gemini_key
+
+        if api_key:
+            # Apply to student if use_ollama is false
+            if "llm" in config_data and "student" in config_data["llm"]:
+                if not config_data["llm"]["student"].get("use_ollama", True):
+                    if "non_ollama" not in config_data["llm"]["student"]:
+                        config_data["llm"]["student"]["non_ollama"] = {}
+                    # Store the key value - it will be wrapped in SecretStr by Pydantic
+                    config_data["llm"]["student"]["non_ollama"]["api_key"] = api_key
+
+            # Apply to teacher if use_ollama is false
+            if "llm" in config_data and "teacher" in config_data["llm"]:
+                if not config_data["llm"]["teacher"].get("use_ollama", True):
+                    if "non_ollama" not in config_data["llm"]["teacher"]:
+                        config_data["llm"]["teacher"]["non_ollama"] = {}
+                    config_data["llm"]["teacher"]["non_ollama"]["api_key"] = api_key
 
     @classmethod
     def _apply_env_overrides(cls, config_data: dict) -> None:
         """Apply environment variable overrides to config data.
 
-        Environment variables have higher priority than YAML configuration.
+        Ollama URLs are read from environment variables only (NOT from YAML).
         This method modifies config_data in place.
 
+        Note: Ollama URLs must be set in .env file. No fallback is provided.
+
         Env vars applied:
-            - OLLAMA_STUDENT_BASE_URL: Student Ollama server URL
-            - OLLAMA_TEACHER_BASE_URL: Teacher Ollama server URL
-            - OLLAMA_BASE_URL: Fallback Ollama server URL
-            - LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+            - OLLAMA_STUDENT_BASE_URL: Student Ollama server URL (required)
+            - OLLAMA_TEACHER_BASE_URL: Teacher Ollama server URL (required)
 
         Args:
             config_data: Configuration dictionary to update.
-        """
-        # Log level from environment (higher priority than YAML)
-        log_level = os.getenv("LOG_LEVEL")
-        if log_level:
-            if "project" not in config_data:
-                config_data["project"] = {}
-            config_data["project"]["log_level"] = log_level.upper()
 
+        Raises:
+            ValueError: If required Ollama URL is not set in environment.
+        """
         # Ollama URLs from .env (infrastructure settings)
         ollama_student_url = os.getenv("OLLAMA_STUDENT_BASE_URL")
         ollama_teacher_url = os.getenv("OLLAMA_TEACHER_BASE_URL")
-        ollama_fallback_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
-        if ollama_student_url:
-            if "llm" not in config_data:
-                config_data["llm"] = {}
-            if "student" not in config_data["llm"]:
-                config_data["llm"]["student"] = {}
-            if "ollama" not in config_data["llm"]["student"]:
-                config_data["llm"]["student"]["ollama"] = {}
-            config_data["llm"]["student"]["ollama"]["ollama_base_url"] = ollama_student_url
-        elif "llm" in config_data and "student" in config_data["llm"]:
-            # Apply fallback if student URL not set
-            if "ollama" not in config_data["llm"]["student"]:
-                config_data["llm"]["student"]["ollama"] = {}
-            config_data["llm"]["student"]["ollama"]["ollama_base_url"] = ollama_fallback_url
+        # Validate and apply student URL
+        if not ollama_student_url or ollama_student_url.strip() == "":
+            raise ValueError(
+                "OLLAMA_STUDENT_BASE_URL environment variable must be set in .env file"
+            )
+        if "llm" not in config_data:
+            config_data["llm"] = {}
+        if "student" not in config_data["llm"]:
+            config_data["llm"]["student"] = {}
+        if "ollama" not in config_data["llm"]["student"]:
+            config_data["llm"]["student"]["ollama"] = {}
+        config_data["llm"]["student"]["ollama"]["ollama_base_url"] = ollama_student_url.strip()
 
-        if ollama_teacher_url:
-            if "llm" not in config_data:
-                config_data["llm"] = {}
-            if "teacher" not in config_data["llm"]:
-                config_data["llm"]["teacher"] = {}
-            if "ollama" not in config_data["llm"]["teacher"]:
-                config_data["llm"]["teacher"]["ollama"] = {}
-            config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_teacher_url
-        elif "llm" in config_data and "teacher" in config_data["llm"]:
-            # Apply fallback if teacher URL not set
-            if "ollama" not in config_data["llm"]["teacher"]:
-                config_data["llm"]["teacher"]["ollama"] = {}
-            config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_fallback_url
+        # Validate and apply teacher URL
+        if not ollama_teacher_url or ollama_teacher_url.strip() == "":
+            raise ValueError(
+                "OLLAMA_TEACHER_BASE_URL environment variable must be set in .env file"
+            )
+        if "llm" not in config_data:
+            config_data["llm"] = {}
+        if "teacher" not in config_data["llm"]:
+            config_data["llm"]["teacher"] = {}
+        if "ollama" not in config_data["llm"]["teacher"]:
+            config_data["llm"]["teacher"]["ollama"] = {}
+        config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_teacher_url.strip()
 
     @classmethod
     def _resolve_paths(cls, config_data: dict, base_dir: Path) -> dict:
@@ -722,7 +788,3 @@ class Settings(BaseSettings):
                 Settings._deep_update(base_dict[k], v)
             else:
                 base_dict[k] = v
-
-
-# Initialize settings
-settings = Settings.load()

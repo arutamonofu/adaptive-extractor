@@ -30,27 +30,30 @@ def nanozyme_task():
     Returns:
         Dictionary with task components (config, experiment_model, output_model, signature, row_converter).
     """
-    from aee.domain.tasks import load_task_from_yaml, get_task, register_config
-    
+    from aee.domain.tasks import load_task_from_yaml, get_task, register_config, TaskConfig
+
     # Load and register task if not already registered
     registry = get_global_registry()
     if not registry.has("nanozymes"):
         yaml_path = Path("src/aee/domain/tasks/nanozymes/task.yaml")
-        register_config(load_task_from_yaml(yaml_path))
-    
+        # Load task from YAML (without instruction file)
+        config = load_task_from_yaml(yaml_path)
+        # Set instruction file from config/default.yaml location
+        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        register_config(config)
+
     return get_task("nanozymes")
 
 
 @pytest.fixture
 def task_config_dict() -> Dict[str, Any]:
     """Sample task configuration dictionary.
-    
+
     Returns:
         Dictionary with task configuration.
     """
     return {
         "name": "nanozymes",
-        "description": "Extract nanozyme experiments",
         "compare_fields": [
             "formula",
             "activity",
@@ -61,6 +64,7 @@ def task_config_dict() -> Dict[str, Any]:
             "temperature",
         ],
         "float_tolerance": 0.10,
+        "initial_instruction_file": "config/initial_instructions/nanozymes_sota.txt",
     }
 
 

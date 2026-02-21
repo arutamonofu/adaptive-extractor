@@ -168,28 +168,13 @@ def load_task_from_yaml(
     if "row_converter" in yaml_data:
         row_converter = _parse_row_converter(yaml_data["row_converter"])
 
-    # Handle instruction - either inline or from file
-    initial_instruction = yaml_data.get("initial_instruction", None)
-    instruction_file_path = yaml_data.get("instruction_file", None)
-
-    # Resolve relative instruction file path
-    if instruction_file_path:
-        instruction_path = Path(instruction_file_path)
-        if not instruction_path.is_absolute():
-            # Try to resolve relative to project root (find pyproject.toml)
-            project_root = _find_project_root(yaml_path)
-            instruction_path = (project_root / instruction_path).resolve()
-        instruction_file_path = str(instruction_path)
-
     # Create TaskConfig
+    # Note: initial_instruction_file is loaded from config/default.yaml, not task.yaml
     config = TaskConfig(
-        name=yaml_data.get("name", ""),
-        description=yaml_data.get("description", ""),
+        name=yaml_data["name"],
         experiment_fields=experiment_fields,
-        compare_fields=yaml_data.get("compare_fields", []),
-        float_tolerance=yaml_data.get("float_tolerance", 0.05),
-        initial_instruction=initial_instruction,
-        instruction_file_path=instruction_file_path,
+        compare_fields=yaml_data["compare_fields"],
+        float_tolerance=yaml_data["float_tolerance"],
         row_converter=row_converter,
         output_model_name=yaml_data.get("output_model_name", "ExtractionOutput"),
         experiment_model_name=yaml_data.get("experiment_model_name", "Experiment"),
@@ -302,7 +287,6 @@ def save_task_to_yaml(
     # Convert config to dictionary
     yaml_data = {
         "name": config.name,
-        "description": config.description,
         "compare_fields": config.compare_fields,
         "float_tolerance": config.float_tolerance,
     }
@@ -333,11 +317,8 @@ def save_task_to_yaml(
     if config.row_converter.mapping:
         yaml_data["row_converter"] = config.row_converter.mapping
 
-    # Add instruction
-    if config.initial_instruction:
-        yaml_data["initial_instruction"] = config.initial_instruction
-    elif config.instruction_file_path:
-        yaml_data["instruction_file"] = config.instruction_file_path
+    # Note: initial_instruction_file is not saved to task.yaml
+    # It is configured in config/default.yaml
 
     # Add optional metadata
     if include_metadata:

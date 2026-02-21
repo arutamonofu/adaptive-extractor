@@ -148,7 +148,6 @@ class TestLoadTaskFromYaml:
         """Test loading valid YAML configuration."""
         yaml_content = """
 name: test_task
-description: Test task description
 compare_fields:
   - field1
   - field2
@@ -161,7 +160,6 @@ fields:
     type: float
     description: Second field
     required: false
-initial_instruction: Test instruction
 """
         yaml_path = tmp_path / "task.yaml"
         yaml_path.write_text(yaml_content)
@@ -169,19 +167,18 @@ initial_instruction: Test instruction
         config = load_task_from_yaml(yaml_path)
 
         assert config.name == "test_task"
-        assert config.description == "Test task description"
         assert config.compare_fields == ["field1", "field2"]
         assert config.float_tolerance == 0.10
         assert len(config.experiment_fields) == 2
-        assert config.initial_instruction == "Test instruction"
+        assert config.initial_instruction_file is None
 
     def test_load_yaml_with_row_converter(self, tmp_path: Path):
         """Test loading YAML with row converter configuration."""
         yaml_content = """
 name: test_task
-description: Test
 compare_fields:
   - formula
+float_tolerance: 0.05
 fields:
   formula:
     type: str
@@ -190,7 +187,6 @@ row_converter:
   formula:
     - formula
     - name
-initial_instruction: Test
 """
         yaml_path = tmp_path / "task.yaml"
         yaml_path.write_text(yaml_content)
@@ -199,33 +195,6 @@ initial_instruction: Test
 
         assert "formula" in config.row_converter.mapping
         assert config.row_converter.mapping["formula"] == ["formula", "name"]
-
-    def test_load_yaml_with_instruction_file(self, tmp_path: Path):
-        """Test loading YAML with instruction file reference."""
-        # Create instruction file in same directory as YAML
-        instruction_file = tmp_path / "instruction.txt"
-        instruction_file.write_text("Test instruction from file")
-
-        # Use absolute path for instruction file
-        yaml_content = f"""
-name: test_task
-description: Test
-compare_fields:
-  - field1
-fields:
-  field1:
-    type: str
-    description: Field
-instruction_file: {instruction_file.absolute()}
-"""
-        yaml_path = tmp_path / "task.yaml"
-        yaml_path.write_text(yaml_content)
-
-        config = load_task_from_yaml(yaml_path)
-
-        # Instruction should be loaded from file
-        instruction = config.get_instruction()
-        assert instruction == "Test instruction from file"
 
     def test_load_nonexistent_yaml_raises(self, tmp_path: Path):
         """Test that loading nonexistent YAML raises error."""
@@ -238,32 +207,36 @@ instruction_file: {instruction_file.absolute()}
         # Note: Validation happens during TaskConfig creation, not during YAML parsing
         yaml_content = """
 name: test_task
-description: Test
 compare_fields:
   - field1
+float_tolerance: 0.05
 fields:
   field1:
     type: str
     description: Field
-initial_instruction: Test instruction
 """
         yaml_path = tmp_path / "task.yaml"
         yaml_path.write_text(yaml_content)
 
-        # Config should load successfully since compare_fields is valid
+        # Config loads successfully
         config = load_task_from_yaml(yaml_path)
+        
+        # Set instruction file for validation (normally comes from config/default.yaml)
+        instruction_file = tmp_path / "instruction.txt"
+        instruction_file.write_text("Test")
+        config.initial_instruction_file = str(instruction_file)
 
         # Validate - should pass since field1 exists
         errors = config.validate()
-        assert errors == []
+        assert len(errors) == 0
 
         # Now test with truly invalid compare_fields
         # This will fail during TaskConfig creation due to __post_init__
         yaml_content_invalid = """
 name: test_task
-description: Test
 compare_fields:
   - nonexistent_field
+float_tolerance: 0.05
 fields:
   field1:
     type: str
@@ -284,9 +257,9 @@ class TestLoadTaskWithModels:
         """Test loading task with generated models."""
         yaml_content = """
 name: test_task
-description: Test
 compare_fields:
   - formula
+float_tolerance: 0.05
 fields:
   formula:
     type: str
@@ -297,7 +270,6 @@ fields:
     choices:
       - peroxidase
       - oxidase
-initial_instruction: Test instruction
 """
         yaml_path = tmp_path / "task.yaml"
         yaml_path.write_text(yaml_content)
@@ -319,10 +291,13 @@ class TestSaveTaskToYaml:
 
     def test_save_and_reload_roundtrip(self, tmp_path: Path):
         """Test saving and reloading TaskConfig."""
+        # Create temporary instruction file
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test instruction")
+        
         # Create original config
         original_config = TaskConfig(
             name="test_task",
-            description="Test description",
             experiment_fields={
                 "formula": FieldSpec(type=str, description="Formula"),
                 "activity": FieldSpec(
@@ -339,7 +314,7 @@ class TestSaveTaskToYaml:
             },
             compare_fields=["formula", "activity"],
             float_tolerance=0.10,
-            initial_instruction="Test instruction",
+            initial_instruction_file=str(instruction_file),
             tags=["test"],
             version="1.0.0",
         )
@@ -355,21 +330,24 @@ class TestSaveTaskToYaml:
 
         # Compare key fields
         assert reloaded_config.name == original_config.name
-        assert reloaded_config.description == original_config.description
         assert reloaded_config.compare_fields == original_config.compare_fields
         assert reloaded_config.float_tolerance == original_config.float_tolerance
         assert len(reloaded_config.experiment_fields) == len(original_config.experiment_fields)
 
     def test_save_yaml_format(self, tmp_path: Path):
         """Test that saved YAML is properly formatted."""
+        # Create temporary instruction file
+        instruction_file = tmp_path / "test_instruction.txt"
+        instruction_file.write_text("Test instruction")
+
         config = TaskConfig(
             name="test",
-            description="Test",
             experiment_fields={
                 "field1": FieldSpec(type=str, description="Field 1"),
             },
             compare_fields=["field1"],
-            initial_instruction="Test",
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
         )
 
         yaml_path = tmp_path / "task.yaml"

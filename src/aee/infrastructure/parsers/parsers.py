@@ -23,7 +23,6 @@ from marker.models import create_model_dict
 from aee.infrastructure.parsers.base import BaseParser
 from aee.infrastructure.parsers.cleaning import TextCleaner
 from aee.domain.entities import ProcessedDocument, DocumentMetadata
-from aee.infrastructure.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +30,15 @@ logger = logging.getLogger(__name__)
 class DoclingParser(BaseParser):
     """Parser using Docling library."""
 
-    def __init__(self, config: Optional[Any] = None):
+    def __init__(self, config: Any):
         """Initialize the Docling parser.
 
         Args:
-            config: Configuration for the parser. If None, uses settings.parsing.docling.
+            config: Configuration for the parser. Required.
         """
-        self.cfg = config or settings.parsing.docling
+        if config is None:
+            raise ValueError("Configuration object is required for DoclingParser")
+        self.cfg = config
         self.converter = self._create_converter()
 
     def _create_converter(self) -> DocumentConverter:

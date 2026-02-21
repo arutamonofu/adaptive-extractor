@@ -1,9 +1,9 @@
-# src/aee/config/logging.py
+# src/aee/infrastructure/config/logging.py
 """Logging configuration for AutoEvoExtractor."""
 
 import logging
 import sys
-from aee.infrastructure.config import settings
+from typing import Optional, Any
 
 _NOISY_LIBRARIES = [
     "RapidOCR",
@@ -17,20 +17,25 @@ _NOISY_LIBRARIES = [
     "filelock",
 ]
 
-def setup_logging(config=None) -> logging.Logger:
+def setup_logging(config: Any) -> logging.Logger:
     """Configure application logging.
 
     - Writes to stderr (separating logs from script output).
     - Suppresses chatter from third-party libraries.
 
     Args:
-        config: Optional Settings object to use (defaults to global settings).
+        config: Settings object containing project.log_level. Required.
 
     Returns:
         logging.Logger: Configured logger instance.
+
+    Raises:
+        ValueError: If config is not provided.
     """
-    current_settings = config or settings
-    app_level = current_settings.project.log_level.upper()
+    if config is None:
+        raise ValueError("Configuration object is required for setup_logging()")
+    
+    app_level = config.project.log_level.upper()
 
     logging.basicConfig(
         level=app_level,
@@ -41,7 +46,7 @@ def setup_logging(config=None) -> logging.Logger:
     )
 
     silence_level = max(logging.WARNING, logging.getLogger().getEffectiveLevel())
-    
+
     for lib in _NOISY_LIBRARIES:
         logging.getLogger(lib).setLevel(silence_level)
 

@@ -2,16 +2,18 @@
 
 Complete reference for AutoEvoExtractor configuration.
 
-## Configuration Priority
+## Configuration Loading
 
-Settings loaded in order (highest to lowest priority):
+**YAML configuration file is REQUIRED.** There is no fallback to internal defaults.
 
-1. **Environment variables** (`.env`, `AEE__*` overrides)
-2. **CLI arguments** (`--config`, `--overwrite`, etc.)
-3. **YAML files** (`config/default.yaml`, `config/<env>.yaml`)
-4. **Internal defaults**
+Configuration is loaded from the following sources:
 
-> ⚠️ **API keys** must be set via environment variables only — never in YAML files.
+1. **YAML file** — specified via `--config` CLI argument or `AEE_ENV` environment variable
+2. **Environment variables** (`.env`) — secrets (API keys) and infrastructure URLs only
+
+CLI arguments like `--overwrite` are passed directly to use cases and do not override YAML values.
+
+> ⚠️ **Configuration file is mandatory.** The application will fail with an error if no config file is provided.
 
 ---
 
@@ -20,7 +22,10 @@ Settings loaded in order (highest to lowest priority):
 ### Complete Example
 
 ```yaml
-# config/default.yaml
+# config/my_config.yaml
+
+project:
+  log_level: "INFO"
 
 llm:
   student:
@@ -28,14 +33,40 @@ llm:
     model: "mistral-small3.1-24b-128k:latest"
     temperature: 0.0
     timeout: 600
+    max_retries: 5
+    rate_limit_delay: 10.0
+    top_p: 0.1
+    repeat_penalty: 1.2
+    repeat_last_n: 2048
     enable_cache: true
+    ollama:
+      num_ctx: 64000
+      num_predict: 2048
+      repeat_penalty: 1.2
+      repeat_last_n: 2048
+      stream: false
+    non_ollama:
+      max_tokens: 4096
 
-optimization:
-  num_trials: 70
-  num_candidates: 10
-  max_bootstrapped_demos: 1
-  max_labeled_demos: 1
-  use_cache: true
+  teacher:
+    use_ollama: true
+    model: "gpt-oss:120b"
+    temperature: 0.5
+    timeout: 600
+    max_retries: 2
+    rate_limit_delay: 10.0
+    top_p: 0.9
+    repeat_penalty: 1.1
+    repeat_last_n: 512
+    enable_cache: true
+    ollama:
+      num_ctx: 64000
+      num_predict: 2048
+      repeat_penalty: 1.1
+      repeat_last_n: 512
+      stream: false
+    non_ollama:
+      max_tokens: 8192
 
 paths:
   pdf_dir: "data/pdf"
@@ -45,18 +76,101 @@ paths:
   agents_dir: "data/agents"
   extractions_dir: "data/extractions"
 
+parsing:
+  parser: "docling"
+  overwrite: false
+  docling:
+    device: "cpu"
+    num_threads: 4
+    do_ocr: true
+    do_table_structure: true
+    ocr_backend: "onnxruntime"
+  marker:
+    device: "cpu"
+
+optimization:
+  total_load: 20
+  train_split: 20
+  num_candidates: 10
+  num_trials: 70
+  max_bootstrapped_demos: 1
+  max_labeled_demos: 1
+  minibatch: false
+  minibatch_size: 10
+  view_data_batch_size: 3
+  metric_threshold: 1.0
+  init_temperature: 0.5
+  random_seed: 42
+  use_cache: true
+  verbose: true
+
 task:
   name: "nanozymes"
-  compare_fields:
-    - formula
-    - activity
-    - length
-  float_tolerance: 0.05
+  initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"
+  evaluation:
+    compare_fields:
+      - formula
+      - activity
+      - reaction_type
+      - ph
+      - temperature
+      - surface
+      - syngony
+      - length
+      - width
+      - depth
+      - km_value
+      - vmax_value
+      - c_min
+      - c_max
+      - c_const
+      - ccat_value
+      - km_unit
+      - vmax_unit
+      - c_const_unit
+      - ccat_unit
+    float_tolerance: 0.05
+
+extraction:
+  enable_cache: false
+
+cache:
+  disk_size_limit_bytes: 30000000000
+  memory_max_entries: 1000000
+
+circuit_breaker:
+  failure_threshold: 8
+  reset_timeout: 30.0
+  half_open_max_calls: 1
+```
+
+### Using Configuration Files
+
+**Via CLI:**
+```bash
+# Specify config file explicitly
+python -m aee.interface.cli.parse --config my_config.yaml
+python -m aee.interface.cli.extract --config my_config.yaml --agent my_agent.json
+python -m aee.interface.cli.optimize --config my_config.yaml
+```
+
+**Via environment variable:**
+```bash
+# Set environment to use config/{env}.yaml
+export AEE_ENV="dev"
+python -m aee.interface.cli.parse  # Uses config/dev.yaml
 ```
 
 ---
 
 ## Configuration Sections
+
+### Project Configuration
+
+```yaml
+project:
+  log_level: "INFO"               # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+```
 
 ### LLM Configuration
 
@@ -73,29 +187,65 @@ llm:
     repeat_penalty: 1.2           # Penalty for repeated tokens
     repeat_last_n: 2048           # Tokens to consider for repeat penalty
     enable_cache: true            # Cache LLM responses
-    
-    # Ollama-specific settings
+
+    # Ollama-specific settings (URL is set via OLLAMA_STUDENT_BASE_URL env var)
     ollama:
-      ollama_base_url: "http://localhost:11434"
       num_ctx: 64000              # Context window size
       num_predict: 2048           # Max tokens to generate
-      stream: false
-    
-    # Non-Ollama settings
+      repeat_penalty: 1.2         # Penalty for repeated tokens
+      repeat_last_n: 2048         # Tokens to consider for repeat penalty
+      stream: false               # Enable streaming responses
+
+    # Non-Ollama settings (API key is set via *_API_KEY env var)
     non_ollama:
       max_tokens: 4096            # Max tokens for API providers
+
+  teacher:
+    use_ollama: true              # Use Ollama (true) or API (false)
+    model: "gpt-oss:120b"
+    temperature: 0.5              # Higher temperature for evaluation diversity
+    timeout: 600                  # Request timeout (seconds)
+    max_retries: 2                # Maximum retry attempts
+    rate_limit_delay: 10.0        # Delay between API calls (seconds)
+    top_p: 0.9                    # Nucleus sampling top-p parameter
+    repeat_penalty: 1.1           # Penalty for repeated tokens
+    repeat_last_n: 512            # Tokens to consider for repeat penalty
+    enable_cache: true            # Cache LLM responses
+
+    # Ollama-specific settings (URL is set via OLLAMA_TEACHER_BASE_URL env var)
+    ollama:
+      num_ctx: 64000              # Context window size
+      num_predict: 2048           # Max tokens to generate
+      repeat_penalty: 1.1         # Penalty for repeated tokens
+      repeat_last_n: 512          # Tokens to consider for repeat penalty
+      stream: false               # Enable streaming responses
+
+    # Non-Ollama settings (API key is set via *_API_KEY env var)
+    non_ollama:
+      max_tokens: 8192            # Max tokens for API providers
 ```
 
 ### Optimization Configuration
 
 ```yaml
 optimization:
-  num_trials: 70                  # Number of MIPROv2 trials
-  num_candidates: 10              # Candidates per trial
-  max_bootstrapped_demos: 1       # Max bootstrapped examples
-  max_labeled_demos: 1            # Max labeled examples
-  use_cache: true                 # Cache during optimization
+  total_load: 20                # Total number of samples to load for optimization
+  train_split: 20               # Number of samples for training split
+  num_candidates: 10            # Candidates per trial
+  num_trials: 70                # Number of MIPROv2 trials
+  max_bootstrapped_demos: 1     # Max bootstrapped examples
+  max_labeled_demos: 1          # Max labeled examples
+  minibatch: false              # Use minibatch evaluation during optimization
+  minibatch_size: 10            # Size of minibatch for evaluation
+  view_data_batch_size: 3       # Batch size for viewing data samples
+  metric_threshold: 1.0         # Threshold metric value for optimization stopping
+  init_temperature: 0.5         # Initial temperature for candidate generation
+  random_seed: 42               # Random seed for reproducibility
+  use_cache: true               # Cache during optimization
+  verbose: true                 # Enable verbose logging during optimization
 ```
+
+> **Note:** All fields in the `optimization` section are **required**.
 
 ### Paths Configuration
 
@@ -111,15 +261,15 @@ paths:
 
 ### Task Configuration
 
-Task configuration in `config/default.yaml` uses a nested structure under `task.evaluation.*`:
+Task configuration in YAML uses a nested structure under `task.evaluation.*`:
 
 ```yaml
-# config/default.yaml
+# config/my_config.yaml
 task:
   name: "nanozymes"
-  initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"
+  initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"  # REQUIRED
   evaluation:
-    compare_fields:            # Fields for evaluation
+    compare_fields:            # Fields for evaluation - REQUIRED
       - formula
       - activity
       - syngony
@@ -140,73 +290,95 @@ task:
       - c_const_unit
       - ccat_value
       - ccat_unit
-    float_tolerance: 0.05      # 5% tolerance for floats
+    float_tolerance: 0.05      # 5% tolerance for floats - REQUIRED
 ```
-
-> **Note:** For backward compatibility, the legacy flat structure (`task.compare_fields`, `task.float_tolerance` at top level) is automatically converted to the nested format.
 
 **Fields:**
 - `name` — Task identifier (must match task name in `src/aee/domain/tasks/{task_name}/task.yaml`)
-- `initial_instruction_file` — Path to initial instruction file for DSPy
-- `evaluation.compare_fields` — List of field names used for evaluation during optimization
-- `evaluation.float_tolerance` — Tolerance for floating-point comparisons (0.0 to 1.0)
+- `initial_instruction_file` — Path to initial instruction file for DSPy optimization (**required**)
+- `evaluation.compare_fields` — List of field names used for evaluation during optimization (**required**)
+- `evaluation.float_tolerance` — Tolerance for floating-point comparisons (0.0 to 1.0) (**required**)
+
+### Parsing Configuration
+
+```yaml
+parsing:
+  parser: "docling"               # Required: "docling" or "marker"
+  overwrite: false                # Optional: Overwrite existing parsed files (default: false)
+
+  # Docling settings
+  docling:
+    device: "cpu"                 # "cpu", "cuda", or "mps"
+    num_threads: 4                # Number of threads for processing
+    do_ocr: true                  # Enable OCR processing
+    do_table_structure: true      # Enable table structure detection
+    ocr_backend: "onnxruntime"    # "onnxruntime", "torch", "openvino", or "paddlepaddle"
+
+  # Marker settings
+  marker:
+    device: "cpu"                 # "cpu" or "cuda"
+```
+
+> **Note:** All fields in `parsing.docling` and `parsing.marker` are **required**. The `overwrite` field is optional (default: `false`).
+
+### Extraction Configuration
+
+```yaml
+extraction:
+  enable_cache: false             # Enable LLM response caching during extraction
+```
+
+> **Note:** The `extraction` section has a single optional field (`enable_cache`).
+
+### Cache Configuration
+
+```yaml
+cache:
+  disk_size_limit_bytes: 30000000000  # Maximum disk cache size in bytes (30 GB)
+  memory_max_entries: 1000000         # Maximum number of entries in memory cache
+```
+
+> **Note:** All fields in the `cache` section are **required**.
+
+### Circuit Breaker Configuration
+
+```yaml
+circuit_breaker:
+  failure_threshold: 8            # Number of failures before opening circuit
+  reset_timeout: 30.0             # Seconds to wait before attempting reset (half-open state)
+  half_open_max_calls: 1          # Maximum test calls allowed in half-open state
+```
+
+> **Note:** All fields in the `circuit_breaker` section are **required**.
 
 ---
 
 ## Environment Variables
 
-### LLM Provider
+The following environment variables are supported (set in `.env`):
 
+### Required Variables
+
+**For Ollama users:**
 ```bash
-# Use non-Ollama provider
-export LLM__STUDENT__USE_OLLAMA=false
-export LLM__STUDENT__MODEL="gpt-4"
-export OPENAI_API_KEY="sk-..."
-
-# Ollama URLs
 export OLLAMA_STUDENT_BASE_URL="http://localhost:11434"
 export OLLAMA_TEACHER_BASE_URL="http://localhost:11434"
-export OLLAMA_BASE_URL="http://localhost:11434"  # Fallback if specific URLs not set
 ```
 
-### Paths
-
-```bash
-export PATHS__PDF_DIR="data/my_pdfs"
-export PATHS__SPLITS_FILE="data/splits/mytask.json"
-```
-
-### Optimization
-
-```bash
-export OPTIMIZATION__NUM_TRIALS="50"
-export OPTIMIZATION__USE_CACHE="true"
-```
-
-### Logging
-
-```bash
-export LOG_LEVEL="DEBUG"
-```
-
-### MLflow
-
-```bash
-export MLFLOW_TRACKING_URI="sqlite:///mlflow.db"
-```
-
-### DSPy Cache
-
-```bash
-export DSPY_CACHE_DIR="~/.cache/dspy"
-```
-
-### API Keys (required for non-Ollama providers)
-
+**For non-Ollama API users:**
 ```bash
 export OPENAI_API_KEY="sk-..."
+# OR
 export ANTHROPIC_API_KEY="sk-ant-..."
+# OR
 export GEMINI_API_KEY="..."
+```
+
+### Infrastructure
+
+```bash
+export MLFLOW_TRACKING_URI="sqlite:///mlflow.db"    # MLflow tracking URI
+export DSPY_CACHE_DIR="${HOME}/.cache/dspy"         # DSPy cache directory
 ```
 
 ### Environment Selection
@@ -216,55 +388,4 @@ export GEMINI_API_KEY="..."
 export AEE_ENV="dev"
 ```
 
----
-
-## Task Configuration (YAML)
-
-Tasks are defined in `src/aee/domain/tasks/{task_name}/task.yaml`:
-
-```yaml
-name: mytask
-description: Extract my domain experiments
-
-fields:
-  field_name:
-    type: str
-    description: "Field description"
-    required: true
-    alt_names:
-      - alternative_name
-
-compare_fields:
-  - field_name
-float_tolerance: 0.05
-
-instruction_file: config/initial_instructions/mytask.txt
-```
-
-> **Full guide:** [Adding Tasks](adding_tasks.md)
-
----
-
-## Quick Reference
-
-| Setting | Env Variable | YAML Path |
-|---------|--------------|-----------|
-| LLM Model | `LLM__STUDENT__MODEL` | `llm.student.model` |
-| LLM Temperature | `LLM__STUDENT__TEMPERATURE` | `llm.student.temperature` |
-| LLM Cache | `LLM__STUDENT__ENABLE_CACHE` | `llm.student.enable_cache` |
-| Num Trials | `OPTIMIZATION__NUM_TRIALS` | `optimization.num_trials` |
-| Num Candidates | `OPTIMIZATION__NUM_CANDIDATES` | `optimization.num_candidates` |
-| Metric Threshold | `OPTIMIZATION__METRIC_THRESHOLD` | `optimization.metric_threshold` |
-| PDF Dir | `PATHS__PDF_DIR` | `paths.pdf_dir` |
-| Splits File | `PATHS__SPLITS_FILE` | `paths.splits_file` |
-| Task Name | *(not configurable via env)* | `task.name` |
-| Log Level | `LOG_LEVEL` | `project.log_level` |
-| MLflow URI | `MLFLOW_TRACKING_URI` | `mlflow_tracking_uri` |
-| DSPy Cache | `DSPY_CACHE_DIR` | `dspy_cache_dir` |
-| Ollama Student URL | `OLLAMA_STUDENT_BASE_URL` | `llm.student.ollama.ollama_base_url` |
-| Ollama Teacher URL | `OLLAMA_TEACHER_BASE_URL` | `llm.teacher.ollama.ollama_base_url` |
-| OpenAI API Key | `OPENAI_API_KEY` | (not configurable in YAML) |
-| Anthropic API Key | `ANTHROPIC_API_KEY` | (not configurable in YAML) |
-| Gemini API Key | `GEMINI_API_KEY` | (not configurable in YAML) |
-
-> **Note:** Task configuration (`task.name`, `task.evaluation.*`) загружается **только из YAML файлов** и не может быть переопределён через environment variables.
+> **Note:** All other configuration (LLM models, optimization parameters, paths, etc.) must be set in YAML configuration files.

@@ -36,7 +36,8 @@ def create_argument_parser() -> argparse.ArgumentParser:
         "--config",
         type=Path,
         default=None,
-        help="Path to configuration file (optional, uses AEE_ENV or default.yaml if not set)",
+        required=True,
+        help="Path to configuration file (required)",
     )
 
     parser.add_argument(
@@ -62,17 +63,22 @@ def extract_command(argv: Optional[list] = None) -> int:
     parser = create_argument_parser()
     args = parser.parse_args(argv)
 
-    # Load settings with priority: CLI --config > AEE_ENV > default.yaml
-    from aee.infrastructure.config.environments import load_settings_for_environment
-
-    if args.config:
-        # CLI argument has highest priority
+    # Load settings from config file
+    try:
         custom_settings = Settings.load(config_path=args.config)
         logger.info(f"Loaded configuration from CLI argument: {args.config}")
-    else:
-        # Use AEE_ENV environment variable or default to default.yaml
-        custom_settings = load_settings_for_environment()
-        logger.info(f"Loaded configuration from AEE_ENV={os.getenv('AEE_ENV', 'dev')} (or default.yaml)")
+    except FileNotFoundError as e:
+        logger.error(f"Configuration file not found: {e}")
+        print(f"Error: Configuration file not found: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except RuntimeError as e:
+        logger.error(f"Failed to load configuration: {e}")
+        print(f"Error: Failed to load configuration: {e}", file=sys.stderr)
+        return 1
 
     # Setup logging with custom settings
     setup_logging(custom_settings)

@@ -25,7 +25,7 @@ from .registry import (
     load_and_register_task,
     register_config,
 )
-from .signature import create_signature, generate_default_instruction
+from .signature import create_signature
 
 __all__ = [
     # Configuration
@@ -39,7 +39,6 @@ __all__ = [
     "create_row_converter",
     # Signature generation
     "create_signature",
-    "generate_default_instruction",
     # YAML loading/saving
     "load_task_from_yaml",
     "load_task_with_models",

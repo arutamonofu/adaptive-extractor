@@ -26,13 +26,13 @@ class ExperimentMatcher:
     # Dash normalization mapping
     _DASH_MAP = str.maketrans({"−": "-", "–": "-", "—": "-"})
 
-    def __init__(self, fields_to_compare: List[str], float_tolerance: float = 0.05):
+    def __init__(self, fields_to_compare: List[str], float_tolerance: float):
         """Initialize the ExperimentMatcher.
-        
+
         Args:
             fields_to_compare: List of field names to compare between entities.
-            float_tolerance: Tolerance for float comparisons (default 5%).
-            
+            float_tolerance: Tolerance for float comparisons (0.0 to 1.0).
+
         Raises:
             ValueError: If fields_to_compare is empty or float_tolerance is invalid.
         """
