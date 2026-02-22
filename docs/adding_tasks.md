@@ -26,8 +26,8 @@ Task configurations are split into two parts:
 ```
 config/
 ├── systems/                    # System configurations (experiments)
-│   ├── dev.yaml               # Development environment
-│   └── exp_high_trials.yaml   # Experiment with high num_trials
+│   ├── example.yaml            # Example environment
+│   └── exp_high_trials.yaml    # Experiment with high num_trials
 │
 ├── initial_instructions/       # Initial instructions for DSPy
 │   ├── nanozymes_sota.txt
@@ -126,10 +126,10 @@ GUIDELINES:
 
 ### Step 3: Update System Configuration
 
-Update or create a system config (e.g., `config/systems/dev.yaml`):
+Update or create a system config (e.g., `config/systems/experiment.yaml`):
 
 ```yaml
-# config/systems/dev.yaml
+# config/systems/experiment.yaml
 task:
   name: "proteins"
   initial_instruction_file: "config/initial_instructions/proteins_v1.txt"  # Relative to project root
@@ -179,7 +179,7 @@ print(f"  Fields: {len(task['config'].experiment_fields)}")
 ### Step 7: Run Optimization
 
 ```bash
-python -m aee.interface.cli.optimize --config config/systems/dev.yaml
+python -m aee.interface.cli.optimize --config config/systems/experiment.yaml
 ```
 
 ---
@@ -236,5 +236,5 @@ python -m aee.interface.cli.optimize --config config/systems/dev.yaml
 
 See existing tasks for reference:
 - `config/tasks/nanozymes.yaml` — Nanozymes extraction task
-- `config/systems/dev.yaml` — Development system configuration
+- `config/systems/example.yaml` — Example system configuration
 - `config/initial_instructions/nanozymes_sota.txt` — Example initial instruction

@@ -9,9 +9,9 @@ Configuration files are organized into the following structure:
 ```
 config/
 ├── systems/                    # System configurations (experiments)
-│   ├── dev.yaml               # Development environment
-│   ├── exp_high_trials.yaml   # Experiment with high num_trials
-│   └── exp_low_temp.yaml      # Experiment with low temperature
+│   ├── example.yaml            # Example environment
+│   ├── exp_high_trials.yaml    # Experiment with high num_trials
+│   └── exp_low_temp.yaml       # Experiment with low temperature
 │
 ├── initial_instructions/       # Initial instructions for DSPy optimization
 │   ├── nanozymes_sota.txt
@@ -49,7 +49,7 @@ CLI arguments like `--overwrite` are passed directly to use cases and do not ove
 ### Complete Example
 
 ```yaml
-# config/systems/dev.yaml
+# config/systems/example.yaml
 
 project:
   log_level: "INFO"
@@ -184,8 +184,8 @@ python -m aee.interface.cli.optimize --config my_config.yaml
 **Via environment variable:**
 ```bash
 # Set environment to use config/{env}.yaml
-export AEE_ENV="dev"
-python -m aee.interface.cli.parse  # Uses config/dev.yaml
+export AEE_ENV="example"
+python -m aee.interface.cli.parse  # Uses config/example.yaml
 ```
 
 ---
@@ -291,7 +291,7 @@ paths:
 Task configuration in YAML uses a nested structure under `task.evaluation.*`:
 
 ```yaml
-# config/systems/dev.yaml
+# config/systems/example.yaml
 task:
   name: "nanozymes"
   initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"  # REQUIRED (relative to project root)
@@ -411,8 +411,8 @@ export DSPY_CACHE_DIR="${HOME}/.cache/dspy"         # DSPy cache directory
 ### Environment Selection
 
 ```bash
-# Select environment-specific config (e.g., config/dev.yaml, config/prod.yaml)
-export AEE_ENV="dev"
+# Select environment-specific config (e.g., config/example.yaml, config/experiment.yaml)
+export AEE_ENV="example"
 ```
 
 > **Note:** All other configuration (LLM models, optimization parameters, paths, etc.) must be set in YAML configuration files.
