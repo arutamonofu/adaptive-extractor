@@ -3,7 +3,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Union, Optional
+from typing import Any, Optional, Union
 
 # Docling
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -23,7 +23,6 @@ from marker.models import create_model_dict
 from aee.infrastructure.parsers.base import BaseParser
 from aee.infrastructure.parsers.cleaning import TextCleaner
 from aee.infrastructure.config.settings import MarkerConfig
-from aee.domain.entities import ProcessedDocument, DocumentMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -176,14 +175,14 @@ class DoclingParser(BaseParser):
             return text
         return None
 
-    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
+    def parse(self, file_path: Union[str, Path]) -> str:
         """Parse a PDF file using Docling.
 
         Args:
             file_path: Path to the PDF file.
 
         Returns:
-            ProcessedDocument: Parsed document.
+            str: Hybrid markdown text content.
 
         Raises:
             Exception: If parsing fails.
@@ -194,21 +193,8 @@ class DoclingParser(BaseParser):
         try:
             result = self.converter.convert(path)
             hybrid_text = self._build_hybrid_content(result.document)
+            return hybrid_text
 
-            # Get page count safely
-            page_count = None
-            if hasattr(result.document, "pages"):
-                page_count = len(result.document.pages)
-
-            return ProcessedDocument(
-                text_content=hybrid_text,
-                metadata=DocumentMetadata(
-                    source_path=str(path.absolute()),
-                    filename=path.name,
-                    page_count=page_count,
-                    extra={"parser": "Docling", "device": self.cfg.device}
-                )
-            )
         except Exception as e:
             logger.error(f"Docling parsing failed for {path.name}: {str(e)}")
             raise
@@ -234,14 +220,14 @@ class MarkerParser(BaseParser):
             artifact_dict=create_model_dict(device=self.cfg.device)
         )
 
-    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
+    def parse(self, file_path: Union[str, Path]) -> str:
         """Parse a PDF file using Marker.
 
         Args:
             file_path: Path to the PDF file.
 
         Returns:
-            ProcessedDocument: Parsed document.
+            str: Markdown text content.
 
         Raises:
             Exception: If parsing fails.
@@ -259,18 +245,8 @@ class MarkerParser(BaseParser):
                 str(rendered)
             )
 
-            # Extract metadata safely
-            meta = getattr(rendered, "metadata", {})
+            return text
 
-            return ProcessedDocument(
-                text_content=text,
-                metadata=DocumentMetadata(
-                    source_path=str(path.absolute()),
-                    filename=path.name,
-                    page_count=meta.get("page_count"),
-                    extra={"parser": "Marker", **meta}
-                )
-            )
         except Exception as e:
             logger.error(f"Marker parsing failed for {path.name}: {str(e)}")
             raise

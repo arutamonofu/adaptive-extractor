@@ -256,29 +256,19 @@ def sample_agent_metadata() -> Dict[str, Any]:
 
 @pytest.fixture
 def sample_parsed_document(tmp_path: Path) -> Path:
-    """Create a sample parsed document JSON.
-    
+    """Create a sample parsed document Markdown file.
+
     Args:
         tmp_path: Pytest temporary directory.
-        
+
     Returns:
-        Path to created JSON file.
+        Path to created .md file.
     """
     parsed_dir = tmp_path / "parsed"
     parsed_dir.mkdir(parents=True, exist_ok=True)
-    
-    doc_path = parsed_dir / "paper1_parsed.json"
-    doc_data = {
-        "filename": "paper1.pdf",
-        "text_content": "Sample parsed content from paper1.pdf.",
-        "metadata": {
-            "source_path": str(tmp_path / "paper1.pdf"),
-            "page_count": 10,
-        },
-        "tables": [],
-        "images": [],
-    }
-    doc_path.write_text(json.dumps(doc_data), encoding="utf-8")
+
+    doc_path = parsed_dir / "paper1.md"
+    doc_path.write_text("Sample parsed content from paper1.pdf.", encoding="utf-8")
     return doc_path
 
 

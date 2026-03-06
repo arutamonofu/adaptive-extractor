@@ -1,40 +1,36 @@
 """Document repository for managing parsed documents.
 
 This module provides a clean interface for loading and saving parsed
-documents with improved error handling and validation.
+documents as Markdown files.
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pydantic import ValidationError
-
-from aee.domain.entities import ProcessedDocument
-from aee.shared.exceptions import DataNotFoundError, InvalidDataFormatError, RepositoryError
+from aee.shared.exceptions import DataNotFoundError, RepositoryError
 
 logger = logging.getLogger(__name__)
 
 
 class DocumentRepository:
-    """Repository for managing parsed documents.
+    """Repository for managing parsed documents as Markdown files.
 
-    This repository handles loading and saving ProcessedDocument instances
-    from/to JSON files.
+    This repository handles loading and saving documents as plain
+    Markdown (.md) files containing only the text content.
 
     Example:
         ```python
         repo = DocumentRepository(parsed_dir=Path("data/parsed"))
 
         # Load a single document
-        doc = repo.load(Path("data/parsed/document.json"))
+        text = repo.load(Path("data/parsed/document.md"))
 
         # Load all documents
-        all_docs = repo.load_all()
+        all_docs = repo.load_all()  # Dict[str, str]
 
         # Save a document
-        repo.save(document, Path("data/parsed/new_doc.json"))
+        repo.save(markdown_text, Path("data/parsed/new_doc.md"))
         ```
     """
 
@@ -49,49 +45,38 @@ class DocumentRepository:
             self.parsed_dir.mkdir(parents=True, exist_ok=True)
         logger.debug(f"Initialized DocumentRepository at {self.parsed_dir}")
 
-    def load(self, file_path: Path) -> ProcessedDocument:
-        """Load a single processed document.
+    def load(self, file_path: Path) -> str:
+        """Load a single document text from a Markdown file.
 
         Args:
-            file_path: Path to document JSON file.
+            file_path: Path to document .md file.
 
         Returns:
-            Loaded ProcessedDocument.
+            Document text content.
 
         Raises:
             DataNotFoundError: If file not found.
-            InvalidDataFormatError: If JSON format is invalid.
         """
         if not file_path.exists():
             raise DataNotFoundError("Parsed document", str(file_path))
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Validate and create ProcessedDocument
-            document = ProcessedDocument(**data)
+            text = file_path.read_text(encoding="utf-8")
             logger.debug(f"Loaded document from {file_path}")
-            return document
+            return text
 
-        except json.JSONDecodeError as e:
-            raise InvalidDataFormatError(
-                str(file_path), f"Invalid JSON: {e}"
-            ) from e
-        except ValidationError as e:
-            raise InvalidDataFormatError(
-                str(file_path), f"Invalid document structure: {e}"
-            ) from e
         except Exception as e:
-            raise InvalidDataFormatError(
-                str(file_path), f"Cannot load document: {e}"
+            raise RepositoryError(
+                "DocumentRepository",
+                "load",
+                f"Failed to load document: {e}"
             ) from e
 
     def load_all(
         self,
         directory: Optional[Path] = None,
-        pattern: str = "*.json",
-    ) -> Dict[str, ProcessedDocument]:
+        pattern: str = "*.md",
+    ) -> Dict[str, str]:
         """Load all documents from a directory.
 
         Args:
@@ -99,7 +84,7 @@ class DocumentRepository:
             pattern: Glob pattern for matching files.
 
         Returns:
-            Dictionary mapping document keys to ProcessedDocument instances.
+            Dictionary mapping document keys to text content.
 
         Raises:
             RepositoryError: If directory doesn't exist or is invalid.
@@ -120,15 +105,15 @@ class DocumentRepository:
                 f"Directory does not exist: {load_dir}"
             )
 
-        documents: Dict[str, ProcessedDocument] = {}
+        documents: Dict[str, str] = {}
         stats = {"total": 0, "success": 0, "errors": 0}
 
         for file_path in sorted(load_dir.glob(pattern)):
             stats["total"] += 1
             try:
-                doc = self.load(file_path)
-                doc_key = self._extract_document_key(file_path, doc)
-                documents[doc_key] = doc
+                text = self.load(file_path)
+                doc_key = self._extract_document_key(file_path)
+                documents[doc_key] = text
                 stats["success"] += 1
             except Exception as e:
                 stats["errors"] += 1
@@ -143,13 +128,13 @@ class DocumentRepository:
 
     def save(
         self,
-        document: ProcessedDocument,
+        text: str,
         file_path: Path,
     ) -> None:
-        """Save a processed document to JSON.
+        """Save a document text to a Markdown file.
 
         Args:
-            document: ProcessedDocument to save.
+            text: Document text content to save.
             file_path: Path to save to.
 
         Raises:
@@ -159,14 +144,8 @@ class DocumentRepository:
             # Create output directory if needed
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Serialize to JSON
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(
-                    document.model_dump(),
-                    f,
-                    indent=2,
-                    ensure_ascii=False
-                )
+            # Write text to file
+            file_path.write_text(text, encoding="utf-8")
 
             logger.info(f"Saved document to {file_path}")
 
@@ -177,28 +156,17 @@ class DocumentRepository:
                 f"Failed to save document: {e}"
             ) from e
 
-    def _extract_document_key(
-        self,
-        file_path: Path,
-        document: ProcessedDocument,
-    ) -> str:
-        """Extract document key from filename or metadata.
+    def _extract_document_key(self, file_path: Path) -> str:
+        """Extract document key from filename.
 
         Args:
             file_path: Path to document file.
-            document: Loaded document.
 
         Returns:
             Normalized document key.
         """
-        # Try to use filename from metadata first
-        if hasattr(document.metadata, "filename"):
-            filename = document.metadata.filename
-        else:
-            filename = file_path.name
-
-        # Remove extension and normalize
-        key = Path(filename).stem.lower().strip()
+        # Remove .md extension and normalize
+        key = file_path.stem.lower().strip()
 
         # Remove common suffixes
         for suffix in ["_parsed", "_processed", "_result"]:
@@ -226,10 +194,9 @@ class DocumentRepository:
             return []
 
         keys = []
-        for file_path in sorted(load_dir.glob("*.json")):
+        for file_path in sorted(load_dir.glob("*.md")):
             try:
-                doc = self.load(file_path)
-                key = self._extract_document_key(file_path, doc)
+                key = self._extract_document_key(file_path)
                 keys.append(key)
             except Exception as e:
                 logger.debug(f"Skipped {file_path.name}: {e}")
@@ -252,13 +219,13 @@ class DocumentRepository:
             return False
 
         # Try exact match
-        exact_path = load_dir / f"{document_key}.json"
+        exact_path = load_dir / f"{document_key}.md"
         if exact_path.exists():
             return True
 
         # Try with common suffixes
         for suffix in ["_parsed", "_processed", "_result"]:
-            path = load_dir / f"{document_key}{suffix}.json"
+            path = load_dir / f"{document_key}{suffix}.md"
             if path.exists():
                 return True
 

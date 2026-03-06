@@ -213,22 +213,22 @@ class DatasetBuilder:
 
         for doc_id in document_ids:
             try:
-                # Get document
-                doc = all_docs.get(doc_id)
-                if doc is None:
+                # Get document text
+                doc_text = all_docs.get(doc_id)
+                if doc_text is None:
                     stats["missing"] += 1
                     logger.debug(f"Document not found: {doc_id}")
                     continue
 
                 # Validate document has content
-                if not doc.text_content or not doc.text_content.strip():
+                if not doc_text or not doc_text.strip():
                     stats["empty"] += 1
                     logger.debug(f"Skipping empty document: {doc_id}")
                     continue
 
                 # Create DSPy example
                 example = dspy.Example(
-                    document_text=doc.text_content,
+                    document_text=doc_text,
                     extracted_data=task.output_model(experiments=gt_data[doc_id])  # type: ignore[attr-defined]
                 ).with_inputs("document_text")
 

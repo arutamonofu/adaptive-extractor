@@ -118,7 +118,7 @@ Splits JSON ──────┘
 ```
 Agent JSON ─┬─→ BatchPrediction ─→ Extractions JSON
             │
-Parsed JSON ┘
+Parsed MD ──┘
 ```
 
 ---

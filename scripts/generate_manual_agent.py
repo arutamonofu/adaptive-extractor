@@ -4,7 +4,6 @@ from pathlib import Path
 import dspy
 
 from aee import settings, setup_logging
-from aee.domain.entities import ProcessedDocument
 from aee.infrastructure.agents import UniversalExtractor
 from aee.domain.tasks import get_task
 from aee.infrastructure.storage import GroundTruthRepository
@@ -53,10 +52,10 @@ def main():
 
     for doc_id in manual_ids:
         key = doc_id.lower()
-        json_path = proc_dir / f"{doc_id}.json"
+        md_path = proc_dir / f"{doc_id}.md"
 
-        if not json_path.exists():
-            logger.warning(f"File {json_path} not found, skipping.")
+        if not md_path.exists():
+            logger.warning(f"File {md_path} not found, skipping.")
             continue
 
         if key not in gt_data:
@@ -64,10 +63,10 @@ def main():
             continue
 
         try:
-            doc = ProcessedDocument.model_validate_json(json_path.read_text(encoding="utf-8"))
+            text = md_path.read_text(encoding="utf-8")
 
             example = dspy.Example(
-                document_text=doc.text_content,
+                document_text=text,
                 extracted_data=OutputModel(experiments=gt_data[key])
             ).with_inputs("document_text")
 

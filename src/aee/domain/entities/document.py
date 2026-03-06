@@ -1,34 +1,8 @@
-"""Document-related domain entities."""
+"""Document-related domain entities.
 
-from typing import Any, Dict, List, Optional
+Note: ProcessedDocument and DocumentMetadata have been removed in favor of
+plain Markdown files. The parsed documents are now stored as .md files
+containing only the text content.
+"""
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class DocumentMetadata(BaseModel):
-    """Immutable metadata associated with a source document."""
-
-    model_config = ConfigDict(frozen=True)
-
-    source_path: str
-    filename: str
-    page_count: Optional[int] = None
-    extra: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ProcessedDocument(BaseModel):
-    """Unified representation of an ingested document.
-
-    Attributes:
-        text_content: Hybrid content (Markdown text + HTML tables).
-        tables: List of raw extracted tables (optional, parser-dependent).
-        images: List of extracted image paths or descriptions.
-        metadata: Document metadata.
-    """
-
-    model_config = ConfigDict(frozen=False)
-
-    text_content: str
-    metadata: DocumentMetadata
-    tables: List[Any] = Field(default_factory=list)
-    images: List[str] = Field(default_factory=list)
+# Document entities removed - parsed documents are now plain Markdown files

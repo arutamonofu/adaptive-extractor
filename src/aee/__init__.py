@@ -4,7 +4,6 @@ __version__ = "0.4.0"
 
 # Core modules
 from aee.infrastructure.config import Settings, setup_logging
-from aee.domain.entities import DocumentMetadata, ProcessedDocument
 from aee.infrastructure.parsers import BaseParser, DoclingParser, MarkerParser, TextCleaner
 from aee.infrastructure.agents import UniversalExtractor
 from aee.domain.evaluation import TaskMetric, ExperimentMatcher
@@ -19,10 +18,6 @@ __all__ = [
     # Config
     "Settings",
     "setup_logging",
-
-    # Domain Entities
-    "DocumentMetadata",
-    "ProcessedDocument",
 
     # Infrastructure - Parsers
     "BaseParser",

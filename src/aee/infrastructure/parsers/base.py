@@ -5,20 +5,18 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Union
 
-from aee.domain.entities import ProcessedDocument
-
 
 class BaseParser(ABC):
     """Interface for document parsing strategies."""
 
     @abstractmethod
-    def parse(self, file_path: Union[str, Path]) -> ProcessedDocument:
-        """Parse a source file into a structured ProcessedDocument.
+    def parse(self, file_path: Union[str, Path]) -> str:
+        """Parse a source file into markdown text.
 
         Args:
             file_path: Path to the input file.
 
         Returns:
-            ProcessedDocument containing text, tables, and metadata.
+            str: Markdown text content.
         """
         pass

@@ -5,13 +5,13 @@ Guide to all files and directories in AutoEvoExtractor.
 ## Data Pipeline
 
 ```
-PDFs → Parsed JSON ─┬─→ Optimize → Agent
-                    │
-Ground Truth CSV ───┘
-                    │
-Splits JSON ────────┘
-                    │
-                    └─→ Extract → Results
+PDFs → Parsed MD ─┬─→ Optimize → Agent
+                  │
+Ground Truth CSV ─┘
+                  │
+Splits JSON ──────┘
+                  │
+                  └─→ Extract → Results
 ```
 
 ---
@@ -21,7 +21,7 @@ Splits JSON ────────┘
 ```
 data/
 ├── pdf/              # Source PDF files (user-provided)
-├── parsed/           # Parsed JSON (created by parse.py)
+├── parsed/           # Parsed Markdown (created by parse.py)
 ├── ground_truth/     # Training CSV (user-provided)
 ├── splits/           # Data splits JSON (user-provided)
 ├── agents/           # Trained agents (created by optimize.py)
@@ -95,27 +95,27 @@ Defines train/validation/test splits.
 
 ## Generated Files
 
-### 4. Parsed JSON (`data/parsed/`)
+### 4. Parsed Markdown (`data/parsed/`)
 
-**Format:** JSON
+**Format:** Markdown (`.md`)
 **Created by:** `parse.py`
 
-Structured document content.
+Plain text document content in Markdown format.
 
-```json
-{
-  "text_content": "...",
-  "metadata": {
-    "filename": "paper1.pdf",
-    "page_count": 10
-  },
-  "tables": [],
-  "images": []
-}
+```
+data/parsed/
+├── paper1.md
+├── paper2.md
+└── ...
 ```
 
+**Content:** Hybrid markdown text with:
+- Section headers (`#`, `##`, ...)
+- Paragraphs and lists
+- Tables in HTML format (for structured data)
+- Scientific notations and formulas
+
 > **Config:** `paths.parsed_dir`
-> **Source:** `aee.domain.entities.ProcessedDocument`
 
 ---
 
@@ -187,13 +187,13 @@ config/initial_instructions/
 
 ## Quick Reference
 
-| File | Location | Created By | Required |
-|------|----------|------------|----------|
-| PDFs | `data/pdf/` | User | Yes (for parsing) |
-| Ground Truth | `data/ground_truth/` | User | Yes (for optimization) |
-| Splits | `data/splits/` | User | Yes (for optimization) |
-| Parsed JSON | `data/parsed/` | `parse.py` | No (auto-generated) |
-| Agent | `data/agents/` | `optimize.py` | No (auto-generated) |
-| Extractions | `data/extractions/` | `extract.py` | No (auto-generated) |
-| Task YAML | `src/aee/domain/tasks/` | User | Yes (for new tasks) |
-| Instructions | `config/initial_instructions/` | User | Yes (for optimization) |
+| File | Location | Created By | Format |
+|------|----------|------------|--------|
+| PDFs | `data/pdf/` | User | `.pdf` |
+| Ground Truth | `data/ground_truth/` | User | `.csv` |
+| Splits | `data/splits/` | User | `.json` |
+| Parsed MD | `data/parsed/` | `parse.py` | `.md` |
+| Agent | `data/agents/` | `optimize.py` | `.json` |
+| Extractions | `data/extractions/` | `extract.py` | `.json` |
+| Task YAML | `config/tasks/` | User | `.yaml` |
+| Instructions | `config/initial_instructions/` | User | `.txt` |

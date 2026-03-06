@@ -130,15 +130,15 @@ class BatchPredictionUseCase:
 
             for doc_id in request.document_ids:
                 try:
-                    # Get document
-                    doc = documents.get(doc_id)
-                    if doc is None:
+                    # Get document text
+                    doc_text = documents.get(doc_id)
+                    if doc_text is None:
                         logger.warning(f"Document not found: {doc_id}")
                         stats["failed"] += 1
                         continue
 
                     # Run extraction
-                    prediction = self._run_extraction(agent, doc)
+                    prediction = self._run_extraction(agent, doc_text)
 
                     # Save extraction
                     output_path = request.output_dir / f"{doc_id}_result.json"
@@ -146,7 +146,6 @@ class BatchPredictionUseCase:
                         extractions=prediction.experiments,
                         output_path=output_path,
                         document_metadata={
-                            "filename": doc.metadata.filename,
                             "document_id": doc_id,
                         },
                     )
@@ -179,18 +178,18 @@ class BatchPredictionUseCase:
                 error_message=str(e),
             )
 
-    def _run_extraction(self, agent: Any, document: Any) -> Any:
+    def _run_extraction(self, agent: Any, document_text: str) -> Any:
         """Run extraction on a single document.
 
         Args:
             agent: Trained agent.
-            document: Document to process.
+            document_text: Document text to process.
 
         Returns:
             Extraction result.
         """
         # Call agent with document text
-        result = agent(document_text=document.text_content)
+        result = agent(document_text=document_text)
 
         # Return extracted data
         return result.extracted_data if hasattr(result, "extracted_data") else result

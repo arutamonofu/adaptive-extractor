@@ -29,23 +29,16 @@ class TestExtractFlow:
         agents_dir.mkdir()
         extractions_dir = tmp_path / "extractions"
         extractions_dir.mkdir()
-        
-        # Create parsed documents
+
+        # Create parsed documents as .md files
         for i in range(1, 4):
-            doc_path = parsed_dir / f"paper{i}_parsed.json"
-            doc_data = {
-                "text_content": f"Sample scientific content about nanozymes from paper {i}. "
-                               f"Fe3O4 nanoparticles show peroxidase activity.",
-                "metadata": {
-                    "source_path": f"/path/to/paper{i}.pdf",
-                    "filename": f"paper{i}.pdf",
-                    "page_count": 10,
-                },
-                "tables": [],
-                "images": [],
-            }
-            doc_path.write_text(json.dumps(doc_data), encoding="utf-8")
-        
+            doc_path = parsed_dir / f"paper{i}.md"
+            doc_path.write_text(
+                f"Sample scientific content about nanozymes from paper {i}. "
+                f"Fe3O4 nanoparticles show peroxidase activity.",
+                encoding="utf-8",
+            )
+
         # Create mock agent
         agent_data = {
             "lm": {"model": "test-model", "type": "mock"},
@@ -54,7 +47,7 @@ class TestExtractFlow:
         }
         agent_path = agents_dir / "nanozymes_test.json"
         agent_path.write_text(json.dumps(agent_data), encoding="utf-8")
-        
+
         # Create agent metadata
         meta_data = {
             "task_name": "nanozymes",
@@ -65,7 +58,7 @@ class TestExtractFlow:
         }
         meta_path = agent_path.with_suffix(".meta.json")
         meta_path.write_text(json.dumps(meta_data), encoding="utf-8")
-        
+
         return {
             "tmp_path": tmp_path,
             "parsed_dir": parsed_dir,
@@ -132,22 +125,21 @@ class TestExtractFlow:
     def test_document_loading_for_extraction(self, extraction_test_setup):
         """Test loading documents for extraction."""
         from aee.infrastructure.storage.documents import DocumentRepository
-        
+
         repo = DocumentRepository(parsed_dir=extraction_test_setup["parsed_dir"])
-        
+
         # Load all documents
         docs = repo.load_all()
-        
+
         # Verify loading
         assert len(docs) == 3
         assert "paper1" in docs
         assert "paper2" in docs
         assert "paper3" in docs
-        
-        # Verify document structure
-        doc = docs["paper1"]
-        assert "nanozymes" in doc.text_content.lower()
-        assert doc.metadata.filename == "paper1.pdf"
+
+        # Verify document content
+        text = docs["paper1"]
+        assert "nanozymes" in text.lower()
 
 
 class TestTaskPluginIntegration:

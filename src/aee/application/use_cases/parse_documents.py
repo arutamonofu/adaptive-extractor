@@ -116,7 +116,7 @@ class ParseDocumentsUseCase:
             for pdf_path in request.input_paths:
                 try:
                     # Generate output path
-                    output_path = request.output_dir / f"{pdf_path.stem}.json"
+                    output_path = request.output_dir / f"{pdf_path.stem}.md"
 
                     # Check if already exists
                     if output_path.exists() and not request.overwrite:
@@ -127,10 +127,10 @@ class ParseDocumentsUseCase:
 
                     # Parse document
                     logger.info(f"Parsing: {pdf_path.name}")
-                    processed_doc = parser.parse(pdf_path)
+                    hybrid_text = parser.parse(pdf_path)
 
                     # Save document
-                    self.document_repo.save(processed_doc, output_path)
+                    self.document_repo.save(hybrid_text, output_path)
 
                     stats["success"] += 1
                     logger.info(f"✓ Parsed: {pdf_path.name}")
