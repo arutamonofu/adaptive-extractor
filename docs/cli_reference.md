@@ -152,14 +152,6 @@ python scripts/extract.py --config config/systems/dev.yaml --agent data/agents/n
 2. **Parsed documents** — Must exist in `data/parsed/`
 3. **Task configuration** — Must match the task the agent was trained on
 
-### Troubleshooting
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Agent not found` | Agent file doesn't exist | Run `optimize.py` first or check path |
-| `TypeError: 'dict' object is not callable` | (Historical) Manual state restoration bug | Fixed: now uses DSPy's `load_state()` |
-| `No LLM configured` | DSPy LM not set up | Check `dspy.settings.configure()` is called after `create_lm()` |
-
 ---
 
 ## `generate_manual_agent.py`
@@ -203,22 +195,6 @@ python scripts/generate_manual_agent.py --config config/default.yaml --output da
 3. **Data splits JSON** — Must exist at `paths.splits_file` with `train_manual` split
 4. **Task configuration** — Task YAML must exist in `config/tasks/<task_name>.yaml`
 5. **Initial instruction** — Must exist at `task.initial_instruction_file` from config
-
-### Troubleshooting
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Configuration file not found` | Config YAML doesn't exist | Check path or run from project root |
-| `Configuration error` | Invalid YAML content | Validate YAML syntax |
-| `Task signature not found` | Task config missing signature | Verify task YAML has valid signature definition |
-| `Parsed directory not found` | Parsed docs directory missing | Run `parse.py` first or update config |
-| `Splits file not found` | Data splits JSON missing | Create splits with `train_manual` section |
-| `Invalid JSON in splits file` | Malformed JSON | Fix JSON syntax in splits file |
-| `No IDs found in 'train_manual' split` | Empty train_manual array | Add document IDs to `train_manual` in splits JSON |
-| `Failed to load ground truth` | GT CSV missing or invalid | Ensure CSV exists and matches task schema |
-| `No valid demos collected` | All documents missing or mismatched | Check parsed files and ground truth keys match |
-
-> **Note:** If some parsed files are missing, the script will skip them with warnings and continue. Agent is saved if at least one valid demo is collected.
 
 ---
 

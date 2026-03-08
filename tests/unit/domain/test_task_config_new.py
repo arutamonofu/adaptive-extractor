@@ -23,7 +23,7 @@ class TestFieldSpec:
             description="Test field",
         )
 
-        assert spec.type == str
+        assert spec.type is str
         assert spec.description == "Test field"
         assert spec.required is True
         assert spec.default is None
@@ -38,7 +38,7 @@ class TestFieldSpec:
             default=0.0,
         )
 
-        assert spec.type == float
+        assert spec.type is float
         assert spec.required is False
         assert spec.default == 0.0
 

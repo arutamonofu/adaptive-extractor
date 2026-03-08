@@ -9,7 +9,7 @@ Note: These tests use mock data to avoid actual LLM calls.
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

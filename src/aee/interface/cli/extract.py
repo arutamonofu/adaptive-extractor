@@ -10,12 +10,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import dspy
 
 from aee import setup_logging
 from aee.application.services import AgentManager
 from aee.application.use_cases import BatchPredictionRequest, BatchPredictionUseCase
-from aee.domain.tasks import get_task, load_task_with_instruction
+from aee.domain.tasks import load_task_with_instruction
 from aee.infrastructure.config.settings import Settings
 from aee.infrastructure.storage import (
     AgentRepository,
@@ -107,7 +106,7 @@ def extract_command(argv: Optional[list] = None) -> int:
         # Configure LLM and DSPy (setup_student calls dspy.settings.configure internally)
         from aee.infrastructure.llm import setup_student
 
-        student_lm = setup_student(
+        setup_student(
             custom_settings,
             enable_cache=custom_settings.extraction.enable_cache,
         )

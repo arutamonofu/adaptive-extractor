@@ -223,11 +223,11 @@ def create_row_converter(
 
         # Convert to appropriate type
         try:
-            if spec.type == float:
+            if spec.type is float:
                 return float(value)
-            elif spec.type == int:
+            elif spec.type is int:
                 return int(value)
-            elif spec.type == bool:
+            elif spec.type is bool:
                 if isinstance(value, str):
                     return value.lower() in ("true", "1", "yes")
                 return bool(value)

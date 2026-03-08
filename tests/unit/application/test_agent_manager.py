@@ -7,16 +7,13 @@ Tests cover:
 - Agent lifecycle management
 """
 
-import json
 from pathlib import Path
 from typing import Any, Dict
-from unittest.mock import patch
 
 import dspy
 import pytest
 
 from aee.application.services import AgentManager
-from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import AgentMetadata, AgentRepository
 from aee.infrastructure.agents import UniversalExtractor
 from aee.shared.exceptions import UseCaseExecutionError
@@ -412,7 +409,6 @@ class TestAgentManagerSaveAndLoad:
         This test verifies that the agent reconstruction produces a fully
         functional agent that has the right structure, not just attributes.
         """
-        from datetime import datetime
         
         repo = AgentRepository(agents_dir=tmp_agents_dir)
         manager = AgentManager(agent_repo=repo)

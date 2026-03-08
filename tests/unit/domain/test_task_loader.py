@@ -36,7 +36,7 @@ class TestParseFieldSpec:
 
         spec = _parse_field_spec("test_field", field_data)
 
-        assert spec.type == str
+        assert spec.type is str
         assert spec.description == "Test field"
         assert spec.required is True
 
@@ -44,15 +44,15 @@ class TestParseFieldSpec:
         """Test parsing field spec with different type specifications."""
         # String type
         spec = _parse_field_spec("f", {"type": "string", "description": "d"})
-        assert spec.type == str
+        assert spec.type is str
 
         # Integer type
         spec = _parse_field_spec("f", {"type": "int", "description": "d"})
-        assert spec.type == int
+        assert spec.type is int
 
         # Float type
         spec = _parse_field_spec("f", {"type": "float", "description": "d"})
-        assert spec.type == float
+        assert spec.type is float
 
     def test_parse_field_spec_with_choices(self):
         """Test parsing field spec with choices."""

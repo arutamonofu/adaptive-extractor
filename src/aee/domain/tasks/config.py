@@ -40,10 +40,10 @@ class FieldSpec:
 
     def __post_init__(self):
         """Validate field specification after initialization."""
-        if self.choices and self.type != str:
+        if self.choices and self.type is not str:
             raise ValueError("choices can only be used with str type")
 
-        if self.pattern and self.type != str:
+        if self.pattern and self.type is not str:
             raise ValueError("pattern can only be used with str type")
 
         if self.min_value is not None and self.type not in (int, float):
@@ -320,7 +320,7 @@ class TaskConfig:
 
         # Validate choices
         if spec.choices:
-            if spec.type != str:
+            if spec.type is not str:
                 errors.append(
                     f"Field '{field_name}': choices can only be used with str type"
                 )
@@ -350,7 +350,7 @@ class TaskConfig:
             )
 
         # Validate pattern
-        if spec.pattern and spec.type != str:
+        if spec.pattern and spec.type is not str:
             errors.append(
                 f"Field '{field_name}': pattern can only be used with str type"
             )

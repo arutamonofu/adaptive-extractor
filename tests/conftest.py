@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -576,7 +577,6 @@ def config_with_instruction_file(tmp_path: Path, llm_config_template_path: Path)
     Returns:
         Path to config file with resolved instruction path.
     """
-    import yaml
     
     # Create instruction file
     instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"

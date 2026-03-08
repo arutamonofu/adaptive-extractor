@@ -7,9 +7,8 @@ providing a high-level interface for agent operations.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Type, Union, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, Type, Union, runtime_checkable
 
-import dspy
 
 from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import AgentMetadata, AgentRepository

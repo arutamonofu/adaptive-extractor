@@ -60,7 +60,6 @@ class TestConfigValidation:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "scripts"))
 
-        from generate_manual_agent import main  # type: ignore[import-not-found]
         import subprocess
 
         # Use subprocess to test sys.argv handling
