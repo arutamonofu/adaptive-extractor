@@ -23,6 +23,7 @@ from aee.domain.tasks.loader import (
 )
 
 
+@pytest.mark.unit
 class TestParseFieldSpec:
     """Tests for _parse_field_spec function."""
 
@@ -94,6 +95,7 @@ class TestParseFieldSpec:
         assert spec.default == 0.0
 
 
+@pytest.mark.unit
 class TestParseRowConverter:
     """Tests for _parse_row_converter function."""
 
@@ -127,6 +129,7 @@ class TestParseRowConverter:
         assert config.mapping["activity"] == ["activity"]
 
 
+@pytest.mark.unit
 class TestLoadTaskFromYaml:
     """Tests for load_task_from_yaml function."""
 
@@ -236,6 +239,7 @@ fields:
             load_task_from_yaml(yaml_path_invalid)
 
 
+@pytest.mark.unit
 class TestLoadTaskWithModels:
     """Tests for load_task_with_models function."""
 
@@ -272,6 +276,7 @@ fields:
         assert exp.activity == "peroxidase"
 
 
+@pytest.mark.unit
 class TestSaveTaskToYaml:
     """Tests for save_task_to_yaml function."""
 
@@ -346,6 +351,7 @@ class TestSaveTaskToYaml:
         assert "field1" in yaml_data["fields"]
 
 
+@pytest.mark.unit
 class TestProjectRootResolution:
     """Tests for project root resolution in loader."""
 

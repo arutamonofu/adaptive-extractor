@@ -14,6 +14,7 @@ from .dynamic_models import (
 from .loader import (
     load_task_complete,
     load_task_from_yaml,
+    load_task_with_instruction,
     load_task_with_models,
     save_task_to_yaml,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "load_task_from_yaml",
     "load_task_with_models",
     "load_task_complete",
+    "load_task_with_instruction",
     "save_task_to_yaml",
     # Registry
     "TaskRegistry",

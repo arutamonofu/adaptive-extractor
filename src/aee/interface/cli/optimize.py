@@ -8,11 +8,12 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from aee import setup_logging
 from aee.application.services import AgentManager, DatasetBuilder, ExperimentTracker
 from aee.application.use_cases import OptimizeAgentRequest, OptimizeAgentUseCase
+from aee.domain.tasks import load_task_with_instruction
 from aee.infrastructure.config.settings import Settings
 from aee.infrastructure.storage import (
     AgentRepository,
@@ -89,9 +90,16 @@ def create_dependencies(args, task, settings):
         settings: Settings object to use.
 
     Returns:
-        Tuple of (dataset_builder, agent_manager, gt_repo, tracker, validator).
+        Tuple of (dataset_builder, agent_manager, gt_repo, tracker).
     """
     current_settings = settings
+
+    # Validate parsed_dir exists
+    if not current_settings.paths.parsed_dir.exists():
+        raise FileNotFoundError(
+            f"Parsed directory not found: {current_settings.paths.parsed_dir}\n"
+            f"Please ensure documents are parsed before optimization."
+        )
 
     # Create repositories
     doc_repo = DocumentRepository(parsed_dir=current_settings.paths.parsed_dir)
@@ -106,10 +114,6 @@ def create_dependencies(args, task, settings):
 
     agent_manager = AgentManager(agent_repo=agent_repo)
 
-    # Create data validator
-    from aee.application.services import DataValidator
-    validator = DataValidator(gt_repo=gt_repo)
-
     # Create experiment tracker (optional)
     tracker = None
     if not args.no_mlflow:
@@ -122,58 +126,10 @@ def create_dependencies(args, task, settings):
         except Exception as e:
             logger.warning(f"MLflow tracking disabled: {e}")
 
-    return dataset_builder, agent_manager, gt_repo, tracker, validator
+    return dataset_builder, agent_manager, gt_repo, tracker
 
 
-def load_task_with_instruction(task_name: str, config) -> tuple:
-    """Load task with initial instruction from YAML config.
-
-    Args:
-        task_name: Name of the task to load.
-        config: Settings object containing task configuration.
-
-    Returns:
-        Tuple of (task, instruction_metadata_dict).
-
-    Raises:
-        FileNotFoundError: If YAML config not found.
-    """
-    # Load from YAML: config/tasks/{task_name}.yaml
-    yaml_path = (
-        Path(__file__).resolve().parent.parent.parent.parent.parent
-        / "config"
-        / "tasks"
-        / f"{task_name}.yaml"
-    )
-
-    if not yaml_path.exists():
-        raise FileNotFoundError(f"Task YAML config not found: {yaml_path}")
-
-    from aee.domain.tasks import load_task_from_yaml, get_task
-
-    # Load and register task from YAML
-    load_task_from_yaml(yaml_path)
-
-    # Get task components from registry
-    task = get_task(task_name)
-
-    # Get instruction metadata
-    instruction = task["config"].get_instruction()
-    instruction_hash = task["config"].get_instruction_hash()
-
-    logger.info(
-        f"Loaded task from YAML: {yaml_path} "
-        f"(instruction: {len(instruction)} chars, hash: {instruction_hash})"
-    )
-
-    return task, {
-        "instruction": instruction,
-        "instruction_length": len(instruction),
-        "instruction_hash": instruction_hash,
-    }
-
-
-def optimize_command(argv: Optional[list] = None) -> int:
+def optimize_command(argv: Optional[List[str]] = None) -> int:
     """Execute the optimize command.
 
     Args:
@@ -192,15 +148,12 @@ def optimize_command(argv: Optional[list] = None) -> int:
         logger.info(f"Loaded configuration from CLI argument: {args.config}")
     except FileNotFoundError as e:
         logger.error(f"Configuration file not found: {e}")
-        print(f"Error: Configuration file not found: {e}", file=sys.stderr)
         return 1
     except ValueError as e:
         logger.error(f"Configuration error: {e}")
-        print(f"Error: {e}", file=sys.stderr)
         return 1
     except RuntimeError as e:
         logger.error(f"Failed to load configuration: {e}")
-        print(f"Error: Failed to load configuration: {e}", file=sys.stderr)
         return 1
 
     # Setup logging with custom settings
@@ -213,21 +166,26 @@ def optimize_command(argv: Optional[list] = None) -> int:
 
         task, instruction_metadata = load_task_with_instruction(task_name, custom_settings)
 
+        # Validate task has signature for agent optimization
+        if task.get("signature") is None:
+            logger.error("Task signature not found - required for agent optimization")
+            return 1
+
         # Setup language models
         student_lm, teacher_lm = setup_language_models(custom_settings)
 
         # Create dependencies
-        dataset_builder, agent_manager, gt_repo, tracker, validator = create_dependencies(
+        dataset_builder, agent_manager, gt_repo, tracker = create_dependencies(
             args, task, custom_settings
         )
 
-        # Create use case
+        # Create use case (DataValidator created internally if enable_preflight_check=True)
         use_case = OptimizeAgentUseCase(
             dataset_builder=dataset_builder,
             agent_manager=agent_manager,
             gt_repo=gt_repo,
             tracker=tracker,
-            validator=validator,
+            enable_preflight_check=True,
         )
 
         # Build request
@@ -326,22 +284,19 @@ def optimize_command(argv: Optional[list] = None) -> int:
             logger.info(f"Agent saved: {response.agent_path}")
             logger.info(f"Metrics: {response.final_metrics}")
             logger.info(f"Trials: {response.trial_count}")
-            print(f"\n✓ Success! Agent saved to: {response.agent_path}")
-            print(f"✓ Final F1 Score: {response.final_metrics.get('f1', 0):.3f}")  # type: ignore
+            logger.info(f"✓ Success! Agent saved to: {response.agent_path}")
+            logger.info(f"✓ Final F1 Score: {response.final_metrics.get('f1', 0):.3f}")  # type: ignore
             return 0
         else:
             logger.error(f"Optimization failed: {response.error_message}")
-            print(f"\n✗ Optimization failed: {response.error_message}")
             return 1
 
     except KeyboardInterrupt:
         logger.warning("Optimization interrupted by user")
-        print("\n\n⚠ Optimization interrupted by user")
         return 130
 
     except Exception as e:
         logger.error(f"Optimization error: {e}", exc_info=True)
-        print(f"\n✗ Error: {e}")
         return 1
 
 

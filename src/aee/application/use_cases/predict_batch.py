@@ -7,7 +7,7 @@ using a trained agent.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from aee.application.services import AgentManager
 from aee.domain.tasks import TaskConfig
@@ -21,18 +21,18 @@ class BatchPredictionRequest:
     """Request for batch prediction.
 
     Attributes:
-        task: Task definition.
+        task: Task definition (TaskConfig).
+        task_dict: Task dictionary from get_task() containing 'signature' key.
         agent_path: Path to trained agent.
         document_ids: List of document IDs to process.
         output_dir: Directory to save extractions.
-        batch_size: Optional batch size for processing.
     """
 
     task: TaskConfig
+    task_dict: Dict[str, Any]
     agent_path: Path
     document_ids: List[str]
     output_dir: Path
-    batch_size: Optional[int] = None
 
 
 @dataclass
@@ -116,8 +116,10 @@ class BatchPredictionUseCase:
                 f"Starting batch extraction for {len(request.document_ids)} documents"
             )
 
-            # Load agent
-            agent = self.agent_manager.load_agent(request.agent_path)
+            # Load agent as callable object (reconstruct from saved state)
+            agent = self.agent_manager.load_agent_as_object(
+                request.agent_path, request.task_dict
+            )
 
             # Load documents
             documents = self.document_repo.load_all()

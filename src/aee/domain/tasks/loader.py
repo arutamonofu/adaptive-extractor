@@ -6,7 +6,7 @@ enabling declarative task definitions without Python code changes.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 import yaml
 
@@ -14,7 +14,11 @@ from aee.domain.entities import Experiment
 
 from .config import FieldSpec, RowConverterConfig, TaskConfig
 from .dynamic_models import create_all_models, create_row_converter
+from .registry import get_task, register_config
 from .signature import create_signature
+
+if TYPE_CHECKING:
+    from aee.infrastructure.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +261,77 @@ def load_task_complete(
         "signature": signature,
         "row_converter": row_converter,
     }
+
+
+def load_task_with_instruction(
+    task_name: str,
+    settings: "Settings",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load task with initial instruction from YAML config using settings.
+
+    Loads task configuration from YAML, applies initial instruction file
+    from settings, registers the task, and returns all task components
+    along with instruction metadata.
+
+    Args:
+        task_name: Name of the task to load (used to find YAML config).
+        settings: Settings object containing task configuration including
+            initial_instruction_file path.
+
+    Returns:
+        Tuple of (task_dict, instruction_metadata) where:
+        - task_dict: Dictionary with keys config, experiment_model,
+          output_model, signature, row_converter
+        - instruction_metadata: Dictionary with keys instruction,
+          instruction_length, instruction_hash
+
+    Raises:
+        FileNotFoundError: If YAML config not found.
+        ValueError: If task configuration is invalid.
+
+    Example:
+        ```python
+        settings = Settings.load(config_path="config/systems/dev.yaml")
+        task, metadata = load_task_with_instruction("nanozymes", settings)
+        signature = task["signature"]
+        instruction_hash = metadata["instruction_hash"]
+        ```
+    """
+    # Find project root and build YAML path
+    project_root = _find_project_root(Path(__file__))
+    yaml_path = project_root / "config" / "tasks" / f"{task_name}.yaml"
+
+    if not yaml_path.exists():
+        raise FileNotFoundError(f"Task YAML config not found: {yaml_path}")
+
+    # Load task from YAML
+    task_config = load_task_from_yaml(yaml_path)
+
+    # Apply initial instruction file from settings
+    task_config.initial_instruction_file = settings.task.initial_instruction_file
+
+    # Register task in global registry
+    register_config(task_config)
+
+    # Get complete task components from registry
+    task = get_task(task_name)
+
+    # Get instruction metadata
+    instruction = task_config.get_instruction()
+    instruction_hash = task_config.get_instruction_hash()
+
+    instruction_metadata = {
+        "instruction": instruction,
+        "instruction_length": len(instruction),
+        "instruction_hash": instruction_hash,
+    }
+
+    logger.info(
+        f"Loaded task '{task_name}' from {yaml_path} "
+        f"(instruction: {len(instruction)} chars, hash: {instruction_hash})"
+    )
+
+    return task, instruction_metadata
 
 
 def save_task_to_yaml(

@@ -109,7 +109,12 @@ llm:
     non_ollama:
       max_tokens: 4096
 paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
 parsing:
   parser: "docling"
   overwrite: false
@@ -216,7 +221,12 @@ llm:
     non_ollama:
       max_tokens: 4096
 paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
 parsing:
   parser: "docling"
   overwrite: false
@@ -323,7 +333,12 @@ llm:
     non_ollama:
       max_tokens: 4096
 paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
 parsing:
   parser: "docling"
   overwrite: false
@@ -431,7 +446,12 @@ llm:
     non_ollama:
       max_tokens: 4096
 paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
 parsing:
   parser: "docling"
   overwrite: false
@@ -544,7 +564,12 @@ llm:
     non_ollama:
       max_tokens: 4096
 paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
 parsing:
   parser: "docling"
   overwrite: false
@@ -653,7 +678,12 @@ llm:
     non_ollama:
       max_tokens: 4096
 paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
 parsing:
   parser: "docling"
   overwrite: false

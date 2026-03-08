@@ -90,7 +90,25 @@ python scripts/optimize.py --no-mlflow
 - **Success:** Agent JSON in `data/agents/`
 - **Exit codes:** `0` (success), `1` (error), `130` (interrupted)
 
-> **Requirements:** Ground truth CSV and splits JSON must exist.
+### Requirements
+
+1. **Parsed documents** — Must exist in `paths.parsed_dir` from config
+2. **Ground truth CSV** — Must exist at `paths.ground_truth_dir/<task_name>.csv`
+3. **Data splits JSON** — Must exist at `paths.splits_file` with train/val splits
+4. **Task configuration** — Task YAML must exist in `config/tasks/<task_name>.yaml`
+5. **Initial instruction** — Must exist at `task.initial_instruction_file` from config
+
+### Troubleshooting
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Configuration file not found` | Config YAML doesn't exist | Check path or run from project root |
+| `Task signature not found` | Task config missing or invalid | Verify `config/tasks/<task_name>.yaml` exists |
+| `Parsed directory not found` | Parsed docs directory missing | Run `parse.py` first or update config |
+| `Pre-flight validation failed` | Data validation errors | Review logs for specific errors |
+| `Optimization failed` | MIPROv2 error | Check LLM config and data quality |
+
+> **See also:** `docs/configuration.md` for detailed troubleshooting guide.
 
 ---
 
@@ -114,17 +132,33 @@ python scripts/extract.py [OPTIONS]
 ### Examples
 
 ```bash
-# Extract with latest agent
-python scripts/extract.py --agent data/agents/nanozymes_latest.json
-
 # Extract with specific agent
 python scripts/extract.py --agent data/agents/nanozymes_v1_20260218.json
+
+# Extract with custom config
+python scripts/extract.py --config config/systems/dev.yaml --agent data/agents/nanozymes_latest.json
 ```
 
 ### Output
 
 - **Success:** JSON files in `data/extractions/`
 - **Exit codes:** `0` (success), `1` (error), `2` (partial), `130` (interrupted)
+
+### Requirements
+
+1. **Trained agent JSON** — Must exist at specified path
+   - Created by `optimize.py` or `generate_manual_agent.py`
+   - Contains DSPy agent state and metadata
+2. **Parsed documents** — Must exist in `data/parsed/`
+3. **Task configuration** — Must match the task the agent was trained on
+
+### Troubleshooting
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Agent not found` | Agent file doesn't exist | Run `optimize.py` first or check path |
+| `TypeError: 'dict' object is not callable` | (Historical) Manual state restoration bug | Fixed: now uses DSPy's `load_state()` |
+| `No LLM configured` | DSPy LM not set up | Check `dspy.settings.configure()` is called after `create_lm()` |
 
 ---
 
@@ -142,16 +176,17 @@ python scripts/generate_manual_agent.py [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `--config` | `Path` | - | Path to configuration file (**required**) |
 | `--output` | `Path` | `None` | Override output path for agent JSON |
 
 ### Examples
 
 ```bash
 # Generate manual agent with default output path
-python scripts/generate_manual_agent.py
+python scripts/generate_manual_agent.py --config config/default.yaml
 
 # Generate manual agent with custom output path
-python scripts/generate_manual_agent.py --output data/agents/manual_custom.json
+python scripts/generate_manual_agent.py --config config/default.yaml --output data/agents/manual_custom.json
 ```
 
 ### Output
@@ -159,8 +194,31 @@ python scripts/generate_manual_agent.py --output data/agents/manual_custom.json
 - **Success:** Agent JSON in `data/agents/`
   - Default path: `data/agents/manual_{task_name}.json`
   - Override with `--output` flag
+- **Exit codes:** `0` (success), `1` (error), `130` (interrupted)
 
-> **Note:** If `train_manual` split is missing or empty, the script will exit with a warning and no agent will be saved.
+### Requirements
+
+1. **Parsed documents** — Must exist in `paths.parsed_dir` from config
+2. **Ground truth CSV** — Must exist at `paths.ground_truth_dir/<task_name>.csv`
+3. **Data splits JSON** — Must exist at `paths.splits_file` with `train_manual` split
+4. **Task configuration** — Task YAML must exist in `config/tasks/<task_name>.yaml`
+5. **Initial instruction** — Must exist at `task.initial_instruction_file` from config
+
+### Troubleshooting
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Configuration file not found` | Config YAML doesn't exist | Check path or run from project root |
+| `Configuration error` | Invalid YAML content | Validate YAML syntax |
+| `Task signature not found` | Task config missing signature | Verify task YAML has valid signature definition |
+| `Parsed directory not found` | Parsed docs directory missing | Run `parse.py` first or update config |
+| `Splits file not found` | Data splits JSON missing | Create splits with `train_manual` section |
+| `Invalid JSON in splits file` | Malformed JSON | Fix JSON syntax in splits file |
+| `No IDs found in 'train_manual' split` | Empty train_manual array | Add document IDs to `train_manual` in splits JSON |
+| `Failed to load ground truth` | GT CSV missing or invalid | Ensure CSV exists and matches task schema |
+| `No valid demos collected` | All documents missing or mismatched | Check parsed files and ground truth keys match |
+
+> **Note:** If some parsed files are missing, the script will skip them with warnings and continue. Agent is saved if at least one valid demo is collected.
 
 ---
 

@@ -22,12 +22,6 @@ dependencies = [
     "numpy>=1.24.0,<3.0.0",
     "scipy>=1.10.0,<2.0.0",
 
-    # Jupyter
-    "jupyterlab>=4.0.0,<5.0.0",
-    "notebook>=7.0.0,<8.0.0",
-    "ipykernel>=6.25.0,<7.0.0",
-    "ipywidgets>=8.0.0,<9.0.0",
-    
     # HTTP client
     "requests>=2.28.0,<3.0.0",
     
@@ -57,3 +51,36 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_no_return = false
+mypy_path = "src"
+
+# Ignore missing imports for third-party libraries without stubs
+[[tool.mypy.overrides]]
+module = [
+    "dspy.*",
+    "pandas.*",
+    "scipy.*",
+    "sklearn.*",
+    "umap.*",
+    "matplotlib.*",
+    "seaborn.*",
+    "docling.*",
+    "marker.*",
+    "transformers.*",
+    "mlflow.*",
+    "streamlit.*",
+    "yaml",
+    "dotenv",
+]
+ignore_missing_imports = true

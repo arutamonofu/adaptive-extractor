@@ -22,10 +22,12 @@ TEST_DATA_DIR = Path(__file__).parent / "data"
 # Task Configuration Fixtures
 # ============================================================================
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def nanozyme_task():
     """Get nanozyme task components.
-
+    
+    Uses module scope to avoid reloading task for every test.
+    
     Returns:
         Dictionary with task components (config, experiment_model, output_model, signature, row_converter).
     """
@@ -304,21 +306,38 @@ def mock_llm_response():
 # Utility Fixtures
 # ============================================================================
 
+@pytest.fixture(autouse=True)
+def reset_task_registry():
+    """Automatically reset task registry after each test.
+
+    This fixture ensures clean state between tests by clearing
+    the global task registry before and after each test.
+    """
+    from aee.domain.tasks import get_global_registry
+
+    registry = get_global_registry()
+    # Clear before test
+    registry.clear()
+    yield
+    # Clear after test
+    registry.clear()
+
+
 @pytest.fixture
 def cleanup_temp_files():
     """Fixture to clean up temporary files after tests.
-    
+
     Yields:
         Cleanup function.
     """
     temp_files = []
-    
+
     def register_cleanup(path: Path):
         temp_files.append(path)
         return path
-    
+
     yield register_cleanup
-    
+
     # Cleanup
     for path in temp_files:
         if path.exists():
@@ -392,3 +411,184 @@ def row_converter(nanozyme_task):
         Row converter function.
     """
     return nanozyme_task["row_converter"]
+
+
+# ============================================================================
+# Fixtures for generate_manual_agent.py tests
+# ============================================================================
+
+@pytest.fixture
+def mock_settings_for_manual_agent():
+    """Create mock Settings object for manual agent generation testing.
+
+    Returns:
+        MagicMock with settings for manual agent generation.
+    """
+    mock = MagicMock()
+    mock.task.name = "nanozymes"
+    mock.task.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+    mock.paths.parsed_dir = Path("data/parsed")
+    mock.paths.agents_dir = Path("data/agents")
+    mock.paths.splits_file = Path("data/splits.json")
+    mock.paths.ground_truth_dir = Path("data/ground_truth")
+    return mock
+
+
+@pytest.fixture
+def splits_with_train_manual(tmp_path: Path) -> Path:
+    """Create a sample splits JSON file with train_manual split.
+
+    Args:
+        tmp_path: Pytest temporary directory.
+
+    Returns:
+        Path to created JSON file.
+    """
+    splits_path = tmp_path / "splits.json"
+    splits_data = {
+        "train": ["paper1", "paper2", "paper3"],
+        "train_manual": ["paper1", "paper2"],
+        "val": ["paper4"],
+        "test": ["paper5"],
+    }
+    splits_path.write_text(json.dumps(splits_data), encoding="utf-8")
+    return splits_path
+
+
+@pytest.fixture
+def splits_without_train_manual(tmp_path: Path) -> Path:
+    """Create a sample splits JSON file without train_manual split.
+
+    Args:
+        tmp_path: Pytest temporary directory.
+
+    Returns:
+        Path to created JSON file.
+    """
+    splits_path = tmp_path / "splits.json"
+    splits_data = {
+        "train": ["paper1", "paper2", "paper3"],
+        "val": ["paper4"],
+        "test": ["paper5"],
+    }
+    splits_path.write_text(json.dumps(splits_data), encoding="utf-8")
+    return splits_path
+
+
+@pytest.fixture
+def gt_csv_for_manual(tmp_path: Path) -> Path:
+    """Create a sample ground truth CSV file for manual agent testing.
+
+    Args:
+        tmp_path: Pytest temporary directory.
+
+    Returns:
+        Path to created CSV file.
+    """
+    csv_path = tmp_path / "gt.csv"
+    csv_path.write_text(
+        "filename,formula,activity,length,km_value,vmax_value,ph,temperature,surface\n"
+        "paper1,Fe3O4,peroxidase,10,0.05,100,7.0,25.0,naked\n"
+        "paper2,CuO,oxidase,20,0.08,150,7.5,30.0,PVP\n",
+        encoding="utf-8",
+    )
+    return csv_path
+
+
+@pytest.fixture
+def parsed_docs_for_manual(tmp_path: Path) -> Path:
+    """Create sample parsed markdown documents for manual agent testing.
+
+    Args:
+        tmp_path: Pytest temporary directory.
+
+    Returns:
+        Path to parsed directory.
+    """
+    parsed_dir = tmp_path / "parsed" / "train" / "manual"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create sample markdown files
+    (parsed_dir / "paper1.md").write_text(
+        "# Sample Document 1\n\nThis is a test document with Fe3O4 nanozymes.",
+        encoding="utf-8",
+    )
+    (parsed_dir / "paper2.md").write_text(
+        "# Sample Document 2\n\nThis is a test document with CuO nanozymes.",
+        encoding="utf-8",
+    )
+
+    return parsed_dir.parent.parent  # Return parsed_dir root
+
+
+# ============================================================================
+# Configuration File Fixtures
+# ============================================================================
+
+CONFIG_DATA_DIR = TEST_DATA_DIR / "configs"
+
+
+@pytest.fixture
+def minimal_config_path() -> Path:
+    """Get path to minimal valid configuration file.
+    
+    Returns:
+        Path to minimal_config.yaml
+    """
+    return CONFIG_DATA_DIR / "minimal_config.yaml"
+
+
+@pytest.fixture
+def llm_config_template_path() -> Path:
+    """Get path to LLM configuration template file.
+    
+    Returns:
+        Path to llm_config_template.yaml
+    """
+    return CONFIG_DATA_DIR / "llm_config_template.yaml"
+
+
+@pytest.fixture
+def minimal_config_with_custom_paths(tmp_path: Path, minimal_config_path: Path) -> Path:
+    """Create a copy of minimal config with custom paths for isolated testing.
+    
+    Args:
+        tmp_path: Pytest temporary directory.
+        minimal_config_path: Path to minimal config template.
+    
+    Returns:
+        Path to copied config file.
+    """
+    import shutil
+    config_copy = tmp_path / "config.yaml"
+    shutil.copy(minimal_config_path, config_copy)
+    return config_copy
+
+
+@pytest.fixture
+def config_with_instruction_file(tmp_path: Path, llm_config_template_path: Path) -> Path:
+    """Create config with resolved instruction file path.
+    
+    Args:
+        tmp_path: Pytest temporary directory.
+        llm_config_template_path: Path to LLM config template.
+    
+    Returns:
+        Path to config file with resolved instruction path.
+    """
+    import yaml
+    
+    # Create instruction file
+    instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"
+    instruction_file.parent.mkdir(parents=True, exist_ok=True)
+    instruction_file.write_text("Test instruction")
+    
+    # Load template
+    config_content = llm_config_template_path.read_text(encoding="utf-8")
+    config_content = config_content.replace("${INSTRUCTION_FILE_PATH}", str(instruction_file))
+    
+    # Save resolved config
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(config_content, encoding="utf-8")
+    
+    return config_file

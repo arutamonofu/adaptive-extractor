@@ -20,6 +20,89 @@ AutoEvoExtractor automatically extracts structured experimental data from scient
 
 ---
 
+## Scripts
+
+The project provides three main scripts for the extraction pipeline:
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/extract.py` | Run batch extraction on documents using a trained agent |
+| `scripts/optimize.py` | Optimize extraction agent using MIPROv2 (DSPy) |
+| `scripts/generate_manual_agent.py` | Create manual agent from train_manual split examples |
+
+### Common CLI Patterns
+
+All scripts share common CLI conventions:
+
+- `--config PATH` — Path to YAML configuration file (required)
+- `--output PATH` — Override default output path (optional, script-specific)
+- `--run-name NAME` — MLflow run name prefix (optimize.py only)
+- `--no-mlflow` — Disable MLflow tracking (optimize.py only)
+
+### Usage Examples
+
+**Extract data from documents:**
+```bash
+python scripts/extract.py --config config/systems/dev.yaml --agent data/agents/nanozymes_v1.json
+```
+
+**Optimize agent with MIPROv2:**
+```bash
+python scripts/optimize.py --config config/systems/dev.yaml --run-name A1_high
+```
+
+**Generate manual agent:**
+```bash
+python scripts/generate_manual_agent.py --config config/systems/dev.yaml
+```
+
+---
+
+## Установка
+
+### Для разработки (рекомендуется)
+
+Создайте conda-окружение со всеми зависимостями:
+
+```bash
+conda env create -f environment.yml
+conda activate aee
+```
+
+**Что устанавливается:**
+- Все зависимости через conda (стабильные бинарные пакеты)
+- Jupyter-инструменты для интерактивной разработки
+- Минимальный набор pip-пакетов (только что недоступно в conda)
+
+### Для продакшн-развёртывания
+
+Установите как Python-пакет:
+
+```bash
+pip install .
+```
+
+**Что устанавливается:**
+- Только runtime-зависимости для работы пакета
+- Без инструментов разработки (Jupyter и др.)
+
+---
+
+## Зависимости
+
+Проект использует два файла зависимостей:
+
+| Файл | Назначение | Когда использовать |
+|------|------------|-------------------|
+| `environment.yml` | Полная среда разработки | Разработка, эксперименты, Jupyter |
+| `pyproject.toml` | Runtime-зависимости пакета | Развёртывание, `pip install .` |
+
+**Почему два файла:**
+- `environment.yml` обеспечивает воспроизводимость научной среды (conda + pip)
+- `pyproject.toml` описывает минимальные требования для работы пакета
+
+---
+
 ## Requirements
 
 - **Python:** 3.11+

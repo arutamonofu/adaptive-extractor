@@ -24,6 +24,7 @@ from aee.shared.exceptions import (
 )
 
 
+@pytest.mark.unit
 class TestAgentRepository:
     """Tests for AgentRepository."""
 
@@ -118,22 +119,25 @@ class TestAgentRepository:
     def test_get_latest_agent(self, tmp_agents_dir: Path, sample_agent_dict: dict):
         """Test getting the latest agent for a task."""
         repo = AgentRepository(tmp_agents_dir)
-        metadata = AgentMetadata(
+
+        # Use explicit timestamps to avoid time.sleep()
+        metadata1 = AgentMetadata(
             task_name="nanozymes",
-            created_at=datetime.now().isoformat(),
+            created_at="2026-01-01T10:00:00",
             model_version="test",
             metrics={},
             config_snapshot={},
         )
-        
-        # Save two agents
-        _ = repo.save(sample_agent_dict, "nanozymes", metadata)
+        _ = repo.save(sample_agent_dict, "nanozymes", metadata1)
 
-        # Modify metadata for second agent
-        import time
-        time.sleep(0.01)  # Ensure different mtime
-        metadata.created_at = datetime.now().isoformat()
-        path2 = repo.save(sample_agent_dict, "nanozymes", metadata)
+        metadata2 = AgentMetadata(
+            task_name="nanozymes",
+            created_at="2026-01-01T11:00:00",  # Later timestamp
+            model_version="test",
+            metrics={},
+            config_snapshot={},
+        )
+        path2 = repo.save(sample_agent_dict, "nanozymes", metadata2)
 
         # Get latest
         latest = repo.get_latest("nanozymes")
@@ -187,6 +191,7 @@ class TestAgentRepository:
         assert "created_at" in info
 
 
+@pytest.mark.unit
 class TestGroundTruthRepository:
     """Tests for GroundTruthRepository."""
 
@@ -280,6 +285,7 @@ class TestGroundTruthRepository:
         assert len(coverage["missing_documents"]) == 2
 
 
+@pytest.mark.unit
 class TestDataSplitRepository:
     """Tests for DataSplitRepository."""
 
@@ -395,6 +401,7 @@ class TestDataSplitRepository:
         assert splits["test"] == splits2["test"]
 
 
+@pytest.mark.unit
 class TestAgentMetadata:
     """Tests for AgentMetadata dataclass."""
 

@@ -116,10 +116,54 @@ Splits JSON ──────┘
 ### Extraction Flow
 
 ```
-Agent JSON ─┬─→ BatchPrediction ─→ Extractions JSON
-            │
-Parsed MD ──┘
+Agent JSON ─┬─→ AgentManager.load_agent_as_object() ─→ UniversalExtractor
+            │                                           │
+Parsed MD ──┘                                           ▼
+                                              BatchPredictionUseCase
+                                                    │
+                                                    ▼
+                                            Extractions JSON
 ```
+
+### Agent Reconstruction
+
+**Two Agent Creation Patterns:**
+
+1. **Load Trained Agent (for inference)** — Use `AgentManager.load_agent_as_object()`
+   - Loads agent state from JSON file
+   - Reconstructs `UniversalExtractor` with task signature
+   - Restores saved state (demos, weights)
+   - Used in: `extract.py` for batch extraction
+
+2. **Create Fresh Agent with Demos (for manual generation)** — Use `AgentManager.create_agent_with_demos()`
+   - Creates new `UniversalExtractor` instance
+   - Sets up few-shot demonstrations from examples
+   - Used in: `generate_manual_agent.py` for manual agent creation
+
+**Example - Load Trained Agent:**
+```python
+task = get_task("nanozymes")
+agent = manager.load_agent_as_object(agent_path, task)
+result = agent(document_text="...")  # Callable
+```
+
+**Example - Create Agent with Demos:**
+```python
+from aee.application.services import AgentManager
+
+agent = manager.create_agent_with_demos(
+    signature_class=task["signature"],
+    demos=[example1, example2, example3],
+)
+agent.save("path/to/manual_agent.json")
+```
+
+**Agent Reconstruction Flow:**
+
+1. `AgentManager.load_agent_as_object()` loads agent state from JSON
+2. Reconstructs `UniversalExtractor` with task signature
+3. Calls `agent.load_state()` to restore demos and weights using DSPy's built-in mechanism
+4. Agent is now callable: `agent(document_text="...")`
 
 ---
 
@@ -230,6 +274,52 @@ model = task["experiment_model"]  # ← Generated here
 | `tests/unit/` | Component tests |
 | `tests/integration/` | Interaction tests |
 | `tests/e2e/` | Workflow tests |
+
+---
+
+## Troubleshooting
+
+### Agent Not Callable Error
+
+**Symptom:** `TypeError: 'dict' object is not callable` during extraction.
+
+**Cause:** (Historical) Manual state restoration in `load_agent_as_object()` was replacing `dspy.Predict` objects with plain dicts.
+
+**Resolution:** Fixed by using DSPy's built-in `agent.load_state()` method for proper state restoration.
+
+**Example:**
+```python
+task = get_task("nanozymes")
+agent = manager.load_agent_as_object(agent_path, task)
+result = agent(document_text="...")  # Works correctly
+```
+
+### LLM Not Configured Error
+
+**Symptom:** DSPy calls fail with "No LLM configured" or similar.
+
+**Cause:** `dspy.settings.configure(lm=...)` not called after creating LLM.
+
+**Solution:**
+
+Use `setup_student()` or `setup_teacher()` which handle DSPy configuration automatically:
+
+```python
+from aee.infrastructure.llm import setup_student
+
+# This configures DSPy internally
+student_lm = setup_student(settings, enable_cache=True)
+```
+
+**Note:** If using `create_lm()` directly (not recommended), you must configure DSPy manually:
+
+```python
+from aee.infrastructure.llm import create_lm
+import dspy
+
+student_lm = create_lm(config.llm.student, ...)
+dspy.settings.configure(lm=student_lm)  # Required when using create_lm()
+```
 
 ---
 

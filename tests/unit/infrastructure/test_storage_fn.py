@@ -34,6 +34,7 @@ from aee.infrastructure.storage.splits_fn import (
 from aee.shared.exceptions import AgentNotFoundError, DataNotFoundError
 
 
+@pytest.mark.unit
 class TestSaveLoadAgent:
     """Tests for save_agent and load_agent functions."""
 
@@ -176,6 +177,7 @@ class TestSaveLoadAgent:
         assert "path" in info
 
 
+@pytest.mark.unit
 class TestLoadGroundTruth:
     """Tests for load_ground_truth function."""
 
@@ -225,6 +227,7 @@ class TestLoadGroundTruth:
         assert len(coverage["missing_documents"]) == 1
 
 
+@pytest.mark.unit
 class TestLoadSplits:
     """Tests for load_split and load_all_splits functions."""
 
@@ -320,6 +323,7 @@ class TestLoadSplits:
         assert "doc4" in validation["test"]["missing"]
 
 
+@pytest.mark.unit
 class TestBackwardCompatibility:
     """Tests for backward compatibility with class-based API."""
 

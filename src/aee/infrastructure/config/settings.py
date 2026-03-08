@@ -54,15 +54,15 @@ class ProjectConfig(BaseModel):
 class PathsConfig(BaseModel):
     """File system paths configuration."""
     pdf_dir: Path = Field(
-        default_factory=lambda: Path("data/pdf"),
+        ...,
         description="Directory containing PDF files to process"
     )
     parsed_dir: Path = Field(
-        default_factory=lambda: Path("data/parsed"),
+        ...,
         description="Directory for parsed document outputs"
     )
     ground_truth_dir: Path = Field(
-        default_factory=lambda: Path("data/ground_truth"),
+        ...,
         description="Directory containing ground truth data"
     )
     splits_file: Path = Field(
@@ -70,11 +70,11 @@ class PathsConfig(BaseModel):
         description="Path to JSON file with data splits (train/val/test)"
     )
     agents_dir: Path = Field(
-        default_factory=lambda: Path("data/agents"),
+        ...,
         description="Directory for storing trained agents"
     )
     extractions_dir: Path = Field(
-        default_factory=lambda: Path("data/extractions"),
+        ...,
         description="Directory for extraction outputs"
     )
 
@@ -138,23 +138,51 @@ class OllamaConfig(BaseModel):
 class OllamaStudentConfig(OllamaConfig):
     """Ollama configuration for student model with dedicated env var."""
     # URL is overridden by load() method from OLLAMA_STUDENT_BASE_URL env var
-    # Provide defaults for required parent fields
-    num_ctx: int = 2048
-    num_predict: int = 512
-    repeat_penalty: float = 1.1
-    repeat_last_n: int = 64
-    stream: bool = False
+    num_ctx: int = Field(
+        ...,
+        description="Context window size for student model"
+    )
+    num_predict: int = Field(
+        ...,
+        description="Maximum tokens to predict for student model"
+    )
+    repeat_penalty: float = Field(
+        ...,
+        description="Repeat penalty for student model"
+    )
+    repeat_last_n: int = Field(
+        ...,
+        description="Number of tokens for repeat penalty for student model"
+    )
+    stream: bool = Field(
+        ...,
+        description="Enable streaming for student model"
+    )
 
 
 class OllamaTeacherConfig(OllamaConfig):
     """Ollama configuration for teacher model with dedicated env var."""
     # URL is overridden by load() method from OLLAMA_TEACHER_BASE_URL env var
-    # Provide defaults for required parent fields
-    num_ctx: int = 2048
-    num_predict: int = 512
-    repeat_penalty: float = 1.1
-    repeat_last_n: int = 64
-    stream: bool = False
+    num_ctx: int = Field(
+        ...,
+        description="Context window size for teacher model"
+    )
+    num_predict: int = Field(
+        ...,
+        description="Maximum tokens to predict for teacher model"
+    )
+    repeat_penalty: float = Field(
+        ...,
+        description="Repeat penalty for teacher model"
+    )
+    repeat_last_n: int = Field(
+        ...,
+        description="Number of tokens for repeat penalty for teacher model"
+    )
+    stream: bool = Field(
+        ...,
+        description="Enable streaming for teacher model"
+    )
 
 
 class NonOllamaConfig(BaseModel):
@@ -256,57 +284,35 @@ class LLMInstanceConfig(BaseModel):
 class LLMConfig(BaseModel):
     """Configuration for LLM instances."""
     student: LLMInstanceConfig = Field(
-        default_factory=lambda: LLMInstanceConfig(
-            use_ollama=True,
-            model="llama3",
-            timeout=120,
-            max_retries=3,
-            temperature=0.7,
-            rate_limit_delay=0.0,
-            top_p=0.9,
-            repeat_penalty=1.1,
-            repeat_last_n=64,
-            enable_cache=True,
-            ollama=OllamaStudentConfig()
-        )
+        ...,
+        description="Student LLM configuration"
     )
     teacher: LLMInstanceConfig = Field(
-        default_factory=lambda: LLMInstanceConfig(
-            use_ollama=True,
-            model="llama3",
-            timeout=120,
-            max_retries=3,
-            temperature=0.7,
-            rate_limit_delay=0.0,
-            top_p=0.9,
-            repeat_penalty=1.1,
-            repeat_last_n=64,
-            enable_cache=True,
-            ollama=OllamaTeacherConfig()
-        )
+        ...,
+        description="Teacher LLM configuration"
     )
 
 
 class DoclingConfig(BaseModel):
     """Docling parser configuration."""
     device: Literal["cpu", "cuda", "mps"] = Field(
-        default="cpu",
+        ...,
         description="Device to run Docling on: 'cpu', 'cuda', or 'mps'"
     )
     num_threads: int = Field(
-        default=4,
+        ...,
         description="Number of threads for Docling processing"
     )
     do_ocr: bool = Field(
-        default=True,
+        ...,
         description="Enable OCR processing"
     )
     do_table_structure: bool = Field(
-        default=True,
+        ...,
         description="Enable table structure detection"
     )
     ocr_backend: Literal["onnxruntime", "torch", "openvino", "paddlepaddle"] = Field(
-        default="onnxruntime",
+        ...,
         description="OCR backend to use"
     )
 
@@ -314,7 +320,7 @@ class DoclingConfig(BaseModel):
 class MarkerConfig(BaseModel):
     """Marker parser configuration."""
     device: Literal["cpu", "cuda"] = Field(
-        default="cpu",
+        ...,
         description="Device to run Marker on: 'cpu' or 'cuda'"
     )
 
@@ -326,12 +332,18 @@ class IngestionConfig(BaseModel):
         description="Document parser to use: 'docling' or 'marker'"
     )
     overwrite: bool = Field(
-        default=False,
+        ...,
         description="Overwrite existing parsed files"
     )
 
-    docling: DoclingConfig = Field(default_factory=DoclingConfig)
-    marker: MarkerConfig = Field(default_factory=MarkerConfig)
+    docling: DoclingConfig = Field(
+        ...,
+        description="Docling-specific configuration"
+    )
+    marker: MarkerConfig = Field(
+        ...,
+        description="Marker-specific configuration"
+    )
 
 
 class OptimizationConfig(BaseModel):
@@ -679,8 +691,19 @@ class Settings(BaseSettings):
         anthropic_key = os.getenv("ANTHROPIC_API_KEY")
         gemini_key = os.getenv("GEMINI_API_KEY")
 
+        # DEBUG: Log which API keys are found
+        logger.debug(f"API keys from env - OpenAI: {'SET' if openai_key else 'NOT SET'}, "
+                     f"Anthropic: {'SET' if anthropic_key else 'NOT SET'}, "
+                     f"Gemini: {'SET' if gemini_key else 'NOT SET'}")
+
         # Use the first available API key (priority: OpenAI > Anthropic > Gemini)
         api_key = openai_key or anthropic_key or gemini_key
+
+        # DEBUG: Log which API key will be used
+        if api_key:
+            key_source = "OpenAI" if api_key == openai_key else ("Anthropic" if api_key == anthropic_key else "Gemini")
+            key_preview = f"{api_key[:8]}..." if api_key else "NONE"
+            logger.info(f"Using {key_source} API key: {key_preview}")
 
         if api_key:
             # Apply to student if use_ollama is false
@@ -769,6 +792,10 @@ class Settings(BaseSettings):
         def is_path_like(value: str) -> bool:
             """Check if a string looks like a file path."""
             if not value:
+                return False
+            # Exclude known model name patterns (provider/model-name format)
+            # to prevent 'gemini/gemini-2.0-flash' from being treated as a path
+            if value.startswith(('gemini/', 'openai/', 'anthropic/', 'huggingface/', 'ollama/')):
                 return False
             # Must contain '/' to be considered a path
             # This avoids converting simple values like 'INFO', 'cpu', 'docling'

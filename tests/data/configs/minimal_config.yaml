@@ -1,0 +1,102 @@
+# Minimal valid configuration for testing
+# Use this template for tests that need a valid config without LLM calls
+
+project:
+  log_level: INFO
+
+paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
+  splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
+
+task:
+  name: "nanozymes"
+  initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"
+  evaluation:
+    compare_fields:
+      - formula
+      - activity
+    float_tolerance: 0.1
+
+llm:
+  student:
+    use_ollama: true
+    model: "test-model"
+    timeout: 60
+    max_retries: 1
+    temperature: 0.0
+    rate_limit_delay: 0.0
+    top_p: 0.1
+    repeat_penalty: 1.0
+    repeat_last_n: 64
+    enable_cache: false
+    ollama:
+      num_ctx: 1024
+      num_predict: 256
+      repeat_penalty: 1.0
+      repeat_last_n: 64
+      stream: false
+    non_ollama:
+      max_tokens: 256
+  teacher:
+    use_ollama: true
+    model: "test-model"
+    timeout: 60
+    max_retries: 1
+    temperature: 0.5
+    rate_limit_delay: 0.0
+    top_p: 0.9
+    repeat_penalty: 1.0
+    repeat_last_n: 64
+    enable_cache: false
+    ollama:
+      num_ctx: 1024
+      num_predict: 256
+      repeat_penalty: 1.0
+      repeat_last_n: 64
+      stream: false
+    non_ollama:
+      max_tokens: 256
+
+parsing:
+  parser: "docling"
+  overwrite: false
+  docling:
+    device: "cpu"
+    num_threads: 2
+    do_ocr: false
+    do_table_structure: false
+    ocr_backend: "onnxruntime"
+  marker:
+    device: "cpu"
+
+optimization:
+  num_trials: 1
+  train_split: 5
+  total_load: 10
+  random_seed: 42
+  num_candidates: 2
+  max_bootstrapped_demos: 1
+  max_labeled_demos: 1
+  minibatch: false
+  minibatch_size: 1
+  view_data_batch_size: 1
+  metric_threshold: 0.5
+  init_temperature: 0.5
+  verbose: false
+  use_cache: false
+
+extraction:
+  enable_cache: false
+
+cache:
+  disk_size_limit_bytes: 1000000
+  memory_max_entries: 100
+
+circuit_breaker:
+  failure_threshold: 3
+  reset_timeout: 30.0
+  half_open_max_calls: 1

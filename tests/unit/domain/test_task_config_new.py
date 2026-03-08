@@ -12,6 +12,7 @@ import pytest
 from aee.domain.tasks.config import FieldSpec, RowConverterConfig, TaskConfig
 
 
+@pytest.mark.unit
 class TestFieldSpec:
     """Tests for FieldSpec dataclass."""
 
@@ -153,6 +154,7 @@ class TestFieldSpec:
         assert hasattr(field, 'ge') or field.metadata
 
 
+@pytest.mark.unit
 class TestTaskConfig:
     """Tests for TaskConfig dataclass."""
 
@@ -390,6 +392,73 @@ class TestTaskConfig:
         errors = config.validate()
         assert any("not found" in e for e in errors)
 
+    def test_validate_instruction_file_is_directory(self, sample_fields, tmp_path):
+        """Test validation fails when instruction file path is a directory."""
+        # Create a directory instead of file
+        instruction_dir = tmp_path / "instruction_dir"
+        instruction_dir.mkdir()
+
+        config = TaskConfig(
+            name="test",
+            experiment_fields=sample_fields,
+            compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_dir),
+        )
+
+        # Validation should raise IsADirectoryError when trying to read directory as file
+        with pytest.raises(IsADirectoryError):
+            config.validate()
+
+    def test_validate_instruction_file_empty(self, sample_fields, tmp_path):
+        """Test validation fails with empty instruction file."""
+        # Create empty file
+        instruction_file = tmp_path / "empty_instruction.txt"
+        instruction_file.write_text("")
+
+        config = TaskConfig(
+            name="test",
+            experiment_fields=sample_fields,
+            compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
+        )
+
+        errors = config.validate()
+        # Empty instruction file should fail validation
+        assert any("empty" in e.lower() for e in errors)
+
+    def test_validate_instruction_file_with_whitespace(self, sample_fields, tmp_path):
+        """Test validation fails with whitespace-only instruction file."""
+        # Create file with only whitespace
+        instruction_file = tmp_path / "whitespace_instruction.txt"
+        instruction_file.write_text("   \n\t\n   ")
+
+        config = TaskConfig(
+            name="test",
+            experiment_fields=sample_fields,
+            compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file=str(instruction_file),
+        )
+
+        errors = config.validate()
+        # Whitespace-only instruction should fail validation
+        assert any("empty" in e.lower() for e in errors)
+
+    def test_validate_or_raise_instruction_not_found(self, sample_fields):
+        """Test validate_or_raise raises when instruction file not found."""
+        config = TaskConfig(
+            name="test",
+            experiment_fields=sample_fields,
+            compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+            initial_instruction_file="/nonexistent/path.txt",
+        )
+
+        with pytest.raises(ValueError, match="validation failed"):
+            config.validate_or_raise()
+
     def test_validate_or_raise_success(self, sample_fields, tmp_path):
         """Test validate_or_raise with valid config."""
         # Create temporary instruction file
@@ -407,27 +476,24 @@ class TestTaskConfig:
         # Should not raise
         config.validate_or_raise()
 
-    def test_validate_or_raise_raises(self, sample_fields, tmp_path):
-        """Test validate_or_raise with invalid config."""
+    def test_validate_or_raise_invalid_compare_fields(self, sample_fields, tmp_path):
+        """Test validate_or_raise raises when compare_fields are invalid."""
         # Create temporary instruction file
         instruction_file = tmp_path / "test_instruction.txt"
         instruction_file.write_text("Test instruction")
 
-        config = TaskConfig(
-            name="test",
-            experiment_fields=sample_fields,
-            compare_fields=["formula", "activity"],
-            float_tolerance=0.05,
-            initial_instruction_file=str(instruction_file),
-        )
-
-        # Force validation error by setting invalid compare_fields
-        config.compare_fields = ["nonexistent_field"]
-
-        with pytest.raises(ValueError, match="validation failed"):
-            config.validate_or_raise()
+        # Create config with invalid compare_fields - will raise during __post_init__
+        with pytest.raises(ValueError, match="not found in experiment_fields"):
+            TaskConfig(
+                name="test",
+                experiment_fields=sample_fields,
+                compare_fields=["nonexistent_field"],
+                float_tolerance=0.05,
+                initial_instruction_file=str(instruction_file),
+            )
 
 
+@pytest.mark.unit
 class TestRowConverterConfig:
     """Tests for RowConverterConfig."""
 

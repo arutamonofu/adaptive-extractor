@@ -265,11 +265,18 @@ def get_parser(parser_name: str, config: Any = None) -> BaseParser:
     Raises:
         ValueError: If parser_name is not recognized.
     """
+    from aee.infrastructure.config.settings import DoclingConfig, MarkerConfig
+
     parser_name = parser_name.lower()
 
     if parser_name == "docling":
-        return DoclingParser(config)
+        docling_config = config if isinstance(config, DoclingConfig) else None
+        return DoclingParser(docling_config)
     elif parser_name == "marker":
+        if config is None or not isinstance(config, MarkerConfig):
+            raise ValueError(
+                f"MarkerParser requires MarkerConfig, got {type(config).__name__}"
+            )
         return MarkerParser(config)
     else:
         raise ValueError(

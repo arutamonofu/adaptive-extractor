@@ -465,7 +465,11 @@ def setup_student(
     enable_circuit_breaker: bool = True,
     enable_cache: Optional[bool] = None,
 ) -> dspy.LM:
-    """Set up the student language model.
+    """Set up the student language model and configure DSPy globally.
+
+    This function creates the student LM and configures DSPy to use it
+    via dspy.settings.configure(lm=lm). Call this function once at
+    application startup to set up the global DSPy configuration.
 
     Args:
         config: Configuration for the LLM instance. Required.
@@ -498,6 +502,9 @@ def setup_teacher(
     enable_cache: Optional[bool] = None,
 ) -> dspy.LM:
     """Set up the teacher language model.
+
+    Note: Unlike setup_student(), this function does NOT configure DSPy
+    globally. The teacher LM is used explicitly in optimization workflows.
 
     Args:
         config: Configuration for the LLM instance. Required.

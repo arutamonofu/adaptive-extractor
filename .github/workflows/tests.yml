@@ -6,72 +6,128 @@ on:
   pull_request:
     branches: [main, develop]
 
+env:
+  PYTHON_VERSION_DEFAULT: "3.11"
+  PYTEST_ADDOPTS: "--color=yes"
+
 jobs:
   test:
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
 
       - name: Cache pip dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
+            ${{ runner.os }}-py${{ matrix.python-version }}-pip-
             ${{ runner.os }}-pip-
+
+      - name: Cache pytest cache
+        uses: actions/cache@v4
+        with:
+          path: .pytest_cache
+          key: ${{ runner.os }}-py${{ matrix.python-version }}-pytest-${{ hashFiles('tests/**') }}
+          restore-keys: |
+            ${{ runner.os }}-pytest-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
-          pip install pytest pytest-cov
+          pip install -e ".[dev]"
+          pip install pytest pytest-cov pytest-xdist
 
-      - name: Run unit tests
+      - name: Run unit tests (parallel)
         run: |
-          pytest tests/unit -v --cov=src/aee --cov-report=xml --cov-report=term-missing
+          pytest tests/unit -v -n auto --cov=src/aee --cov-report=xml --cov-report=term-missing -m unit
 
-      - name: Run integration tests
+      - name: Run integration tests (fast only)
         run: |
-          pytest tests/integration -v -m "not slow"
+          pytest tests/integration -v -m "integration and not slow" --cov=src/aee --cov-report=xml --cov-report=term-missing --cov-append
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella
+          flags: tests
+          name: codecov-py${{ matrix.python-version }}
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "${{ env.PYTHON_VERSION_DEFAULT }}"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 mypy
+          pip install -e ".[dev]"
+          pip install flake8 mypy ruff
+
+      - name: Run ruff check
+        run: |
+          ruff check src/aee tests
 
       - name: Run flake8
         run: |
-          flake8 src/aee --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 src/aee --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 src/aee tests --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 src/aee tests --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
 
-      - name: Run mypy (optional)
+      - name: Run mypy
         run: |
-          mypy src/aee --ignore-missing-imports --no-strict-optional || true
+          mypy src/aee --ignore-missing-imports --no-strict-optional --no-error-summary
+
+  build:
+    name: Build & Install
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION_DEFAULT }}"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Check package with twine
+        run: |
+          twine check dist/*
+
+      - name: Install from wheel
+        run: |
+          pip install dist/*.whl

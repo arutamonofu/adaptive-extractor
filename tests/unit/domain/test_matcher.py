@@ -14,6 +14,7 @@ import pytest
 from aee.domain.evaluation.matcher import ExperimentMatcher
 
 
+@pytest.mark.unit
 # Make experiment_model available module-level
 @pytest.fixture(autouse=True)
 def _setup_experiment_model(nanozyme_task, request):
@@ -22,6 +23,7 @@ def _setup_experiment_model(nanozyme_task, request):
     request.module.experiment_model = nanozyme_task["experiment_model"]
 
 
+@pytest.mark.unit
 class TestStringNormalization:
     """Tests for string normalization in matcher."""
 
@@ -63,53 +65,43 @@ class TestStringNormalization:
         assert matcher._normalize_text(12.5) == "12.5"
 
 
+@pytest.mark.unit
 class TestFloatComparison:
     """Tests for float comparison with tolerance."""
 
-    def test_exact_float_match(self):
-        """Test exact float match."""
-        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.05)
-        
-        assert matcher._compare_floats(0.05, 0.05) is True
+    @pytest.mark.parametrize("pred,gold,tolerance,expected", [
+        # Exact matches
+        (0.05, 0.05, 0.05, True),
+        (0.0, 0.0, 0.05, True),
 
-    def test_float_within_tolerance(self):
-        """Test floats within tolerance are considered equal."""
-        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.10)
-        
-        # 0.055 is ~9.09% higher than 0.05 - should match
-        assert matcher._compare_floats(0.055, 0.05) is True
-        # 0.046 is 8% lower than 0.05 - should match (within 10%)
-        assert matcher._compare_floats(0.046, 0.05) is True
-        
-        # 0.054 is 8% higher - should match with 10% tolerance
-        assert matcher._compare_floats(0.054, 0.05) is True
-        
-        # Edge case: 0.045 is exactly 10% lower, but due to floating point precision
-        # it's slightly over 10%, so we test with a slightly higher tolerance
-        matcher_11 = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.11)
-        assert matcher_11._compare_floats(0.045, 0.05) is True
+        # Within tolerance (relative)
+        (0.054, 0.05, 0.10, True),   # 8% higher
+        (0.046, 0.05, 0.10, True),   # 8% lower
+        (110.0, 100.0, 0.15, True),  # 10% higher large numbers
 
-    def test_float_outside_tolerance(self):
-        """Test floats outside tolerance are different."""
-        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.05)
-        
-        # 0.06 is 20% higher than 0.05
-        assert matcher._compare_floats(0.06, 0.05) is False
-        # 0.04 is 20% lower than 0.05
-        assert matcher._compare_floats(0.04, 0.05) is False
-        
-        # 0.053 is 6% higher - outside 5% tolerance
-        assert matcher._compare_floats(0.053, 0.05) is False
+        # Outside tolerance (relative)
+        (0.06, 0.05, 0.05, False),   # 20% higher outside 5%
+        (0.04, 0.05, 0.05, False),   # 20% lower outside 5%
 
-    def test_zero_comparison(self):
-        """Test comparison with zero values."""
-        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.05)
-        
-        assert matcher._compare_floats(0.0, 0.0) is True
-        # Very small number vs zero - uses absolute tolerance for zero
-        # The implementation uses 1e-9 threshold
-        assert matcher._compare_floats(1e-10, 0.0) is True  # Within 1e-9
-        assert matcher._compare_floats(1e-8, 0.0) is False  # Outside 1e-9
+        # Zero comparison (absolute tolerance 1e-9 when gold=0)
+        (1e-10, 0.0, 0.05, True),    # Within absolute tolerance
+        (1e-8, 0.0, 0.05, False),    # Outside absolute tolerance
+
+        # pred=0 with small gold (uses relative tolerance)
+        (0.0, 1e-10, 0.05, False),
+    ])
+    def test_float_comparison_parametrized(self, pred, gold, tolerance, expected):
+        """Test float comparison with various values and tolerances.
+
+        Args:
+            pred: Predicted value
+            gold: Ground truth value
+            tolerance: Float tolerance (0.0 to 1.0)
+            expected: Expected result (True/False)
+        """
+        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=tolerance)
+        result = matcher._compare_floats(pred, gold)
+        assert result is expected, f"_compare_floats({pred}, {gold}) with tolerance {tolerance} failed"
 
     def test_custom_tolerance(self):
         """Test custom tolerance values."""
@@ -121,6 +113,7 @@ class TestFloatComparison:
         assert lenient_matcher._compare_floats(0.052, 0.05) is True  # 4% < 20%
 
 
+@pytest.mark.unit
 class TestIsMatch:
     """Tests for general value matching."""
 
@@ -159,6 +152,7 @@ class TestIsMatch:
         assert matcher._is_match(10.0, "10.0") is True
 
 
+@pytest.mark.unit
 class TestAlignPairs:
     """Tests for Hungarian algorithm alignment."""
 
@@ -268,6 +262,7 @@ class TestAlignPairs:
         assert matched_pairs[0][0].length in [10.0, 12.0]
 
 
+@pytest.mark.unit
 class TestF1Computation:
     """Tests for F1/Precision/Recall computation."""
 
@@ -384,6 +379,7 @@ class TestF1Computation:
         assert report["fields"]["activity"] < 1.0
 
 
+@pytest.mark.unit
 class TestMatcherInitialization:
     """Tests for ExperimentMatcher initialization and validation."""
 

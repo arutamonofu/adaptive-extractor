@@ -11,6 +11,7 @@ import pytest
 from aee.domain.tasks import TaskRegistry, get_global_registry, get_task, load_task_from_yaml, register_config
 
 
+@pytest.mark.integration
 @pytest.fixture(autouse=True)
 def setup_nanozyme_task():
     """Automatically register nanozyme task before each test."""
@@ -26,6 +27,7 @@ def setup_nanozyme_task():
         registry.unregister("nanozymes")
 
 
+@pytest.mark.integration
 class TestTaskPlugins:
     """Tests for task plugin system."""
 

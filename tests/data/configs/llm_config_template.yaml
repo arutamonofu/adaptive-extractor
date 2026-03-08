@@ -1,0 +1,100 @@
+# Configuration template for LLM settings validation tests
+# Base template - modify as needed for specific test scenarios
+
+project:
+  log_level: INFO
+
+llm:
+  student:
+    use_ollama: true
+    model: "test-model"
+    timeout: 60
+    max_retries: 3
+    temperature: 0.0
+    rate_limit_delay: 1.0
+    top_p: 0.1
+    repeat_penalty: 1.2
+    repeat_last_n: 2048
+    enable_cache: true
+    ollama:
+      num_ctx: 4096
+      num_predict: 1024
+      stream: false
+      repeat_penalty: 1.1
+      repeat_last_n: 512
+    non_ollama:
+      max_tokens: 4096
+  teacher:
+    use_ollama: true
+    model: "test-model"
+    timeout: 60
+    max_retries: 3
+    temperature: 0.5
+    rate_limit_delay: 1.0
+    top_p: 0.9
+    repeat_penalty: 1.1
+    repeat_last_n: 512
+    enable_cache: true
+    ollama:
+      num_ctx: 4096
+      num_predict: 1024
+      stream: false
+      repeat_penalty: 1.1
+      repeat_last_n: 512
+    non_ollama:
+      max_tokens: 4096
+
+paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
+  splits_file: "data/splits.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
+
+parsing:
+  parser: "docling"
+  overwrite: false
+  docling:
+    device: "cpu"
+    num_threads: 4
+    do_ocr: true
+    do_table_structure: true
+    ocr_backend: "onnxruntime"
+  marker:
+    device: "cpu"
+
+optimization:
+  total_load: 10
+  train_split: 5
+  num_candidates: 5
+  num_trials: 10
+  max_bootstrapped_demos: 1
+  max_labeled_demos: 1
+  minibatch: false
+  minibatch_size: 5
+  view_data_batch_size: 2
+  metric_threshold: 1.0
+  init_temperature: 0.5
+  random_seed: 42
+  use_cache: true
+  verbose: false
+
+task:
+  name: "test"
+  initial_instruction_file: "${INSTRUCTION_FILE_PATH}"
+  evaluation:
+    compare_fields: []
+    float_tolerance: 0.05
+
+extraction:
+  enable_cache: false
+
+cache:
+  disk_size_limit_bytes: 1000000
+  memory_max_entries: 100
+
+circuit_breaker:
+  failure_threshold: 5
+  reset_timeout: 30.0
+  half_open_max_calls: 1

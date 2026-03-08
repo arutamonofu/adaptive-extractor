@@ -7,7 +7,9 @@ providing a high-level interface for agent operations.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Union, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, Tuple, Type, Union, runtime_checkable
+
+import dspy
 
 from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import AgentMetadata, AgentRepository
@@ -171,6 +173,179 @@ class AgentManager:
                 "AgentManager.load_agent",
                 f"Failed to load agent: {e}"
             ) from e
+
+    def load_agent_as_object(
+        self,
+        agent_path: Path,
+        task_dict: Dict[str, Any],
+    ) -> Any:
+        """Load an agent and reconstruct it as a callable object.
+
+        This method loads the agent from disk and reconstructs it as a
+        UniversalExtractor instance with the correct signature, making it
+        ready for inference.
+
+        Supports two agent state formats:
+        1. DSPy native format: {'prog.predict': {...}, ...}
+        2. Flat DSPy format: {'lm': {...}, 'traces': [...], 'settings': {...}}
+
+        Args:
+            agent_path: Path to agent file.
+            task_dict: Task dictionary from get_task() containing 'signature' key.
+                Used to reconstruct the agent's signature class.
+
+        Returns:
+            Reconstructed agent object (UniversalExtractor instance) ready for __call__.
+
+        Raises:
+            AgentNotFoundError: If agent not found.
+            UseCaseExecutionError: If load or reconstruction fails.
+
+        Example:
+            ```python
+            task = get_task("nanozymes")
+            agent = manager.load_agent_as_object(agent_path, task)
+            result = agent(document_text="...")
+            ```
+        """
+        try:
+            from aee.infrastructure.agents import UniversalExtractor
+
+            # Load agent dict and metadata
+            agent_dict, metadata = self.agent_repo.load(agent_path)
+
+            # Get signature class from task dict
+            signature_class = task_dict.get("signature")
+            if signature_class is None:
+                raise UseCaseExecutionError(
+                    "AgentManager.load_agent_as_object",
+                    "Task dict must contain 'signature' key for agent reconstruction"
+                )
+
+            # Create new agent instance with the same signature
+            reconstructed_agent = UniversalExtractor(signature_class)
+
+            # Convert flat DSPy format to native format if needed
+            # Flat format: {'lm': {...}, 'traces': [...], 'settings': {...}}
+            # Native format: {'prog.predict': {...}, ...}
+            state_to_load = self._normalize_agent_state(agent_dict)
+
+            # Load state using DSPy's built-in load_state() method
+            # This properly restores demos, weights, and other state to dspy.Predict objects
+            reconstructed_agent.load_state(state_to_load)
+
+            logger.info(
+                f"Reconstructed agent from {agent_path} "
+                f"(task={metadata.task_name})"
+            )
+
+            return reconstructed_agent
+
+        except AgentNotFoundError:
+            raise
+        except Exception as e:
+            raise UseCaseExecutionError(
+                "AgentManager.load_agent_as_object",
+                f"Failed to reconstruct agent: {e}"
+            ) from e
+
+    def _normalize_agent_state(
+        self, agent_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Normalize agent state to DSPy native format.
+
+        Converts flat or nested DSPy format to native format if needed.
+
+        Args:
+            agent_dict: Agent state dictionary (flat, nested, or native format).
+
+        Returns:
+            Normalized agent state dictionary in native DSPy format.
+
+        Raises:
+            UseCaseExecutionError: If agent state format is not recognized.
+        """
+        # Check if already in native DSPy format (has 'prog.predict' key)
+        if "prog.predict" in agent_dict or any(
+            key.startswith("prog.") for key in agent_dict.keys()
+        ):
+            return agent_dict
+
+        # Check if in nested format: {'prog': {'predict': {...}}}
+        if "prog" in agent_dict and isinstance(agent_dict["prog"], dict):
+            prog_dict = agent_dict["prog"]
+            if "predict" in prog_dict:
+                predict_dict = prog_dict["predict"]
+                
+                # Ensure predict_dict has required 'signature' key
+                if "signature" not in predict_dict:
+                    # Add minimal signature structure
+                    predict_dict["signature"] = {
+                        "instructions": "Given the fields `input`, produce the fields `output`.",
+                        "fields": [
+                            {"prefix": "Input:", "description": "${input}"},
+                            {"prefix": "Reasoning: Let's think step by step in order to", "description": "${reasoning}"},
+                            {"prefix": "Output:", "description": "${output}"},
+                        ]
+                    }
+                
+                # Ensure required keys exist
+                if "traces" not in predict_dict:
+                    predict_dict["traces"] = []
+                if "train" not in predict_dict:
+                    predict_dict["train"] = []
+                if "demos" not in predict_dict:
+                    predict_dict["demos"] = []
+                if "lm" not in predict_dict:
+                    predict_dict["lm"] = None
+                
+                # Convert nested to flat: {'prog.predict': {...}}
+                native_state = {"prog.predict": predict_dict}
+                # Copy other prog attributes if present
+                for key, value in prog_dict.items():
+                    if key != "predict":
+                        native_state[f"prog.{key}"] = value
+                return native_state
+
+        # Check if in flat DSPy format: {'lm': {...}, 'traces': [...], 'settings': {...}}
+        if "lm" in agent_dict or "traces" in agent_dict or "settings" in agent_dict:
+            # Convert flat format to native format
+            # Create minimal valid DSPy state structure
+            traces = agent_dict.get("traces", [])
+            lm_config = agent_dict.get("lm")
+            settings = agent_dict.get("settings", {})
+
+            native_state = {
+                "prog.predict": {
+                    "traces": traces if isinstance(traces, list) else [],
+                    "train": [],
+                    "demos": [],
+                    "signature": {
+                        "instructions": "Given the fields `input`, produce the fields `output`.",
+                        "fields": [
+                            {"prefix": "Input:", "description": "${input}"},
+                            {"prefix": "Reasoning: Let's think step by step in order to", "description": "${reasoning}"},
+                            {"prefix": "Output:", "description": "${output}"},
+                        ]
+                    },
+                    "lm": lm_config if isinstance(lm_config, dict) else None,
+                }
+            }
+
+            # Store settings for reference
+            if settings:
+                native_state["_settings"] = settings
+
+            return native_state
+
+        # Unknown format - raise clear error
+        raise UseCaseExecutionError(
+            "AgentManager._normalize_agent_state",
+            "Agent state format not recognized. Expected one of: "
+            "1) Native DSPy format with 'prog.predict' key, "
+            "2) Nested format with 'prog.predict' structure, "
+            "3) Flat DSPy format with 'lm', 'traces', 'settings' keys"
+        )
 
     def load_agent_with_metadata(
         self, agent_path: Path
@@ -379,6 +554,52 @@ class AgentManager:
             f"Agent of type {type(agent).__name__} does not implement "
             f"dump_state() or save() method and cannot be serialized"
         )
+
+    def create_agent_with_demos(
+        self,
+        signature_class: Type,
+        demos: List[Any],
+    ) -> Any:
+        """Create a fresh agent with few-shot demonstrations.
+
+        This method creates a new UniversalExtractor instance with the given
+        signature and sets up few-shot demonstrations. Use this for manual
+        agent generation where you want to create an agent from scratch with
+        specific examples.
+
+        Args:
+            signature_class: DSPy signature class for the task.
+            demos: List of dspy.Example objects to use as few-shot demonstrations.
+
+        Returns:
+            UniversalExtractor instance with demos configured.
+
+        Example:
+            ```python
+            agent = manager.create_agent_with_demos(
+                signature_class=MySignature,
+                demos=[example1, example2, example3],
+            )
+            agent.save("path/to/agent.json")
+            ```
+        """
+        from aee.infrastructure.agents import UniversalExtractor
+
+        logger.info(f"Creating agent with {len(demos)} few-shot demonstrations")
+
+        # Create fresh agent
+        agent = UniversalExtractor(signature_class)
+
+        # Set demos
+        if hasattr(agent.prog, "predict") and hasattr(agent.prog.predict, "demos"):
+            agent.prog.predict.demos = demos
+        else:
+            logger.warning(
+                "Agent prog.predict.demos not found, "
+                "demos will not be used"
+            )
+
+        return agent
 
     def get_best_agent(
         self, task_name: str, metric: str = "f1"

@@ -13,9 +13,19 @@ from pathlib import Path
 
 import pytest
 
-from aee.domain.tasks import get_task
+from aee.domain.tasks import get_task, load_task_from_yaml, register_config
 
 
+@pytest.fixture(scope="module", autouse=True)
+def setup_nanozyme_task():
+    """Register nanozyme task for all tests in this module."""
+    task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
+    task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+    register_config(task_config)
+    yield
+
+
+@pytest.mark.integration
 class TestExtractFlow:
     """Integration tests for extraction pipeline."""
 
@@ -142,8 +152,17 @@ class TestExtractFlow:
         assert "nanozymes" in text.lower()
 
 
+@pytest.mark.integration
 class TestTaskPluginIntegration:
     """Integration tests for task plugin system."""
+
+    @pytest.fixture(autouse=True)
+    def setup_nanozyme_task(self):
+        """Register nanozyme task for each test in this class."""
+        task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
+        task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        register_config(task_config)
+        yield
 
     def test_nanozyme_task_creation(self):
         """Test nanozyme task can be loaded from YAML and validated."""
@@ -190,3 +209,144 @@ class TestTaskPluginIntegration:
         experiment_fields = set(task["experiment_model"].model_fields.keys())
         for field in task["config"].compare_fields:
             assert field in experiment_fields, f"Field '{field}' not in experiment model"
+
+
+@pytest.mark.integration
+class TestAgentStateRestoration:
+    """Integration tests for agent state restoration."""
+
+    def test_agent_restoration_with_flat_dspy_format(self, tmp_path: Path):
+        """Test agent restoration from flat DSPy format (lm, traces, settings)."""
+        from aee.application.services import AgentManager
+        from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
+        from aee.infrastructure.storage import AgentRepository
+
+        # Register task first (check if already registered)
+        registry = get_global_registry()
+        if not registry.has("nanozymes"):
+            task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
+            task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+            register_config(task_config)
+
+        # Get task
+        task = get_task("nanozymes")
+
+        # Create test directories
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+
+        # Create agent with flat DSPy format
+        agent_path = agents_dir / "nanozymes_test.json"
+        agent_path.write_text(
+            '{"lm": {"model": "test-model", "type": "mock"}, "traces": [], "settings": {"num_trials": 5}}',
+            encoding="utf-8",
+        )
+
+        # Create metadata
+        meta_path = agent_path.with_suffix(".meta.json")
+        meta_path.write_text(
+            '{"task_name": "nanozymes", "created_at": "2026-01-01T00:00:00", '
+            '"model_version": "test", "metrics": {"f1": 0.85}, "config_snapshot": {}}',
+            encoding="utf-8",
+        )
+
+        # Load agent via AgentManager
+        repo = AgentRepository(agents_dir=agents_dir)
+        manager = AgentManager(agent_repo=repo)
+
+        # Should restore without raising error
+        agent = manager.load_agent_as_object(agent_path, task)
+
+        # Verify agent is callable
+        assert agent is not None
+        assert hasattr(agent, "prog")
+
+    def test_agent_restoration_with_nested_prog_format(self, tmp_path: Path):
+        """Test agent restoration from nested format (prog: {...})."""
+        from aee.application.services import AgentManager
+        from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
+        from aee.infrastructure.storage import AgentRepository
+
+        # Register task first (check if already registered)
+        registry = get_global_registry()
+        if not registry.has("nanozymes"):
+            task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
+            task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+            register_config(task_config)
+
+        # Get task
+        task = get_task("nanozymes")
+
+        # Create test directories
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+
+        # Create agent with nested prog format
+        agent_path = agents_dir / "nanozymes_nested.json"
+        import json
+        with open(agent_path, "w", encoding="utf-8") as f:
+            json.dump({"prog": {"predict": {"demos": []}, "some_attribute": "test_value"}}, f)
+
+        # Create metadata
+        meta_path = agent_path.with_suffix(".meta.json")
+        meta_path.write_text(
+            '{"task_name": "nanozymes", "created_at": "2026-01-01T00:00:00", '
+            '"model_version": "test", "metrics": {"f1": 0.85}, "config_snapshot": {}}',
+            encoding="utf-8",
+        )
+
+        # Load agent via AgentManager
+        repo = AgentRepository(agents_dir=agents_dir)
+        manager = AgentManager(agent_repo=repo)
+
+        # Should restore without raising error
+        agent = manager.load_agent_as_object(agent_path, task)
+
+        # Verify agent is callable
+        assert agent is not None
+        assert hasattr(agent, "prog")
+
+    def test_agent_restoration_fails_with_invalid_format(self, tmp_path: Path):
+        """Test that agent restoration fails with clear error for invalid format."""
+        from aee.application.services import AgentManager
+        from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
+        from aee.infrastructure.storage import AgentRepository
+        from aee.shared.exceptions import UseCaseExecutionError
+
+        # Register task first (check if already registered)
+        registry = get_global_registry()
+        if not registry.has("nanozymes"):
+            task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
+            task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+            register_config(task_config)
+
+        # Get task
+        task = get_task("nanozymes")
+
+        # Create test directories
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+
+        # Create agent with invalid format (no recognized keys)
+        agent_path = agents_dir / "nanozymes_invalid.json"
+        agent_path.write_text(
+            '{"invalid_key": "invalid_value"}',
+            encoding="utf-8",
+        )
+
+        # Create metadata
+        meta_path = agent_path.with_suffix(".meta.json")
+        meta_path.write_text(
+            '{"task_name": "nanozymes", "created_at": "2026-01-01T00:00:00", '
+            '"model_version": "test", "metrics": {"f1": 0.85}, "config_snapshot": {}}',
+            encoding="utf-8",
+        )
+
+        # Load agent via AgentManager
+        repo = AgentRepository(agents_dir=agents_dir)
+        manager = AgentManager(agent_repo=repo)
+
+        # Should raise UseCaseExecutionError
+        import pytest
+        with pytest.raises(UseCaseExecutionError, match="Agent state format not recognized"):
+            manager.load_agent_as_object(agent_path, task)

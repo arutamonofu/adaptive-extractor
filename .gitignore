@@ -47,8 +47,12 @@ mlruns
 mlflow.db
 
 # --- Configs ---
-config/*.yaml
-!config/example.yaml
+config/systems/*.yaml
+!config/systems/example.yaml
+config/initial_instuctions/*
+!config/initial_instuctions/nanozymes_sota.txt
+config/tasks/*
+!config/tasks/nanozymes.yaml
 
 # --- Secrets ---
 .env
