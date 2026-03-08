@@ -2,7 +2,7 @@
 """Task-specific evaluation metrics for AutoEvoExtractor."""
 
 import logging
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import dspy
 
@@ -18,20 +18,34 @@ class TaskMetric:
     by comparing predictions against ground truth data.
     """
 
-    def __init__(self, task_config: Dict[str, Any], float_tolerance: float) -> None:
+    def __init__(
+        self,
+        task_config: Dict[str, Any],
+        float_tolerance: float,
+        teacher_llm: Optional[Any] = None,
+        field_descriptions: Optional[Dict[str, str]] = None,
+        enable_semantic_judge: bool = True,
+    ) -> None:
         """Initialize the task metric.
 
         Args:
             task_config: Configuration dictionary for the task.
-                         Must contain 'compare_fields' key with list of field names.
+                        Must contain 'compare_fields' key with list of field names.
             float_tolerance: Float tolerance for comparisons (0.0 to 1.0).
+            teacher_llm: DSPy LLM object for semantic judgment.
+            field_descriptions: Dictionary of field descriptions (optional).
+            enable_semantic_judge: Flag to enable/disable semantic judge.
         """
 
         self.matcher = ExperimentMatcher(
             fields_to_compare=task_config["compare_fields"],
-            float_tolerance=float_tolerance
+            float_tolerance=float_tolerance,
+            teacher_llm=teacher_llm,
+            field_descriptions=field_descriptions or {},
+            enable_semantic_judge=enable_semantic_judge,
         )
         self.fields_to_compare = task_config["compare_fields"]
+        self.task_name = task_config.get("name", "unknown")
 
     def _extract_experiments(self, obj: Union[dspy.Example, dspy.Prediction]) -> List[ExperimentEntity]:
         """Extract experiments from a DSPy object.
@@ -90,7 +104,11 @@ class TaskMetric:
             predicted_experiments = self._extract_experiments(prediction)
 
             # Calculate detailed metrics using ExperimentMatcher
-            report = self.matcher.get_detailed_report(predicted_experiments, ground_truth_experiments)
+            report = self.matcher.get_detailed_report(
+                predicted_experiments,
+                ground_truth_experiments,
+                task_name=self.task_name,
+            )
             score = report["f1"]
 
             # Log detailed metrics if logger is enabled for INFO level

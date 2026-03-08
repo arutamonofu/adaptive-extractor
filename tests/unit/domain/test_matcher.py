@@ -28,12 +28,13 @@ class TestStringNormalization:
     """Tests for string normalization in matcher."""
 
     def test_normalize_exact_match(self):
-        """Test exact string match after normalization."""
+        """Test exact string match after normalization (case-sensitive)."""
         matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
 
-        assert matcher._normalize_text("Fe3O4") == "fe3o4"
-        assert matcher._normalize_text("FE3O4") == "fe3o4"
-        assert matcher._normalize_text("  Fe3O4  ") == "fe3o4"
+        # Case-sensitive: case is preserved
+        assert matcher._normalize_text("Fe3O4") == "Fe3O4"
+        assert matcher._normalize_text("FE3O4") == "FE3O4"
+        assert matcher._normalize_text("  Fe3O4  ") == "Fe3O4"
 
     def test_normalize_dash_variants(self):
         """Test normalization of different dash characters."""
@@ -48,8 +49,8 @@ class TestStringNormalization:
         """Test whitespace removal in normalization."""
         matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
 
-        assert matcher._normalize_text("Fe 3 O4") == "fe3o4"
-        assert matcher._normalize_text("Fe   3   O4") == "fe3o4"
+        assert matcher._normalize_text("Fe 3 O4") == "Fe3O4"
+        assert matcher._normalize_text("Fe   3   O4") == "Fe3O4"
 
     def test_normalize_none_value(self):
         """Test None value normalization."""
@@ -67,50 +68,53 @@ class TestStringNormalization:
 
 @pytest.mark.unit
 class TestFloatComparison:
-    """Tests for float comparison with tolerance."""
+    """Tests for float comparison with strict tolerance."""
 
-    @pytest.mark.parametrize("pred,gold,tolerance,expected", [
+    @pytest.mark.parametrize("pred,gold,expected", [
         # Exact matches
-        (0.05, 0.05, 0.05, True),
-        (0.0, 0.0, 0.05, True),
+        (0.05, 0.05, True),
+        (0.0, 0.0, True),
 
-        # Within tolerance (relative)
-        (0.054, 0.05, 0.10, True),   # 8% higher
-        (0.046, 0.05, 0.10, True),   # 8% lower
-        (110.0, 100.0, 0.15, True),  # 10% higher large numbers
+        # Very small difference (within rel_tol=1e-9)
+        (0.05, 0.050000000001, True),
+        (100.0, 100.0000001, True),
 
-        # Outside tolerance (relative)
-        (0.06, 0.05, 0.05, False),   # 20% higher outside 5%
-        (0.04, 0.05, 0.05, False),   # 20% lower outside 5%
+        # Outside strict tolerance
+        (0.054, 0.05, False),   # 8% difference
+        (0.046, 0.05, False),   # 8% difference
+        (110.0, 100.0, False),  # 10% difference
+        (0.06, 0.05, False),    # 20% difference
+        (0.04, 0.05, False),    # 20% difference
 
-        # Zero comparison (absolute tolerance 1e-9 when gold=0)
-        (1e-10, 0.0, 0.05, True),    # Within absolute tolerance
-        (1e-8, 0.0, 0.05, False),    # Outside absolute tolerance
-
-        # pred=0 with small gold (uses relative tolerance)
-        (0.0, 1e-10, 0.05, False),
+        # Zero comparison (uses absolute tolerance)
+        (1e-10, 0.0, False),    # Outside absolute tolerance for isclose
+        (0.0, 1e-10, False),
     ])
-    def test_float_comparison_parametrized(self, pred, gold, tolerance, expected):
-        """Test float comparison with various values and tolerances.
+    def test_float_comparison_parametrized(self, pred, gold, expected):
+        """Test float comparison with strict tolerance (math.isclose).
 
         Args:
             pred: Predicted value
             gold: Ground truth value
-            tolerance: Float tolerance (0.0 to 1.0)
             expected: Expected result (True/False)
         """
-        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=tolerance)
+        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.05)
         result = matcher._compare_floats(pred, gold)
-        assert result is expected, f"_compare_floats({pred}, {gold}) with tolerance {tolerance} failed"
+        assert result is expected, f"_compare_floats({pred}, {gold}) failed"
 
-    def test_custom_tolerance(self):
-        """Test custom tolerance values."""
-        strict_matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.01)
-        lenient_matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.20)
-        
-        # 0.052 is 4% higher than 0.05
-        assert strict_matcher._compare_floats(0.052, 0.05) is False  # 4% > 1%
-        assert lenient_matcher._compare_floats(0.052, 0.05) is True  # 4% < 20%
+    def test_strict_float_comparison(self):
+        """Test that float comparison is now strict (no tolerance)."""
+        matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.05)
+
+        # Exact match
+        assert matcher._compare_floats(0.05, 0.05) is True
+
+        # Very small difference (should match with rel_tol=1e-9)
+        assert matcher._compare_floats(0.05, 0.050000000001) is True
+
+        # Any larger difference should not match
+        assert matcher._compare_floats(0.05, 0.051) is False  # 2% difference
+        assert matcher._compare_floats(0.05, 0.06) is False   # 20% difference
 
 
 @pytest.mark.unit
@@ -118,19 +122,23 @@ class TestIsMatch:
     """Tests for general value matching."""
 
     def test_string_match(self):
-        """Test string value matching."""
+        """Test string value matching (case-sensitive)."""
         matcher = ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=0.05)
 
+        # Exact match (case-sensitive)
         assert matcher._is_match("Fe3O4", "Fe3O4") is True
-        assert matcher._is_match("FE3O4", "fe3o4") is True
+        # Different case = no match
+        assert matcher._is_match("FE3O4", "fe3o4") is False
         assert matcher._is_match("Fe3O4", "CuO") is False
 
     def test_float_match(self):
-        """Test float value matching."""
+        """Test float value matching (strict)."""
         matcher = ExperimentMatcher(fields_to_compare=["km_value"], float_tolerance=0.05)
-        
+
+        # Exact match
         assert matcher._is_match(0.05, 0.05) is True
-        assert matcher._is_match(0.051, 0.05) is True
+        # Strict comparison: 2% difference is not acceptable
+        assert matcher._is_match(0.051, 0.05) is False
         assert matcher._is_match(0.06, 0.05) is False
 
     def test_none_comparison(self):
@@ -147,7 +155,7 @@ class TestIsMatch:
         """Test comparison of mixed types."""
         matcher = ExperimentMatcher(fields_to_compare=["length"], float_tolerance=0.05)
 
-        # String number vs float
+        # String number vs float (converted to float)
         assert matcher._is_match("10.0", 10.0) is True
         assert matcher._is_match(10.0, "10.0") is True
 
@@ -392,7 +400,7 @@ class TestMatcherInitialization:
         """Test that invalid tolerance raises ValueError."""
         with pytest.raises(ValueError, match="float_tolerance"):
             ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=-0.1)
-        
+
         with pytest.raises(ValueError, match="float_tolerance"):
             ExperimentMatcher(fields_to_compare=["formula"], float_tolerance=1.5)
 
@@ -402,6 +410,256 @@ class TestMatcherInitialization:
             fields_to_compare=["formula", "activity"],
             float_tolerance=0.10,
         )
-        
+
         assert matcher.fields == ["formula", "activity"]
         assert matcher.tolerance == 0.10
+
+
+@pytest.mark.unit
+class TestSemanticJudge:
+    """Tests for Semantic Judge functionality."""
+
+    def test_semantic_judge_disabled(self, experiment_model):
+        """Test that semantic judge can be disabled."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+
+        preds = [experiment_model(formula="Fe3O4", activity="peroxidase")]
+        gts = [experiment_model(formula="Fe3O4", activity="peroxidase")]
+
+        # With judge disabled, case-sensitive comparison should pass for exact match
+        report = matcher.get_detailed_report(preds, gts)
+        assert report["f1"] == 1.0
+
+    def test_semantic_judge_no_teacher_llm(self, experiment_model):
+        """Test that semantic judge skips when teacher_llm is None."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            teacher_llm=None,
+            enable_semantic_judge=True,
+        )
+
+        preds = [experiment_model(formula="Fe3O4", activity="peroxidase")]
+        gts = [experiment_model(formula="CuO", activity="oxidase")]
+
+        # Should work without LLM, just strict comparison
+        report = matcher.get_detailed_report(preds, gts)
+        assert report["f1"] == 0.0
+
+    def test_case_sensitive_comparison(self, experiment_model):
+        """Test that string comparison is case-sensitive."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,  # Disable judge for strict test
+        )
+
+        # Case-sensitive: "Co" != "co"
+        assert matcher._normalize_text("Co") == "Co"
+        assert matcher._normalize_text("co") == "co"
+        assert matcher._normalize_text("Co") != matcher._normalize_text("co")
+
+        # Different case should not match
+        assert matcher._is_match("Co3O4", "co3o4") is False
+
+    def test_strict_float_comparison(self, experiment_model):
+        """Test that float comparison uses math.isclose."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["km_value"],
+            float_tolerance=0.05,  # This is now unused
+        )
+
+        # Exact match
+        assert matcher._compare_floats(0.05, 0.05) is True
+
+        # Very small difference (should match with rel_tol=1e-9)
+        assert matcher._compare_floats(0.05, 0.050000000001) is True
+
+        # Larger difference (should not match)
+        assert matcher._compare_floats(0.05, 0.06) is False
+
+    def test_missing_value_only_fn(self):
+        """Test that missing value (Pred=None) counts as FN only, not FP+FN."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+
+        # Model didn't predict anything (None for all fields)
+        pred = None
+        gt = type('Entity', (), {'formula': 'Fe3O4', 'activity': 'peroxidase'})()
+
+        pairs = [(pred, gt)]
+        stats = matcher._compute_stats(pairs, task_name="test")
+
+        # Should be 2 FN (one per field), 0 FP
+        # TP=0, FP=0, FN=2 -> Precision=0/0=0, Recall=0/2=0, F1=0
+        assert stats["f1"] == 0.0
+
+    def test_hallucination_only_fp(self):
+        """Test that hallucination (GT=None) counts as FP only, not FP+FN."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+
+        # Model hallucinated values (GT has None for all fields)
+        pred = type('Entity', (), {'formula': 'Fe3O4', 'activity': 'peroxidase'})()
+        gt = None
+
+        pairs = [(pred, gt)]
+        stats = matcher._compute_stats(pairs, task_name="test")
+
+        # Should be 2 FP (one per field), 0 FN
+        # TP=0, FP=2, FN=0 -> Precision=0/2=0, Recall=0/0=0, F1=0
+        assert stats["f1"] == 0.0
+
+    def test_mismatch_fp_and_fn(self, experiment_model):
+        """Test that mismatch (wrong value) counts as both FP and FN."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+
+        # Both have values but they don't match
+        pred = experiment_model(formula="Fe3O4", activity="peroxidase")
+        gt = experiment_model(formula="CuO", activity="oxidase")
+
+        pairs = [(pred, gt)]
+        stats = matcher._compute_stats(pairs, task_name="test")
+
+        # Mismatch: FP=1, FN=1
+        # TP=0, FP=1, FN=1 -> Precision=0/1=0, Recall=0/1=0, F1=0
+        assert stats["f1"] == 0.0
+
+    def test_build_judge_prompt(self, experiment_model):
+        """Test that judge prompt is built correctly."""
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            field_descriptions={
+                "formula": "Chemical formula of the compound",
+                "activity": "Type of enzymatic activity",
+            },
+        )
+
+        gt_json = {"formula": "Fe3O4", "activity": "peroxidase"}
+        pred_json = {"formula": "Fe3O4", "activity": "catalase"}
+        discrepancies = ["activity"]
+
+        prompt = matcher._build_judge_prompt(
+            task_name="nanozymes",
+            gt_json=gt_json,
+            pred_json=pred_json,
+            discrepancies=discrepancies,
+        )
+
+        # Check prompt contains key elements
+        assert "Task: nanozymes" in prompt
+        assert "Chemical formula of the compound" in prompt
+        assert "Type of enzymatic activity" in prompt
+        assert "Fe3O4" in prompt
+        assert "activity" in prompt
+
+    def test_call_semantic_judge_parse_error(self, experiment_model):
+        """Test that semantic judge handles JSON parse errors gracefully."""
+        # Mock LLM that returns invalid JSON
+        class MockLLM:
+            def __call__(self, prompt):
+                return ["{invalid json}"]
+
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula"],
+            float_tolerance=0.05,
+            teacher_llm=MockLLM(),
+            enable_semantic_judge=True,
+        )
+
+        verdicts = matcher._call_semantic_judge(
+            task_name="test",
+            gt_json={"formula": "Fe3O4"},
+            pred_json={"formula": "CuO"},
+            discrepancies=["formula"],
+        )
+
+        # Should return empty dict on parse error (fallback to strict)
+        assert verdicts == {}
+
+    def test_call_semantic_judge_exception(self, experiment_model):
+        """Test that semantic judge handles exceptions gracefully."""
+        # Mock LLM that raises exception
+        class MockLLM:
+            def __call__(self, prompt):
+                raise RuntimeError("LLM error")
+
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula"],
+            float_tolerance=0.05,
+            teacher_llm=MockLLM(),
+            enable_semantic_judge=True,
+        )
+
+        verdicts = matcher._call_semantic_judge(
+            task_name="test",
+            gt_json={"formula": "Fe3O4"},
+            pred_json={"formula": "CuO"},
+            discrepancies=["formula"],
+        )
+
+        # Should return empty dict on exception (fallback to strict)
+        assert verdicts == {}
+
+    def test_semantic_judge_verdict_yes(self, experiment_model):
+        """Test that YES verdict from judge grants amnesty (TP)."""
+        # Mock LLM that always says YES
+        class MockLLM:
+            def __call__(self, prompt):
+                return ['{"formula": "YES"}']
+
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            teacher_llm=MockLLM(),
+            field_descriptions={"formula": "Chemical formula"},
+            enable_semantic_judge=True,
+        )
+
+        # Matching values
+        preds = [experiment_model(formula="Fe3O4", activity="peroxidase")]
+        gts = [experiment_model(formula="Fe3O4", activity="peroxidase")]
+
+        report = matcher.get_detailed_report(preds, gts, task_name="test")
+
+        # With matching values, should be TP
+        assert report["f1"] == 1.0
+
+    def test_semantic_judge_verdict_no(self, experiment_model):
+        """Test that NO verdict from judge applies strict penalties."""
+        # Mock LLM that always says NO
+        class MockLLM:
+            def __call__(self, prompt):
+                return ['{"formula": "NO"}']
+
+        matcher = ExperimentMatcher(
+            fields_to_compare=["formula", "activity"],
+            float_tolerance=0.05,
+            teacher_llm=MockLLM(),
+            field_descriptions={"formula": "Chemical formula"},
+            enable_semantic_judge=True,
+        )
+
+        # Mismatch and judge says NO
+        preds = [experiment_model(formula="Fe3O4", activity="peroxidase")]
+        gts = [experiment_model(formula="CuO", activity="oxidase")]
+
+        report = matcher.get_detailed_report(preds, gts, task_name="test")
+
+        # With NO verdict on mismatch, should be FP+FN
+        assert report["f1"] == 0.0

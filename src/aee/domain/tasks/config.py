@@ -216,6 +216,20 @@ class TaskConfig:
             if not spec.required
         ]
 
+    @property
+    def field_descriptions(self) -> Dict[str, str]:
+        """Get field descriptions for semantic judge.
+
+        Returns:
+            Dictionary mapping field names to their descriptions.
+            Only includes fields that have a description.
+        """
+        return {
+            name: spec.description
+            for name, spec in self.experiment_fields.items()
+            if spec.description
+        }
+
     def get_field_choices(self, field_name: str) -> Optional[List[str]]:
         """Get choices for a field if it's a Literal type.
 

@@ -416,6 +416,10 @@ class EvaluationConfig(BaseModel):
         ...,
         description="List of field names to compare during evaluation"
     )
+    enable_semantic_judge: bool = Field(
+        default=True,
+        description="Enable semantic judge for evaluation (default: True)"
+    )
 
 
 class TaskConfig(BaseModel):

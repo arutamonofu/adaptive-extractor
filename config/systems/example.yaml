@@ -107,6 +107,7 @@ task:
       - "c_const_unit"
       - "ccat_unit"
     float_tolerance: 0.05
+    enable_semantic_judge: true
 
 extraction:
   enable_cache: false

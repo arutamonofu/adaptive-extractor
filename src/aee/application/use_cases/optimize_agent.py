@@ -343,8 +343,15 @@ class OptimizeAgentUseCase:
         """Create evaluation metric for the task."""
         task_config = {
             "compare_fields": request.task.compare_fields,
+            "name": request.task.name,
         }
-        return TaskMetric(task_config, float_tolerance=request.task.float_tolerance)
+        return TaskMetric(
+            task_config=task_config,
+            float_tolerance=request.task.float_tolerance,
+            teacher_llm=request.teacher_lm,
+            field_descriptions=request.task.field_descriptions,
+            enable_semantic_judge=True,
+        )
 
     def _create_base_agent(
         self, request: OptimizeAgentRequest, signature_class: Any
