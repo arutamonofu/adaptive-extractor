@@ -81,12 +81,13 @@ def setup_language_models(config=None, enable_cache: bool = True):
     return student_lm, teacher_lm
 
 
-def create_dependencies(args, task, settings):
+def create_dependencies(args, task, task_name, settings):
     """Create dependencies for the use case.
 
     Args:
         args: Parsed command-line arguments.
         task: Task definition.
+        task_name: Name of the task.
         settings: Settings object to use.
 
     Returns:
@@ -119,7 +120,7 @@ def create_dependencies(args, task, settings):
     if not args.no_mlflow:
         try:
             tracker = ExperimentTracker(
-                experiment_name=f"{task.name}/optimization",
+                experiment_name=f"{task_name}/optimization",
                 tracking_uri=current_settings.mlflow_tracking_uri,
                 enabled=True,
             )
@@ -176,7 +177,7 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
 
         # Create dependencies
         dataset_builder, agent_manager, gt_repo, tracker = create_dependencies(
-            args, task, custom_settings
+            args, task, task_name, custom_settings
         )
 
         # Create use case (DataValidator created internally if enable_preflight_check=True)
@@ -245,7 +246,7 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
         logger.info("=" * 60)
 
         request = OptimizeAgentRequest(
-            task=task["config"],
+            task=task,
             signature_class=task["signature"],
             gt_path=gt_path,
             split_path=split_path,

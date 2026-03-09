@@ -16,7 +16,6 @@ from dspy.teleprompt import MIPROv2
 from aee.application.services import AgentManager, DatasetBuilder, DataValidator, ExperimentTracker
 from aee.domain.agents.base import BaseAgent
 from aee.domain.evaluation import TaskMetric
-from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import GroundTruthRepository
 from aee.shared.exceptions import UseCaseExecutionError
 
@@ -33,7 +32,7 @@ class OptimizeAgentRequest:
     """Request for agent optimization.
 
     Attributes:
-        task: Task definition to optimize for (TaskConfig).
+        task: Task definition to optimize for (dict with config, signature, row_converter, etc.).
         signature_class: DSPy signature class for the task.
         gt_path: Path to ground truth CSV.
         split_path: Path to data splits JSON.
@@ -62,7 +61,7 @@ class OptimizeAgentRequest:
         instruction_hash: SHA256 hash (first 12 chars) of the initial instruction.
     """
 
-    task: TaskConfig
+    task: Dict[str, Any]
     signature_class: Any
     gt_path: Path
     split_path: Path
@@ -191,7 +190,7 @@ class OptimizeAgentUseCase:
         """
         try:
             logger.info(
-                f"Starting agent optimization for task '{request.task.name}' "
+                f"Starting agent optimization for task '{request.task['config'].name}' "
                 f"with {request.num_trials} trials"
             )
 
@@ -275,7 +274,7 @@ class OptimizeAgentUseCase:
                     metrics=final_metrics,
                     config=config,
                     agent_path=agent_path,
-                    task_name=request.task.name,
+                    task_name=request.task["config"].name,
                     dspy_model=optimized_agent,
                 )
 
@@ -305,7 +304,7 @@ class OptimizeAgentUseCase:
     def _load_ground_truth(self, request: OptimizeAgentRequest) -> Dict[str, Any]:
         """Load ground truth data."""
         logger.info(f"Loading ground truth from {request.gt_path}")
-        return self.gt_repo.load(request.gt_path, request.task.row_converter)  # type: ignore[arg-type]
+        return self.gt_repo.load(request.gt_path, request.task["row_converter"])
 
     def _prepare_datasets(
         self, request: OptimizeAgentRequest, gt_data: Dict[str, Any]
@@ -341,15 +340,15 @@ class OptimizeAgentUseCase:
 
     def _create_metric(self, request: OptimizeAgentRequest) -> TaskMetric:
         """Create evaluation metric for the task."""
-        task_config = {
-            "compare_fields": request.task.compare_fields,
-            "name": request.task.name,
-        }
+        task_config = request.task["config"]
         return TaskMetric(
-            task_config=task_config,
-            float_tolerance=request.task.float_tolerance,
+            task_config={
+                "compare_fields": task_config.compare_fields,
+                "name": task_config.name,
+            },
+            float_tolerance=task_config.float_tolerance,
             teacher_llm=request.teacher_lm,
-            field_descriptions=request.task.field_descriptions,
+            field_descriptions=task_config.field_descriptions,
             enable_semantic_judge=True,
         )
 
@@ -390,6 +389,9 @@ class OptimizeAgentUseCase:
             Optimized agent.
         """
         # Configure MIPROv2
+        # Note: We use teacher_lm as prompt_model for generating instructions,
+        # and student_lm as task_model for running trials.
+        # We don't pass teacher= to compile() to avoid DSPy trying to compile the LLM itself.
         teleprompter = MIPROv2(
             metric=metric,
             prompt_model=request.teacher_lm,
@@ -409,6 +411,7 @@ class OptimizeAgentUseCase:
         dspy.settings.configure(lm=request.student_lm)
 
         # Run optimization with explicit valset
+        # Note: We don't pass teacher= here because OllamaLM is not a dspy.Module
         optimized_agent = teleprompter.compile(
             base_agent,
             trainset=trainset,
@@ -478,7 +481,7 @@ class OptimizeAgentUseCase:
 
         return self.agent_manager.save_agent(
             agent=agent,
-            task=request.task,
+            task=request.task["config"],
             metrics=metrics,
             config=config,
             model_version=request.model_version,
@@ -492,7 +495,7 @@ class OptimizeAgentUseCase:
     ) -> Dict[str, Any]:
         """Build configuration dictionary for logging."""
         return {
-            "task_name": request.task.name,
+            "task_name": request.task["config"].name,
             "num_trials": request.num_trials,
             "train_size": train_size,
             "val_size": val_size,

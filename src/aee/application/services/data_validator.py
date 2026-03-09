@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import DataSplitRepository, GroundTruthRepository
 
 logger = logging.getLogger(__name__)
@@ -94,7 +93,7 @@ class DataValidator:
         self,
         gt_path: Path,
         split_path: Path,
-        task: TaskConfig,
+        task: Dict[str, Any],
         required_splits: Optional[List[str]] = None,
     ) -> ValidationResult:
         """Validate data splits against ground truth.
@@ -102,7 +101,7 @@ class DataValidator:
         Args:
             gt_path: Path to ground truth CSV.
             split_path: Path to data splits JSON.
-            task: Task definition for row conversion.
+            task: Task dict with config, row_converter, etc.
             required_splits: List of required split names (default: ["train", "val"]).
 
         Returns:
@@ -122,7 +121,7 @@ class DataValidator:
 
         try:
             # Load ground truth
-            gt_data = self.gt_repo.load(gt_path, task.row_converter)  # type: ignore[arg-type]
+            gt_data = self.gt_repo.load(gt_path, task["row_converter"])
             gt_doc_ids = set(gt_data.keys())
             result.stats["ground_truth_docs"] = len(gt_doc_ids)
 
@@ -209,14 +208,14 @@ class DataValidator:
     def validate_ground_truth(
         self,
         gt_path: Path,
-        task: TaskConfig,
+        task: Dict[str, Any],
         min_examples: int = 1,
     ) -> ValidationResult:
         """Validate ground truth data quality.
 
         Args:
             gt_path: Path to ground truth CSV.
-            task: Task definition for row conversion.
+            task: Task dict with config, row_converter, etc.
             min_examples: Minimum number of examples required.
 
         Returns:
@@ -225,7 +224,7 @@ class DataValidator:
         result = ValidationResult(success=True)
 
         try:
-            gt_data = self.gt_repo.load(gt_path, task.row_converter)  # type: ignore[arg-type]
+            gt_data = self.gt_repo.load(gt_path, task["row_converter"])
 
             # Check total count
             total_docs = len(gt_data)

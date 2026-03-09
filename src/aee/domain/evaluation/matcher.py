@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypeAlias, Union
 import numpy as np
 from pydantic import BaseModel
 from scipy.optimize import linear_sum_assignment
+from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
 
@@ -297,11 +298,6 @@ Respond with JSON only:"""
                     # Field not in response, treat as NO
                     valid_verdicts[field_name] = "NO"
 
-            logger.info(
-                f"[SemanticJudge] Checked {len(discrepancies)} fields -> "
-                f"{{{' + '.join(f'{k}: {v}' for k, v in valid_verdicts.items())}}}"
-            )
-
             return valid_verdicts
 
         except json.JSONDecodeError as e:
@@ -310,6 +306,55 @@ Respond with JSON only:"""
         except Exception as e:
             logger.warning(f"[SemanticJudge] Failed: {e}")
             return {}
+
+    def _log_comparison_table(
+        self,
+        pred: ExperimentEntity,
+        gold: ExperimentEntity,
+        strict_matches: List[str],
+        discrepancies: List[str],
+        verdicts: Dict[str, str],
+    ) -> None:
+        """Log detailed comparison table for a pair of experiments.
+
+        Args:
+            pred: Predicted experiment entity.
+            gold: Ground truth experiment entity.
+            strict_matches: List of field names with strict matches.
+            discrepancies: List of field names with discrepancies.
+            verdicts: Dictionary mapping field names to judge verdicts (YES/NO).
+        """
+        table_data = []
+
+        for field in self.fields:
+            val_pred = getattr(pred, field, None)
+            val_gold = getattr(gold, field, None)
+
+            # Skip if both None
+            if val_gold is None and val_pred is None:
+                continue
+
+            pred_str = "null" if val_pred is None else str(val_pred)
+            gold_str = "null" if val_gold is None else str(val_gold)
+
+            # Determine strict match status
+            strict_match = "YES" if field in strict_matches else "NO"
+
+            # Determine judge decision
+            if field in strict_matches:
+                judge_decision = "—"
+            else:
+                judge_decision = verdicts.get(field, "NO")
+
+            table_data.append([field, pred_str, gold_str, strict_match, judge_decision])
+
+        if table_data:
+            table = tabulate(
+                table_data,
+                headers=["Field", "Extracted", "Ground Truth", "Strict Match", "Judge"],
+                tablefmt="fancy_grid",
+            )
+            logger.info(f"\n{table}")
 
     def _compute_stats(
         self,
@@ -390,6 +435,9 @@ Respond with JSON only:"""
                     pred_json=pred_json,
                     discrepancies=discrepancies,
                 )
+
+                # Log comparison table
+                self._log_comparison_table(pred, gold, strict_matches, discrepancies, verdicts)
 
                 # Apply verdicts with correct penalty logic
                 for field_name in discrepancies:

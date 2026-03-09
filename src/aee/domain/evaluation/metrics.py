@@ -5,6 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 import dspy
+from tabulate import tabulate
 
 from aee.domain.evaluation.matcher import ExperimentEntity, ExperimentMatcher
 
@@ -61,31 +62,19 @@ class TaskMetric:
             return []
         return getattr(extracted_data, "experiments", [])
 
-    def _format_field_details(self, fields: Dict[str, float]) -> str:
-        """Format field-level metrics for logging.
-
-        Args:
-            fields: Dictionary of field names and their scores.
-
-        Returns:
-            Formatted string of field details.
-        """
-        return " | ".join([f"{field}: {score:.2f}" for field, score in fields.items()])
-
     def _log_metrics(self, report: Dict[str, Any]) -> None:
-        """Log detailed metrics information.
+        """Log evaluation metrics as formatted tables."""
+        summary = [
+            ["F1", f"{report['f1']:.3f}"],
+            ["Precision", f"{report['precision']:.3f}"],
+            ["Recall", f"{report['recall']:.3f}"],
+            ["Count", f"P:{report['counts']['preds']} / G:{report['counts']['gts']}"],
+        ]
 
-        Args:
-            report: Detailed evaluation report from ExperimentMatcher.
-        """
-        field_details = self._format_field_details(report["fields"])
-        logger.info(
-            f"F1: {report['f1']:.3f} | "
-            f"Precision: {report['precision']:.3f} | "
-            f"Recall: {report['recall']:.3f} | "
-            f"Count: (P:{report['counts']['preds']} / G:{report['counts']['gts']}) | "
-            f"Fields: {field_details}"
-        )
+        fields = [[f, f"{s:.2f}"] for f, s in sorted(report["fields"].items())]
+
+        logger.info("\n" + tabulate(summary, headers=["Metric", "Value"], tablefmt="fancy_grid"))
+        logger.info("\n" + tabulate(fields, headers=["Field", "Score"], tablefmt="fancy_grid"))
 
     def __call__(self, example: dspy.Example, prediction: dspy.Prediction, trace: Any = None) -> float:
         """Calculate the metric score for a prediction.

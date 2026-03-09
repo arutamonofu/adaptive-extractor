@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 
 import dspy
 
-from aee.domain.tasks import TaskConfig
 from aee.infrastructure.storage import DocumentRepository, GroundTruthRepository, DataSplitRepository
 from aee.shared.exceptions import DataValidationError, UseCaseExecutionError
 
@@ -70,7 +69,7 @@ class DatasetBuilder:
 
     def build_from_split(
         self,
-        task: TaskConfig,
+        task: Dict[str, Any],
         gt_path: Path,
         split_path: Path,
         split_name: str,
@@ -80,7 +79,7 @@ class DatasetBuilder:
         """Build dataset from a data split.
 
         Args:
-            task: Task definition containing output model.
+            task: Task dict with config, row_converter, etc.
             gt_path: Path to ground truth CSV.
             split_path: Path to splits JSON file.
             split_name: Name of split to load (e.g., "train", "test").
@@ -95,7 +94,7 @@ class DatasetBuilder:
         """
         try:
             # Load ground truth
-            gt_data = self.gt_repo.load(gt_path, task.row_converter)  # type: ignore[arg-type]
+            gt_data = self.gt_repo.load(gt_path, task["row_converter"])
 
             # Load split
             allowed_ids = list(self.split_repo.load_split(
@@ -119,7 +118,7 @@ class DatasetBuilder:
 
     def build_from_ids(
         self,
-        task: TaskConfig,
+        task: Dict[str, Any],
         document_ids: List[str],
         gt_data: Dict[str, List[Any]],
         limit: Optional[int] = None,
@@ -128,7 +127,7 @@ class DatasetBuilder:
         """Build dataset from specific document IDs.
 
         Args:
-            task: Task definition containing output model.
+            task: Task dict with config, output_model, etc.
             document_ids: List of document IDs to include.
             gt_data: Ground truth data mapping doc IDs to experiments.
             limit: Optional maximum number of examples.
@@ -191,14 +190,14 @@ class DatasetBuilder:
 
     def _build_examples(
         self,
-        task: TaskConfig,
+        task: Dict[str, Any],
         document_ids: List[str],
         gt_data: Dict[str, List[Any]],
     ) -> List[dspy.Example]:
         """Build DSPy examples from documents and ground truth.
 
         Args:
-            task: Task definition.
+            task: Task dict with config, output_model, etc.
             document_ids: List of document IDs.
             gt_data: Ground truth data.
 
@@ -229,7 +228,7 @@ class DatasetBuilder:
                 # Create DSPy example
                 example = dspy.Example(
                     document_text=doc_text,
-                    extracted_data=task.output_model(experiments=gt_data[doc_id])  # type: ignore[attr-defined]
+                    extracted_data=task["output_model"](experiments=gt_data[doc_id])
                 ).with_inputs("document_text")
 
                 dataset.append(example)
@@ -252,7 +251,7 @@ class DatasetBuilder:
 
     def _validate_inputs(
         self,
-        task: TaskConfig,
+        task: Dict[str, Any],
         document_ids: List[str],
         gt_data: Dict[str, List[Any]],
         limit: Optional[int],
@@ -261,7 +260,7 @@ class DatasetBuilder:
         """Validate inputs for dataset building.
 
         Args:
-            task: Task definition.
+            task: Task dict with config, output_model, etc.
             document_ids: List of document IDs.
             gt_data: Ground truth data.
             limit: Optional limit.
