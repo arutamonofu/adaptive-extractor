@@ -217,10 +217,10 @@ Schema Definition (Field Meanings):
 
 --- CONTEXT (Full Experiments) ---
 Ground Truth (Reference):
-{json.dumps(gt_json, indent=2)}
+{json.dumps(gt_json, indent=2, default=str)}
 
 Predicted (Extraction):
-{json.dumps(pred_json, indent=2)}
+{json.dumps(pred_json, indent=2, default=str)}
 
 --- DISCREPANCIES TO EVALUATE ---
 The following fields did not match strictly. Evaluate ONLY these fields based on the context above:
@@ -277,6 +277,11 @@ Respond with JSON only:"""
             response = self.teacher_llm(prompt)
             response_text = response[0] if isinstance(response, list) else response
 
+            # Extract JSON from response (handle markdown wrappers and extra text)
+            json_match = re.search(r"\{.*\}", str(response_text), re.DOTALL)
+            if json_match:
+                response_text = json_match.group(0)
+
             # Parse JSON response
             verdicts = json.loads(response_text)
 
@@ -285,20 +290,22 @@ Respond with JSON only:"""
             for field_name in discrepancies:
                 if field_name in verdicts:
                     # Only accept "YES", everything else is "NO"
-                    valid_verdicts[field_name] = "YES" if verdicts[field_name] == "YES" else "NO"
+                    valid_verdicts[field_name] = (
+                        "YES" if str(verdicts[field_name]).strip().upper() == "YES" else "NO"
+                    )
                 else:
                     # Field not in response, treat as NO
                     valid_verdicts[field_name] = "NO"
 
             logger.info(
                 f"[SemanticJudge] Checked {len(discrepancies)} fields -> "
-                f"{' + '.join(f'{k}: {v}' for k, v in valid_verdicts.items())}"
+                f"{{{' + '.join(f'{k}: {v}' for k, v in valid_verdicts.items())}}}"
             )
 
             return valid_verdicts
 
         except json.JSONDecodeError as e:
-            logger.warning(f"[SemanticJudge] JSON parse error: {e}")
+            logger.warning(f"[SemanticJudge] JSON parse error: {e}. Raw response: {response_text[:200]}...")
             return {}
         except Exception as e:
             logger.warning(f"[SemanticJudge] Failed: {e}")
@@ -308,7 +315,7 @@ Respond with JSON only:"""
         self,
         pairs: List[Tuple[Optional[Any], Optional[Any]]],
         task_name: Optional[str] = None,
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """Calculate Micro-F1/Precision/Recall with semantic judge fallback.
 
         Args:
@@ -316,19 +323,29 @@ Respond with JSON only:"""
             task_name: Optional task name for semantic judge context.
 
         Returns:
-            Dict with precision, recall, and f1 scores.
+            Dict with precision, recall, f1 scores and field_scores.
         """
         tp, fp, fn = 0, 0, 0
+
+        # Словари для хранения статистики по каждому полю
+        field_correct = {f: 0 for f in self.fields}
+        field_total = {f: 0 for f in self.fields}
 
         for pred, gold in pairs:
             # Case 3: False Negative (Missing Experiment)
             if pred is None and gold is not None:
-                fn += sum(1 for f in self.fields if getattr(gold, f, None) is not None)
+                for f in self.fields:
+                    if getattr(gold, f, None) is not None:
+                        fn += 1
+                        field_total[f] += 1
                 continue
 
             # Case 2: False Positive (Hallucinated Experiment)
             if gold is None and pred is not None:
-                fp += sum(1 for f in self.fields if getattr(pred, f, None) is not None)
+                for f in self.fields:
+                    if getattr(pred, f, None) is not None:
+                        fp += 1
+                        field_total[f] += 1
                 continue
 
             # Case 1: Aligned Experiment - Check field-wise
@@ -341,6 +358,8 @@ Respond with JSON only:"""
 
                 if val_g is None and val_p is None:
                     continue  # True Negative (Ignore)
+
+                field_total[f] += 1  # Поле участвует в оценке
 
                 if val_g is not None and val_p is None:
                     discrepancies.append(f)  # Missing value (Pure FN candidate)
@@ -355,6 +374,8 @@ Respond with JSON only:"""
 
             # Count strict matches as TP
             tp += len(strict_matches)
+            for f in strict_matches:
+                field_correct[f] += 1
 
             # Handle discrepancies
             if discrepancies and self.enable_semantic_judge:
@@ -376,6 +397,7 @@ Respond with JSON only:"""
 
                     if verdict == "YES":
                         tp += 1  # Amnesty granted
+                        field_correct[field_name] += 1
                     else:
                         # Вердикт NO - возвращаемся к исходной природе ошибки
                         val_p = getattr(pred, field_name, None)
@@ -408,7 +430,18 @@ Respond with JSON only:"""
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
-        return {"precision": precision, "recall": recall, "f1": f1}
+        # Расчет per-field scores
+        field_scores = {
+            f: (field_correct[f] / field_total[f]) if field_total[f] > 0 else 1.0
+            for f in self.fields
+        }
+
+        return {
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "field_scores": field_scores,
+        }
 
     def get_optimization_score(
         self,
@@ -448,28 +481,10 @@ Respond with JSON only:"""
         pairs = self.align_pairs(preds, gts)
         stats = self._compute_stats(pairs, task_name)
 
-        # Calculate per-field scores
-        field_scores = {}
-        for field in self.fields:
-            correct = 0
-            total = 0
-            for p, g in pairs:
-                val_p = getattr(p, field, None) if p else None
-                val_g = getattr(g, field, None) if g else None
-
-                if val_g is not None:
-                    total += 1
-                    if self._is_match(val_p, val_g):
-                        correct += 1
-                elif val_p is not None:
-                    total += 1  # False Positive field
-
-            field_scores[field] = correct / total if total > 0 else 1.0
-
         return {
             "f1": stats["f1"],
             "precision": stats["precision"],
             "recall": stats["recall"],
-            "fields": field_scores,
+            "fields": stats["field_scores"],
             "counts": {"preds": len(preds), "gts": len(gts)}
         }
