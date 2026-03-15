@@ -6,6 +6,7 @@ Tests cover:
 - End-to-end parsing flow with mocked PdfConverter
 """
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

@@ -257,15 +257,17 @@ class GeminiParser(BaseParser):
             # Upload file to Google servers
             logger.info("Uploading file to Google server...")
             uploaded_file = self.client.files.upload(file=str(path))
-            
+
             # Wait for file processing
             logger.info("Waiting for file to be ready...")
-            while uploaded_file.state.name == "PROCESSING":
+            while uploaded_file.state is not None and uploaded_file.state.name == "PROCESSING":
                 logger.info(".")
                 time.sleep(3)
+                if uploaded_file.name is None:
+                    raise RuntimeError("Uploaded file has no name")
                 uploaded_file = self.client.files.get(name=uploaded_file.name)
-            
-            if uploaded_file.state.name == "FAILED":
+
+            if uploaded_file.state is not None and uploaded_file.state.name == "FAILED":
                 raise RuntimeError(
                     f"Failed to process file {path.name} on Google server"
                 )
@@ -322,7 +324,7 @@ class GeminiParser(BaseParser):
             raise
         finally:
             # Clean up uploaded file
-            if uploaded_file:
+            if uploaded_file and uploaded_file.name:
                 try:
                     self.client.files.delete(name=uploaded_file.name)
                     logger.info("Temporary file deleted from server")
