@@ -26,7 +26,7 @@ class TestGeminiParserConfig:
     def test_create_config_with_defaults(self):
         """Test creating config with default values."""
         config = GeminiParserConfig()
-        
+
         assert config.model_name == "gemini-3-flash-preview"
         assert config.upload_timeout == 300
         assert config.safety_settings is True
@@ -38,7 +38,7 @@ class TestGeminiParserConfig:
             upload_timeout=600,
             safety_settings=False,
         )
-        
+
         assert config.model_name == "gemini-2.0-flash"
         assert config.upload_timeout == 600
         assert config.safety_settings is False
@@ -54,7 +54,7 @@ class TestIngestionConfigWithGemini:
             parser="gemini",
             overwrite=False,
         )
-        
+
         assert config.gemini is not None
         assert config.gemini.model_name == "gemini-3-flash-preview"
 
@@ -68,7 +68,7 @@ class TestIngestionConfigWithGemini:
                 upload_timeout=600,
             ),
         )
-        
+
         assert config.gemini.model_name == "gemini-2.0-flash"
         assert config.gemini.upload_timeout == 600
 
@@ -110,9 +110,9 @@ class TestGeminiParserInitialization:
         """Test that missing API key raises ValueError."""
         # Ensure API key is not set
         os.environ.pop("GEMINI_API_KEY", None)
-        
+
         config = GeminiParserConfig()
-        
+
         with pytest.raises(ValueError, match="GEMINI_API_KEY environment variable"):
             GeminiParser(config)
 
@@ -122,11 +122,11 @@ class TestGeminiParserInitialization:
         """Test successful initialization with valid config."""
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         config = GeminiParserConfig()
-        
+
         parser = GeminiParser(config)
-        
+
         assert parser.cfg == config
         assert parser.api_key == "test_key"
         assert parser.client is not None
@@ -143,31 +143,31 @@ class TestGeminiParserParse:
         # Create mock PDF file
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         # Setup mocks
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         # Mock uploaded file
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "ACTIVE"
         mock_uploaded_file.name = "files/test-file"
         mock_client.files.upload.return_value = mock_uploaded_file
-        
+
         # Mock streaming response
         mock_chunk = MagicMock()
         mock_chunk.text = "# Test Markdown\n\nContent here."
         mock_stream = [mock_chunk]
         mock_client.models.generate_content_stream.return_value = mock_stream
-        
+
         # Create parser and parse
         config = GeminiParserConfig()
         parser = GeminiParser(config)
         result = parser.parse(pdf_path)
-        
+
         # Verify result
         assert result == "# Test Markdown\n\nContent here."
-        
+
         # Verify API calls
         mock_client.files.upload.assert_called_once()
         mock_client.models.generate_content_stream.assert_called_once()
@@ -179,32 +179,32 @@ class TestGeminiParserParse:
         """Test that parser waits for file processing."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         # Mock uploaded file that starts in PROCESSING state
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "PROCESSING"
         mock_uploaded_file.name = "files/test-file"
-        
+
         # Mock file.get to return PROCESSING first, then ACTIVE
         mock_processing_file = MagicMock()
         mock_processing_file.state.name = "PROCESSING"
         mock_active_file = MagicMock()
         mock_active_file.state.name = "ACTIVE"
-        
+
         mock_client.files.upload.return_value = mock_uploaded_file
         mock_client.files.get.side_effect = [mock_processing_file, mock_active_file]
-        
+
         mock_chunk = MagicMock()
         mock_chunk.text = "Content"
         mock_client.models.generate_content_stream.return_value = [mock_chunk]
-        
+
         config = GeminiParserConfig()
         parser = GeminiParser(config)
         result = parser.parse(pdf_path)
-        
+
         assert result == "Content"
         # Should call get twice: once for PROCESSING, once for ACTIVE
         assert mock_client.files.get.call_count >= 1
@@ -215,18 +215,18 @@ class TestGeminiParserParse:
         """Test handling of failed file processing."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "FAILED"
         mock_uploaded_file.name = "files/test-file"
         mock_client.files.upload.return_value = mock_uploaded_file
-        
+
         config = GeminiParserConfig()
         parser = GeminiParser(config)
-        
+
         with pytest.raises(RuntimeError, match="Failed to process file"):
             parser.parse(pdf_path)
 
@@ -236,22 +236,22 @@ class TestGeminiParserParse:
         """Test handling of empty response."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "ACTIVE"
         mock_uploaded_file.name = "files/test-file"
         mock_client.files.upload.return_value = mock_uploaded_file
-        
+
         # Empty stream
         mock_client.models.generate_content_stream.return_value = []
-        
+
         config = GeminiParserConfig()
         parser = GeminiParser(config)
         result = parser.parse(pdf_path)
-        
+
         assert result == ""
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
@@ -260,24 +260,24 @@ class TestGeminiParserParse:
         """Test that uploaded file is cleaned up on error."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "ACTIVE"
         mock_uploaded_file.name = "files/test-file"
         mock_client.files.upload.return_value = mock_uploaded_file
-        
+
         # Raise error during generation
         mock_client.models.generate_content_stream.side_effect = Exception("API error")
-        
+
         config = GeminiParserConfig()
         parser = GeminiParser(config)
-        
+
         with pytest.raises(Exception, match="API error"):
             parser.parse(pdf_path)
-        
+
         # Verify cleanup was called
         mock_client.files.delete.assert_called_once_with(name="files/test-file")
 
@@ -287,23 +287,23 @@ class TestGeminiParserParse:
         """Test that safety settings are applied when enabled."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "ACTIVE"
         mock_uploaded_file.name = "files/test-file"
         mock_client.files.upload.return_value = mock_uploaded_file
-        
+
         mock_chunk = MagicMock()
         mock_chunk.text = "Content"
         mock_client.models.generate_content_stream.return_value = [mock_chunk]
-        
+
         config = GeminiParserConfig(safety_settings=True)
         parser = GeminiParser(config)
         parser.parse(pdf_path)
-        
+
         # Verify safety settings were passed
         call_args = mock_client.models.generate_content_stream.call_args
         config_arg = call_args[1]["config"]
@@ -315,19 +315,19 @@ class TestGeminiParserParse:
         """Test that the conversion prompt is used."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "ACTIVE"
         mock_client.files.upload.return_value = mock_uploaded_file
         mock_client.models.generate_content_stream.return_value = []
-        
+
         config = GeminiParserConfig()
         parser = GeminiParser(config)
         parser.parse(pdf_path)
-        
+
         # Verify prompt was passed
         call_args = mock_client.models.generate_content_stream.call_args
         contents = call_args[1]["contents"]

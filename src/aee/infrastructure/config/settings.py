@@ -753,44 +753,58 @@ class Settings(BaseSettings):
         Note: Ollama URLs must be set in .env file. No fallback is provided.
 
         Env vars applied:
-            - OLLAMA_STUDENT_BASE_URL: Student Ollama server URL (required)
-            - OLLAMA_TEACHER_BASE_URL: Teacher Ollama server URL (required)
+            - OLLAMA_STUDENT_BASE_URL: Student Ollama server URL (required when use_ollama=True for student)
+            - OLLAMA_TEACHER_BASE_URL: Teacher Ollama server URL (required when use_ollama=True for teacher)
 
         Args:
             config_data: Configuration dictionary to update.
 
         Raises:
-            ValueError: If required Ollama URL is not set in environment.
+            ValueError: If required Ollama URL is not set in environment when use_ollama=True.
         """
-        # Ollama URLs from .env (infrastructure settings)
+        # Check if Ollama is used for student and teacher
+        student_uses_ollama = (
+            config_data.get("llm", {})
+            .get("student", {})
+            .get("use_ollama", False)
+        )
+        teacher_uses_ollama = (
+            config_data.get("llm", {})
+            .get("teacher", {})
+            .get("use_ollama", False)
+        )
+
+        # Get Ollama URLs from environment
         ollama_student_url = os.getenv("OLLAMA_STUDENT_BASE_URL")
         ollama_teacher_url = os.getenv("OLLAMA_TEACHER_BASE_URL")
 
-        # Validate and apply student URL
-        if not ollama_student_url or ollama_student_url.strip() == "":
-            raise ValueError(
-                "OLLAMA_STUDENT_BASE_URL environment variable must be set in .env file"
-            )
-        if "llm" not in config_data:
-            config_data["llm"] = {}
-        if "student" not in config_data["llm"]:
-            config_data["llm"]["student"] = {}
-        if "ollama" not in config_data["llm"]["student"]:
-            config_data["llm"]["student"]["ollama"] = {}
-        config_data["llm"]["student"]["ollama"]["ollama_base_url"] = ollama_student_url.strip()
+        # Validate and apply student URL only if use_ollama=True
+        if student_uses_ollama:
+            if not ollama_student_url or ollama_student_url.strip() == "":
+                raise ValueError(
+                    "OLLAMA_STUDENT_BASE_URL environment variable must be set in .env file when use_ollama=True for student"
+                )
+            if "llm" not in config_data:
+                config_data["llm"] = {}
+            if "student" not in config_data["llm"]:
+                config_data["llm"]["student"] = {}
+            if "ollama" not in config_data["llm"]["student"]:
+                config_data["llm"]["student"]["ollama"] = {}
+            config_data["llm"]["student"]["ollama"]["ollama_base_url"] = ollama_student_url.strip()
 
-        # Validate and apply teacher URL
-        if not ollama_teacher_url or ollama_teacher_url.strip() == "":
-            raise ValueError(
-                "OLLAMA_TEACHER_BASE_URL environment variable must be set in .env file"
-            )
-        if "llm" not in config_data:
-            config_data["llm"] = {}
-        if "teacher" not in config_data["llm"]:
-            config_data["llm"]["teacher"] = {}
-        if "ollama" not in config_data["llm"]["teacher"]:
-            config_data["llm"]["teacher"]["ollama"] = {}
-        config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_teacher_url.strip()
+        # Validate and apply teacher URL only if use_ollama=True
+        if teacher_uses_ollama:
+            if not ollama_teacher_url or ollama_teacher_url.strip() == "":
+                raise ValueError(
+                    "OLLAMA_TEACHER_BASE_URL environment variable must be set in .env file when use_ollama=True for teacher"
+                )
+            if "llm" not in config_data:
+                config_data["llm"] = {}
+            if "teacher" not in config_data["llm"]:
+                config_data["llm"]["teacher"] = {}
+            if "ollama" not in config_data["llm"]["teacher"]:
+                config_data["llm"]["teacher"]["ollama"] = {}
+            config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_teacher_url.strip()
 
     @classmethod
     def _resolve_paths(cls, config_data: dict, base_dir: Path) -> dict:

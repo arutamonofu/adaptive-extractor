@@ -36,34 +36,34 @@ class TestGeminiParserIntegration:
         # Setup paths
         parsed_dir = tmp_path / "parsed"
         parsed_dir.mkdir()
-        
+
         # Create mock PDF
         pdf_path = tmp_path / "test_paper.pdf"
         pdf_path.write_bytes(b"%PDF-fake-content")
-        
+
         # Setup Gemini mock
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "ACTIVE"
         mock_uploaded_file.name = "files/test-file"
         mock_client.files.upload.return_value = mock_uploaded_file
-        
+
         mock_chunk = MagicMock()
         mock_chunk.text = "# Test Paper\n\nAbstract: Test content."
         mock_client.models.generate_content_stream.return_value = [mock_chunk]
-        
+
         # Create parser and repository
         config = GeminiParserConfig()
         parser = GeminiParser(config)
         repo = DocumentRepository(parsed_dir=parsed_dir)
-        
+
         # Parse and save
         markdown = parser.parse(pdf_path)
         output_path = parsed_dir / "test_paper.md"
         repo.save(markdown, output_path)
-        
+
         # Verify saved content
         assert output_path.exists()
         saved_content = output_path.read_text(encoding="utf-8")
@@ -82,36 +82,39 @@ class TestGeminiParserIntegration:
         pdf_dir.mkdir()
         parsed_dir = tmp_path / "parsed"
         parsed_dir.mkdir()
-        
+
         # Create mock PDFs
         pdf1 = pdf_dir / "paper1.pdf"
         pdf1.write_bytes(b"%PDF-content-1")
         pdf2 = pdf_dir / "paper2.pdf"
         pdf2.write_bytes(b"%PDF-content-2")
-        
+
         # Setup Gemini mock
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        
+
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.state.name = "ACTIVE"
         mock_uploaded_file.name = "files/test-file"
         mock_client.files.upload.return_value = mock_uploaded_file
-        
+
         # Different content for each file
         call_count = [0]
+
         def get_chunk():
             call_count[0] += 1
             chunk = MagicMock()
             chunk.text = f"# Paper {call_count[0]}\n\nContent {call_count[0]}."
             return [chunk]
-        
-        mock_client.models.generate_content_stream.side_effect = lambda **kwargs: get_chunk()
-        
+
+        mock_client.models.generate_content_stream.side_effect = lambda **kwargs: (
+            get_chunk()
+        )
+
         # Create use case
         doc_repo = DocumentRepository(parsed_dir=parsed_dir)
         use_case = ParseDocumentsUseCase(document_repo=doc_repo)
-        
+
         # Create request
         request = ParseDocumentsRequest(
             input_paths=[pdf1, pdf2],
@@ -120,16 +123,16 @@ class TestGeminiParserIntegration:
             parser_config=GeminiParserConfig(),
             overwrite=True,
         )
-        
+
         # Execute
         response = use_case.execute(request)
-        
+
         # Verify results
         assert response.success is True
         assert response.documents_parsed == 2
         assert response.total_documents == 2
         assert response.failed_documents == 0
-        
+
         # Verify files created
         assert (parsed_dir / "paper1.md").exists()
         assert (parsed_dir / "paper2.md").exists()
@@ -146,10 +149,11 @@ class TestGeminiConfigLoading:
         (tmp_path / "config" / "initial_instructions").mkdir(parents=True)
         instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"
         instruction_file.write_text("test instruction")
-        
+
         # Create minimal YAML config
         config_path = tmp_path / "gemini_test.yaml"
-        config_path.write_text(f"""
+        config_path.write_text(
+            f"""
 project:
   log_level: "INFO"
 
@@ -245,11 +249,13 @@ circuit_breaker:
   failure_threshold: 5
   reset_timeout: 30.0
   half_open_max_calls: 1
-""", encoding="utf-8")
-        
+""",
+            encoding="utf-8",
+        )
+
         # Load settings
         settings = Settings.load(config_path=config_path, load_env_file=False)
-        
+
         # Verify parsing config
         assert settings.parsing.parser == "gemini"
         assert settings.parsing.gemini is not None
@@ -264,10 +270,11 @@ circuit_breaker:
         (tmp_path / "config" / "initial_instructions").mkdir(parents=True)
         instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"
         instruction_file.write_text("test instruction")
-        
+
         # Create YAML config (same as above)
         config_path = tmp_path / "gemini_test.yaml"
-        config_path.write_text(f"""
+        config_path.write_text(
+            f"""
 project:
   log_level: "INFO"
 
@@ -363,14 +370,16 @@ circuit_breaker:
   failure_threshold: 5
   reset_timeout: 30.0
   half_open_max_calls: 1
-""", encoding="utf-8")
-        
+""",
+            encoding="utf-8",
+        )
+
         # Load settings
         settings = Settings.load(config_path=config_path, load_env_file=False)
-        
+
         # Get parser
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
             parser = get_parser(settings.parsing.parser, settings.parsing.gemini)
-        
+
         assert isinstance(parser, GeminiParser)
         assert parser.cfg.model_name == "gemini-2.0-flash"
