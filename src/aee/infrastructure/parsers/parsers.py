@@ -10,10 +10,16 @@ from typing import Any, Union
 # Marker
 from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
+from marker.config.parser import ConfigParser
 
 # Project
 from aee.infrastructure.parsers.base import BaseParser
 from aee.infrastructure.config.settings import MarkerConfig, GeminiParserConfig
+from aee.infrastructure.parsers.marker_config import (
+    get_marker_config_dict,
+    get_custom_processors,
+    get_torch_device,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,13 +125,22 @@ Do not include explanations or additional commentary."""
 
 
 class MarkerParser(BaseParser):
-    """Parser using Marker library."""
+    """Parser using Marker library with detailed configuration.
+
+    This parser uses the configuration from marker_config.py which contains
+    ~70 parameters optimized for scientific chemistry PDF extraction.
+
+    The MarkerConfig from settings is still accepted for backward compatibility,
+    but the detailed settings come from the marker_config module.
+    """
 
     def __init__(self, config: MarkerConfig):
         """Initialize the Marker parser.
 
         Args:
             config: Configuration for the parser. Required.
+                Note: Only used for backward compatibility. Detailed settings
+                are loaded from marker_config.py.
 
         Raises:
             ValueError: If config is None.
@@ -133,9 +148,24 @@ class MarkerParser(BaseParser):
         if config is None:
             raise ValueError("Configuration object is required for MarkerParser")
         self.cfg = config
-        logger.info(f"Initializing Marker on {self.cfg.device}...")
+
+        # Get device and config from marker_config module
+        torch_device = get_torch_device()
+        config_dict = get_marker_config_dict()
+
+        logger.info(f"Initializing Marker on {torch_device}...")
+        logger.info(f"LLM enabled: {config_dict.get('use_llm', False)}")
+        logger.info(f"OCR settings: force_ocr={config_dict.get('force_ocr')}, strip_existing_ocr={config_dict.get('strip_existing_ocr')}")
+
+        # Create config parser and converter
+        config_parser = ConfigParser(config_dict)
+
         self.converter = PdfConverter(
-            artifact_dict=create_model_dict(device=self.cfg.device)
+            artifact_dict=create_model_dict(device=torch_device),
+            config=config_parser.generate_config_dict(),
+            processor_list=get_custom_processors(),
+            renderer=config_parser.get_renderer(),
+            llm_service=config_parser.get_llm_service() if config_dict.get("use_llm") else None,
         )
 
     def parse(self, file_path: Union[str, Path]) -> str:

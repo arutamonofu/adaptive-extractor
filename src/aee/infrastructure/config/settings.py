@@ -294,11 +294,18 @@ class LLMConfig(BaseModel):
 
 
 class MarkerConfig(BaseModel):
-    """Marker parser configuration."""
-    device: Literal["cpu", "cuda"] = Field(
-        ...,
-        description="Device to run Marker on: 'cpu' or 'cuda'"
-    )
+    """Marker parser configuration.
+
+    Note: Detailed Marker settings (~70 parameters) are now defined in code
+    at src/aee/infrastructure/parsers/marker_config.py. This class is kept
+    for backward compatibility and may be used for runtime overrides in the future.
+
+    Currently, this class has no required fields. All settings are loaded from
+    the marker_config module.
+    """
+    # Placeholder for potential future runtime overrides
+    # All detailed settings are in marker_config.py
+    pass
 
 
 class GeminiParserConfig(BaseModel):
@@ -341,10 +348,8 @@ class IngestionConfig(BaseModel):
     def validate_parser_config(self) -> "IngestionConfig":
         """Validate that the correct parser-specific config is provided."""
         if self.parser == "marker" and self.marker is None:
-            raise ValueError(
-                "parser is 'marker' but 'marker' configuration is missing. "
-                "Add 'marker: {device: cpu}' to your YAML config."
-            )
+            # Marker settings are now in code (marker_config.py), so empty config is valid
+            self.marker = MarkerConfig()
         if self.parser == "gemini" and self.gemini is None:
             # For gemini, we can use defaults, so just create a default config
             self.gemini = GeminiParserConfig()

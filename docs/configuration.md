@@ -327,9 +327,9 @@ parsing:
   parser: "marker"                # Required: "marker" or "gemini"
   overwrite: false                # Optional: Overwrite existing parsed files (default: false)
 
-  # Marker settings (required if parser: marker)
-  marker:
-    device: "cpu"                 # "cpu" or "cuda"
+  # Marker settings (optional - detailed settings are in code)
+  # marker:
+  #   (no settings required - all configured in marker_config.py)
 
   # Gemini settings (required if parser: gemini)
   gemini:
@@ -338,9 +338,64 @@ parsing:
     safety_settings: true         # Enable safety settings for Gemini API
 ```
 
-> **Note:** All fields in `parsing.marker` are **required** when using Marker. The `parsing.gemini` section is **required** when using Gemini parser. The `overwrite` field is optional (default: `false`).
+> **Note:** The `parsing.marker` section is now **optional**. All detailed Marker settings (~70 parameters) are defined in code at `src/aee/infrastructure/parsers/marker_config.py`. The `parsing.gemini` section is **required** when using Gemini parser. The `overwrite` field is optional (default: `false`).
 
 > **Environment Variable:** For Gemini parser, set `GEMINI_API_KEY` in `.env` file.
+
+### Marker Configuration (Code-Based)
+
+Detailed Marker settings are defined in code rather than YAML for better type safety and version control.
+
+**Location:** `src/aee/infrastructure/parsers/marker_config.py`
+
+**Key settings include:**
+
+```python
+# Core settings
+OUTPUT_FORMAT = "markdown"
+FORCE_OCR = True
+STRIP_EXISTING_OCR = True
+USE_LLM = True
+REDO_INLINE_MATH = True
+
+# Device settings
+TORCH_DEVICE = "cuda"  # or "cpu"
+
+# LLM service settings
+LLM_SERVICE = "ollama"
+OllamaService_ollama_model = "qwen2.5vl:72b"
+OllamaService_ollama_base_url = "https://aicltr.itmo.ru/ollama"
+
+# Builder settings (OCR, Layout, Line, Structure)
+DocumentBuilder_lowres_image_dpi = 256
+LayoutBuilder_max_expand_frac = 0.04
+LineBuilder_min_document_ocr_threshold = 0.7
+
+# Processor settings (Equations, Tables, Math)
+LLMEquationProcessor_max_concurrency = 1
+LLMTableProcessor_max_rows_per_batch = 70
+TableProcessor_row_split_threshold = 0.55
+
+# Renderer settings
+DISABLE_IMAGE_EXTRACTION = True
+MarkdownRenderer_html_tables_in_markdown = True
+```
+
+**To modify Marker settings:**
+1. Edit `src/aee/infrastructure/parsers/marker_config.py` directly
+2. Change the constant values as needed
+3. No YAML changes required
+
+**Settings categories:**
+- **Core settings**: Output format, debug options, page range
+- **OCR settings**: Force OCR, strip existing OCR, character detection
+- **LLM settings**: Enable LLM processing, inline math correction
+- **Builder settings**: Document, Layout, Line, OCR, Structure builders
+- **Processor settings**: Equation, Table, Math block processors (LLM and non-LLM)
+- **Renderer settings**: Markdown output formatting, HTML tables, page separators
+- **Service settings**: Ollama service configuration for LLM backend
+
+> **Note:** The default configuration is optimized for data extraction from scientific chemistry PDFs using Qwen2.5-VL as the LLM backend.
 
 ### Extraction Configuration
 
