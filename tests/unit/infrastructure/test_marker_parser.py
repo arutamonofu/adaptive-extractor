@@ -79,7 +79,7 @@ class TestMarkerParserInitialization:
         mock_converter_class.return_value = MagicMock()
 
         config = MarkerConfig()
-        parser = MarkerParser(config)
+        MarkerParser(config)
 
         # Verify ConfigParser was called (meaning config_dict was generated)
         mock_config_parser_class.assert_called_once()
@@ -99,7 +99,10 @@ class TestMarkerParserInitialization:
         mock_config_parser_class,
         mock_model_dict,
     ):
-        """Test that CUDA device is used by default."""
+        """Test that device is set correctly based on CUDA availability."""
+        import torch
+        expected_device = "cuda" if torch.cuda.is_available() else "cpu"
+
         mock_model_dict.return_value = {}
         mock_config_parser = MagicMock()
         mock_config_parser.generate_config_dict.return_value = {}
@@ -109,10 +112,10 @@ class TestMarkerParserInitialization:
         mock_converter_class.return_value = MagicMock()
 
         config = MarkerConfig()
-        parser = MarkerParser(config)
+        MarkerParser(config)
 
-        # Verify create_model_dict was called with cuda
-        mock_model_dict.assert_called_once_with(device="cuda")
+        # Verify create_model_dict was called with correct device
+        mock_model_dict.assert_called_once_with(device=expected_device)
 
     @patch("aee.infrastructure.parsers.parsers.create_model_dict")
     @patch("aee.infrastructure.parsers.parsers.ConfigParser")
@@ -133,7 +136,7 @@ class TestMarkerParserInitialization:
         mock_converter_class.return_value = MagicMock()
 
         config = MarkerConfig()
-        parser = MarkerParser(config)
+        MarkerParser(config)
 
         # Verify processor_list was passed
         call_kwargs = mock_converter_class.call_args[1]
@@ -298,15 +301,47 @@ class TestMarkerParserParse:
 class TestGetParserMarker:
     """Tests for get_parser() factory function with Marker."""
 
-    def test_get_parser_marker(self):
+    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
+    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
+    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    def test_get_parser_marker(
+        self,
+        mock_converter_class,
+        mock_config_parser_class,
+        mock_model_dict,
+    ):
         """Test getting Marker parser."""
+        mock_model_dict.return_value = {}
+        mock_config_parser = MagicMock()
+        mock_config_parser.generate_config_dict.return_value = {}
+        mock_config_parser.get_renderer.return_value = MagicMock()
+        mock_config_parser.get_llm_service.return_value = MagicMock()
+        mock_config_parser_class.return_value = mock_config_parser
+        mock_converter_class.return_value = MagicMock()
+
         config = MarkerConfig()
         parser = get_parser("marker", config)
 
         assert isinstance(parser, MarkerParser)
 
-    def test_get_parser_marker_case_insensitive(self):
+    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
+    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
+    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    def test_get_parser_marker_case_insensitive(
+        self,
+        mock_converter_class,
+        mock_config_parser_class,
+        mock_model_dict,
+    ):
         """Test that parser name is case-insensitive."""
+        mock_model_dict.return_value = {}
+        mock_config_parser = MagicMock()
+        mock_config_parser.generate_config_dict.return_value = {}
+        mock_config_parser.get_renderer.return_value = MagicMock()
+        mock_config_parser.get_llm_service.return_value = MagicMock()
+        mock_config_parser_class.return_value = mock_config_parser
+        mock_converter_class.return_value = MagicMock()
+
         config = MarkerConfig()
 
         parser1 = get_parser("MARKER", config)

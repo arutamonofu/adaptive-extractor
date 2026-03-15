@@ -297,7 +297,7 @@ class GeminiParser(BaseParser):
             
             response_stream = self.client.models.generate_content_stream(
                 model=self.cfg.model_name,
-                contents=[uploaded_file, GEMINI_PDF_TO_MD_PROMPT],
+                contents=[uploaded_file, GEMINI_PDF_TO_MD_PROMPT],  # type: ignore[arg-type]
                 config=types.GenerateContentConfig(
                     safety_settings=safety_settings,
                     temperature=0.1,

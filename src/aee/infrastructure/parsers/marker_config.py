@@ -343,7 +343,11 @@ OllamaService_ollama_model = "qwen2.5vl:72b"
 # DEVICE SETTINGS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-TORCH_DEVICE = "cuda"
+try:
+    import torch
+    TORCH_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+except ImportError:
+    TORCH_DEVICE = "cpu"
 """PyTorch device for model inference: 'cuda' or 'cpu'."""
 
 

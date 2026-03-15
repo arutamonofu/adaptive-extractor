@@ -7,8 +7,6 @@ Tests cover:
 - Device settings
 """
 
-import pytest
-
 from aee.infrastructure.parsers.marker_config import (
     CUSTOM_PROCESSORS,
     FORCE_OCR,
@@ -201,9 +199,11 @@ class TestDeviceSettings:
     """Tests for device-related settings."""
 
     def test_torch_device(self):
-        """Test that TORCH_DEVICE is set to cuda."""
-        assert TORCH_DEVICE == "cuda"
-        assert get_torch_device() == "cuda"
+        """Test that TORCH_DEVICE is set correctly based on CUDA availability."""
+        import torch
+        expected_device = "cuda" if torch.cuda.is_available() else "cpu"
+        assert TORCH_DEVICE == expected_device
+        assert get_torch_device() == expected_device
 
     def test_llm_service(self):
         """Test that LLM_SERVICE is set to ollama."""

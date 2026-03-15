@@ -75,25 +75,25 @@ class TestIngestionConfigWithGemini:
     def test_ingestion_config_marker_still_works(self):
         """Test that Marker parser config still works."""
         from aee.infrastructure.config.settings import MarkerConfig
-        
+
         config = IngestionConfig(
             parser="marker",
             overwrite=False,
-            marker=MarkerConfig(device="cpu"),
         )
-        
+
         assert config.parser == "marker"
-        assert config.marker.device == "cpu"
+        assert isinstance(config.marker, MarkerConfig)
 
     def test_ingestion_config_marker_requires_config(self):
-        """Test that Marker parser requires config."""
-        from pydantic import ValidationError
-        
-        with pytest.raises(ValidationError, match="marker.*configuration is missing"):
-            IngestionConfig(
-                parser="marker",
-                overwrite=False,
-            )
+        """Test that Marker parser auto-creates config when not provided."""
+        from aee.infrastructure.config.settings import MarkerConfig
+
+        config = IngestionConfig(
+            parser="marker",
+            overwrite=False,
+        )
+
+        assert isinstance(config.marker, MarkerConfig)
 
 
 @pytest.mark.unit
@@ -338,20 +338,22 @@ class TestGeminiParserParse:
 class TestGetParserFactory:
     """Tests for get_parser() factory function."""
 
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
     def test_get_parser_gemini(self):
         """Test getting Gemini parser."""
         config = GeminiParserConfig()
         parser = get_parser("gemini", config)
-        
+
         assert isinstance(parser, GeminiParser)
 
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
     def test_get_parser_gemini_case_insensitive(self):
         """Test that parser name is case-insensitive."""
         config = GeminiParserConfig()
-        
+
         parser1 = get_parser("GEMINI", config)
         parser2 = get_parser("Gemini", config)
-        
+
         assert isinstance(parser1, GeminiParser)
         assert isinstance(parser2, GeminiParser)
 
@@ -363,9 +365,9 @@ class TestGetParserFactory:
     def test_get_parser_gemini_with_wrong_config_raises_error(self):
         """Test that wrong config type raises ValueError."""
         from aee.infrastructure.config.settings import MarkerConfig
-        
-        marker_config = MarkerConfig(device="cpu")
-        
+
+        marker_config = MarkerConfig()
+
         with pytest.raises(ValueError, match="requires GeminiParserConfig"):
             get_parser("gemini", marker_config)
 
@@ -374,11 +376,27 @@ class TestGetParserFactory:
         with pytest.raises(ValueError, match="Unknown parser: unknown"):
             get_parser("unknown", None)
 
-    def test_get_parser_marker_still_works(self):
+    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
+    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
+    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    def test_get_parser_marker_still_works(
+        self,
+        mock_converter_class,
+        mock_config_parser_class,
+        mock_model_dict,
+    ):
         """Test that Marker parser still works."""
         from aee.infrastructure.config.settings import MarkerConfig
-        
-        config = MarkerConfig(device="cpu")
+
+        mock_model_dict.return_value = {}
+        mock_config_parser = MagicMock()
+        mock_config_parser.generate_config_dict.return_value = {}
+        mock_config_parser.get_renderer.return_value = MagicMock()
+        mock_config_parser.get_llm_service.return_value = MagicMock()
+        mock_config_parser_class.return_value = mock_config_parser
+        mock_converter_class.return_value = MagicMock()
+
+        config = MarkerConfig()
         parser = get_parser("marker", config)
-        
+
         assert parser.__class__.__name__ == "MarkerParser"
