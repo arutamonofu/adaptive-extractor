@@ -15,6 +15,7 @@ from .config import FieldSpec, TaskConfig
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: F401
+    import pandas  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,76 @@ def create_output_model(
     return model
 
 
+def _convert_value_to_type(
+    value: Any,
+    spec: FieldSpec,
+) -> Any:
+    """Convert a value to the specified type.
+
+    Args:
+        value: Value to convert.
+        spec: Field specification with target type.
+
+    Returns:
+        Converted value or default on failure.
+    """
+    try:
+        if spec.type is float:
+            return float(value)
+        elif spec.type is int:
+            return int(value)
+        elif spec.type is bool:
+            if isinstance(value, str):
+                return value.lower() in ("true", "1", "yes")
+            return bool(value)
+        else:
+            return str(value)
+    except (ValueError, TypeError):
+        logger.debug(f"Failed to convert '{value}' to {spec.type}")
+        return spec.default if not spec.required else None
+
+
+def _extract_field_value(
+    row: "pandas.Series",
+    field_name: str,
+    spec: FieldSpec,
+    row_converter: Any,
+) -> Any:
+    """Extract and convert a single field value from a row.
+
+    Args:
+        row: Pandas Series with data.
+        field_name: Name of the field.
+        spec: Field specification.
+        row_converter: RowConverterConfig for column name mapping.
+
+    Returns:
+        Extracted and converted value.
+    """
+    import pandas
+
+    # Get possible column names for this field
+    column_names = row_converter.get_column_names(field_name)
+
+    # Try each column name in order
+    value = None
+    for col in column_names:
+        if col in row.index:
+            val = row.get(col)
+            if not (pandas.isna(val) or val == ""):
+                value = val
+                break
+
+    # Handle None/missing values
+    if value is None or (isinstance(value, float) and pandas.isna(value)):
+        if spec.required:
+            return None  # Will cause validation to fail
+        return spec.default
+
+    # Convert to appropriate type
+    return _convert_value_to_type(value, spec)
+
+
 def create_row_converter(
     task_config: TaskConfig,
     experiment_model: Type[BaseModel],
@@ -186,58 +257,8 @@ def create_row_converter(
         experiment = converter(row)  # row is pandas Series
         ```
     """
-    import pandas as pd
 
-    def _get_value(
-        row: "pd.Series",
-        field_name: str,
-        spec: FieldSpec,
-    ) -> Any:
-        """Extract value from row using field mapping.
-
-        Args:
-            row: Pandas Series with data.
-            field_name: Name of the field.
-            spec: Field specification.
-
-        Returns:
-            Extracted and converted value.
-        """
-        # Get possible column names for this field
-        column_names = task_config.row_converter.get_column_names(field_name)
-
-        # Try each column name in order
-        value = None
-        for col in column_names:
-            if col in row.index:
-                val = row.get(col)
-                if not (pd.isna(val) or val == ""):
-                    value = val
-                    break
-
-        # Handle None/missing values
-        if value is None or (isinstance(value, float) and pd.isna(value)):
-            if spec.required:
-                return None  # Will cause validation to fail
-            return spec.default
-
-        # Convert to appropriate type
-        try:
-            if spec.type is float:
-                return float(value)
-            elif spec.type is int:
-                return int(value)
-            elif spec.type is bool:
-                if isinstance(value, str):
-                    return value.lower() in ("true", "1", "yes")
-                return bool(value)
-            else:
-                return str(value)
-        except (ValueError, TypeError):
-            logger.debug(f"Failed to convert '{value}' to {spec.type}")
-            return spec.default if not spec.required else None
-
-    def converter(row: "pd.Series"):
+    def converter(row: "pandas.Series"):
         """Convert pandas Series to experiment model.
 
         Args:
@@ -250,7 +271,12 @@ def create_row_converter(
         field_values = {}
 
         for field_name, spec in task_config.experiment_fields.items():
-            value = _get_value(row, field_name, spec)
+            value = _extract_field_value(
+                row=row,
+                field_name=field_name,
+                spec=spec,
+                row_converter=task_config.row_converter,
+            )
 
             # Check if required field is missing
             if value is None and spec.required:

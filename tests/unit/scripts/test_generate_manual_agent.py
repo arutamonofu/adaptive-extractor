@@ -324,7 +324,7 @@ class TestSplitsJsonValidation:
         parsed_dir = tmp_path / "parsed"
         parsed_dir.mkdir()
         splits_file = tmp_path / "splits.json"
-        
+
         # Write invalid JSON
         splits_file.write_text("invalid json content {", encoding="utf-8")
 

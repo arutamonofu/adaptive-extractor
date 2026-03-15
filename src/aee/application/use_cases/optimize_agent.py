@@ -60,6 +60,7 @@ class OptimizeAgentRequest:
         verbose: Whether to enable verbose logging (default: True).
         initial_instruction_file: Path to the initial instruction file (relative to config dir).
         instruction_hash: SHA256 hash (first 12 chars) of the initial instruction.
+        max_errors: Maximum number of errors allowed before stopping optimization (required).
     """
 
     task: Dict[str, Any]
@@ -77,6 +78,7 @@ class OptimizeAgentRequest:
     view_data_batch_size: int
     metric_threshold: float
     init_temperature: float
+    max_errors: int
     train_split_name: str = "train"
     val_split_name: str = "val"
     teacher_lm: Optional["LM"] = None
@@ -204,8 +206,9 @@ class OptimizeAgentUseCase:
                     run_name = f"optimization_{timestamp}"
                 self.tracker.start_run(run_name=run_name)
 
-            # Step 1: Load ground truth
-            gt_data = self._load_ground_truth(request)
+            # Step 1: Load ground truth (once, reuse for validation and dataset building)
+            logger.info(f"Loading ground truth from {request.gt_path}")
+            gt_data = self.gt_repo.load(request.gt_path, request.task["row_converter"])
 
             # Step 1.5: Pre-flight validation (optional, enabled by default)
             if self.enable_preflight_check:
@@ -302,11 +305,6 @@ class OptimizeAgentUseCase:
             if self.tracker:
                 self.tracker.end_run()
 
-    def _load_ground_truth(self, request: OptimizeAgentRequest) -> Dict[str, Any]:
-        """Load ground truth data."""
-        logger.info(f"Loading ground truth from {request.gt_path}")
-        return self.gt_repo.load(request.gt_path, request.task["row_converter"])
-
     def _prepare_datasets(
         self, request: OptimizeAgentRequest, gt_data: Dict[str, Any]
     ) -> Tuple[List[dspy.Example], List[dspy.Example]]:
@@ -319,6 +317,7 @@ class OptimizeAgentUseCase:
             gt_path=request.gt_path,
             split_path=request.split_path,
             split_name=request.train_split_name,
+            gt_data=gt_data,
             limit=request.train_limit,
             seed=request.seed,
         )
@@ -329,6 +328,7 @@ class OptimizeAgentUseCase:
             gt_path=request.gt_path,
             split_path=request.split_path,
             split_name=request.val_split_name,
+            gt_data=gt_data,
             limit=request.val_limit,
             seed=request.seed,
         )
@@ -413,11 +413,12 @@ class OptimizeAgentUseCase:
             init_temperature=request.init_temperature,
             verbose=request.verbose,
             metric_threshold=request.metric_threshold,
-            num_threads=1
+            num_threads=1,
+            max_errors=request.max_errors,
         )
 
-        # Set the LM for optimization
-        dspy.settings.configure(lm=request.student_lm)
+        # Set the LM for optimization with traceback enabled for detailed error reporting
+        dspy.settings.configure(lm=request.student_lm, provide_traceback=True)
 
         # Run optimization with explicit valset
         optimized_agent = teleprompter.compile(
@@ -545,6 +546,7 @@ class OptimizeAgentUseCase:
             gt_path=request.gt_path,
             split_path=request.split_path,
             task=request.task,
+            gt_data=gt_data,
             required_splits=[request.train_split_name, request.val_split_name],
         )
 
@@ -555,6 +557,7 @@ class OptimizeAgentUseCase:
         gt_result = self.validator.validate_ground_truth(
             gt_path=request.gt_path,
             task=request.task,
+            gt_data=gt_data,
         )
 
         if gt_result.warnings or gt_result.errors:

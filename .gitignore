@@ -1,8 +1,24 @@
 # --- Python ---
 __pycache__/
-*.py[cod]
-*$py.class
 *.so
+*.egg-info/
+
+# --- Build ---
+dist/
+build/
+.eggs/
+
+# --- Test ---
+.coverage
+coverage.xml
+htmlcov/
+.hypothesis/
+pytestdebug.log
+
+# --- Caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # --- Environments ---
 .venv/
@@ -10,7 +26,6 @@ venv/
 env/
 .conda/
 environment.yml.local
-*.egg-info
 
 # --- IDEs ---
 .vscode/
@@ -19,46 +34,56 @@ environment.yml.local
 *.swo
 *~
 .claude/
+.cursor/
+.spyder/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
 
 # --- Data (raw & intermediate) ---
-data/agents/*
-data/ground_truth/*
-data/parsed/*
-data/pdf/*
-data/extractions/*
-data/splits/*
-data/downloaded
-
-# --- Notebooks ---
-notebooks
+data/*
+!data/.gitkeep
+!data/*/.gitkeep
 
 # --- Research ---
-research
+research/
 
-# --- Docs ---
-docs/refactoring_project.md
-docs/TESTING_GUIDE.md
-
-# --- Docs ---
-temp
-
-# --- MLflow ---
-mlruns
+# --- ML ---
+mlruns/
 mlflow.db
+*.pth
+*.pt
+*.onnx
+*.pkl
+*.joblib
+checkpoints/
+weights/
+
+# --- Streamlit ---
+.streamlit/secrets.toml
 
 # --- Configs ---
-config/systems/*.yaml
-!config/systems/example.yaml
-config/initial_instuctions/*
-!config/initial_instuctions/nanozymes_sota.txt
+config/initial_instructions/*
+!config/initial_instructions/.gitkeep
 config/tasks/*
+!config/tasks/.gitkeep
 !config/tasks/nanozymes.yaml
+config/systems/*
+!config/systems/.gitkeep
+!config/systems/example.yaml
 
 # --- Secrets ---
 .env
 !.env.example
 *.pem
 *.key
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
 
 # --- GitKeep (always track) ---
 !.gitkeep

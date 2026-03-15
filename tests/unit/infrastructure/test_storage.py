@@ -36,26 +36,26 @@ class TestAgentRepository:
     ):
         """Test saving and loading an agent with metadata."""
         repo = AgentRepository(tmp_agents_dir)
-        
+
         metadata = AgentMetadata(**sample_agent_metadata)
-        
+
         # Save agent
         agent_path = repo.save(
             agent=sample_agent_dict,
             task_name="nanozymes",
             metadata=metadata,
         )
-        
+
         # Verify file exists
         assert agent_path.exists()
         assert agent_path.suffix == ".json"
-        
+
         # Load agent
         loaded_agent, loaded_metadata = repo.load(agent_path)
-        
+
         # Verify agent data
         assert loaded_agent["lm"]["model"] == sample_agent_dict["lm"]["model"]
-        
+
         # Verify metadata
         assert loaded_metadata.task_name == "nanozymes"
         assert loaded_metadata.metrics["f1"] == 0.85
@@ -69,7 +69,7 @@ class TestAgentRepository:
         """Test saving agent with custom filename."""
         repo = AgentRepository(tmp_agents_dir)
         metadata = AgentMetadata(**sample_agent_metadata)
-        
+
         custom_filename = "custom_agent.json"
         agent_path = repo.save(
             agent=sample_agent_dict,
@@ -77,7 +77,7 @@ class TestAgentRepository:
             metadata=metadata,
             filename=custom_filename,
         )
-        
+
         assert agent_path.name == custom_filename
         assert agent_path.exists()
 
@@ -85,7 +85,7 @@ class TestAgentRepository:
         """Test loading agent that doesn't exist."""
         repo = AgentRepository(tmp_agents_dir)
         nonexistent_path = tmp_agents_dir / "nonexistent.json"
-        
+
         with pytest.raises(AgentNotFoundError):
             repo.load(nonexistent_path)
 
@@ -99,20 +99,20 @@ class TestAgentRepository:
             metrics={},
             config_snapshot={},
         )
-        
+
         # Save multiple agents
         repo.save(sample_agent_dict, "nanozymes", metadata)
         repo.save(sample_agent_dict, "nanozymes", metadata)
         repo.save(sample_agent_dict, "catalysts", metadata)
-        
+
         # List all agents
         all_agents = repo.list_agents()
         assert len(all_agents) == 3
-        
+
         # List by task
         nanozyme_agents = repo.list_agents(task_name="nanozymes")
         assert len(nanozyme_agents) == 2
-        
+
         catalyst_agents = repo.list_agents(task_name="catalysts")
         assert len(catalyst_agents) == 1
 
@@ -156,17 +156,17 @@ class TestAgentRepository:
             metrics={},
             config_snapshot={},
         )
-        
+
         agent_path = repo.save(sample_agent_dict, "nanozymes", metadata)
         metadata_path = agent_path.with_suffix(".meta.json")
-        
+
         # Verify files exist
         assert agent_path.exists()
         assert metadata_path.exists()
-        
+
         # Delete agent
         repo.delete(agent_path)
-        
+
         # Verify files deleted
         assert not agent_path.exists()
         assert not metadata_path.exists()
@@ -180,11 +180,11 @@ class TestAgentRepository:
         """Test getting agent info without full load."""
         repo = AgentRepository(tmp_agents_dir)
         metadata = AgentMetadata(**sample_agent_metadata)
-        
+
         agent_path = repo.save(sample_agent_dict, "nanozymes", metadata)
-        
+
         info = repo.get_agent_info(agent_path)
-        
+
         assert info["task_name"] == "nanozymes"
         assert info["metrics"]["f1"] == 0.85
         assert "path" in info
@@ -203,11 +203,11 @@ class TestGroundTruthRepository:
             csv_path=sample_gt_csv,
             row_converter=row_converter,
         )
-        
+
         # Verify structure
         assert isinstance(gt_data, dict)
         assert len(gt_data) == 3  # 3 documents in sample
-        
+
         # Verify experiments
         assert "paper1" in gt_data
         assert len(gt_data["paper1"]) == 1
@@ -217,7 +217,7 @@ class TestGroundTruthRepository:
         """Test loading GT from nonexistent file."""
         repo = GroundTruthRepository()
         nonexistent_path = tmp_path / "nonexistent.csv"
-        
+
         with pytest.raises(DataNotFoundError):
             repo.load(
                 csv_path=nonexistent_path,
@@ -229,7 +229,7 @@ class TestGroundTruthRepository:
         repo = GroundTruthRepository()
         empty_csv = tmp_path / "empty.csv"
         empty_csv.write_text("", encoding="utf-8")
-        
+
         with pytest.raises(InvalidDataFormatError, match="empty"):
             repo.load(
                 csv_path=empty_csv,
@@ -245,7 +245,7 @@ class TestGroundTruthRepository:
             "Fe3O4,peroxidase,10\n",
             encoding="utf-8",
         )
-        
+
         with pytest.raises(DataValidationError, match="ID column"):
             repo.load(
                 csv_path=bad_csv,
@@ -255,29 +255,29 @@ class TestGroundTruthRepository:
     def test_normalize_document_key(self):
         """Test document key normalization."""
         repo = GroundTruthRepository()
-        
+
         # Test extension removal (only .pdf and .txt)
         assert repo._normalize_document_key("paper1.pdf") == "paper1"
         assert repo._normalize_document_key("paper1.PDF") == "paper1"
         # .json is NOT removed by this method (it's for parsed files)
         assert repo._normalize_document_key("paper1.json") == "paper1.json"
-        
+
         # Test case normalization
         assert repo._normalize_document_key("Paper1.PDF") == "paper1"
 
     def test_validate_coverage(self, sample_gt_csv: Path, row_converter):
         """Test GT coverage validation."""
         repo = GroundTruthRepository()
-        
+
         gt_data = repo.load(
             csv_path=sample_gt_csv,
             row_converter=row_converter,
         )
-        
+
         available_docs = ["paper1", "paper2", "paper3", "paper4", "paper5"]
-        
+
         coverage = repo.validate_coverage(gt_data, available_docs)
-        
+
         assert "covered_documents" in coverage
         assert "coverage_percentage" in coverage
         assert "missing_documents" in coverage
@@ -292,12 +292,12 @@ class TestDataSplitRepository:
     def test_load_split_success(self, sample_splits_json: Path):
         """Test successful split loading."""
         repo = DataSplitRepository()
-        
+
         train_files = repo.load_split(
             split_path=sample_splits_json,
             split_name="train",
         )
-        
+
         assert len(train_files) == 2
         assert "paper1" in train_files
         assert "paper2" in train_files
@@ -306,7 +306,7 @@ class TestDataSplitRepository:
         """Test loading from nonexistent split file."""
         repo = DataSplitRepository()
         nonexistent_path = tmp_path / "nonexistent.json"
-        
+
         with pytest.raises(DataNotFoundError):
             repo.load_split(
                 split_path=nonexistent_path,
@@ -316,21 +316,21 @@ class TestDataSplitRepository:
     def test_load_invalid_split_name(self, sample_splits_json: Path):
         """Test loading invalid split name."""
         repo = DataSplitRepository()
-        
+
         result = repo.load_split(
             split_path=sample_splits_json,
             split_name="nonexistent",
         )
-        
+
         # Should return empty set with warning
         assert result == set()
 
     def test_load_all_splits(self, sample_splits_json: Path):
         """Test loading all splits."""
         repo = DataSplitRepository()
-        
+
         splits = repo.load_all_splits(sample_splits_json)
-        
+
         assert "train" in splits
         assert "val" in splits
         assert "test" in splits
@@ -342,55 +342,55 @@ class TestDataSplitRepository:
         """Test saving splits to JSON."""
         repo = DataSplitRepository()
         output_path = tmp_path / "output_splits.json"
-        
+
         splits = {
             "train": ["doc1", "doc2"],
             "test": ["doc3"],
         }
-        
+
         saved_path = repo.save_splits(splits=splits, output_path=output_path)
-        
+
         assert saved_path.exists()
-        
+
         # Verify content
         with open(saved_path, "r", encoding="utf-8") as f:
             loaded = json.load(f)
-        
+
         assert loaded["train"] == ["doc1", "doc2"]
         assert loaded["test"] == ["doc3"]
 
     def test_validate_splits(self, sample_splits_json: Path):
         """Test splits validation."""
         repo = DataSplitRepository()
-        
+
         splits = repo.load_all_splits(sample_splits_json)
         available_docs = ["paper1", "paper2", "paper3"]  # Missing paper4, paper5
-        
+
         validation = repo.validate_splits(splits, available_docs)
-        
+
         assert "train" in validation
         assert "test" in validation
-        
+
         # Test split should have 2 missing files (paper4, paper5)
         assert len(validation["test"]["missing"]) == 2
 
     def test_create_random_split(self):
         """Test creating random train/test split."""
         repo = DataSplitRepository()
-        
+
         documents = [f"doc{i}" for i in range(10)]
-        
+
         splits = repo.create_random_split(
             documents=documents,
             train_ratio=0.8,
             seed=42,
         )
-        
+
         assert "train" in splits
         assert "test" in splits
         assert len(splits["train"]) == 8
         assert len(splits["test"]) == 2
-        
+
         # Verify reproducibility with seed
         splits2 = repo.create_random_split(
             documents=documents,
@@ -414,7 +414,7 @@ class TestAgentMetadata:
             metrics={"f1": 0.85},
             config_snapshot={"num_trials": 10},
         )
-        
+
         assert metadata.task_name == "nanozymes"
         assert metadata.metrics["f1"] == 0.85
         assert metadata.git_commit is None  # Optional field
@@ -422,7 +422,7 @@ class TestAgentMetadata:
     def test_metadata_to_dict(self):
         """Test converting metadata to dictionary."""
         from dataclasses import asdict
-        
+
         metadata = AgentMetadata(
             task_name="nanozymes",
             created_at="2026-02-19T10:00:00",
@@ -430,8 +430,8 @@ class TestAgentMetadata:
             metrics={},
             config_snapshot={},
         )
-        
+
         metadata_dict = asdict(metadata)
-        
+
         assert metadata_dict["task_name"] == "nanozymes"
         assert metadata_dict["model_version"] == "test"

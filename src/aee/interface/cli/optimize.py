@@ -163,7 +163,6 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
     try:
         # Load task definition with instruction
         task_name = custom_settings.task.name
-        logger.info(f"Starting optimization for task '{task_name}'")
 
         task, instruction_metadata = load_task_with_instruction(task_name, custom_settings)
 
@@ -233,6 +232,7 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
         logger.info(f"  view_data_batch_size: {custom_settings.optimization.view_data_batch_size}")
         logger.info(f"  metric_threshold: {custom_settings.optimization.metric_threshold}")
         logger.info(f"  init_temperature: {custom_settings.optimization.init_temperature}")
+        logger.info(f"  max_errors: {custom_settings.optimization.max_errors}")
         logger.info(f"  verbose: {custom_settings.optimization.verbose}")
         logger.info("-" * 60)
         logger.info("LLM CONFIGURATION:")
@@ -266,6 +266,7 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
             view_data_batch_size=custom_settings.optimization.view_data_batch_size,
             metric_threshold=custom_settings.optimization.metric_threshold,
             init_temperature=custom_settings.optimization.init_temperature,
+            max_errors=custom_settings.optimization.max_errors,
             verbose=custom_settings.optimization.verbose,
             run_name_prefix=args.run_name,
             initial_instruction_file=custom_settings.task.initial_instruction_file,

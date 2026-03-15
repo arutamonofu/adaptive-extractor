@@ -264,7 +264,7 @@ class TestExperimentTrackerDSPyAutolog:
         """Test enabling DSPy autologging when not available."""
         mock = create_mock_mlflow()
         del mock.dspy
-        
+
         with patch.dict("sys.modules", {"mlflow": mock}):
             tracker = ExperimentTracker(experiment_name="test")
             tracker.enable_dspy_autolog()
@@ -330,7 +330,7 @@ class TestExperimentTrackerEndRun:
             tracker = ExperimentTracker(experiment_name="test")
             # Should not raise - just returns silently
             tracker.end_run()
-            
+
             # Verify end_run was NOT called on the mock since tracker.mlflow is None
             # when enabled=False or when run was not started
             # Note: tracker.mlflow is set during __init__, but _run_id is None

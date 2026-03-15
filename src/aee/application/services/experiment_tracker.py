@@ -68,6 +68,10 @@ class ExperimentTracker:
                 experiment = mlflow.set_experiment(experiment_name)
                 self.experiment_id = experiment.experiment_id
 
+                # Suppress MLflow/Alembic verbose logging to avoid duplicate logs
+                logging.getLogger("mlflow").setLevel(logging.WARNING)
+                logging.getLogger("alembic").setLevel(logging.WARNING)
+
                 logger.info(f"Initialized ExperimentTracker: {experiment_name}")
 
                 # NOTE: DSPy autologging is enabled in start_run() after the run is created

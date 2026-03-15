@@ -73,6 +73,7 @@ class DatasetBuilder:
         gt_path: Path,
         split_path: Path,
         split_name: str,
+        gt_data: Dict[str, Any],
         limit: Optional[int] = None,
         seed: int = 42,
     ) -> List[dspy.Example]:
@@ -83,6 +84,7 @@ class DatasetBuilder:
             gt_path: Path to ground truth CSV.
             split_path: Path to splits JSON file.
             split_name: Name of split to load (e.g., "train", "test").
+            gt_data: Pre-loaded ground truth data.
             limit: Optional maximum number of examples.
             seed: Random seed for sampling when limiting.
 
@@ -93,8 +95,7 @@ class DatasetBuilder:
             UseCaseExecutionError: If dataset building fails.
         """
         try:
-            # Load ground truth
-            gt_data = self.gt_repo.load(gt_path, task["row_converter"])
+            # Use pre-loaded ground truth data
 
             # Load split
             allowed_ids = list(self.split_repo.load_split(

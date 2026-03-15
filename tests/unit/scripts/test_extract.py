@@ -161,6 +161,7 @@ optimization:
   init_temperature: 0.5
   verbose: false
   use_cache: false
+  max_errors: 5
 extraction:
   enable_cache: false
 cache:
@@ -276,6 +277,7 @@ optimization:
   init_temperature: 0.5
   verbose: false
   use_cache: false
+  max_errors: 5
 extraction:
   enable_cache: false
 cache:
@@ -392,6 +394,7 @@ optimization:
   init_temperature: 0.5
   verbose: false
   use_cache: false
+  max_errors: 5
 extraction:
   enable_cache: false
 cache:
@@ -551,6 +554,7 @@ optimization:
   init_temperature: 0.5
   verbose: false
   use_cache: false
+  max_errors: 5
 extraction:
   enable_cache: false
 cache:
@@ -681,6 +685,7 @@ optimization:
   init_temperature: 0.5
   verbose: false
   use_cache: false
+  max_errors: 5
 extraction:
   enable_cache: false
 cache:

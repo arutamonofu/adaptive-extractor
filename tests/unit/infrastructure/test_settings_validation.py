@@ -19,18 +19,18 @@ def clear_env():
         "ANTHROPIC_API_KEY",
         "GEMINI_API_KEY",
     ]
-    
+
     # Save original values
     original_values = {}
     for var in env_vars_to_clear:
         original_values[var] = os.environ.get(var)
-    
+
     # Clear all
     for var in env_vars_to_clear:
         os.environ.pop(var, None)
-    
+
     yield
-    
+
     # Restore original values
     for var, value in original_values.items():
         if value is not None:
@@ -39,6 +39,7 @@ def clear_env():
             os.environ.pop(var, None)
 
 
+@pytest.mark.unit
 class TestConfigFileRequired:
     """Tests for configuration file requirement."""
 
@@ -54,6 +55,7 @@ class TestConfigFileRequired:
             Settings.load(config_path=nonexistent_path, load_env_file=False)
 
 
+@pytest.mark.unit
 class TestOllamaUrlValidation:
     """Tests for Ollama URL validation."""
 
@@ -510,6 +512,7 @@ circuit_breaker:
             os.environ.pop("OLLAMA_TEACHER_BASE_URL", None)
 
 
+@pytest.mark.unit
 class TestNonOllamaApiKeyValidation:
     """Tests for non-Ollama API key validation."""
 

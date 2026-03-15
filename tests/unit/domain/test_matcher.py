@@ -286,9 +286,9 @@ class TestF1Computation:
             experiment_model(formula="Fe3O4", activity="peroxidase"),
             experiment_model(formula="CuO", activity="oxidase"),
         ]
-        
+
         report = matcher.get_detailed_report(preds, gts)
-        
+
         assert report["f1"] == 1.0
         assert report["precision"] == 1.0
         assert report["recall"] == 1.0
@@ -304,9 +304,9 @@ class TestF1Computation:
         gts = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
         ]
-        
+
         report = matcher.get_detailed_report(preds, gts)
-        
+
         assert report["f1"] < 1.0
         assert report["precision"] < 1.0
         assert report["recall"] == 1.0
@@ -322,9 +322,9 @@ class TestF1Computation:
             experiment_model(formula="Fe3O4", activity="peroxidase"),
             experiment_model(formula="CuO", activity="oxidase"),  # FN
         ]
-        
+
         report = matcher.get_detailed_report(preds, gts)
-        
+
         assert report["f1"] < 1.0
         assert report["precision"] == 1.0
         assert report["recall"] < 1.0
@@ -339,9 +339,9 @@ class TestF1Computation:
         gts = [
             experiment_model(formula="Fe3O4", activity="peroxidase"),
         ]
-        
+
         report = matcher.get_detailed_report(preds, gts)
-        
+
         assert report["f1"] == 0.0
         assert report["precision"] == 0.0
         assert report["recall"] == 0.0
@@ -357,9 +357,9 @@ class TestF1Computation:
             experiment_model(formula="Fe3O4", activity="peroxidase"),
             experiment_model(formula="CuO", activity="oxidase"),
         ]
-        
+
         f1 = matcher.get_optimization_score(preds, gts)
-        
+
         assert 0.0 <= f1 <= 1.0
         assert isinstance(f1, float)
 
@@ -373,14 +373,14 @@ class TestF1Computation:
         gts = [
             experiment_model(formula="Fe3O4", activity="oxidase", length=10.0),  # Wrong activity
         ]
-        
+
         report = matcher.get_detailed_report(preds, gts)
-        
+
         assert "fields" in report
         assert "formula" in report["fields"]
         assert "activity" in report["fields"]
         assert "length" in report["fields"]
-        
+
         # Formula and length should match, activity should not
         assert report["fields"]["formula"] == 1.0
         assert report["fields"]["length"] == 1.0

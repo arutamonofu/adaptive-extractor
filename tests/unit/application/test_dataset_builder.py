@@ -14,12 +14,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from aee.application.services.dataset_builder import DatasetBuilder
-from aee.domain.tasks import FieldSpec, TaskConfig
 from aee.shared.exceptions import DataValidationError, UseCaseExecutionError
 
 
 @pytest.fixture
-def sample_task_config(tmp_path: Path) -> TaskConfig:
+def sample_task_config(tmp_path: Path) -> dict:
     """Create sample task config for testing."""
     instruction_file = tmp_path / "instruction.txt"
     instruction_file.write_text("Test instruction")
@@ -28,18 +27,15 @@ def sample_task_config(tmp_path: Path) -> TaskConfig:
     output_model = MagicMock()
     output_model.return_value = MagicMock()
 
-    config = TaskConfig(
-        name="test_task",
-        experiment_fields={
-            "formula": FieldSpec(type=str, description="Formula"),
-            "activity": FieldSpec(type=str, description="Activity"),
-        },
-        compare_fields=["formula", "activity"],
-        float_tolerance=0.05,
-        initial_instruction_file=str(instruction_file),
-    )
-    config.output_model = output_model  # type: ignore[attr-defined]
-    return config
+    # Return dict as expected by the code
+    return {
+        "config": MagicMock(
+            name="test_task",
+            compare_fields=["formula", "activity"],
+            float_tolerance=0.05,
+        ),
+        "output_model": output_model,
+    }
 
 
 @pytest.fixture
@@ -230,14 +226,12 @@ class TestBuildFromSplit:
         split_path = tmp_path / "splits.json"
         split_path.write_text('{"train": ["doc1", "doc2"]}')
 
-        # Mock GT repo load
-        dataset_builder.gt_repo.load.return_value = sample_gt_data
-
         dataset = dataset_builder.build_from_split(
             task=sample_task_config,
             gt_path=gt_path,
             split_path=split_path,
             split_name="train",
+            gt_data=sample_gt_data,
         )
 
         assert len(dataset) > 0
@@ -250,26 +244,25 @@ class TestBuildFromSplit:
         split_path = tmp_path / "splits.json"
         split_path.write_text('{"train": ["doc1", "doc2", "doc3"]}')
 
-        dataset_builder.gt_repo.load.return_value = sample_gt_data
-
         dataset = dataset_builder.build_from_split(
             task=sample_task_config,
             gt_path=gt_path,
             split_path=split_path,
             split_name="train",
+            gt_data=sample_gt_data,
             limit=2,
         )
 
         assert len(dataset) == 2
 
     def test_build_from_split_error_handling(
-        self, dataset_builder, sample_task_config, tmp_path: Path
+        self, dataset_builder, sample_task_config, sample_gt_data, tmp_path: Path
     ):
         """Test error handling when split doesn't exist."""
         gt_path = tmp_path / "gt.csv"
         split_path = tmp_path / "nonexistent.json"
 
-        dataset_builder.gt_repo.load.side_effect = FileNotFoundError("GT not found")
+        dataset_builder.split_repo.load_split.side_effect = FileNotFoundError("Split not found")
 
         with pytest.raises(UseCaseExecutionError, match="build_from_split"):
             dataset_builder.build_from_split(
@@ -277,6 +270,7 @@ class TestBuildFromSplit:
                 gt_path=gt_path,
                 split_path=split_path,
                 split_name="train",
+                gt_data=sample_gt_data,
             )
 
 
@@ -408,27 +402,22 @@ class TestDatasetBuilderIntegration:
             "doc2": [MagicMock(formula="CuO")],
         }
 
-        # Create task config
-        instruction_file = tmp_path / "instruction.txt"
-        instruction_file.write_text("Test")
-
+        # Create task config as dict
         output_model = MagicMock()
         output_model.return_value = MagicMock()
 
-        config = TaskConfig(
-            name="test",
-            experiment_fields={
-                "formula": FieldSpec(type=str, description="Formula"),
-            },
-            compare_fields=["formula"],
-            float_tolerance=0.05,
-            initial_instruction_file=str(instruction_file),
-        )
-        config.output_model = output_model  # type: ignore[attr-defined]
+        task = {
+            "config": MagicMock(
+                name="test",
+                compare_fields=["formula"],
+                float_tolerance=0.05,
+            ),
+            "output_model": output_model,
+        }
 
         # Build dataset
         dataset = builder.build_from_ids(
-            task=config,
+            task=task,
             document_ids=["doc1", "doc2"],
             gt_data=gt_data,
         )

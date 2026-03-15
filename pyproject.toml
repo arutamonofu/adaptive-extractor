@@ -82,5 +82,6 @@ module = [
     "streamlit.*",
     "yaml",
     "dotenv",
+    "tabulate",
 ]
 ignore_missing_imports = true

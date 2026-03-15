@@ -79,6 +79,7 @@ optimization:
   random_seed: 42
   use_cache: true
   verbose: false
+  max_errors: 5
 
 task:
   name: "test"

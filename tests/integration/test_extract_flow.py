@@ -121,12 +121,12 @@ class TestExtractFlow:
     def test_extraction_with_empty_agent(self, extraction_test_setup):
         """Test extraction handles empty/minimal agent gracefully."""
         from aee.infrastructure.storage.agents import AgentRepository
-        
+
         repo = AgentRepository(agents_dir=extraction_test_setup["agents_dir"])
-        
+
         # Load agent
         agent, metadata = repo.load(extraction_test_setup["agent_path"])
-        
+
         # Verify agent structure
         assert isinstance(agent, dict)
         assert "lm" in agent

@@ -209,7 +209,7 @@ fields:
 
         # Config loads successfully
         config = load_task_from_yaml(yaml_path)
-        
+
         # Set instruction file for validation (normally comes from config/default.yaml)
         instruction_file = tmp_path / "instruction.txt"
         instruction_file.write_text("Test")

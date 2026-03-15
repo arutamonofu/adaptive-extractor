@@ -1,5 +1,4 @@
 # config/systems/dev.yaml
-# System configuration for development environment
 
 project:
   log_level: "INFO"
@@ -80,6 +79,7 @@ optimization:
   random_seed: 42
   use_cache: true
   verbose: true
+  max_errors: 20
 
 task:
   name: "nanozymes"

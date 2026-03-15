@@ -296,16 +296,16 @@ class OllamaLM(dspy.LM):
 
 class TeacherWrapper(dspy.Module):
     """Wrapper to use OllamaLM as teacher for MIPROv2 bootstrapping.
-    
+
     DSPy teleprompters expect teacher to be a dspy.Module with predictors().
     This wrapper allows using raw LLM (OllamaLM) as teacher.
-    
+
     Note: Uses ChainOfThought to match the structure of UniversalExtractor (student).
     """
-    
+
     def __init__(self, signature_class: Type[dspy.Signature], teacher_lm: dspy.LM):
         """Initialize the teacher wrapper.
-        
+
         Args:
             signature_class: DSPy signature class defining the task.
             teacher_lm: Teacher language model (e.g., OllamaLM).
@@ -315,21 +315,21 @@ class TeacherWrapper(dspy.Module):
         self.teacher_lm = teacher_lm
         # Use ChainOfThought to match UniversalExtractor structure (student)
         self.prog = dspy.ChainOfThought(signature_class, lm=teacher_lm)
-    
+
     def forward(self, document_text: str) -> dspy.Prediction:
         """Execute the extraction pipeline.
-        
+
         Args:
             document_text: The full content of the document.
-            
+
         Returns:
             dspy.Prediction with extracted data.
         """
         return self.prog(document_text=document_text)
-    
+
     def predictors(self) -> List[dspy.Predict]:
         """Return list of predictors for teleprompter bootstrapping.
-        
+
         Returns:
             List containing the single predictor.
         """

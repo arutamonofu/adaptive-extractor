@@ -256,7 +256,7 @@ class TestTaskConfig:
         """Test that invalid float_tolerance raises error."""
         instruction_file = tmp_path / "test_instruction.txt"
         instruction_file.write_text("Test")
-        
+
         with pytest.raises(ValueError, match="float_tolerance must be between 0 and 1"):
             TaskConfig(
                 name="test",
@@ -377,7 +377,6 @@ class TestTaskConfig:
 
         errors = config.validate()
         assert errors == []
-
 
     def test_validate_instruction_file_not_found(self, sample_fields):
         """Test validation fails when instruction file not found."""

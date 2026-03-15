@@ -9,9 +9,11 @@ from typing import Any, Dict, List, Optional, Tuple, TypeAlias, Union
 import numpy as np
 from pydantic import BaseModel
 from scipy.optimize import linear_sum_assignment
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
+
+_SEMANTIC_JUDGE_EXAMPLE = '{"width": "YES", "reaction_type": "NO"}'
 
 ExperimentEntity: TypeAlias = Union[BaseModel, Any]
 
@@ -210,7 +212,9 @@ class ExperimentMatcher:
             discrepancy_lines.append(f"- {field_name}: GT='{gt_str}', Pred='{pred_str}'")
         discrepancies_text = "\n".join(discrepancy_lines)
 
-        prompt = f"""You are an expert scientist evaluating an automated data extraction system.
+        # Build semantic judge prompt with proper line lengths
+        prompt_parts = [
+            f"""You are an expert scientist evaluating an automated data extraction system.
 Task: {task_name}
 
 Schema Definition (Field Meanings):
@@ -228,17 +232,38 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
 {discrepancies_text}
 
 --- INSTRUCTIONS ---
-For EACH discrepancy, determine if the Predicted value is SEMANTICALLY EQUIVALENT to Ground Truth.
-Acceptable differences:
-1. Implicit Values: Null in Predicted is logically implied by other fields in Context (e.g., width=null for cubic).
-2. Physical Equivalence: Different units but same value (e.g., 50 uM == 0.05 mM).
-3. Synonyms/Order: "H2O2 + TMB" == "TMB + H2O2" (unless roles differ).
-4. Case Variations: "Cubic" == "cubic" for crystal systems.
+Evaluate if the discrepancies between the Predicted data and Ground Truth (GT) are actual errors
+or acceptable semantic variations. Use the provided Context (Full Experiments) to inform your decision.
 
-Response Format: JSON ONLY where keys are field names and values are "YES" (Accept) or "NO" (Reject).
-Example: {{"width": "YES", "reaction_type": "NO"}}
+Evaluate EACH discrepancy using the following strict IF-THEN rules:
+
+[ANSWER "YES" (ACCEPTABLE VARIATION) IF:]
+1. Math & Unit Equivalence: Values are physically identical despite different formats
+   (e.g., 5.07e-08 == 5.07 * 10^-8) or unit scales (e.g., 50 uM == 0.05 mM).
+   Minor rounding in the least significant digit is allowed.
+2. Semantic Synonyms: Terms are standard scientific synonyms, IUPAC/common names, case variations,
+   or alternate orderings of mixtures (e.g., "A + B" == "B + A"), AND chemical roles remain identical.
+3. Implicit Nulls (Deduction): Predicted is 'null' AND the missing value is mathematically,
+   geometrically, or physically GUARANTEED by other explicitly stated fields in the Context
+   (e.g., width=null is acceptable if symmetry implies all dimensions are equal).
+
+[ANSWER "NO" (ACTUAL ERROR) IF:]
+1. Hallucination (Strict Rule): GT is 'null' AND Predicted contains ANY value
+   (even "none", "naked", "N/A"). GT is absolute; you cannot accept invented data.
+2. Unjustified Guessing: Predicted is 'null', but the GT value cannot be strictly deduced
+   from scientific laws (e.g., assuming a missing temperature is "25°C", or assuming
+   symmetry where asymmetry is possible).
+3. Factual Contradiction: Magnitudes differ completely (e.g., 0.02 != 20.0), stoichiometry
+   is wrong, or chemical identity is altered.
+
+[OUTPUT FORMAT]
+Return a JSON object ONLY. Keys must be the discrepancy field names.
+Values must be strictly "YES" or "NO".
+Example: {_SEMANTIC_JUDGE_EXAMPLE}
 
 Respond with JSON only:"""
+        ]
+        prompt = "".join(prompt_parts)
 
         return prompt
 
@@ -356,6 +381,155 @@ Respond with JSON only:"""
             )
             logger.info(f"\n{table}")
 
+    def _process_false_negative(
+        self,
+        gold: Any,
+        field_correct: Dict[str, int],
+        field_total: Dict[str, int],
+    ) -> tuple:
+        """Process false negative case (pred=None, gold≠None)."""
+        fn = 0
+        for f in self.fields:
+            if getattr(gold, f, None) is not None:
+                fn += 1
+                field_total[f] += 1
+        return fn, field_correct, field_total
+
+    def _process_false_positive(
+        self,
+        pred: Any,
+        field_correct: Dict[str, int],
+        field_total: Dict[str, int],
+    ) -> tuple:
+        """Process false positive case (gold=None, pred≠None)."""
+        fp = 0
+        for f in self.fields:
+            if getattr(pred, f, None) is not None:
+                fp += 1
+                field_total[f] += 1
+        return fp, field_correct, field_total
+
+    def _process_aligned_pair(
+        self,
+        pred: Any,
+        gold: Any,
+        field_correct: Dict[str, int],
+        field_total: Dict[str, int],
+        task_name: Optional[str],
+    ) -> tuple:
+        """Process aligned pair (both pred and gold exist)."""
+        tp, fp, fn = 0, 0, 0
+        strict_matches = []
+        discrepancies = []
+
+        for f in self.fields:
+            val_p = getattr(pred, f, None)
+            val_g = getattr(gold, f, None)
+
+            if val_g is None and val_p is None:
+                continue  # True Negative (Ignore)
+
+            field_total[f] += 1  # Поле участвует в оценке
+
+            if val_g is not None and val_p is None:
+                discrepancies.append(f)  # Missing value (Pure FN candidate)
+            elif val_g is None and val_p is not None:
+                discrepancies.append(f)  # Hallucinated value (Pure FP candidate)
+            else:
+                # Both present, check strict equality
+                if self._is_match(val_p, val_g):
+                    strict_matches.append(f)
+                else:
+                    discrepancies.append(f)  # Mismatch (FP + FN candidate)
+
+        # Count strict matches as TP
+        tp += len(strict_matches)
+        for f in strict_matches:
+            field_correct[f] += 1
+
+        # Handle discrepancies
+        if discrepancies and self.enable_semantic_judge:
+            # Convert to JSON for judge (ensure primitive types only)
+            gt_json = {f: getattr(gold, f, None) for f in self.fields}
+            pred_json = {f: getattr(pred, f, None) for f in self.fields}
+
+            # Call semantic judge
+            verdicts = self._call_semantic_judge(
+                task_name=task_name or "unknown",
+                gt_json=gt_json,
+                pred_json=pred_json,
+                discrepancies=discrepancies,
+            )
+
+            # Log comparison table
+            self._log_comparison_table(pred, gold, strict_matches, discrepancies, verdicts)
+
+            # Apply verdicts
+            for field_name in discrepancies:
+                verdict = verdicts.get(field_name, "NO")
+                tp_add, fp_add, fn_add = self._apply_semantic_verdict(
+                    field_name, pred, gold, verdict
+                )
+                tp += tp_add
+                fp += fp_add
+                fn += fn_add
+        else:
+            # No discrepancies or judge disabled - apply strict penalties
+            for field_name in discrepancies:
+                val_p = getattr(pred, field_name, None)
+                val_g = getattr(gold, field_name, None)
+                tp_add, fp_add, fn_add = self._apply_strict_penalty(
+                    val_p, val_g
+                )
+                tp += tp_add
+                fp += fp_add
+                fn += fn_add
+
+        return tp, fp, fn, field_correct, field_total
+
+    def _apply_semantic_verdict(
+        self,
+        field_name: str,
+        pred: Any,
+        gold: Any,
+        verdict: str,
+    ) -> tuple:
+        """Apply semantic judge verdict to scoring."""
+        tp, fp, fn = 0, 0, 0
+        if verdict == "YES":
+            tp += 1  # Amnesty granted
+        else:
+            # Вердикт NO - возвращаемся к исходной природе ошибки
+            val_p = getattr(pred, field_name, None)
+            val_g = getattr(gold, field_name, None)
+
+            if val_p is None and val_g is not None:
+                fn += 1  # Pure Miss (модель промолчала)
+            elif val_p is not None and val_g is None:
+                fp += 1  # Pure Hallucination (модель придумала)
+            else:
+                # Mismatch (wrong value: модель ошиблась значением)
+                fp += 1
+                fn += 1
+        return tp, fp, fn
+
+    def _apply_strict_penalty(
+        self,
+        val_p: Any,
+        val_g: Any,
+    ) -> tuple:
+        """Apply strict penalty for discrepancies without semantic judge."""
+        tp, fp, fn = 0, 0, 0
+        if val_p is None and val_g is not None:
+            fn += 1  # Pure Miss
+        elif val_p is not None and val_g is None:
+            fp += 1  # Pure Hallucination
+        else:
+            # Mismatch
+            fp += 1
+            fn += 1
+        return tp, fp, fn
+
     def _compute_stats(
         self,
         pairs: List[Tuple[Optional[Any], Optional[Any]]],
@@ -379,100 +553,27 @@ Respond with JSON only:"""
         for pred, gold in pairs:
             # Case 3: False Negative (Missing Experiment)
             if pred is None and gold is not None:
-                for f in self.fields:
-                    if getattr(gold, f, None) is not None:
-                        fn += 1
-                        field_total[f] += 1
+                fn_inc, field_correct, field_total = self._process_false_negative(
+                    gold, field_correct, field_total
+                )
+                fn += fn_inc
                 continue
 
             # Case 2: False Positive (Hallucinated Experiment)
             if gold is None and pred is not None:
-                for f in self.fields:
-                    if getattr(pred, f, None) is not None:
-                        fp += 1
-                        field_total[f] += 1
+                fp_inc, field_correct, field_total = self._process_false_positive(
+                    pred, field_correct, field_total
+                )
+                fp += fp_inc
                 continue
 
             # Case 1: Aligned Experiment - Check field-wise
-            strict_matches = []
-            discrepancies = []
-
-            for f in self.fields:
-                val_p = getattr(pred, f, None)
-                val_g = getattr(gold, f, None)
-
-                if val_g is None and val_p is None:
-                    continue  # True Negative (Ignore)
-
-                field_total[f] += 1  # Поле участвует в оценке
-
-                if val_g is not None and val_p is None:
-                    discrepancies.append(f)  # Missing value (Pure FN candidate)
-                elif val_g is None and val_p is not None:
-                    discrepancies.append(f)  # Hallucinated value (Pure FP candidate)
-                else:
-                    # Both present, check strict equality
-                    if self._is_match(val_p, val_g):
-                        strict_matches.append(f)
-                    else:
-                        discrepancies.append(f)  # Mismatch (FP + FN candidate)
-
-            # Count strict matches as TP
-            tp += len(strict_matches)
-            for f in strict_matches:
-                field_correct[f] += 1
-
-            # Handle discrepancies
-            if discrepancies and self.enable_semantic_judge:
-                # Convert to JSON for judge (ensure primitive types only)
-                gt_json = {f: getattr(gold, f, None) for f in self.fields}
-                pred_json = {f: getattr(pred, f, None) for f in self.fields}
-
-                # Call semantic judge
-                verdicts = self._call_semantic_judge(
-                    task_name=task_name or "unknown",
-                    gt_json=gt_json,
-                    pred_json=pred_json,
-                    discrepancies=discrepancies,
-                )
-
-                # Log comparison table
-                self._log_comparison_table(pred, gold, strict_matches, discrepancies, verdicts)
-
-                # Apply verdicts with correct penalty logic
-                for field_name in discrepancies:
-                    verdict = verdicts.get(field_name, "NO")
-
-                    if verdict == "YES":
-                        tp += 1  # Amnesty granted
-                        field_correct[field_name] += 1
-                    else:
-                        # Вердикт NO - возвращаемся к исходной природе ошибки
-                        val_p = getattr(pred, field_name, None)
-                        val_g = getattr(gold, field_name, None)
-
-                        if val_p is None and val_g is not None:
-                            fn += 1  # Pure Miss (модель промолчала)
-                        elif val_p is not None and val_g is None:
-                            fp += 1  # Pure Hallucination (модель придумала)
-                        else:
-                            # Mismatch (wrong value: модель ошиблась значением)
-                            fp += 1
-                            fn += 1
-            else:
-                # No discrepancies or judge disabled - apply strict penalties
-                for field_name in discrepancies:
-                    val_p = getattr(pred, field_name, None)
-                    val_g = getattr(gold, field_name, None)
-
-                    if val_p is None and val_g is not None:
-                        fn += 1  # Pure Miss
-                    elif val_p is not None and val_g is None:
-                        fp += 1  # Pure Hallucination
-                    else:
-                        # Mismatch
-                        fp += 1
-                        fn += 1
+            tp_inc, fp_inc, fn_inc, field_correct, field_total = self._process_aligned_pair(
+                pred, gold, field_correct, field_total, task_name
+            )
+            tp += tp_inc
+            fp += fp_inc
+            fn += fn_inc
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0

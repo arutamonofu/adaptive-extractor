@@ -404,6 +404,14 @@ class OptimizationConfig(BaseModel):
         ...,
         description="Enable verbose logging during optimization"
     )
+    max_errors: int = Field(
+        default=5,
+        description=(
+            "Maximum number of errors allowed before stopping optimization "
+            "(DSPy parallelizer setting). Increase from default (5) to allow "
+            "more faults during trials."
+        )
+    )
 
 
 class EvaluationConfig(BaseModel):

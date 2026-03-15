@@ -89,11 +89,100 @@ class DataValidator:
         self.split_repo = split_repo or DataSplitRepository()
         logger.debug("Initialized DataValidator")
 
+    def _check_splits_file_exists(
+        self,
+        split_path: Path,
+        result: ValidationResult,
+    ) -> bool:
+        """Check if splits file exists."""
+        if not split_path.exists():
+            result.add_error(
+                f"Data splits file not found: {split_path}\n"
+                f"Please create {split_path.name} with train/val/test splits.\n"
+                f"See docs/data_artifacts.md for details."
+            )
+            return False
+        return True
+
+    def _check_required_splits(
+        self,
+        splits: Dict[str, List[str]],
+        required_splits: List[str],
+        split_path: Path,
+        result: ValidationResult,
+    ) -> bool:
+        """Check if required splits are present."""
+        for split_name in required_splits:
+            if split_name not in splits:
+                result.add_error(
+                    f"Required split '{split_name}' not found in {split_path}"
+                )
+        return result.success
+
+    def _validate_single_split(
+        self,
+        split_name: str,
+        split_ids: List[str],
+        gt_doc_ids: Set[str],
+        main_split_ids: Set[str],
+        all_split_ids: Set[str],
+        is_main_split: bool,
+        result: ValidationResult,
+    ) -> None:
+        """Validate a single split."""
+        split_ids_set = set(split_ids)
+
+        # Check for duplicates within split
+        if len(split_ids) != len(split_ids_set):
+            result.add_warning(f"Split '{split_name}' contains duplicate IDs")
+
+        # Check for overlap with other main splits (train/val/test)
+        if is_main_split:
+            overlap = main_split_ids & split_ids_set
+            if overlap:
+                result.add_error(
+                    f"Split '{split_name}' overlaps with previous splits: {overlap}"
+                )
+            main_split_ids.update(split_ids_set)
+
+        all_split_ids.update(split_ids_set)
+
+        # Check if split documents exist in ground truth
+        missing_in_gt = split_ids_set - gt_doc_ids
+        if missing_in_gt:
+            result.add_error(
+                f"Split '{split_name}' contains {len(missing_in_gt)} document(s) "
+                f"not found in ground truth: {sorted(missing_in_gt)[:5]}..."
+            )
+
+        # Statistics
+        result.stats[f"{split_name}_size"] = len(split_ids)
+        result.stats[f"{split_name}_with_gt"] = len(split_ids_set & gt_doc_ids)
+
+    def _validate_split_sizes(
+        self,
+        result: ValidationResult,
+    ) -> None:
+        """Validate train and validation split sizes."""
+        train_size = result.stats.get("train_size", 0)
+        val_size = result.stats.get("val_size", 0)
+
+        if train_size == 0:
+            result.add_error("Training split is empty")
+        if val_size == 0:
+            result.add_error("Validation split is empty")
+        elif val_size < 3:
+            result.add_warning(
+                f"Validation split is very small ({val_size} examples). "
+                f"Recommend at least 3-5 examples for reliable evaluation."
+            )
+
     def validate_splits(
         self,
         gt_path: Path,
         split_path: Path,
         task: Dict[str, Any],
+        gt_data: Dict[str, Any],
         required_splits: Optional[List[str]] = None,
     ) -> ValidationResult:
         """Validate data splits against ground truth.
@@ -102,6 +191,7 @@ class DataValidator:
             gt_path: Path to ground truth CSV.
             split_path: Path to data splits JSON.
             task: Task dict with config, row_converter, etc.
+            gt_data: Pre-loaded ground truth data.
             required_splits: List of required split names (default: ["train", "val"]).
 
         Returns:
@@ -111,17 +201,11 @@ class DataValidator:
         required_splits = required_splits or ["train", "val"]
 
         # Check if splits file exists
-        if not split_path.exists():
-            result.add_error(
-                f"Data splits file not found: {split_path}\n"
-                f"Please create {split_path.name} with train/val/test splits.\n"
-                f"See docs/data_artifacts.md for details."
-            )
+        if not self._check_splits_file_exists(split_path, result):
             return result
 
         try:
-            # Load ground truth
-            gt_data = self.gt_repo.load(gt_path, task["row_converter"])
+            # Use pre-loaded ground truth data
             gt_doc_ids = set(gt_data.keys())
             result.stats["ground_truth_docs"] = len(gt_doc_ids)
 
@@ -130,11 +214,7 @@ class DataValidator:
             result.stats["total_splits"] = len(splits)
 
             # Check required splits
-            for split_name in required_splits:
-                if split_name not in splits:
-                    result.add_error(f"Required split '{split_name}' not found in {split_path}")
-
-            if not result.success:
+            if not self._check_required_splits(splits, required_splits, split_path, result):
                 return result
 
             # Validate each split
@@ -144,35 +224,16 @@ class DataValidator:
             main_split_ids: Set[str] = set()
 
             for split_name, split_ids in splits.items():
-                split_ids_set = set(split_ids)
-
-                # Check for duplicates within split
-                if len(split_ids) != len(split_ids_set):
-                    result.add_warning(f"Split '{split_name}' contains duplicate IDs")
-
-                # Check for overlap with other main splits (train/val/test)
-                # train_manual is excluded from this check
-                if split_name in main_splits:
-                    overlap = main_split_ids & split_ids_set
-                    if overlap:
-                        result.add_error(
-                            f"Split '{split_name}' overlaps with previous splits: {overlap}"
-                        )
-                    main_split_ids.update(split_ids_set)
-
-                all_split_ids.update(split_ids_set)
-
-                # Check if split documents exist in ground truth
-                missing_in_gt = split_ids_set - gt_doc_ids
-                if missing_in_gt:
-                    result.add_error(
-                        f"Split '{split_name}' contains {len(missing_in_gt)} document(s) "
-                        f"not found in ground truth: {sorted(missing_in_gt)[:5]}..."
-                    )
-
-                # Statistics
-                result.stats[f"{split_name}_size"] = len(split_ids)
-                result.stats[f"{split_name}_with_gt"] = len(split_ids_set & gt_doc_ids)
+                is_main_split = split_name in main_splits
+                self._validate_single_split(
+                    split_name=split_name,
+                    split_ids=split_ids,
+                    gt_doc_ids=gt_doc_ids,
+                    main_split_ids=main_split_ids,
+                    all_split_ids=all_split_ids,
+                    is_main_split=is_main_split,
+                    result=result,
+                )
 
             # Check for documents in GT but not in any split
             unused_docs = gt_doc_ids - all_split_ids
@@ -183,18 +244,7 @@ class DataValidator:
                 )
 
             # Validate split sizes
-            train_size = result.stats.get("train_size", 0)
-            val_size = result.stats.get("val_size", 0)
-
-            if train_size == 0:
-                result.add_error("Training split is empty")
-            if val_size == 0:
-                result.add_error("Validation split is empty")
-            elif val_size < 3:
-                result.add_warning(
-                    f"Validation split is very small ({val_size} examples). "
-                    f"Recommend at least 3-5 examples for reliable evaluation."
-                )
+            self._validate_split_sizes(result)
 
             result.stats["total_docs_in_splits"] = len(all_split_ids)
             result.stats["unused_gt_docs"] = len(unused_docs)
@@ -209,6 +259,7 @@ class DataValidator:
         self,
         gt_path: Path,
         task: Dict[str, Any],
+        gt_data: Dict[str, Any],
         min_examples: int = 1,
     ) -> ValidationResult:
         """Validate ground truth data quality.
@@ -216,6 +267,7 @@ class DataValidator:
         Args:
             gt_path: Path to ground truth CSV.
             task: Task dict with config, row_converter, etc.
+            gt_data: Pre-loaded ground truth data.
             min_examples: Minimum number of examples required.
 
         Returns:
@@ -224,9 +276,7 @@ class DataValidator:
         result = ValidationResult(success=True)
 
         try:
-            gt_data = self.gt_repo.load(gt_path, task["row_converter"])
-
-            # Check total count
+            # Use pre-loaded ground truth data
             total_docs = len(gt_data)
             result.stats["ground_truth_docs"] = total_docs
 

@@ -15,6 +15,8 @@ _NOISY_LIBRARIES = [
     "httpx",
     "httpcore",
     "filelock",
+    "mlflow",
+    "alembic",
 ]
 
 

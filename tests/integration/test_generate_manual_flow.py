@@ -40,11 +40,15 @@ class TestManualAgentGeneration:
 
         # Create ground truth CSV
         gt_path = ground_truth_dir / "nanozymes.csv"
+        header = (
+            "filename,formula,activity,length,km,vmax,ph,temperature,"
+            "substrate,cofactor,method,selectivity,stability,reference\n"
+        )
         gt_path.write_text(
-            "filename,formula,activity,length,km,vmax,ph,temperature,substrate,cofactor,method,selectivity,stability,reference\n"
-            "paper1,Fe3O4,peroxidase,10.0,0.05,100.0,7.0,25.0,TMB,None,UV-Vis,high,stable,Ref1\n"
-            "paper2,CuO,oxidase,20.0,0.08,150.0,7.5,30.0,ABTS,None,UV-Vis,medium,stable,Ref2\n"
-            "paper3,Au,catalase,15.0,0.06,120.0,7.2,28.0,H2O2,None,UV-Vis,high,unstable,Ref3\n",
+            header
+            + "paper1,Fe3O4,peroxidase,10.0,0.05,100.0,7.0,25.0,TMB,None,UV-Vis,high,stable,Ref1\n"
+            + "paper2,CuO,oxidase,20.0,0.08,150.0,7.5,30.0,ABTS,None,UV-Vis,medium,stable,Ref2\n"
+            + "paper3,Au,catalase,15.0,0.06,120.0,7.2,28.0,H2O2,None,UV-Vis,high,unstable,Ref3\n",
             encoding="utf-8",
         )
 
@@ -297,9 +301,9 @@ circuit_breaker:
         with patch("scripts.generate_manual_agent.setup_student"):
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
-            
+
             from generate_manual_agent import main
-            
+
             original_argv = sys.argv
             try:
                 sys.argv = ["generate_manual_agent.py", "--config", str(config_file)]
@@ -422,9 +426,9 @@ circuit_breaker:
         with patch("scripts.generate_manual_agent.setup_student"):
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
-            
+
             from generate_manual_agent import main
-            
+
             original_argv = sys.argv
             try:
                 sys.argv = ["generate_manual_agent.py", "--config", str(config_file)]

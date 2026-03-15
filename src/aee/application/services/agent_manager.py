@@ -275,7 +275,7 @@ class AgentManager:
             prog_dict = agent_dict["prog"]
             if "predict" in prog_dict:
                 predict_dict = prog_dict["predict"]
-                
+
                 # Ensure predict_dict has required 'signature' key
                 if "signature" not in predict_dict:
                     # Add minimal signature structure
@@ -287,7 +287,7 @@ class AgentManager:
                             {"prefix": "Output:", "description": "${output}"},
                         ]
                     }
-                
+
                 # Ensure required keys exist
                 if "traces" not in predict_dict:
                     predict_dict["traces"] = []
@@ -297,7 +297,7 @@ class AgentManager:
                     predict_dict["demos"] = []
                 if "lm" not in predict_dict:
                     predict_dict["lm"] = None
-                
+
                 # Convert nested to flat: {'prog.predict': {...}}
                 native_state = {"prog.predict": predict_dict}
                 # Copy other prog attributes if present

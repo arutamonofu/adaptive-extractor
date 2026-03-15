@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 import dspy
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore[import-untyped]
 
 from aee.domain.evaluation.matcher import ExperimentEntity, ExperimentMatcher
 

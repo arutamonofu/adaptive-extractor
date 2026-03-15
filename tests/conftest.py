@@ -26,9 +26,9 @@ TEST_DATA_DIR = Path(__file__).parent / "data"
 @pytest.fixture(scope="module")
 def nanozyme_task():
     """Get nanozyme task components.
-    
+
     Uses module scope to avoid reloading task for every test.
-    
+
     Returns:
         Dictionary with task components (config, experiment_model, output_model, signature, row_converter).
     """
@@ -77,10 +77,10 @@ def task_config_dict() -> Dict[str, Any]:
 @pytest.fixture
 def sample_gt_csv(tmp_path: Path) -> Path:
     """Create a sample ground truth CSV file.
-    
+
     Args:
         tmp_path: Pytest temporary directory.
-        
+
     Returns:
         Path to created CSV file.
     """
@@ -98,10 +98,10 @@ def sample_gt_csv(tmp_path: Path) -> Path:
 @pytest.fixture
 def sample_gt_dataframe(sample_gt_csv: Path) -> pd.DataFrame:
     """Load sample ground truth as DataFrame.
-    
+
     Args:
         sample_gt_csv: Path to sample CSV.
-        
+
     Returns:
         DataFrame with ground truth data.
     """
@@ -165,10 +165,10 @@ def nanozyme_output(nanozyme_task, nanozyme_experiments):
 @pytest.fixture
 def sample_splits_json(tmp_path: Path) -> Path:
     """Create a sample splits JSON file.
-    
+
     Args:
         tmp_path: Pytest temporary directory.
-        
+
     Returns:
         Path to created JSON file.
     """
@@ -185,7 +185,7 @@ def sample_splits_json(tmp_path: Path) -> Path:
 @pytest.fixture
 def sample_splits_dict() -> Dict[str, List[str]]:
     """Sample splits dictionary.
-    
+
     Returns:
         Dictionary with train/val/test splits.
     """
@@ -203,10 +203,10 @@ def sample_splits_dict() -> Dict[str, List[str]]:
 @pytest.fixture
 def tmp_agents_dir(tmp_path: Path) -> Path:
     """Create a temporary agents directory.
-    
+
     Args:
         tmp_path: Pytest temporary directory.
-        
+
     Returns:
         Path to temporary directory.
     """
@@ -218,7 +218,7 @@ def tmp_agents_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def sample_agent_dict() -> Dict[str, Any]:
     """Create a sample agent dictionary.
-    
+
     Returns:
         Dictionary representing a mock agent.
     """
@@ -238,12 +238,12 @@ def sample_agent_dict() -> Dict[str, Any]:
 @pytest.fixture
 def sample_agent_metadata() -> Dict[str, Any]:
     """Create sample agent metadata.
-    
+
     Returns:
         Dictionary with agent metadata.
     """
     from datetime import datetime
-    
+
     return {
         "task_name": "nanozymes",
         "created_at": datetime.now().isoformat(),
@@ -282,7 +282,7 @@ def sample_parsed_document(tmp_path: Path) -> Path:
 @pytest.fixture
 def mock_llm_response():
     """Create a mock LLM response.
-    
+
     Returns:
         Dictionary with mock response data.
     """
@@ -532,7 +532,7 @@ CONFIG_DATA_DIR = TEST_DATA_DIR / "configs"
 @pytest.fixture
 def minimal_config_path() -> Path:
     """Get path to minimal valid configuration file.
-    
+
     Returns:
         Path to minimal_config.yaml
     """
@@ -542,7 +542,7 @@ def minimal_config_path() -> Path:
 @pytest.fixture
 def llm_config_template_path() -> Path:
     """Get path to LLM configuration template file.
-    
+
     Returns:
         Path to llm_config_template.yaml
     """
@@ -552,11 +552,11 @@ def llm_config_template_path() -> Path:
 @pytest.fixture
 def minimal_config_with_custom_paths(tmp_path: Path, minimal_config_path: Path) -> Path:
     """Create a copy of minimal config with custom paths for isolated testing.
-    
+
     Args:
         tmp_path: Pytest temporary directory.
         minimal_config_path: Path to minimal config template.
-    
+
     Returns:
         Path to copied config file.
     """
@@ -569,26 +569,26 @@ def minimal_config_with_custom_paths(tmp_path: Path, minimal_config_path: Path) 
 @pytest.fixture
 def config_with_instruction_file(tmp_path: Path, llm_config_template_path: Path) -> Path:
     """Create config with resolved instruction file path.
-    
+
     Args:
         tmp_path: Pytest temporary directory.
         llm_config_template_path: Path to LLM config template.
-    
+
     Returns:
         Path to config file with resolved instruction path.
     """
-    
+
     # Create instruction file
     instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"
     instruction_file.parent.mkdir(parents=True, exist_ok=True)
     instruction_file.write_text("Test instruction")
-    
+
     # Load template
     config_content = llm_config_template_path.read_text(encoding="utf-8")
     config_content = config_content.replace("${INSTRUCTION_FILE_PATH}", str(instruction_file))
-    
+
     # Save resolved config
     config_file = tmp_path / "config.yaml"
     config_file.write_text(config_content, encoding="utf-8")
-    
+
     return config_file

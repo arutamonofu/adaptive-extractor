@@ -112,15 +112,15 @@ class TestAgentManagerLoadAgentAsObject:
         # Assert: Agent is callable and demos are restored
         assert reconstructed_agent is not None
         assert isinstance(reconstructed_agent, UniversalExtractor)
-        
+
         # Key assertions: prog.predict must be callable (not a dict)
         assert hasattr(reconstructed_agent.prog, "predict")
         assert callable(reconstructed_agent.prog.predict)
-        
+
         # Verify demos were restored
         assert hasattr(reconstructed_agent.prog.predict, "demos")
         assert len(reconstructed_agent.prog.predict.demos) == 1
-        
+
         # Verify agent itself is callable
         assert callable(reconstructed_agent)
 
@@ -299,7 +299,7 @@ class TestAgentManagerCreateAgentWithDemos:
         loaded_object = manager.load_agent_as_object(agent_path, nanozyme_task)
         assert not isinstance(loaded_object, dict)
         assert callable(loaded_object)
-        
+
         # Key assertion: prog.predict must be callable (not a dict)
         assert hasattr(loaded_object.prog, "predict")
         assert callable(loaded_object.prog.predict)
@@ -388,7 +388,7 @@ class TestAgentManagerSaveAndLoad:
         # Verify loaded agent is functional
         assert loaded_agent is not None
         assert isinstance(loaded_agent, UniversalExtractor)
-        
+
         # Key assertion: prog.predict must be callable (not a dict)
         assert hasattr(loaded_agent.prog, "predict")
         assert callable(loaded_agent.prog.predict)
@@ -405,17 +405,17 @@ class TestAgentManagerSaveAndLoad:
         nanozyme_task: Dict[str, Any],
     ):
         """Test that restored agent can be called with mocked LLM.
-        
+
         This test verifies that the agent reconstruction produces a fully
         functional agent that has the right structure, not just attributes.
         """
-        
+
         repo = AgentRepository(agents_dir=tmp_agents_dir)
         manager = AgentManager(agent_repo=repo)
 
         # Create original agent with demos
         original_agent = UniversalExtractor(nanozyme_task["signature"])
-        
+
         # Add demo to make agent more realistic
         demo = dspy.Example(
             document_text="Sample document about Fe3O4 nanozymes",
@@ -444,10 +444,10 @@ class TestAgentManagerSaveAndLoad:
         assert hasattr(loaded_agent, "prog")
         assert hasattr(loaded_agent.prog, "predict")
         assert callable(loaded_agent.prog.predict)
-        
+
         # Verify demos are preserved
         assert hasattr(loaded_agent.prog.predict, "demos")
         assert len(loaded_agent.prog.predict.demos) == 1
-        
+
         # Verify agent has __call__ method (is callable)
         assert callable(loaded_agent) or hasattr(loaded_agent, "forward")
