@@ -324,15 +324,23 @@ task:
 
 ```yaml
 parsing:
-  parser: "marker"                # Required: "marker"
+  parser: "marker"                # Required: "marker" or "gemini"
   overwrite: false                # Optional: Overwrite existing parsed files (default: false)
 
-  # Marker settings
+  # Marker settings (required if parser: marker)
   marker:
     device: "cpu"                 # "cpu" or "cuda"
+
+  # Gemini settings (required if parser: gemini)
+  gemini:
+    model_name: "gemini-3-flash-preview"  # Gemini model for PDF-to-Markdown
+    upload_timeout: 300           # Timeout for file upload in seconds
+    safety_settings: true         # Enable safety settings for Gemini API
 ```
 
-> **Note:** All fields in `parsing.marker` are **required**. The `overwrite` field is optional (default: `false`).
+> **Note:** All fields in `parsing.marker` are **required** when using Marker. The `parsing.gemini` section is **required** when using Gemini parser. The `overwrite` field is optional (default: `false`).
+
+> **Environment Variable:** For Gemini parser, set `GEMINI_API_KEY` in `.env` file.
 
 ### Extraction Configuration
 
@@ -384,8 +392,17 @@ export OPENAI_API_KEY="sk-..."
 # OR
 export ANTHROPIC_API_KEY="sk-ant-..."
 # OR
-export GEMINI_API_KEY="..."
+export GEMINI_API_KEY="..."  # For LLM or Gemini parser
 ```
+
+### Gemini Parser
+
+**For Gemini PDF parser users:**
+```bash
+export GEMINI_API_KEY="your_api_key_here"
+```
+
+> **Note:** This is required when `parsing.parser: gemini` in your YAML config.
 
 ### Infrastructure
 

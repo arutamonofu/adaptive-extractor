@@ -7,7 +7,7 @@ for downstream processing.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from aee.infrastructure.parsers import get_parser
 from aee.infrastructure.storage import DocumentRepository
@@ -22,14 +22,16 @@ class ParseDocumentsRequest:
     Attributes:
         input_paths: List of PDF file paths to parse.
         output_dir: Directory to save parsed documents.
-        parser_name: Name of parser to use (e.g., "marker").
+        parser_name: Name of parser to use (e.g., "marker", "gemini").
         overwrite: Whether to overwrite existing parsed files.
+        parser_config: Optional configuration for the parser.
     """
 
     input_paths: List[Path]
     output_dir: Path
     parser_name: str = "marker"
     overwrite: bool = False
+    parser_config: Optional[Any] = None
 
 
 @dataclass
@@ -102,7 +104,7 @@ class ParseDocumentsUseCase:
             request.output_dir.mkdir(parents=True, exist_ok=True)
 
             # Get parser
-            parser = get_parser(request.parser_name)
+            parser = get_parser(request.parser_name, request.parser_config)
             logger.info(f"Using parser: {request.parser_name}")
 
             # Parse documents

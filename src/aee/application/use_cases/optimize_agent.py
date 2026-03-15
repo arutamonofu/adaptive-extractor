@@ -192,8 +192,10 @@ class OptimizeAgentUseCase:
             Response with optimization results.
         """
         try:
+            # Get task name from config object (TaskConfig has .name attribute)
+            task_name = request.task["config"].name
             logger.info(
-                f"Starting agent optimization for task '{request.task['config'].name}' "
+                f"Starting agent optimization for task '{task_name}' "
                 f"with {request.num_trials} trials"
             )
 

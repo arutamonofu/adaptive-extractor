@@ -17,7 +17,7 @@ Command-line interface reference for AutoEvoExtractor.
 
 ## `parse.py`
 
-**Purpose:** Parse PDF documents into structured JSON.
+**Purpose:** Parse PDF documents into structured Markdown.
 
 ### Syntax
 
@@ -35,22 +35,32 @@ python scripts/parse.py [OPTIONS]
 ### Examples
 
 ```bash
-# Parse all PDFs (uses AEE_ENV or default.yaml)
+# Parse all PDFs with default config (uses AEE_ENV or marker parser)
 python scripts/parse.py
 
 # Parse with explicit config
-python scripts/parse.py --config config/default.yaml
+python scripts/parse.py --config config/systems/example.yaml
+
+# Parse with Gemini API parser
+python scripts/parse.py --config config/systems/gemini.yaml
 
 # Parse with overwrite
-python scripts/parse.py --config config/default.yaml --overwrite
+python scripts/parse.py --config config/systems/example.yaml --overwrite
 ```
 
 ### Output
 
-- **Success:** JSON files in `data/parsed/`
+- **Success:** Markdown files in `paths.parsed_dir` (configured in YAML)
 - **Exit codes:** `0` (success), `1` (error), `2` (partial), `130` (interrupted)
 
-> **Paths:** Configured via `paths.pdf_dir` and `paths.parsed_dir` in YAML config.
+### Parsers
+
+| Parser | Description | Configuration |
+|--------|-------------|---------------|
+| `marker` | Local PDF parsing using Marker library | `parsing.marker.device` |
+| `gemini` | Cloud PDF parsing using Google Gemini API | `parsing.gemini.*` |
+
+> **Note:** For Gemini parser, set `GEMINI_API_KEY` in `.env` file.
 
 ---
 

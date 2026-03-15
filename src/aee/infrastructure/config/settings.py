@@ -301,21 +301,54 @@ class MarkerConfig(BaseModel):
     )
 
 
+class GeminiParserConfig(BaseModel):
+    """Gemini API parser configuration."""
+    model_name: str = Field(
+        default="gemini-3-flash-preview",
+        description="Gemini model name for PDF-to-Markdown conversion"
+    )
+    upload_timeout: int = Field(
+        default=300,
+        description="Timeout for file upload in seconds"
+    )
+    safety_settings: bool = Field(
+        default=True,
+        description="Enable safety settings for Gemini API"
+    )
+
+
 class IngestionConfig(BaseModel):
     """Document ingestion configuration."""
-    parser: Literal["marker"] = Field(
+    parser: Literal["marker", "gemini"] = Field(
         ...,
-        description="Document parser to use: 'marker'"
+        description="Document parser to use: 'marker' or 'gemini'"
     )
     overwrite: bool = Field(
         ...,
         description="Overwrite existing parsed files"
     )
 
-    marker: MarkerConfig = Field(
-        ...,
-        description="Marker-specific configuration"
+    marker: Optional[MarkerConfig] = Field(
+        default=None,
+        description="Marker-specific configuration (required if parser is 'marker')"
     )
+    gemini: Optional[GeminiParserConfig] = Field(
+        default=None,
+        description="Gemini-specific configuration (required if parser is 'gemini')"
+    )
+
+    @model_validator(mode="after")
+    def validate_parser_config(self) -> "IngestionConfig":
+        """Validate that the correct parser-specific config is provided."""
+        if self.parser == "marker" and self.marker is None:
+            raise ValueError(
+                "parser is 'marker' but 'marker' configuration is missing. "
+                "Add 'marker: {device: cpu}' to your YAML config."
+            )
+        if self.parser == "gemini" and self.gemini is None:
+            # For gemini, we can use defaults, so just create a default config
+            self.gemini = GeminiParserConfig()
+        return self
 
 
 class OptimizationConfig(BaseModel):

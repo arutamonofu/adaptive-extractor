@@ -159,6 +159,9 @@ def parse_command(argv: Optional[list] = None) -> int:
             output_dir=output_dir,
             parser_name=custom_settings.parsing.parser,
             overwrite=args.overwrite,
+            parser_config=custom_settings.parsing.gemini
+            if custom_settings.parsing.parser == "gemini"
+            else custom_settings.parsing.marker,
         )
 
         # Execute parsing

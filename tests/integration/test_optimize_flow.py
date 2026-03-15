@@ -71,7 +71,7 @@ class TestOptimizeAgentUseCase:
         }
 
     def test_use_case_executes_with_mocked_optimization(
-        self, tmp_path: Path, optimization_test_setup
+        self, tmp_path: Path, optimization_test_setup, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
     ):
         """Test OptimizeAgentUseCase executes successfully with mocked optimization."""
         from aee.application.services import AgentManager
@@ -80,8 +80,8 @@ class TestOptimizeAgentUseCase:
         from aee.infrastructure.storage import AgentRepository, GroundTruthRepository
 
         # Load task config and set instruction file
-        task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-        task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+        task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
         register_config(task_config)
 
         # Get registered task
@@ -128,7 +128,7 @@ class TestOptimizeAgentUseCase:
 
         # Create request
         request = OptimizeAgentRequest(
-            task=registered_task["config"],
+            task=registered_task,  # Pass full task dict
             signature_class=registered_task["signature"],
             gt_path=Path("fake/path.csv"),
             split_path=Path("fake/splits.json"),
@@ -149,8 +149,9 @@ class TestOptimizeAgentUseCase:
             metric_threshold=0.5,
             init_temperature=0.5,
             verbose=False,
-            initial_instruction_file="config/initial_instructions/nanozymes_sota.txt",
+            initial_instruction_file=str(nanozyme_test_instruction_path),
             instruction_hash="test_hash",
+            max_errors=5,
         )
 
         # Mock MIPROv2 to avoid actual optimization
@@ -175,7 +176,7 @@ class TestOptimizeAgentUseCase:
             assert "f1" in response.final_metrics
 
     def test_use_case_handles_empty_validation_set(
-        self, tmp_path: Path, optimization_test_setup
+        self, tmp_path: Path, optimization_test_setup, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
     ):
         """Test OptimizeAgentUseCase handles empty validation set gracefully."""
         from aee.application.services import AgentManager, DatasetBuilder, DataValidator
@@ -184,8 +185,8 @@ class TestOptimizeAgentUseCase:
         from aee.infrastructure.storage import AgentRepository, DocumentRepository, GroundTruthRepository
 
         # Register task first
-        task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-        task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+        task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
         register_config(task_config)
 
         # Get task
@@ -225,7 +226,7 @@ class TestOptimizeAgentUseCase:
 
         # Create request
         request = OptimizeAgentRequest(
-            task=task["config"],
+            task=task,  # Pass full task dict, not just task["config"]
             signature_class=task["signature"],
             gt_path=optimization_test_setup["gt_path"],
             split_path=splits_path,
@@ -244,8 +245,9 @@ class TestOptimizeAgentUseCase:
             metric_threshold=0.5,
             init_temperature=0.5,
             verbose=False,
-            initial_instruction_file="config/initial_instructions/nanozymes_sota.txt",
+            initial_instruction_file=str(nanozyme_test_instruction_path),
             instruction_hash="test_hash",
+            max_errors=5,
         )
 
         # Execute optimization - should fail with validation set error
@@ -263,13 +265,13 @@ class TestAgentStateRestoration:
     """Tests for agent state restoration after optimization."""
 
     @pytest.fixture(autouse=True)
-    def setup_task(self):
+    def setup_task(self, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path):
         """Setup task for agent restoration tests."""
         from aee.domain.tasks import load_task_from_yaml, register_config
 
         # Register task first
-        task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-        task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+        task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
         register_config(task_config)
 
         yield

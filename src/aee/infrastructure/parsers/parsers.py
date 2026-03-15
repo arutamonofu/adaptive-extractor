@@ -2,6 +2,8 @@
 """Document parsers for AutoEvoExtractor."""
 
 import logging
+import os
+import time
 from pathlib import Path
 from typing import Any, Union
 
@@ -11,9 +13,109 @@ from marker.models import create_model_dict
 
 # Project
 from aee.infrastructure.parsers.base import BaseParser
-from aee.infrastructure.config.settings import MarkerConfig
+from aee.infrastructure.config.settings import MarkerConfig, GeminiParserConfig
 
 logger = logging.getLogger(__name__)
+
+
+# Gemini PDF-to-Markdown conversion prompt for chemistry papers
+GEMINI_PDF_TO_MD_PROMPT = """You are a PDF-to-Markdown converter for chemistry papers.
+
+Convert the PDF content into Markdown by copying the text as faithfully as possible.
+The conversion should be mechanical. Avoid summarizing, interpreting, or rewriting the content.
+Return only the converted Markdown.
+If the document is long, continue converting sequentially until the entire document is processed.
+Prioritize completeness of extracted text.
+
+---
+# Document coverage
+Convert the document from beginning to end.
+Conversion starts at the first page of the PDF and continues until the final page of the PDF.
+
+Include:
+• main text
+• appendices
+• supplementary information
+• supporting information
+• notes appearing after the references section
+
+Content may sometimes look repetitive. Keep it in the output.
+The references section is not the end of the document.
+Maintain the original reading order.
+
+For two-column layouts:
+read the left column first, then the right column.
+Ignore page numbers, headers, footers, and page break markers.
+
+---
+# Scientific characters
+Preserve scientific characters exactly as they appear.
+
+Examples include:
+• Greek letters (α, β, γ, Δ, λ, μ, π, Ω)
+• mathematical symbols (±, ×, ≤, ≥, ∑, ∫, √, ∞)
+• chemical radicals (•)
+• minus sign (−)
+• degree symbol (°)
+• micro symbol (μ)
+
+Keep these characters in their original form rather than converting them to ASCII alternatives.
+
+---
+# Chemical and mathematical notation
+Subscripts and superscripts follow these rules.
+
+Outside LaTeX:
+use HTML tags `<sub>` and `<sup>`
+
+Inside LaTeX expressions:
+use `_{} and ^{}`
+
+Chemical formulas and reaction notation should remain exactly as written.
+
+---
+# Mathematical expressions
+Inline math:  $...$
+Block math:  $$...$$
+Keep formulas intact rather than splitting them into multiple blocks.
+Units remain unchanged (μM, mM, °C, etc).
+
+---
+# Citations
+Keep citation markers as written: [1] [2] [3]
+They remain within the paragraph where they appear.
+If a bibliography section appears at the end, it may be omitted.
+Content that appears after the references heading (appendix or supplementary sections) should still be included.
+
+---
+# Tables
+Tables are mandatory structural elements.
+Every table must be converted into HTML inside Markdown:
+
+<table>
+...
+</table>
+
+Preserve exactly:
+• column order
+• row order
+• headers
+• colspan / rowspan
+
+Table captions and notes should always be kept, even if the same data appears in the main text.
+
+---
+
+# Figures
+Images themselves can be skipped.
+Figure captions, numbers, descriptive text, and notes should always be included as text.
+Even if the same information appears elsewhere in the main text, keep the figure captions in their original location.
+Treat each figure and its caption as a distinct block that must appear in the output.
+
+---
+# Output format
+Return the converted document as Markdown containing headings, paragraphs, formulas, tables, figure captions.
+Do not include explanations or additional commentary."""
 
 
 class MarkerParser(BaseParser):
@@ -68,20 +170,150 @@ class MarkerParser(BaseParser):
             raise
 
 
+class GeminiParser(BaseParser):
+    """Parser using Google Gemini API for PDF-to-Markdown conversion."""
+
+    def __init__(self, config: GeminiParserConfig):
+        """Initialize the Gemini parser.
+
+        Args:
+            config: Configuration for the Gemini parser. Required.
+
+        Raises:
+            ValueError: If config is None or API key is not set.
+        """
+        if config is None:
+            raise ValueError("Configuration object is required for GeminiParser")
+        
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "GEMINI_API_KEY environment variable must be set in .env file. "
+                "Add 'GEMINI_API_KEY=your_key' to your .env file."
+            )
+        
+        self.cfg = config
+        self.api_key = api_key
+        
+        # Import here to avoid dependency when not using Gemini
+        from google import genai
+        from google.genai import types
+        
+        self.client = genai.Client()
+        self.types = types
+        
+        logger.info(f"Initializing Gemini parser with model: {self.cfg.model_name}")
+
+    def parse(self, file_path: Union[str, Path]) -> str:
+        """Parse a PDF file using Gemini API.
+
+        Args:
+            file_path: Path to the PDF file.
+
+        Returns:
+            str: Markdown text content.
+
+        Raises:
+            Exception: If parsing fails.
+        """
+        from google.genai import types
+        
+        path = Path(file_path)
+        logger.info(f"Gemini processing: {path.name}")
+        
+        uploaded_file = None
+        
+        try:
+            # Upload file to Google servers
+            logger.info("Uploading file to Google server...")
+            uploaded_file = self.client.files.upload(file=str(path))
+            
+            # Wait for file processing
+            logger.info("Waiting for file to be ready...")
+            while uploaded_file.state.name == "PROCESSING":
+                logger.info(".")
+                time.sleep(3)
+                uploaded_file = self.client.files.get(name=uploaded_file.name)
+            
+            if uploaded_file.state.name == "FAILED":
+                raise RuntimeError(
+                    f"Failed to process file {path.name} on Google server"
+                )
+            
+            # Generate Markdown content using streaming
+            logger.info("Generating Markdown (streaming mode)...")
+            
+            # Build safety settings
+            safety_settings = []
+            if self.cfg.safety_settings:
+                safety_settings = [
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE
+                    ),
+                ]
+            
+            response_stream = self.client.models.generate_content_stream(
+                model=self.cfg.model_name,
+                contents=[uploaded_file, GEMINI_PDF_TO_MD_PROMPT],
+                config=types.GenerateContentConfig(
+                    safety_settings=safety_settings,
+                    temperature=0.1,
+                )
+            )
+            
+            # Stream response to string
+            markdown_content = []
+            for chunk in response_stream:
+                if chunk.text:
+                    markdown_content.append(chunk.text)
+            
+            result = "".join(markdown_content)
+            
+            if not result:
+                logger.warning(f"Gemini returned empty response for {path.name}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Gemini parsing failed for {path.name}: {str(e)}")
+            raise
+        finally:
+            # Clean up uploaded file
+            if uploaded_file:
+                try:
+                    self.client.files.delete(name=uploaded_file.name)
+                    logger.info("Temporary file deleted from server")
+                except Exception:
+                    pass  # Ignore cleanup errors
+
+
 def get_parser(parser_name: str, config: Any = None) -> BaseParser:
     """Factory function to get a parser instance by name.
 
     Args:
-        parser_name: Name of the parser ("marker").
-        config: Configuration for the parser (MarkerConfig).
+        parser_name: Name of the parser ("marker" or "gemini").
+        config: Configuration for the parser (MarkerConfig or GeminiParserConfig).
 
     Returns:
         Parser instance.
 
     Raises:
-        ValueError: If parser_name is not recognized.
+        ValueError: If parser_name is not recognized or config is invalid.
     """
-    from aee.infrastructure.config.settings import MarkerConfig
+    from aee.infrastructure.config.settings import MarkerConfig, GeminiParserConfig
 
     parser_name = parser_name.lower()
 
@@ -91,8 +323,16 @@ def get_parser(parser_name: str, config: Any = None) -> BaseParser:
                 f"MarkerParser requires MarkerConfig, got {type(config).__name__}"
             )
         return MarkerParser(config)
+    
+    elif parser_name == "gemini":
+        if config is None or not isinstance(config, GeminiParserConfig):
+            raise ValueError(
+                f"GeminiParser requires GeminiParserConfig, got {type(config).__name__}"
+            )
+        return GeminiParser(config)
+    
     else:
         raise ValueError(
             f"Unknown parser: {parser_name}. "
-            f"Available parsers: 'marker'"
+            f"Available parsers: 'marker', 'gemini'"
         )

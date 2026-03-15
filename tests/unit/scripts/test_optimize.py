@@ -86,9 +86,13 @@ class TestSignatureValidation:
         """Test that optimize command fails when task signature is missing."""
         from aee.interface.cli.optimize import optimize_command
 
-        # Create minimal config with invalid task name
+        # Create minimal config with invalid task name and temporary instruction file
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        instruction_file = tmp_path / "config" / "initial_instructions" / "nanozymes_sota.txt"
+        instruction_file.parent.mkdir(parents=True, exist_ok=True)
+        instruction_file.write_text("Test instruction for nanozymes extraction.")
+
+        config_file.write_text(f"""
 project:
   log_level: INFO
 paths:
@@ -100,7 +104,7 @@ paths:
   extractions_dir: data/extractions
 task:
   name: invalid_task
-  initial_instruction_file: config/initial_instructions/nanozymes_sota.txt
+  initial_instruction_file: {instruction_file}
   evaluation:
     compare_fields: [formula]
     float_tolerance: 0.1
@@ -191,9 +195,13 @@ class TestParsedDirectoryCheck:
         """Test that optimize command fails when parsed_dir doesn't exist."""
         from aee.interface.cli.optimize import optimize_command
 
-        # Create config with non-existent parsed_dir
+        # Create config with non-existent parsed_dir and temporary instruction file
         config_file = tmp_path / "config.yaml"
         non_existent_dir = tmp_path / "nonexistent_parsed"
+        instruction_file = tmp_path / "config" / "initial_instructions" / "nanozymes_sota.txt"
+        instruction_file.parent.mkdir(parents=True, exist_ok=True)
+        instruction_file.write_text("Test instruction for nanozymes extraction.")
+
         config_file.write_text(f"""
 project:
   log_level: INFO
@@ -206,7 +214,7 @@ paths:
   extractions_dir: data/extractions
 task:
   name: nanozymes
-  initial_instruction_file: config/initial_instructions/nanozymes_sota.txt
+  initial_instruction_file: {instruction_file}
   evaluation:
     compare_fields: [formula]
     float_tolerance: 0.1

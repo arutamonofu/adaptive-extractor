@@ -1,0 +1,12 @@
+Extract structured data about nanozyme experiments from scientific documents.
+
+Focus on the following information:
+- Chemical formula and composition of nanoparticles
+- Catalytic activity type (peroxidase, oxidase, catalase, etc.)
+- Crystal system and surface chemistry
+- Size dimensions (length, width, depth in nm)
+- Kinetic parameters (Km, Vmax with units)
+- Experimental conditions (pH, temperature)
+- Concentration ranges and catalyst loading
+
+For each experiment, extract all available fields. Mark fields as null if not reported.

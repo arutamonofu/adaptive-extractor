@@ -29,6 +29,9 @@ dependencies = [
     "marker-pdf>=1.0.0,<2.0.0",
     "pypdf>=3.0.0,<6.0.0",
     "onnxruntime>=1.15.0,<2.0.0",
+
+    # Google Gemini API
+    "google-genai>=1.0.0,<2.0.0",
     
     # ML and transformers
     "transformers>=4.30.0,<5.0.0",
@@ -80,5 +83,6 @@ module = [
     "yaml",
     "dotenv",
     "tabulate",
+    "google.genai.*",
 ]
 ignore_missing_imports = true

@@ -36,12 +36,12 @@ class TestExtractArgumentParsing:
         # Should mention required argument
         assert "--config" in result.stderr or "required" in result.stderr.lower()
 
-    def test_missing_agent_argument(self):
+    def test_missing_agent_argument(self, tmp_example_system_yaml: Path):
         """Test that script fails without --agent argument."""
         import subprocess
 
         result = subprocess.run(
-            ["python", "scripts/extract.py", "--config", "config/systems/example.yaml"],
+            ["python", "scripts/extract.py", "--config", str(tmp_example_system_yaml)],
             capture_output=True,
             text=True,
         )
@@ -78,9 +78,13 @@ class TestLLMConfiguration:
         monkeypatch.setenv("OLLAMA_STUDENT_BASE_URL", "http://localhost:11434")
         monkeypatch.setenv("OLLAMA_TEACHER_BASE_URL", "http://localhost:11434")
 
-        # Create minimal config
+        # Create minimal config with temporary instruction file
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        instruction_file = tmp_path / "config" / "initial_instructions" / "nanozymes_sota.txt"
+        instruction_file.parent.mkdir(parents=True, exist_ok=True)
+        instruction_file.write_text("Test instruction for nanozymes extraction.")
+
+        config_file.write_text(f"""
 project:
   log_level: INFO
 paths:
@@ -92,7 +96,7 @@ paths:
   extractions_dir: data/extractions
 task:
   name: nanozymes
-  initial_instruction_file: config/initial_instructions/nanozymes_sota.txt
+  initial_instruction_file: {instruction_file}
   evaluation:
     compare_fields: [formula, activity]
     float_tolerance: 0.1
@@ -188,9 +192,13 @@ circuit_breaker:
     def test_dspy_configured_with_student_lm(self, tmp_path: Path):
         """Test that DSPy is configured with student LM after create_lm call."""
 
-        # Create minimal config
+        # Create minimal config with temporary instruction file
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        instruction_file = tmp_path / "config" / "initial_instructions" / "nanozymes_sota.txt"
+        instruction_file.parent.mkdir(parents=True, exist_ok=True)
+        instruction_file.write_text("Test instruction for nanozymes extraction.")
+
+        config_file.write_text(f"""
 project:
   log_level: INFO
 paths:
@@ -202,7 +210,7 @@ paths:
   extractions_dir: data/extractions
 task:
   name: nanozymes
-  initial_instruction_file: config/initial_instructions/nanozymes_sota.txt
+  initial_instruction_file: {instruction_file}
   evaluation:
     compare_fields: [formula, activity]
     float_tolerance: 0.1
@@ -299,9 +307,13 @@ class TestAgentLoading:
 
     def test_agent_not_found_error(self, tmp_path: Path):
         """Test that script fails with clear error when agent file not found."""
-        # Create minimal config
+        # Create minimal config with temporary instruction file
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        instruction_file = tmp_path / "config" / "initial_instructions" / "nanozymes_sota.txt"
+        instruction_file.parent.mkdir(parents=True, exist_ok=True)
+        instruction_file.write_text("Test instruction for nanozymes extraction.")
+
+        config_file.write_text(f"""
 project:
   log_level: INFO
 paths:
@@ -313,7 +325,7 @@ paths:
   extractions_dir: data/extractions
 task:
   name: nanozymes
-  initial_instruction_file: config/initial_instructions/nanozymes_sota.txt
+  initial_instruction_file: {instruction_file}
   evaluation:
     compare_fields: [formula, activity]
     float_tolerance: 0.1
@@ -453,9 +465,13 @@ class TestSignatureValidation:
         """Test that extract command fails when task signature is missing."""
         from aee.interface.cli.extract import extract_command
 
-        # Create minimal config
+        # Create minimal config with temporary instruction file
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        instruction_file = tmp_path / "config" / "initial_instructions" / "nanozymes_sota.txt"
+        instruction_file.parent.mkdir(parents=True, exist_ok=True)
+        instruction_file.write_text("Test instruction for nanozymes extraction.")
+
+        config_file.write_text(f"""
 project:
   log_level: INFO
 paths:
@@ -467,7 +483,7 @@ paths:
   extractions_dir: data/extractions
 task:
   name: invalid_task
-  initial_instruction_file: config/initial_instructions/nanozymes_sota.txt
+  initial_instruction_file: {instruction_file}
   evaluation:
     compare_fields: [formula]
     float_tolerance: 0.1
@@ -577,9 +593,13 @@ class TestParsedDirectoryCheck:
         monkeypatch.setenv("OLLAMA_STUDENT_BASE_URL", "http://localhost:11434")
         monkeypatch.setenv("OLLAMA_TEACHER_BASE_URL", "http://localhost:11434")
 
-        # Create config with non-existent parsed_dir
+        # Create config with non-existent parsed_dir and temporary instruction file
         config_file = tmp_path / "config.yaml"
         non_existent_dir = tmp_path / "nonexistent_parsed"
+        instruction_file = tmp_path / "config" / "initial_instructions" / "nanozymes_sota.txt"
+        instruction_file.parent.mkdir(parents=True, exist_ok=True)
+        instruction_file.write_text("Test instruction for nanozymes extraction.")
+
         config_file.write_text(f"""
 project:
   log_level: INFO
@@ -592,7 +612,7 @@ paths:
   extractions_dir: data/extractions
 task:
   name: nanozymes
-  initial_instruction_file: config/initial_instructions/nanozymes_sota.txt
+  initial_instruction_file: {instruction_file}
   evaluation:
     compare_fields: [formula]
     float_tolerance: 0.1

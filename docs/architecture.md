@@ -93,7 +93,7 @@ Utility functions:
 |----------|-----------|
 | Storage | `save_agent()`, `load_agent()`, `load_ground_truth()` |
 | LLM | `create_lm()`, `setup_student()`, `setup_teacher()` |
-| Parsers | `MarkerParser`, `get_parser()` |
+| Parsers | `MarkerParser`, `GeminiParser`, `get_parser()` |
 
 ---
 

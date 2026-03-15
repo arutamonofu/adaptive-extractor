@@ -17,10 +17,12 @@ from aee.domain.tasks import get_task, load_task_from_yaml, register_config
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_nanozyme_task():
+def setup_nanozyme_task(tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path: Path):
     """Register nanozyme task for all tests in this module."""
-    task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-    task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+    from aee.domain.tasks import load_task_from_yaml, register_config
+
+    task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+    task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
     register_config(task_config)
     yield
 
@@ -157,10 +159,10 @@ class TestTaskPluginIntegration:
     """Integration tests for task plugin system."""
 
     @pytest.fixture(autouse=True)
-    def setup_nanozyme_task(self):
+    def setup_nanozyme_task(self, tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path: Path):
         """Register nanozyme task for each test in this class."""
-        task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-        task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+        task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
         register_config(task_config)
         yield
 
@@ -177,17 +179,16 @@ class TestTaskPluginIntegration:
         assert "formula" in task["config"].compare_fields
         assert "activity" in task["config"].compare_fields
 
-    def test_task_registry_integration(self):
+    def test_task_registry_integration(self, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path):
         """Test task registration and retrieval."""
         from aee.domain.tasks import TaskRegistry, load_task_from_yaml
 
         registry = TaskRegistry()
 
-        # Load and register task from YAML
-        yaml_path = "config/tasks/nanozymes.yaml"
-        config = load_task_from_yaml(yaml_path)
+        # Load and register task from YAML using temporary fixture file
+        config = load_task_from_yaml(tmp_nanozymes_task_yaml)
         # Set instruction file as it would be set from system config
-        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        config.initial_instruction_file = str(nanozyme_test_instruction_path)
         registry.register_config(config)
 
         # Verify registration
@@ -215,7 +216,9 @@ class TestTaskPluginIntegration:
 class TestAgentStateRestoration:
     """Integration tests for agent state restoration."""
 
-    def test_agent_restoration_with_flat_dspy_format(self, tmp_path: Path):
+    def test_agent_restoration_with_flat_dspy_format(
+        self, tmp_path: Path, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
+    ):
         """Test agent restoration from flat DSPy format (lm, traces, settings)."""
         from aee.application.services import AgentManager
         from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
@@ -224,8 +227,8 @@ class TestAgentStateRestoration:
         # Register task first (check if already registered)
         registry = get_global_registry()
         if not registry.has("nanozymes"):
-            task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-            task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+            task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+            task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
             register_config(task_config)
 
         # Get task
@@ -261,7 +264,9 @@ class TestAgentStateRestoration:
         assert agent is not None
         assert hasattr(agent, "prog")
 
-    def test_agent_restoration_with_nested_prog_format(self, tmp_path: Path):
+    def test_agent_restoration_with_nested_prog_format(
+        self, tmp_path: Path, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
+    ):
         """Test agent restoration from nested format (prog: {...})."""
         from aee.application.services import AgentManager
         from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
@@ -270,8 +275,8 @@ class TestAgentStateRestoration:
         # Register task first (check if already registered)
         registry = get_global_registry()
         if not registry.has("nanozymes"):
-            task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-            task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+            task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+            task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
             register_config(task_config)
 
         # Get task
@@ -306,7 +311,9 @@ class TestAgentStateRestoration:
         assert agent is not None
         assert hasattr(agent, "prog")
 
-    def test_agent_restoration_fails_with_invalid_format(self, tmp_path: Path):
+    def test_agent_restoration_fails_with_invalid_format(
+        self, tmp_path: Path, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
+    ):
         """Test that agent restoration fails with clear error for invalid format."""
         from aee.application.services import AgentManager
         from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
@@ -316,8 +323,8 @@ class TestAgentStateRestoration:
         # Register task first (check if already registered)
         registry = get_global_registry()
         if not registry.has("nanozymes"):
-            task_config = load_task_from_yaml("config/tasks/nanozymes.yaml")
-            task_config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+            task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+            task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
             register_config(task_config)
 
         # Get task

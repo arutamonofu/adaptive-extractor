@@ -45,10 +45,18 @@ llm:
       max_tokens: 8192
 
 parsing:
-  parser: "marker"
+  parser: "marker"  # Options: "marker" (local) or "gemini" (API)
   overwrite: false
+  
+  # Marker settings (required if parser: marker)
   marker:
     device: "cpu"
+  
+  # Gemini settings (required if parser: gemini)
+  # gemini:
+  #   model_name: "gemini-3-flash-preview"
+  #   upload_timeout: 300
+  #   safety_settings: true
 
 paths:
   pdf_dir: "data/pdf"

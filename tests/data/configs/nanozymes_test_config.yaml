@@ -1,5 +1,5 @@
-# Minimal valid configuration for testing
-# Use this template for tests that need a valid config without LLM calls
+# Test configuration for nanozymes integration tests
+# Uses static test instruction file from tests/data/instructions/
 
 project:
   log_level: INFO

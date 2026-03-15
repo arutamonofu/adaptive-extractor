@@ -6,6 +6,8 @@ Tests cover:
 - Dynamic model and signature generation
 """
 
+from pathlib import Path
+
 import pytest
 
 from aee.domain.tasks import TaskRegistry, get_global_registry, get_task, load_task_from_yaml, register_config
@@ -13,13 +15,12 @@ from aee.domain.tasks import TaskRegistry, get_global_registry, get_task, load_t
 
 @pytest.mark.integration
 @pytest.fixture(autouse=True)
-def setup_nanozyme_task():
+def setup_nanozyme_task(tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path: Path):
     """Automatically register nanozyme task before each test."""
     registry = get_global_registry()
     if not registry.has("nanozymes"):
-        yaml_path = "config/tasks/nanozymes.yaml"
-        config = load_task_from_yaml(yaml_path)
-        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+        config.initial_instruction_file = str(nanozyme_test_instruction_path)
         register_config(config)
     yield
     # Cleanup after test
@@ -53,17 +54,16 @@ class TestTaskPlugins:
         assert len(task["config"].compare_fields) > 0
         assert isinstance(task["config"].compare_fields, list)
 
-    def test_task_registry_lifecycle(self):
+    def test_task_registry_lifecycle(self, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path):
         """Test task registry lifecycle with YAML-based task."""
         registry = TaskRegistry()
 
         # Initial state
         assert registry.count() == 0
 
-        # Load and register task from YAML
-        yaml_path = "config/tasks/nanozymes.yaml"
-        config = load_task_from_yaml(yaml_path)
-        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        # Load and register task from YAML using temporary fixture file
+        config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+        config.initial_instruction_file = str(nanozyme_test_instruction_path)
         registry.register_config(config)
 
         # Verify registration
@@ -82,14 +82,13 @@ class TestTaskPlugins:
         assert registry.count() == 0
         assert "nanozymes" not in registry
 
-    def test_task_duplicate_registration_raises(self):
+    def test_task_duplicate_registration_raises(self, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path):
         """Test that duplicate registration raises error."""
         registry = TaskRegistry()
 
-        # Load and register task from YAML
-        yaml_path = "config/tasks/nanozymes.yaml"
-        config = load_task_from_yaml(yaml_path)
-        config.initial_instruction_file = "config/initial_instructions/nanozymes_sota.txt"
+        # Load and register task from YAML using temporary fixture file
+        config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+        config.initial_instruction_file = str(nanozyme_test_instruction_path)
         registry.register_config(config)
 
         # Second registration - should fail
