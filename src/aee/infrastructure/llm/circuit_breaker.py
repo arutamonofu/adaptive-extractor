@@ -99,8 +99,8 @@ class CircuitBreaker:
             elapsed = time.monotonic() - self._last_failure_time
             if elapsed >= self.reset_timeout:
                 logger.info(
-                    f"CircuitBreaker '{self.name}': transitioning from OPEN to HALF_OPEN "
-                    f"(timeout {self.reset_timeout}s elapsed)"
+                    f"CircuitBreaker '{self.name}': OPEN -> HALF_OPEN "
+                    f"(timeout {self.reset_timeout}s elapsed, failures={self._failure_count})"
                 )
                 self._state = CircuitState.HALF_OPEN
                 self._half_open_calls = 0
@@ -136,6 +136,10 @@ class CircuitBreaker:
             self._check_state_transition()
 
             if self._state == CircuitState.OPEN:
+                logger.error(
+                    f"CircuitBreaker '{self.name}' is OPEN - request blocked. "
+                    f"Retry after {self.reset_timeout}s."
+                )
                 raise CircuitBreakerError(
                     f"CircuitBreaker '{self.name}' is OPEN. "
                     f"Retry after {self.reset_timeout}s."
@@ -143,6 +147,10 @@ class CircuitBreaker:
 
             if self._state == CircuitState.HALF_OPEN:
                 if self._half_open_calls >= self.half_open_max_calls:
+                    logger.warning(
+                        f"CircuitBreaker '{self.name}' HALF_OPEN call limit reached "
+                        f"({self._half_open_calls}/{self.half_open_max_calls})"
+                    )
                     raise CircuitBreakerError(
                         f"CircuitBreaker '{self.name}' HALF_OPEN call limit reached"
                     )

@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from aee.application.services import AgentManager
 from aee.domain.tasks import TaskConfig
+from aee.infrastructure.llm.circuit_breaker import CircuitBreakerError
 from aee.infrastructure.storage import DocumentRepository, ExtractionRepository
 
 logger = logging.getLogger(__name__)
@@ -127,10 +128,13 @@ class BatchPredictionUseCase:
             # Create output directory
             request.output_dir.mkdir(parents=True, exist_ok=True)
 
+            # Log starting extraction
+            logger.info(f"Loaded {len(documents)} documents, starting extraction")
+
             # Run extractions
             stats = {"success": 0, "failed": 0, "total": len(request.document_ids)}
 
-            for doc_id in request.document_ids:
+            for idx, doc_id in enumerate(request.document_ids):
                 try:
                     # Get document text
                     doc_text = documents.get(doc_id)
@@ -138,6 +142,9 @@ class BatchPredictionUseCase:
                         logger.warning(f"Document not found: {doc_id}")
                         stats["failed"] += 1
                         continue
+
+                    # Log progress before extraction
+                    logger.info(f"[{idx+1}/{len(request.document_ids)}] Processing document: {doc_id}")
 
                     # Run extraction
                     prediction = self._run_extraction(agent, doc_text)
@@ -153,10 +160,14 @@ class BatchPredictionUseCase:
                     )
 
                     stats["success"] += 1
-                    logger.debug(f"Processed {doc_id}: {len(prediction.experiments)} experiments")
+                    logger.debug(f"[{idx+1}/{len(request.document_ids)}] Completed {doc_id}: {len(prediction.experiments)} experiments")
 
+                except CircuitBreakerError as e:
+                    logger.error(f"[{idx+1}/{len(request.document_ids)}] Circuit breaker OPEN for {doc_id}: {e}. Stopping batch processing.")
+                    stats["failed"] += 1
+                    break
                 except Exception as e:
-                    logger.error(f"Failed to process {doc_id}: {e}")
+                    logger.error(f"[{idx+1}/{len(request.document_ids)}] Failed to process {doc_id}: {e}")
                     stats["failed"] += 1
                     continue
 
