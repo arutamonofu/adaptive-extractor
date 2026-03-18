@@ -1,4 +1,4 @@
-# config/systems/dev.yaml
+# config/systems/example.yaml
 
 project:
   log_level: "INFO"
@@ -44,16 +44,14 @@ llm:
       stream: true
     non_ollama:
       max_tokens: 8192
-      # base_url: "https://openrouter.ai/api/v1"
+      # base_url: "https://api.openai.com/v1"
 
 parsing:
-  parser: "gemini"  # Options: "marker" (local) or "gemini" (API)
+  parser: "gemini"  # Options: "marker" or "gemini"
   overwrite: false
 
-  # Note: Detailed Marker settings (~70 parameters) are defined in code
-  # at src/aee/infrastructure/parsers/marker_config.py
+  # Note: Marker settings are defined in src/aee/infrastructure/parsers/marker_config.py
 
-  # Gemini settings (required if parser: gemini)
   gemini:
     model_name: "gemini-3-flash-preview"
     upload_timeout: 300

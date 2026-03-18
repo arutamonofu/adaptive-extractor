@@ -725,6 +725,19 @@ class Settings(BaseSettings):
             - GEMINI_API_KEY: Google Gemini API key
             - OPENROUTER_API_KEY: OpenRouter API key
 
+        Priority logic (in order):
+            1. If base_url is specified, use the corresponding API key:
+               - openrouter.ai → OPENROUTER_API_KEY
+               - api.openai.com → OPENAI_API_KEY
+               - api.anthropic.com → ANTHROPIC_API_KEY
+               - generativelanguage.googleapis.com → GEMINI_API_KEY
+            2. Else if model name starts with provider prefix, use that key:
+               - "openai/" → OPENAI_API_KEY
+               - "openrouter/" → OPENROUTER_API_KEY
+               - "anthropic/" → ANTHROPIC_API_KEY
+               - "gemini/" → GEMINI_API_KEY
+            3. Else fallback to priority order: OpenAI > Anthropic > Gemini > OpenRouter
+
         Args:
             config_data: Configuration dictionary to update.
         """
@@ -739,36 +752,94 @@ class Settings(BaseSettings):
                      f"Gemini: {'SET' if gemini_key else 'NOT SET'}, "
                      f"OpenRouter: {'SET' if openrouter_key else 'NOT SET'}")
 
-        # Use the first available API key
-        # Priority: OpenAI > Anthropic > Gemini > OpenRouter
-        api_key = openai_key or anthropic_key or gemini_key or openrouter_key
+        # Map base_url patterns to corresponding API keys
+        BASE_URL_TO_KEY = {
+            "openrouter.ai": openrouter_key,
+            "api.openai.com": openai_key,
+            "api.anthropic.com": anthropic_key,
+            "generativelanguage.googleapis.com": gemini_key,
+            "api.groq.com": openai_key,  # Groq uses OpenAI-compatible API
+        }
 
-        # DEBUG: Log which API key will be used
-        if api_key:
-            key_source = (
-                "OpenAI" if api_key == openai_key
-                else "Anthropic" if api_key == anthropic_key
-                else "Gemini" if api_key == gemini_key
-                else "OpenRouter"
-            )
-            key_preview = f"{api_key[:8]}..." if api_key else "NONE"
-            logger.info(f"Using {key_source} API key: {key_preview}")
+        def get_api_key_from_base_url(base_url: Optional[str]) -> Optional[str]:
+            """Get API key based on base_url pattern matching."""
+            if not base_url:
+                return None
+            
+            base_url_lower = base_url.lower()
+            for pattern, api_key in BASE_URL_TO_KEY.items():
+                if pattern in base_url_lower:
+                    return api_key
+            return None
 
-        if api_key:
-            # Apply to student if use_ollama is false
-            if "llm" in config_data and "student" in config_data["llm"]:
-                if not config_data["llm"]["student"].get("use_ollama", True):
-                    if "non_ollama" not in config_data["llm"]["student"]:
-                        config_data["llm"]["student"]["non_ollama"] = {}
-                    # Store the key value - it will be wrapped in SecretStr by Pydantic
-                    config_data["llm"]["student"]["non_ollama"]["api_key"] = api_key
+        def get_api_key_for_model(model_name: str) -> Optional[str]:
+            """Get API key based on model name prefix or priority order."""
+            if not model_name:
+                return None
+            
+            model_lower = model_name.lower()
+            
+            # Check model name prefix
+            if model_lower.startswith("openai/"):
+                return openai_key
+            elif model_lower.startswith("anthropic/"):
+                return anthropic_key
+            elif model_lower.startswith("gemini/"):
+                return gemini_key
+            elif model_lower.startswith("openrouter/"):
+                return openrouter_key
+            elif model_lower.startswith("huggingface/"):
+                return os.getenv("HUGGINGFACE_API_KEY")
+            
+            # Fallback to priority order for models without prefix
+            return openai_key or anthropic_key or gemini_key or openrouter_key
 
-            # Apply to teacher if use_ollama is false
-            if "llm" in config_data and "teacher" in config_data["llm"]:
-                if not config_data["llm"]["teacher"].get("use_ollama", True):
-                    if "non_ollama" not in config_data["llm"]["teacher"]:
-                        config_data["llm"]["teacher"]["non_ollama"] = {}
-                    config_data["llm"]["teacher"]["non_ollama"]["api_key"] = api_key
+        def apply_key_to_component(component_data: dict, component_name: str) -> None:
+            """Apply API key to a single LLM component (student or teacher)."""
+            if component_data.get("use_ollama", True):
+                return  # Skip Ollama models
+            
+            model_name = component_data.get("model", "")
+            non_ollama_config = component_data.get("non_ollama", {})
+            base_url = non_ollama_config.get("base_url")
+            
+            # Priority 1: Try to get API key from base_url
+            api_key = get_api_key_from_base_url(base_url)
+            
+            # Priority 2: Try model name prefix
+            if api_key is None:
+                api_key = get_api_key_for_model(model_name)
+            
+            if api_key:
+                if "non_ollama" not in component_data:
+                    component_data["non_ollama"] = {}
+                component_data["non_ollama"]["api_key"] = api_key
+                
+                # Determine key source for logging
+                key_source = "Unknown"
+                if api_key == openai_key:
+                    key_source = "OpenAI"
+                elif api_key == anthropic_key:
+                    key_source = "Anthropic"
+                elif api_key == gemini_key:
+                    key_source = "Gemini"
+                elif api_key == openrouter_key:
+                    key_source = "OpenRouter"
+                else:
+                    key_source = "HuggingFace"
+                
+                source_info = f"base_url: {base_url}" if base_url else f"model prefix: {model_name}"
+                logger.info(f"Using {key_source} API key for {component_name}: {model_name} ({source_info})")
+            else:
+                logger.warning(f"No API key found for {component_name}: {model_name}")
+
+        # Apply to student
+        if "llm" in config_data and "student" in config_data["llm"]:
+            apply_key_to_component(config_data["llm"]["student"], "student")
+
+        # Apply to teacher
+        if "llm" in config_data and "teacher" in config_data["llm"]:
+            apply_key_to_component(config_data["llm"]["teacher"], "teacher")
 
     @classmethod
     def _apply_env_overrides(cls, config_data: dict) -> None:
@@ -860,8 +931,15 @@ class Settings(BaseSettings):
             if value.startswith(('http://', 'https://')):
                 return False
             # Exclude known model name patterns (provider/model-name format)
-            # to prevent 'gemini/gemini-2.0-flash' from being treated as a path
-            if value.startswith(('gemini/', 'openai/', 'anthropic/', 'huggingface/', 'ollama/', 'openrouter/')):
+            # to prevent 'gemini/gemini-2.0-flash' or 'qwen/qwen3.5' from being treated as a path
+            # Common LLM provider prefixes
+            MODEL_PREFIXES = (
+                'gemini/', 'openai/', 'anthropic/', 'huggingface/', 'ollama/',
+                'openrouter/', 'meta-llama/', 'google/', 'mistral/', 'cohere/',
+                'together/', 'anyscale/', 'deepseek/', 'qwen/', 'yi/', 'baichuan/',
+                '01-ai/', 'teknium/', 'nousresearch/', 'lmsys/', 'upstage/',
+            )
+            if value.lower().startswith(MODEL_PREFIXES):
                 return False
             # Must contain '/' to be considered a path
             # This avoids converting simple values like 'INFO', 'cpu', 'marker'
