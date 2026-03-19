@@ -45,6 +45,8 @@ llm:
     non_ollama:
       max_tokens: 8192
       # base_url: "https://api.openai.com/v1"
+      reasoning:
+        enabled: true
 
 parsing:
   parser: "gemini"  # Options: "marker" or "gemini"

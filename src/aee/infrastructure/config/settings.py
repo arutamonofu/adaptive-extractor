@@ -21,7 +21,7 @@ Note: Environment variables with double underscores (e.g., OPTIMIZATION__NUM_TRI
 import logging
 import os
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -215,6 +215,10 @@ class NonOllamaConfig(BaseModel):
     base_url: Optional[str] = Field(
         default=None,
         description="Custom API base URL (e.g., https://openrouter.ai/api/v1 for OpenRouter)"
+    )
+    reasoning: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Reasoning configuration for OpenRouter reasoning models (e.g., {'enabled': True})"
     )
 
     @field_validator("api_key", mode="after")

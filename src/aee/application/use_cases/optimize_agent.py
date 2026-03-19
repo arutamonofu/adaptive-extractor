@@ -421,7 +421,13 @@ class OptimizeAgentUseCase:
         )
 
         # Set the LM for optimization with traceback enabled for detailed error reporting
-        dspy.settings.configure(lm=request.student_lm, provide_traceback=True)
+        # num_threads=1 and async_max_workers=1 to avoid rate-limiting on teacher LLM (OpenRouter)
+        dspy.settings.configure(
+            lm=request.student_lm,
+            provide_traceback=True,
+            num_threads=1,
+            async_max_workers=1,
+        )
 
         # Run optimization with explicit valset
         optimized_agent = teleprompter.compile(
