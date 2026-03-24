@@ -36,6 +36,7 @@ environment.yml.local
 .claude/
 .cursor/
 .spyder/
+.qwen/
 
 # --- Jupyter ---
 .ipynb_checkpoints/
