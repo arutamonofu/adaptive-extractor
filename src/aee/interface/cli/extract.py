@@ -16,6 +16,7 @@ from aee.application.services import AgentManager
 from aee.application.use_cases import BatchPredictionRequest, BatchPredictionUseCase
 from aee.domain.tasks import load_task_with_instruction
 from aee.infrastructure.config.settings import Settings
+from aee.infrastructure.llm.history_logger import save_extraction_history
 from aee.infrastructure.storage import (
     AgentRepository,
     DocumentRepository,
@@ -100,13 +101,15 @@ def extract_command(argv: Optional[list] = None) -> int:
     # Setup logging with custom settings
     setup_logging(custom_settings)
 
+    student_lm = None
+
     try:
         logger.info("Starting batch prediction")
 
         # Configure LLM and DSPy (setup_student calls dspy.settings.configure internally)
         from aee.infrastructure.llm import setup_student
 
-        setup_student(
+        student_lm = setup_student(
             custom_settings,
             enable_cache=custom_settings.extraction.enable_cache,
         )
@@ -216,6 +219,13 @@ def extract_command(argv: Optional[list] = None) -> int:
     except Exception as e:
         logger.error(f"Extraction error: {e}", exc_info=True)
         return 1
+
+    finally:
+        # Save LLM history (always, even on error/interrupt)
+        if custom_settings.extraction.save_llm_history:
+            if student_lm is not None:
+                history_dir = Path(custom_settings.extraction.llm_history_dir)
+                save_extraction_history(student_lm, history_dir)
 
 
 def main():

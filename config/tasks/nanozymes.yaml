@@ -1,214 +1,109 @@
 # Task configuration for nanozyme extraction
-# This YAML manifest defines the complete task specification
-
+# VERSION 3: Aligned with Ground Truth for MIPROv2 evaluation, with declarative descriptions.
 name: nanozymes
-
-# Fields to extract from documents
 fields:
   formula:
     type: str
-    description: "Chemical formula (e.g., Fe3O4, Au, CuO)"
+    description: "The chemical formula of the nanozyme (e.g., Fe3O4, CeO2, Au, etc.)"
     required: true
-
   surface:
     type: str
-    description: "Surface chemistry (naked, PEG, PVP, citrate), Polymer (oleic acid, BSA), or Surfactant (l-ascorbic acid, sodium citrate, etc)"
+    description: "Type of surface modification of the nanoparticle (e.g., functionalization, coating, doping molecule name)"
     required: false
-
   syngony:
     type: str
-    description: "Crystal system: cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, amorphous, triclinic"
+    description: "The crystal system of the nanozyme (e.g., cubic, hexagonal, monoclinic, etc.)"
+    choices: [cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, triclinic, amorphous, rhombohedral]
     required: false
-
   length:
-    type: float
-    description: "Length or size/diameter in nm"
+    type: str
+    description: "Length of the nanoparticle in nanometers"
     required: false
-    min_value: 0
-
   width:
-    type: float
-    description: "Width in nm (if applicable)"
+    type: str
+    description: "Width of the nanoparticle in nanometers"
     required: false
-    min_value: 0
-
   depth:
-    type: float
-    description: "Depth in nm (if applicable)"
+    type: str
+    description: "Depth/thickness of the nanoparticle in nanometers"
     required: false
-    min_value: 0
-
   activity:
     type: str
-    description: "Type of catalytic activity"
+    description: "Type of catalytic activity of the nanozyme (e.g., peroxidase-like, catalase-like, oxidase-like, etc.)"
     required: true
-    choices:
-      - peroxidase
-      - oxidase
-      - catalase
-      - laccase
-      - superoxide_dismutase
-      - glucose oxidase
-      - other
-
+    choices: [peroxidase, oxidase, catalase, laccase, superoxide_dismutase, glucose oxidase, other]
   reaction_type:
     type: str
-    description: "Format: 'Substrate + Co-substrate'. Tracks: TMB+H2O2 (TMB varies), H2O2+TMB (H2O2 varies)"
+    description: "Type of catalyzed reaction (e.g., TMB + H2O2 or TMB, etc.)"
     required: false
-
   km_value:
-    type: float
-    description: "Michaelis constant Km (Mantissa)"
+    type: str
+    description: "The numerical value of the Michaelis constant (Km)"
     required: false
-    min_value: 0
-
   km_unit:
     type: str
-    description: "Unit for Km (e.g., mM)"
+    description: "Unit of measurement for the Michaelis constant (e.g., mM, µM)"
     required: false
-
   vmax_value:
-    type: float
-    description: "Max reaction rate Vmax (Mantissa)"
+    type: str
+    description: "The numerical value of the maximum reaction rate (Vmax)"
     required: false
-    min_value: 0
-
   vmax_unit:
     type: str
-    description: "Unit for Vmax (e.g., M/s, mM/s)"
+    description: "Unit of measurement for Vmax (e.g., mM/s, µM/min)"
     required: false
-
   ph:
-    type: float
-    description: "pH level"
+    type: str
+    description: "pH value at which the reaction was conducted"
     required: false
-    min_value: 0
-    max_value: 14
-
   temperature:
-    type: float
-    description: "Temperature in °C"
+    type: str
+    description: "The temperature at which the reaction was conducted (in °C)"
     required: false
-
   c_min:
-    type: float
-    description: "Min concentration of variable substrate (mM)"
+    type: str
+    description: "Minimum substrate concentration in millimolar"
     required: false
-    min_value: 0
-
   c_max:
-    type: float
-    description: "Max concentration of variable substrate (mM)"
+    type: str
+    description: "Maximum substrate concentration in millimolar"
     required: false
-    min_value: 0
-
   c_const:
-    type: float
-    description: "Concentration of fixed co-substrate (mM)"
+    type: str
+    description: "Value of the constant concentration of an unchanged parameter in the reaction"
     required: false
-    min_value: 0
-
   c_const_unit:
     type: str
-    description: "Unit for c_const"
+    description: "Unit of measurement for the constant concentration(e.g., mM, µM)"
     required: false
-
   ccat_value:
-    type: float
-    description: "Concentration of the nanozyme/catalyst"
+    type: str
+    description: "Value of the catalyst(nanozyme) concentration"
     required: false
-    min_value: 0
-
   ccat_unit:
     type: str
-    description: "Unit for catalyst conc (e.g., mcg/ml, mg/mL)"
+    description: "Unit of measurement for the catalyst concentration(e.g., mM, µM, mg/ml)"
     required: false
-
-# Fields to compare during evaluation
-compare_fields:
-  - formula
-  - activity
-  - syngony
-  - surface
-  - length
-  - width
-  - depth
-  - reaction_type
-  - km_value
-  - km_unit
-  - vmax_value
-  - vmax_unit
-  - ph
-  - temperature
-  - c_min
-  - c_max
-  - c_const
-  - c_const_unit
-  - ccat_value
-  - ccat_unit
-
-# Tolerance for float comparisons (5% = 0.05)
+compare_fields: [formula, activity, syngony, surface, length, width, depth, reaction_type, km_value, km_unit, vmax_value, vmax_unit, ph, temperature, c_min, c_max, c_const, c_const_unit, ccat_value, ccat_unit]
 float_tolerance: 0.05
-
-# Row converter configuration - maps CSV columns to fields
 row_converter:
-  formula:
-    - formula
-    - name
-  surface:
-    - surface
-    - surface_chemistry
-    - coating
-  syngony:
-    - syngony
-    - crystal_system
-  length:
-    - length
-    - size
-    - diameter
-  width:
-    - width
-  depth:
-    - depth
-  activity:
-    - activity
-    - catalytic_activity
-  reaction_type:
-    - reaction_type
-    - reaction
-  km_value:
-    - km_value
-    - km
-    - km_val
-  km_unit:
-    - km_unit
-  vmax_value:
-    - vmax_value
-    - vmax
-    - vmax_val
-  vmax_unit:
-    - vmax_unit
-  ph:
-    - ph
-    - pH
-  temperature:
-    - temperature
-    - temp
-  c_min:
-    - c_min
-    - cmin
-  c_max:
-    - c_max
-    - cmax
-  c_const:
-    - c_const
-    - ccons
-    - c_cons
-  c_const_unit:
-    - c_const_unit
-    - ccons_unit
-  ccat_value:
-    - ccat_value
-    - ccat
-  ccat_unit:
-    - ccat_unit
+  formula: [formula, name]
+  surface: [surface, surface_chemistry, coating]
+  syngony: [syngony, crystal_system]
+  length: [length, size, diameter]
+  width: [width]
+  depth: [depth]
+  activity: [activity, catalytic_activity]
+  reaction_type: [reaction_type, reaction]
+  km_value: [km_value, km, km_val]
+  km_unit: [km_unit]
+  vmax_value: [vmax_value, vmax, vmax_val]
+  vmax_unit: [vmax_unit]
+  ph: [ph, pH]
+  temperature: [temperature, temp]
+  c_min: [c_min, cmin]
+  c_max: [c_max, cmax]
+  c_const: [c_const, ccons, c_cons]
+  c_const_unit: [c_const_unit, ccons_unit]
+  ccat_value: [ccat_value, ccat]
+  ccat_unit: [ccat_unit]

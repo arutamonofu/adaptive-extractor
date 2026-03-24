@@ -158,16 +158,16 @@ def patch_mipro_optimizer():
         patched_count += 1
 
     # Patch 2: Pass actual parameter values instead of constants
-    # Original code (lines ~421-424):
+    # Original code (lines ~424-427):
     # max_labeled_demos=(LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT if zeroshot else max_labeled_demos),
     # max_bootstrapped_demos=(
     #     BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT if zeroshot else max_bootstrapped_demos
     # ),
 
-    old_code_2 = """        max_labeled_demos=(LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT if zeroshot else max_labeled_demos),
-        max_bootstrapped_demos=(
-            BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT if zeroshot else max_bootstrapped_demos
-        ),"""
+    old_code_2 = """            max_labeled_demos=(LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT if zeroshot else max_labeled_demos),
+            max_bootstrapped_demos=(
+                BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT if zeroshot else max_bootstrapped_demos
+            ),"""
 
     new_code_2 = """        # PATCHED: Pass actual parameter values instead of constants for zero-shot support
         max_labeled_demos=max_labeled_demos,

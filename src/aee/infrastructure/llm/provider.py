@@ -136,23 +136,24 @@ class BaseHTTPProvider(dspy.LM, ABC):
         """
         if isinstance(prompt, str):
             return [{"role": "user", "content": prompt}]
-        
+
         # For reasoning models, preserve reasoning_details from previous responses
         # This allows the model to continue reasoning from where it left off
         if self._reasoning_details is not None:
             # Add reasoning_details to assistant messages in the conversation
             reasoning_details = self._reasoning_details  # Local variable for mypy
             enhanced_messages: List[Dict[str, Any]] = []
-            for msg in prompt:
+            for i, msg in enumerate(prompt):
                 enhanced_msg: Dict[str, Any] = msg.copy()
-                if msg.get("role") == "assistant" and reasoning_details:
-                    # Attach reasoning_details to assistant message
+                # Attach reasoning_details only to the LAST assistant message
+                # to avoid contaminating few-shot examples with reasoning from other requests
+                if msg.get("role") == "assistant" and reasoning_details and i == len(prompt) - 1:
                     enhanced_msg["reasoning_details"] = reasoning_details
                 enhanced_messages.append(enhanced_msg)
             # Clear reasoning_details after using them
             self._reasoning_details = None
             return enhanced_messages
-        
+
         return prompt
 
     @abstractmethod
@@ -238,12 +239,14 @@ class BaseHTTPProvider(dspy.LM, ABC):
             response: Response text.
             kwargs: Additional arguments.
         """
+        # Remove 'messages' from kwargs to avoid duplication
+        kwargs_clean = {k: v for k, v in kwargs.items() if k != "messages"}
+
         self.history.append({
-            "prompt": messages,
             "messages": messages,
             "outputs": [response],
             "model": self.model,
-            "kwargs": kwargs
+            "kwargs": kwargs_clean
         })
 
         # Trim history to MAX_HISTORY
@@ -557,10 +560,10 @@ class OpenRouterLM(BaseHTTPProvider):
                 if "choices" in data and len(data["choices"]) > 0:
                     message = data["choices"][0]["message"]
                     content = message.get("content", "")
-                    
+
                     # Store reasoning_details for subsequent requests (OpenRouter reasoning models)
                     self._reasoning_details = message.get("reasoning_details")
-                    
+
                     return content
                 else:
                     logger.error(f"Unexpected OpenRouter response: {data}")

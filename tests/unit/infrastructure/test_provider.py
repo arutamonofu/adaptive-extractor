@@ -244,17 +244,17 @@ class TestOllamaLM:
 
     def test_call_with_messages_in_kwargs(self, ollama_config, circuit_breaker):
         """Test that calling with messages in kwargs doesn't cause 'multiple values' error.
-        
+
         This is a regression test for the issue where DSPy bootstrap passes messages
         via kwargs, which conflicted with the positional messages parameter.
         """
         lm = OllamaLM(ollama_config, circuit_breaker=circuit_breaker)
-        
+
         # Mock _execute_request to avoid actual HTTP calls
         with patch.object(lm, "_execute_request", return_value="Test response") as mock_execute:
             # This should not raise TypeError about 'multiple values for argument messages'
             result = lm(messages=[{"role": "user", "content": "Test"}])
-            
+
             assert result == ["Test response"]
             assert mock_execute.called
             # Verify the payload was prepared correctly
@@ -342,17 +342,17 @@ class TestOpenRouterLM:
 
     def test_call_with_messages_in_kwargs(self, openrouter_config, circuit_breaker):
         """Test that calling with messages in kwargs doesn't cause 'multiple values' error.
-        
+
         This is a regression test for the issue where DSPy bootstrap passes messages
         via kwargs, which conflicted with the positional messages parameter.
         """
         lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
-        
+
         # Mock _execute_request to avoid actual HTTP calls
         with patch.object(lm, "_execute_request", return_value="Test response") as mock_execute:
             # This should not raise TypeError about 'multiple values for argument messages'
             result = lm(messages=[{"role": "user", "content": "Test"}])
-            
+
             assert result == ["Test response"]
             assert mock_execute.called
             # Verify the payload was prepared correctly

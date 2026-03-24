@@ -116,6 +116,8 @@ task:
 
 extraction:
   enable_cache: false
+  save_llm_history: false
+  llm_history_dir: "logs/llm_history"
 
 cache:
   disk_size_limit_bytes: 30000000000  # 30 GB

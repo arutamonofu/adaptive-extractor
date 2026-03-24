@@ -9,19 +9,43 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 
+def _clean_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove duplicate fields from history entry.
+
+    Args:
+        entry: Raw history entry from LLM
+
+    Returns:
+        Cleaned entry with duplicates removed
+    """
+    cleaned: Dict[str, Any] = {
+        "messages": entry.get("messages", []),
+        "outputs": entry.get("outputs", []),
+        "model": entry.get("model", ""),
+    }
+
+    # Keep only non-message kwargs
+    kwargs = entry.get("kwargs", {})
+    extra = {k: v for k, v in kwargs.items() if k != "messages"}
+    if extra:
+        cleaned["kwargs"] = extra
+
+    return cleaned
+
+
 def _clean_for_json(obj: Any) -> Any:
     """Recursively remove non-JSON-serializable objects from data structure.
-    
+
     Args:
         obj: Object to clean (dict, list, or primitive)
-        
+
     Returns:
         Cleaned object with only JSON-serializable values
     """
     if isinstance(obj, dict):
         return {
-            k: _clean_for_json(v) 
-            for k, v in obj.items() 
+            k: _clean_for_json(v)
+            for k, v in obj.items()
             if k != 'lm'  # Skip 'lm' field
         }
     elif isinstance(obj, list):
@@ -38,7 +62,7 @@ def save_history(lm: Any, output_path: Path) -> int:
 
     Uses atomic write (temp file + rename) to prevent corruption
     if the process is interrupted (e.g., KeyboardInterrupt).
-    Removes non-JSON-serializable objects (e.g., 'lm' field) from history entries.
+    Removes duplicate fields and non-JSON-serializable objects from history entries.
 
     Args:
         lm: LLM instance with .history attribute
@@ -52,8 +76,8 @@ def save_history(lm: Any, output_path: Path) -> int:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Clean history: remove non-JSON-serializable fields recursively
-    clean_history = [_clean_for_json(entry) for entry in lm.history]
+    # Clean history: remove duplicates and non-JSON-serializable fields
+    clean_history = [_clean_for_json(_clean_entry(entry)) for entry in lm.history]
 
     # Write to temp file first, then rename atomically
     temp_path = output_path.with_suffix('.json.tmp')
@@ -107,3 +131,25 @@ def save_optimization_history(
         counts["teacher"] = teacher_count
 
     return counts
+
+
+def save_extraction_history(
+    lm: Any,
+    output_dir: Path,
+    timestamp: Optional[str] = None,
+) -> int:
+    """Save extraction LLM history.
+
+    Args:
+        lm: LLM instance from extraction
+        output_dir: Directory for output files
+        timestamp: Optional timestamp string (default: current time)
+
+    Returns:
+        Number of entries saved
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    output_path = output_dir / f"extraction_lm_{timestamp}.json"
+    return save_history(lm, output_path)

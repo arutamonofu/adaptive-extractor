@@ -512,6 +512,14 @@ class ExtractionConfig(BaseModel):
         ...,
         description="Enable LLM response caching during extraction"
     )
+    save_llm_history: bool = Field(
+        default=False,
+        description="Save LLM call histories after extraction"
+    )
+    llm_history_dir: str = Field(
+        default="logs/llm_history",
+        description="Directory for LLM history files"
+    )
 
 
 class CacheConfig(BaseModel):
