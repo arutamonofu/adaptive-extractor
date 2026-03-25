@@ -323,6 +323,8 @@ task:
 - `evaluation.compare_fields` — List of field names used for evaluation during optimization (**required**)
 - `evaluation.float_tolerance` — Tolerance for floating-point comparisons (0.0 to 1.0) (**required**)
 
+**Note on `float_tolerance`:** This field is required for backward compatibility but is no longer used in current metric calculations.
+
 ### Parsing Configuration
 
 ```yaml

@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Type, Union
 
 from pydantic import BaseModel, Field, create_model
+from pydantic.functional_validators import BeforeValidator
 
 from aee.domain.entities import Experiment
 
@@ -75,6 +76,38 @@ def _create_field_type(spec: FieldSpec) -> Type[Any]:
         return Optional[base_type]  # type: ignore[return-value]
 
 
+def _string_coerce_validator(v: Any) -> Any:
+    """Coerce numeric values to strings.
+
+    This handles the case where LLM returns JSON with numeric values
+    (e.g., 12.0, 4.0) but the field is defined as str type in YAML.
+
+    Args:
+        v: Value to coerce.
+
+    Returns:
+        String representation of the value.
+    """
+    if v is None:
+        return v
+    if isinstance(v, bool):
+        # Booleans should be converted to "true"/"false" strings
+        return str(v).lower()
+    if isinstance(v, float):
+        # Clean up float representation: 12.0 -> "12", 1.5e-07 -> "1.5e-07"
+        if v.is_integer():
+            return str(int(v))
+        return str(v)
+    if isinstance(v, int):
+        return str(v)
+    # Already a string or other type - convert to string
+    return str(v)
+
+
+# Reusable validator for str-typed fields
+StringCoerce = BeforeValidator(_string_coerce_validator)
+
+
 def create_experiment_model(
     task_config: TaskConfig,
     base_class: Optional[Type[BaseModel]] = None,
@@ -84,6 +117,9 @@ def create_experiment_model(
     This function generates a Pydantic model class based on the field
     specifications in TaskConfig. The generated model includes all fields
     with appropriate types, validation, and descriptions.
+
+    For fields defined as str type, automatic conversion from numeric values
+    (int, float) to strings is applied to handle LLM JSON responses.
 
     Args:
         task_config: Task configuration with field specifications.
@@ -121,10 +157,16 @@ def create_experiment_model(
         field_type = _create_field_type(spec)
         pydantic_field = spec.to_pydantic_field()
 
+        # For str-typed fields, add coercion validator to handle numeric JSON values from LLM
+        if spec.type is str or spec.type == "str" or spec.type == "string":
+            # Use Annotated type with BeforeValidator for automatic coercion
+            from typing import Annotated
+            field_type = Annotated[field_type, StringCoerce]  # type: ignore[assignment]
+
         fields[field_name] = (field_type, pydantic_field)  # type: ignore[assignment]
 
-    # Create the dynamic model
-    model = create_model("Experiment", __base__=base_class, **fields)
+    # Create the dynamic model with fields
+    model = create_model("Experiment", __base__=base_class, **fields)  # type: ignore[arg-type]
 
     logger.info(f"Created experiment model with {len(fields)} fields")
 

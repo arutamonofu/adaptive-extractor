@@ -512,3 +512,103 @@ class TestRowConverterConfig:
 
         columns = config.get_column_names("nonexistent")
         assert columns == ["nonexistent"]  # Returns field name as default
+
+
+@pytest.mark.unit
+class TestDynamicModelStringValidation:
+    """Tests for string field validation in dynamically created models."""
+
+    def test_float_to_string_conversion(self):
+        """Float values should convert to strings for str-typed fields."""
+        from aee.domain.tasks.dynamic_models import create_experiment_model
+
+        config = TaskConfig(
+            name="test_string_conv",
+            experiment_fields={
+                "length": FieldSpec(type=str, description="Length", required=False),
+                "formula": FieldSpec(type=str, description="Formula", required=True),
+            },
+            compare_fields=["formula"],
+            float_tolerance=0.05,
+        )
+
+        ExperimentModel = create_experiment_model(config)
+        exp = ExperimentModel(formula="Fe3O4", length=12.0)
+
+        assert exp.length == "12"
+
+    def test_int_to_string_conversion(self):
+        """Int values should convert to strings for str-typed fields."""
+        from aee.domain.tasks.dynamic_models import create_experiment_model
+
+        config = TaskConfig(
+            name="test_int_conv",
+            experiment_fields={
+                "count": FieldSpec(type=str, description="Count", required=False),
+                "formula": FieldSpec(type=str, description="Formula", required=True),
+            },
+            compare_fields=["formula"],
+            float_tolerance=0.05,
+        )
+
+        ExperimentModel = create_experiment_model(config)
+        exp = ExperimentModel(formula="Fe3O4", count=5)
+
+        assert exp.count == "5"
+
+    def test_string_passthrough(self):
+        """String values should pass through unchanged."""
+        from aee.domain.tasks.dynamic_models import create_experiment_model
+
+        config = TaskConfig(
+            name="test_str_pass",
+            experiment_fields={
+                "length": FieldSpec(type=str, description="Length", required=False),
+                "formula": FieldSpec(type=str, description="Formula", required=True),
+            },
+            compare_fields=["formula"],
+            float_tolerance=0.05,
+        )
+
+        ExperimentModel = create_experiment_model(config)
+        exp = ExperimentModel(formula="Fe3O4", length="12")
+
+        assert exp.length == "12"
+
+    def test_range_string_accepted(self):
+        """Range strings like '5-10' should still work."""
+        from aee.domain.tasks.dynamic_models import create_experiment_model
+
+        config = TaskConfig(
+            name="test_range",
+            experiment_fields={
+                "length": FieldSpec(type=str, description="Length", required=False),
+                "formula": FieldSpec(type=str, description="Formula", required=True),
+            },
+            compare_fields=["formula"],
+            float_tolerance=0.05,
+        )
+
+        ExperimentModel = create_experiment_model(config)
+        exp = ExperimentModel(formula="Fe3O4", length="5-10")
+
+        assert exp.length == "5-10"
+
+    def test_scientific_notation(self):
+        """Scientific notation floats should convert properly."""
+        from aee.domain.tasks.dynamic_models import create_experiment_model
+
+        config = TaskConfig(
+            name="test_sci",
+            experiment_fields={
+                "value": FieldSpec(type=str, description="Value", required=False),
+                "formula": FieldSpec(type=str, description="Formula", required=True),
+            },
+            compare_fields=["formula"],
+            float_tolerance=0.05,
+        )
+
+        ExperimentModel = create_experiment_model(config)
+        exp = ExperimentModel(formula="Fe3O4", value=1.502e-07)
+
+        assert exp.value == "1.502e-07"
