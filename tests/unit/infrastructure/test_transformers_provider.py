@@ -375,6 +375,44 @@ class TestTransformersLM:
         assert len(lm_copy.history) == 1
         assert lm.history is lm_copy.history  # Same list object
 
+    def test_copy_uses_cached_model(self, transformers_config, mock_model_and_tokenizer):
+        """Test copy() reuses the cached model instead of duplicating it in VRAM.
+
+        This is critical for MIPROv2: DSPy calls lm.copy() during bootstrapping
+        for each example. If copy() duplicated the PyTorch model, VRAM would be
+        exhausted after just a few calls (~14 GB per copy for a 27B model at 4-bit).
+        """
+        mock_model, mock_tokenizer = mock_model_and_tokenizer
+
+        with patch.object(TransformersLM, '_load_or_get_model', return_value=(mock_model, mock_tokenizer)):
+            lm = TransformersLM(transformers_config)
+            lm_copy = lm.copy()
+
+        assert lm_copy.model is lm.model  # Same model object from cache, not a duplicate
+        assert lm_copy.tokenizer is lm.tokenizer
+
+    def test_copy_shares_history_with_kwargs(self, transformers_config, mock_model_and_tokenizer):
+        """Test copy() shares history and applies kwargs correctly."""
+        mock_model, mock_tokenizer = mock_model_and_tokenizer
+
+        with patch.object(TransformersLM, '_load_or_get_model', return_value=(mock_model, mock_tokenizer)):
+            lm = TransformersLM(transformers_config)
+            lm_copy = lm.copy(temperature=1.0, rollout_id=42)
+
+        # History is shared
+        lm("Test")
+        assert len(lm.history) == 1
+        assert len(lm_copy.history) == 1
+        assert lm.history is lm_copy.history
+
+        # Kwargs are applied
+        assert lm_copy.temperature == 1.0
+        assert lm_copy.kwargs.get("rollout_id") == 42
+
+        # Original is unchanged
+        assert lm.temperature == 0.5
+        assert "rollout_id" not in lm.kwargs
+
     @patch("transformers.AutoModelForCausalLM")
     @patch("transformers.AutoTokenizer")
     def test_circuit_breaker_protection(self, mock_tokenizer_cls, mock_model_cls, transformers_config):

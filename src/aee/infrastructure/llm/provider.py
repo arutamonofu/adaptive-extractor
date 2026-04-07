@@ -574,6 +574,35 @@ class TransformersLM(BaseLMProvider):
             return self._circuit_breaker.call(_do_generate)
         return _do_generate()
 
+    def copy(self, **kwargs):
+        """Create a copy that reuses the cached model instead of deep copying it.
+
+        This override prevents duplicating the PyTorch model in VRAM.
+        The base class copy() uses copy.deepcopy(self), which creates a full
+        copy of all model weights (~14 GB for a 27B model at 4-bit), quickly
+        leading to CUDA OOM during MIPROv2 optimization.
+
+        Instead, we create a new instance via __init__, which uses
+        _load_or_get_model() to retrieve the model from the class-level cache.
+        """
+        cb_copy = copy.deepcopy(self._circuit_breaker) if self._circuit_breaker else None
+        new_instance = self.__class__(self._config, circuit_breaker=cb_copy)
+        new_instance.history = self.history  # Share history (reference, not copy)
+
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(new_instance, key, value)
+            if (key in self.kwargs) or (not hasattr(self, key)):
+                if value is None:
+                    new_instance.kwargs.pop(key, None)
+                else:
+                    new_instance.kwargs[key] = value
+
+        if hasattr(new_instance, "_warned_zero_temp_rollout"):
+            new_instance._warned_zero_temp_rollout = False
+
+        return new_instance
+
     def _normalize_prompt(
         self, prompt: Union[str, List[Dict[str, str]]]
     ) -> List[Dict[str, Any]]:

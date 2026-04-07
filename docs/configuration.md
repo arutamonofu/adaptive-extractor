@@ -473,7 +473,7 @@ llm:
 | `attn_implementation` | `"sdpa"` | Attention: `"sdpa"`, `"flash_attention_2"`, `"eager"` |
 
 **Important notes:**
-- Models are loaded **once** and cached at the class level to avoid duplicate memory usage (important for MIPROv2's deepcopy behavior)
+- Models are loaded **once** and cached at the class level. Subsequent `copy()` calls (used by DSPy during MIPROv2 bootstrapping) reuse the cached model instead of duplicating weights in VRAM — this prevents OOM errors during optimization
 - The `timeout`, `repeat_penalty`, and `repeat_last_n` fields are **ignored** for transformers
 - No environment variables are required — models are downloaded automatically from HuggingFace Hub
 - For models with custom architectures (e.g., Qwen), set `trust_remote_code: true`
