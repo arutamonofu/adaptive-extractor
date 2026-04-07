@@ -547,6 +547,12 @@ class AgentManager:
                 import os
                 os.unlink(temp_path)
 
+        # Fallback: duck typing for objects with dump_state() method
+        # (covers MagicMock in tests and other duck-typed agents that don't
+        # pass isinstance checks with @runtime_checkable Protocol)
+        if hasattr(agent, "dump_state") and callable(agent.dump_state):
+            return agent.dump_state()
+
         # Cannot serialize
         raise UseCaseExecutionError(
             "AgentManager._serialize_agent",

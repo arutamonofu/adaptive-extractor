@@ -56,7 +56,7 @@ project:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "mistral-small3.1-24b-128k:latest"
     temperature: 0.0
     timeout: 600
@@ -76,7 +76,7 @@ llm:
       max_tokens: 4096
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "gpt-oss:120b"
     temperature: 0.5
     timeout: 600
@@ -198,7 +198,7 @@ project:
 ```yaml
 llm:
   student:
-    use_ollama: true              # Use Ollama (true) or API (false)
+    provider: "ollama"              # Use Ollama (true) or API (false)
     model: "mistral-small3.1-24b-128k:latest"
     temperature: 0.0              # 0.0 for deterministic output
     timeout: 600                  # Request timeout (seconds)
@@ -222,7 +222,7 @@ llm:
       max_tokens: 4096            # Max tokens for API providers
 
   teacher:
-    use_ollama: true              # Use Ollama (true) or API (false)
+    provider: "ollama"              # Use Ollama (true) or API (false)
     model: "gpt-oss:120b"
     temperature: 0.5              # Higher temperature for evaluation diversity
     timeout: 600                  # Request timeout (seconds)

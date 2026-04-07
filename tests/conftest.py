@@ -605,7 +605,7 @@ task:
     float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
@@ -624,7 +624,7 @@ llm:
     non_ollama:
       max_tokens: 256
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
@@ -938,7 +938,7 @@ project:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1
@@ -958,7 +958,7 @@ llm:
       max_tokens: 256
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1

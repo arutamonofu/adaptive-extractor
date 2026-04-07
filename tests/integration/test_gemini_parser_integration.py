@@ -174,7 +174,7 @@ paths:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -194,7 +194,7 @@ llm:
       max_tokens: 512
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -302,7 +302,7 @@ paths:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -322,7 +322,7 @@ llm:
       max_tokens: 512
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3

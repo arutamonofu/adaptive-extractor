@@ -28,7 +28,7 @@ from aee.infrastructure.llm.provider import (
 def ollama_config():
     """Create a valid Ollama configuration for testing."""
     return LLMInstanceConfig(
-        use_ollama=True,
+        provider="ollama",
         model="mistral-small3.1-24b-128k:latest",
         timeout=600,
         max_retries=2,
@@ -56,7 +56,7 @@ def ollama_config():
 def openrouter_config():
     """Create a valid OpenRouter configuration for testing."""
     return LLMInstanceConfig(
-        use_ollama=False,
+        provider="api",
         model="openai/gpt-4o-mini",
         timeout=600,
         max_retries=2,
@@ -289,7 +289,7 @@ class TestOpenRouterLM:
         # This test verifies that config validation works correctly
         with pytest.raises(ValueError, match="API key must be set"):
             LLMInstanceConfig(
-                use_ollama=False,
+                provider="api",
                 model="openai/gpt-4o-mini",
                 timeout=600,
                 max_retries=2,
@@ -396,7 +396,7 @@ class TestOpenRouterLM:
     def test_init_with_reasoning(self, circuit_breaker):
         """Test OpenRouterLM initialization with reasoning configuration."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -428,7 +428,7 @@ class TestOpenRouterLM:
     def test_prepare_payload_with_reasoning(self, circuit_breaker):
         """Test that reasoning is added to payload when configured."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -469,7 +469,7 @@ class TestOpenRouterLM:
     def test_normalize_prompt_with_reasoning_details(self, circuit_breaker):
         """Test that reasoning_details are preserved in messages."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -514,7 +514,7 @@ class TestOpenRouterLM:
     def test_normalize_prompt_string_ignores_reasoning_details(self, circuit_breaker):
         """Test that string prompts don't get reasoning_details."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -726,7 +726,7 @@ class TestOpenRouterLMHTTP:
         )
 
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -835,7 +835,7 @@ class TestCreateLMOpenRouter:
         monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-key")
 
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openrouter/qwen/qwen3.5-397b-a17b",
             timeout=600,
             max_retries=2,
@@ -875,7 +875,7 @@ class TestCreateLMOpenRouter:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test-key")
 
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-4o-mini",
             timeout=600,
             max_retries=2,
@@ -919,7 +919,7 @@ class TestCreateLMOpenRouter:
 
         for model_name in test_models:
             config = LLMInstanceConfig(
-                use_ollama=False,
+                provider="api",
                 model=model_name,
                 timeout=600,
                 max_retries=2,
@@ -957,7 +957,7 @@ class TestCreateLMOpenRouter:
         # Config validation happens at LLMInstanceConfig creation time
         with pytest.raises(ValueError, match="API key must be set"):
             LLMInstanceConfig(
-                use_ollama=False,
+                provider="api",
                 model="openai/gpt-4o-mini",
                 timeout=600,
                 max_retries=2,
@@ -988,7 +988,7 @@ class TestCreateLMOpenRouter:
 
         # Create valid config first (Pydantic allows max_tokens=0)
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-4o-mini",
             timeout=600,
             max_retries=2,

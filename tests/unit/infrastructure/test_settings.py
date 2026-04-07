@@ -78,7 +78,7 @@ task:
     float_tolerance: 0.1
 llm:
   student:
-    use_ollama: false
+    provider: "api"
     model: "openrouter/qwen/qwen3.5-397b-a17b"
     timeout: 60
     max_retries: 1
@@ -97,7 +97,7 @@ llm:
     non_ollama:
       max_tokens: 256
   teacher:
-    use_ollama: false
+    provider: "api"
     model: "openrouter/qwen/qwen3.5-397b-a17b"
     timeout: 60
     max_retries: 1
@@ -172,7 +172,7 @@ circuit_breaker:
                 monkeypatch.delenv(key, raising=False)
         monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-openrouter-key")
 
-        # Create minimal config with use_ollama: false for teacher
+        # Create minimal config with provider: "api" for teacher
         config_content = """
 project:
   log_level: INFO
@@ -192,7 +192,7 @@ task:
     float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1
@@ -211,7 +211,7 @@ llm:
     non_ollama:
       max_tokens: 256
   teacher:
-    use_ollama: false
+    provider: "api"
     model: "openrouter/qwen/qwen3.5-397b-a17b"
     timeout: 60
     max_retries: 1
@@ -274,7 +274,7 @@ circuit_breaker:
         settings = Settings.load(config_path=config_file, load_env_file=False)
 
         # Verify teacher config has API key applied
-        assert settings.llm.teacher.use_ollama is False
+        assert settings.llm.teacher.provider == "api"
         assert settings.llm.teacher.non_ollama.api_key is not None
         assert (
             settings.llm.teacher.non_ollama.api_key.get_secret_value()
@@ -319,7 +319,7 @@ task:
     float_tolerance: 0.1
 llm:
   student:
-    use_ollama: false
+    provider: "api"
     model: "openai/gpt-4"
     timeout: 60
     max_retries: 1
@@ -339,7 +339,7 @@ llm:
       max_tokens: 4096
       base_url: "https://custom-api.example.com/v1"
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1

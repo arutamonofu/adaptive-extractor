@@ -74,7 +74,7 @@ project:
   log_level: INFO
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -93,7 +93,7 @@ llm:
     non_ollama:
       max_tokens: 4096
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -180,7 +180,7 @@ project:
   log_level: INFO
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -199,7 +199,7 @@ llm:
     non_ollama:
       max_tokens: 4096
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -286,7 +286,7 @@ project:
   log_level: INFO
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -305,7 +305,7 @@ llm:
     non_ollama:
       max_tokens: 4096
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -393,7 +393,7 @@ project:
   log_level: INFO
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -412,7 +412,7 @@ llm:
     non_ollama:
       max_tokens: 4096
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
@@ -506,7 +506,7 @@ project:
   log_level: INFO
 llm:
   student:
-    use_ollama: false
+    provider: "api"
     model: "gpt-4"
     timeout: 60
     max_retries: 3
@@ -525,7 +525,7 @@ llm:
     non_ollama:
       max_tokens: 4096
   teacher:
-    use_ollama: false
+    provider: "api"
     model: "gpt-4"
     timeout: 60
     max_retries: 3
@@ -598,7 +598,7 @@ project:
   log_level: INFO
 llm:
   student:
-    use_ollama: false
+    provider: "api"
     model: "gpt-4"
     timeout: 60
     max_retries: 3
@@ -617,7 +617,7 @@ llm:
     non_ollama:
       max_tokens: 4096
   teacher:
-    use_ollama: false
+    provider: "api"
     model: "gpt-4"
     timeout: 60
     max_retries: 3
@@ -686,7 +686,7 @@ circuit_breaker:
         try:
             with pytest.raises(
                 ValueError,
-                match="API key must be set for non-Ollama providers",
+                match="API key must be set",
             ):
                 Settings.load(config_path=config_file, load_env_file=False)
         finally:
@@ -706,7 +706,7 @@ project:
   log_level: INFO
 llm:
   student:
-    use_ollama: false
+    provider: "api"
     model: "gpt-4"
     timeout: 60
     max_retries: 3
@@ -725,7 +725,7 @@ llm:
     non_ollama:
       max_tokens: 4096
   teacher:
-    use_ollama: false
+    provider: "api"
     model: "gpt-4"
     timeout: 60
     max_retries: 3
@@ -795,7 +795,7 @@ circuit_breaker:
         try:
             settings = Settings.load(config_path=config_file, load_env_file=False)
 
-            assert settings.llm.student.use_ollama is False
+            assert settings.llm.student.provider == "api"
             assert settings.llm.student.non_ollama.api_key is not None
         finally:
             os.environ.pop("OLLAMA_STUDENT_BASE_URL", None)
