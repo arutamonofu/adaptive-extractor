@@ -198,10 +198,10 @@ project:
 ```yaml
 llm:
   student:
-    provider: "ollama"              # Use Ollama (true) or API (false)
+    provider: "ollama"              # REQUIRED: "ollama", "api", or "transformers"
     model: "mistral-small3.1-24b-128k:latest"
     temperature: 0.0              # 0.0 for deterministic output
-    timeout: 600                  # Request timeout (seconds)
+    timeout: 600                  # Request timeout (seconds, ignored for transformers)
     max_retries: 5                # Maximum retry attempts
     rate_limit_delay: 10.0        # Delay between API calls (seconds)
     top_p: 0.1                    # Nucleus sampling top-p parameter
@@ -221,11 +221,22 @@ llm:
     non_ollama:
       max_tokens: 4096            # Max tokens for API providers
 
+    # Transformers settings (local inference via HuggingFace)
+    transformers:
+      device_map: "auto"          # Device mapping: "auto", "cuda", "cpu"
+      torch_dtype: "float16"      # Tensor dtype: "float16", "bfloat16", "float32"
+      load_in_4bit: false         # Enable 4-bit quantization (requires bitsandbytes)
+      load_in_8bit: false         # Enable 8-bit quantization (requires bitsandbytes)
+      trust_remote_code: false    # Required for some models (e.g., Qwen)
+      max_new_tokens: 4096        # Max tokens to generate
+      do_sample: true             # Use sampling vs greedy decoding
+      attn_implementation: "sdpa" # Attention: "sdpa", "flash_attention_2", "eager"
+
   teacher:
-    provider: "ollama"              # Use Ollama (true) or API (false)
+    provider: "ollama"              # REQUIRED: "ollama", "api", or "transformers"
     model: "gpt-oss:120b"
     temperature: 0.5              # Higher temperature for evaluation diversity
-    timeout: 600                  # Request timeout (seconds)
+    timeout: 600                  # Request timeout (seconds, ignored for transformers)
     max_retries: 2                # Maximum retry attempts
     rate_limit_delay: 10.0        # Delay between API calls (seconds)
     top_p: 0.9                    # Nucleus sampling top-p parameter
@@ -244,6 +255,17 @@ llm:
     # Non-Ollama settings (API key is set via *_API_KEY env var)
     non_ollama:
       max_tokens: 8192            # Max tokens for API providers
+
+    # Transformers settings (local inference via HuggingFace)
+    transformers:
+      device_map: "auto"          # Device mapping: "auto", "cuda", "cpu"
+      torch_dtype: "float16"      # Tensor dtype
+      load_in_4bit: false         # Enable 4-bit quantization
+      load_in_8bit: false         # Enable 8-bit quantization
+      trust_remote_code: false    # Required for some models (e.g., Qwen)
+      max_new_tokens: 8192        # Max tokens to generate
+      do_sample: true             # Use sampling vs greedy decoding
+      attn_implementation: "sdpa" # Attention implementation
 ```
 
 ### Optimization Configuration
@@ -401,6 +423,70 @@ MarkdownRenderer_html_tables_in_markdown = True
 - **Service settings**: Ollama service configuration for LLM backend
 
 > **Note:** The default configuration is optimized for data extraction from scientific chemistry PDFs using Qwen2.5-VL as the LLM backend.
+
+### Transformers Configuration (Local Inference)
+
+The `transformers` provider enables local model inference using HuggingFace Transformers, without requiring external HTTP services or API keys.
+
+**When to use:**
+- You have a GPU with sufficient VRAM for the model
+- You want offline/local inference (no network dependency)
+- You want to avoid API costs for high-volume workloads
+
+**Example configuration:**
+
+```yaml
+llm:
+  student:
+    provider: "transformers"
+    model: "Qwen/Qwen2.5-7B-Instruct"
+    temperature: 0.0
+    timeout: 600                  # Ignored for transformers
+    max_retries: 5
+    rate_limit_delay: 0.0         # No rate limiting for local inference
+    top_p: 0.1
+    repeat_penalty: 1.2           # Ignored for transformers
+    repeat_last_n: 2048           # Ignored for transformers
+    enable_cache: true
+
+    transformers:
+      device_map: "auto"          # Auto-select GPU/CPU
+      torch_dtype: "float16"      # Use half-precision
+      load_in_4bit: true          # Enable 4-bit quantization
+      trust_remote_code: true     # Required for Qwen models
+      max_new_tokens: 4096
+      do_sample: true
+      attn_implementation: "sdpa"
+```
+
+**Transformers settings reference:**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `device_map` | `"auto"` | Device mapping: `"auto"`, `"cuda"`, `"cpu"` |
+| `torch_dtype` | `"float16"` | Tensor dtype: `"float16"`, `"bfloat16"`, `"float32"` |
+| `load_in_4bit` | `false` | Enable 4-bit quantization (requires `bitsandbytes`) |
+| `load_in_8bit` | `false` | Enable 8-bit quantization (requires `bitsandbytes`) |
+| `trust_remote_code` | `false` | Allow remote code execution (required for Qwen, etc.) |
+| `max_new_tokens` | `4096` | Maximum tokens to generate |
+| `do_sample` | `true` | Use sampling (vs greedy decoding) |
+| `attn_implementation` | `"sdpa"` | Attention: `"sdpa"`, `"flash_attention_2"`, `"eager"` |
+
+**Important notes:**
+- Models are loaded **once** and cached at the class level to avoid duplicate memory usage (important for MIPROv2's deepcopy behavior)
+- The `timeout`, `repeat_penalty`, and `repeat_last_n` fields are **ignored** for transformers
+- No environment variables are required — models are downloaded automatically from HuggingFace Hub
+- For models with custom architectures (e.g., Qwen), set `trust_remote_code: true`
+
+**Recommended models:**
+- `Qwen/Qwen2.5-7B-Instruct` — good balance of quality and VRAM usage
+- `Qwen/Qwen2.5-14B-Instruct` — higher quality, requires more VRAM
+- `meta-llama/Llama-3.1-8B-Instruct` — Meta's Llama 3.1
+
+**Quantization tips:**
+- `load_in_4bit: true` — reduces VRAM by ~4x, slight quality loss
+- `load_in_8bit: true` — reduces VRAM by ~2x, minimal quality loss
+- Cannot use both 4-bit and 8-bit simultaneously
 
 ### Extraction Configuration
 

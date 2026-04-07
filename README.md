@@ -23,7 +23,7 @@ AutoEvoExtractor automatically extracts structured experimental data from scient
 ## Requirements
 
 - **Python:** 3.11+
-- **LLM:** Ollama (local) or OpenAI/Anthropic/Gemini/OpenRouter API
+- **LLM:** Ollama, HuggingFace Transformers, API
 - **Core dependencies:** dspy-ai, pydantic, pandas, mlflow, marker-pdf
 
 [Full list →](pyproject.toml)
