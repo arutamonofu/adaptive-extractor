@@ -219,6 +219,16 @@ class TransformersConfig(BaseModel):
         default="sdpa",
         description="Attention implementation: 'sdpa', 'flash_attention_2', 'eager'"
     )
+    repetition_penalty: float = Field(
+        default=1.2,
+        description="Penalty for repeated token generation. Values > 1.0 discourage "
+        "repetition. Recommended: 1.1-1.3. Set to 1.0 to disable."
+    )
+    no_repeat_ngram_size: int = Field(
+        default=0,
+        description="Prevent exact n-gram repetition during generation. "
+        "Set to 0 to disable, or >= 2 to prevent n-gram repeats. Recommended: 3."
+    )
 
 
 class NonOllamaConfig(BaseModel):

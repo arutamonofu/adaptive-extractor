@@ -231,6 +231,8 @@ llm:
       max_new_tokens: 4096        # Max tokens to generate
       do_sample: true             # Use sampling vs greedy decoding
       attn_implementation: "sdpa" # Attention: "sdpa", "flash_attention_2", "eager"
+      repetition_penalty: 1.2     # Penalize repeated tokens (>1.0)
+      no_repeat_ngram_size: 0     # Prevent n-gram repeats (0 = off)
 
   teacher:
     provider: "ollama"              # REQUIRED: "ollama", "api", or "transformers"
@@ -266,6 +268,8 @@ llm:
       max_new_tokens: 8192        # Max tokens to generate
       do_sample: true             # Use sampling vs greedy decoding
       attn_implementation: "sdpa" # Attention implementation
+      repetition_penalty: 1.2     # Penalize repeated tokens (>1.0)
+      no_repeat_ngram_size: 0     # Prevent n-gram repeats (0 = off)
 ```
 
 ### Optimization Configuration
@@ -457,6 +461,8 @@ llm:
       max_new_tokens: 4096
       do_sample: true
       attn_implementation: "sdpa"
+      repetition_penalty: 1.2     # >1.0 penalizes repeated tokens
+      no_repeat_ngram_size: 0     # 0 = disabled, 3 = prevent 3-gram repeats
 ```
 
 **Transformers settings reference:**
@@ -471,10 +477,14 @@ llm:
 | `max_new_tokens` | `4096` | Maximum tokens to generate |
 | `do_sample` | `true` | Use sampling (vs greedy decoding) |
 | `attn_implementation` | `"sdpa"` | Attention: `"sdpa"`, `"flash_attention_2"`, `"eager"` |
+| `repetition_penalty` | `1.2` | Penalty for repeated tokens (>1.0). Recommended: 1.1-1.3 |
+| `no_repeat_ngram_size` | `0` | Prevent exact n-gram repeats (0 = off, >=2 = size) |
 
 **Important notes:**
 - Models are loaded **once** and cached at the class level. Subsequent `copy()` calls (used by DSPy during MIPROv2 bootstrapping) reuse the cached model instead of duplicating weights in VRAM — this prevents OOM errors during optimization
-- The `timeout`, `repeat_penalty`, and `repeat_last_n` fields are **ignored** for transformers
+- The `repeat_penalty` and `repeat_last_n` fields (inherited from Ollama config) are **ignored** for transformers. Use `repetition_penalty` and `no_repeat_ngram_size` under the `transformers:` block instead — these are native HuggingFace `generate()` parameters
+- The `rate_limit_delay` field is **ignored** (no rate limiting needed for local inference)
+- The `timeout` field is converted to `max_time` for `model.generate()` (Transformers built-in mechanism)
 - No environment variables are required — models are downloaded automatically from HuggingFace Hub
 - For models with custom architectures (e.g., Qwen), set `trust_remote_code: true`
 

@@ -105,6 +105,8 @@ class TestTransformersConfig:
         assert config.max_new_tokens == 4096
         assert config.do_sample is True
         assert config.attn_implementation == "sdpa"
+        assert config.repetition_penalty == 1.2
+        assert config.no_repeat_ngram_size == 0
 
 
 # =============================================================================
@@ -415,8 +417,109 @@ class TestTransformersLM:
 
     @patch("transformers.AutoModelForCausalLM")
     @patch("transformers.AutoTokenizer")
-    def test_circuit_breaker_protection(self, mock_tokenizer_cls, mock_model_cls, transformers_config):
-        """Test circuit breaker trips on model errors."""
+    def test_generate_timeout_is_passed(self, mock_tokenizer_cls, mock_model_cls, transformers_config):
+        """Test that config timeout is passed to model.generate() as max_time."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Response"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        lm = TransformersLM(transformers_config)
+        lm("Test")
+
+        # Verify max_time was passed to generate()
+        call_kwargs = mock_model.generate.call_args[1]
+        assert call_kwargs["max_time"] == transformers_config.timeout
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_generate_cuda_oom_without_circuit_breaker(self, mock_tokenizer_cls, mock_model_cls, transformers_config, caplog):
+        """Test CUDA OOM is logged and re-raised even without circuit breaker."""
+        import logging
+
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.side_effect = RuntimeError("CUDA out of memory")
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        lm = TransformersLM(transformers_config)
+
+        with pytest.raises(RuntimeError):
+            with caplog.at_level(logging.ERROR):
+                lm("Test")
+
+        assert any("CUDA OOM" in record.message for record in caplog.records)
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_pad_token_id_fallback_logs_warning(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config, caplog
+    ):
+        """Test that missing pad_token_id triggers a warning when falling back to eos_token_id."""
+        import logging
+
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Response"
+        mock_tokenizer.pad_token_id = None
+        mock_tokenizer.eos_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        with caplog.at_level(logging.WARNING):
+            TransformersLM(transformers_config)
+
+        assert any("pad_token_id" in record.message for record in caplog.records)
+        assert mock_tokenizer.pad_token_id == 50256
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_no_pad_token_id_raises_error(self, mock_tokenizer_cls, mock_model_cls, transformers_config):
+        """Test that missing both pad_token_id and eos_token_id raises ValueError."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.pad_token_id = None
+        mock_tokenizer.eos_token_id = None
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        with pytest.raises(ValueError, match="neither pad_token_id nor eos_token_id"):
+            TransformersLM(transformers_config)
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_circuit_breaker_protection(self, mock_tokenizer_cls, mock_model_cls, transformers_config, caplog):
+        """Test circuit breaker trips on model errors (including CUDA OOM)."""
+        import logging
+
         mock_tokenizer = MagicMock()
         mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
         mock_tokenizer.pad_token_id = 50256
@@ -441,11 +544,105 @@ class TestTransformersLM:
 
         # First call should fail and trip circuit breaker
         with pytest.raises(RuntimeError):
-            lm("Test")
+            with caplog.at_level(logging.ERROR):
+                lm("Test")
+
+        # Verify OOM was logged
+        assert any("CUDA OOM" in record.message for record in caplog.records)
 
         # Second call should fail immediately with CircuitBreakerError
         with pytest.raises(CircuitBreakerError):
             lm("Test")
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_repetition_penalty_passed_to_generate(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config
+    ):
+        """Test that repetition_penalty > 1.0 is passed to model.generate()."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Response"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        lm = TransformersLM(transformers_config)
+        lm("Test")
+
+        # Verify repetition_penalty was passed to generate()
+        call_kwargs = mock_model.generate.call_args[1]
+        assert call_kwargs["repetition_penalty"] == 1.2
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_no_repeat_ngram_size_passed_to_generate(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config
+    ):
+        """Test that no_repeat_ngram_size >= 2 is passed to model.generate()."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Response"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        # Set no_repeat_ngram_size to 3
+        transformers_config.transformers.no_repeat_ngram_size = 3
+
+        lm = TransformersLM(transformers_config)
+        lm("Test")
+
+        # Verify no_repeat_ngram_size was passed to generate()
+        call_kwargs = mock_model.generate.call_args[1]
+        assert call_kwargs["no_repeat_ngram_size"] == 3
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_repetition_control_defaults(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config
+    ):
+        """Test that default repetition settings pass repetition_penalty=1.2 but skip no_repeat_ngram_size."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Response"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        # Ensure defaults (repetition_penalty=1.2, no_repeat_ngram_size=0)
+        transformers_config.transformers.repetition_penalty = 1.2
+        transformers_config.transformers.no_repeat_ngram_size = 0
+
+        lm = TransformersLM(transformers_config)
+        lm("Test")
+
+        call_kwargs = mock_model.generate.call_args[1]
+        # repetition_penalty=1.2 should be passed (default > 1.0)
+        assert call_kwargs.get("repetition_penalty") == 1.2
+        # no_repeat_ngram_size=0 should NOT be passed (< 2)
+        assert "no_repeat_ngram_size" not in call_kwargs
 
 
 # =============================================================================

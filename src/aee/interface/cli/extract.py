@@ -227,6 +227,11 @@ def extract_command(argv: Optional[list] = None) -> int:
                 history_dir = Path(custom_settings.extraction.llm_history_dir)
                 save_extraction_history(student_lm, history_dir)
 
+        # Free VRAM from cached Transformers models (no-op for HTTP providers)
+        from aee.infrastructure.llm.provider import TransformersLM
+
+        TransformersLM.clear_cache()
+
 
 def main():
     """Main entry point."""

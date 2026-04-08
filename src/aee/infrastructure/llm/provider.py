@@ -508,6 +508,15 @@ class TransformersLM(BaseLMProvider):
         )
 
         if tokenizer.pad_token_id is None:
+            if tokenizer.eos_token_id is None:
+                raise ValueError(
+                    f"Tokenizer for {model_name} has neither pad_token_id nor eos_token_id. "
+                    "Cannot configure padding. Consider using a different tokenizer."
+                )
+            logger.warning(
+                f"Tokenizer for {model_name} has no pad_token_id. "
+                f"Falling back to eos_token_id ({tokenizer.eos_token_id})."
+            )
             tokenizer.pad_token_id = tokenizer.eos_token_id
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -556,23 +565,52 @@ class TransformersLM(BaseLMProvider):
         return [response]
 
     def _generate(self, input_ids: Any, **kwargs) -> Any:
-        """Generate with circuit breaker protection."""
+        """Generate with circuit breaker, timeout, and OOM protection."""
         import torch
 
         def _do_generate():
             with torch.no_grad():
-                return self.model.generate(
-                    input_ids,
-                    max_new_tokens=kwargs.get("max_tokens", self.max_new_tokens),
-                    temperature=self.temperature,
-                    do_sample=self.temperature > 0,
-                    top_p=kwargs.get("top_p", self.top_p),
-                    pad_token_id=self.tokenizer.pad_token_id,
-                )
+                generate_kwargs = {
+                    "max_new_tokens": kwargs.get("max_tokens", self.max_new_tokens),
+                    "temperature": self.temperature,
+                    "do_sample": self.temperature > 0,
+                    "top_p": kwargs.get("top_p", self.top_p),
+                    "pad_token_id": self.tokenizer.pad_token_id,
+                }
+
+                # Use timeout from config via transformers' built-in max_time (seconds)
+                timeout = self._config.timeout
+                if timeout > 0:
+                    generate_kwargs["max_time"] = timeout
+
+                # Repetition control (native transformers parameters)
+                if self.transformers_config.repetition_penalty > 1.0:
+                    generate_kwargs["repetition_penalty"] = (
+                        self.transformers_config.repetition_penalty
+                    )
+                if self.transformers_config.no_repeat_ngram_size >= 2:
+                    generate_kwargs["no_repeat_ngram_size"] = (
+                        self.transformers_config.no_repeat_ngram_size
+                    )
+
+                return self.model.generate(input_ids, **generate_kwargs)
+
+        def _wrapped_generate():
+            try:
+                return _do_generate()
+            except RuntimeError as e:
+                error_msg = str(e).lower()
+                if "out of memory" in error_msg or "cuda" in error_msg:
+                    logger.error(
+                        "CUDA OOM during generation for %s. "
+                        "Consider reducing max_new_tokens or enabling quantization.",
+                        self.model_name,
+                    )
+                raise
 
         if self._circuit_breaker:
-            return self._circuit_breaker.call(_do_generate)
-        return _do_generate()
+            return self._circuit_breaker.call(_wrapped_generate)
+        return _wrapped_generate()
 
     def copy(self, **kwargs):
         """Create a copy that reuses the cached model instead of deep copying it.
