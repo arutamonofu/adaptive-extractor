@@ -9,9 +9,10 @@
 
 name: aee
 channels:
-  - conda-forge
+  # Channel order matters: pytorch/nvidia first so GPU builds win over conda-forge CPU builds.
   - pytorch
   - nvidia
+  - conda-forge
   - defaults
 
 dependencies:
@@ -19,12 +20,15 @@ dependencies:
   # Python
   # ============================================================
   - python=3.12
+  - pip
 
   # ============================================================
   # PyTorch with CUDA 12.4 (from pytorch channel)
-  # Includes all CUDA runtime libraries — no system CUDA needed
+  # Includes all CUDA runtime libraries — no system CUDA needed.
+  # NOTE: The "pytorch::" prefix forces the GPU build from the pytorch channel,
+  # preventing conda-forge's CPU build from being selected.
   # ============================================================
-  - pytorch>=2.0.0
+  - pytorch::pytorch>=2.0.0
   - pytorch-cuda=12.4
 
   # ============================================================
@@ -91,11 +95,21 @@ dependencies:
       # Gemini API
       - google-genai>=1.0.0
 
-      # Optimized attention kernels for Qwen3.5+
+      # Qwen3.5 optimized inference kernels
+      # flash-attn: required for attn_implementation: "flash_attention_2"
+      # flash-linear-attention: provides fused Triton kernels for Qwen3.5
+      #   linear attention layers (75% of the model).
+      # causal-conv1d: required for the SSM/linear attention fast path in decode.
+      #   Without it, 75% of layers fall back to slow torch conv1d.
+      - flash-attn>=2.8.0
       - flash-linear-attention>=0.4.0
+      - causal-conv1d>=1.5.0
 
       # Experiment tracking
       - mlflow>=2.10.0
+
+      # Quantization for local LLM inference (required when quantization: "4bit"/"8bit" in YAML)
+      - bitsandbytes>=0.48.0
 
       # Dev: HTTP mocking, linting, type checking
       - responses>=0.23.0

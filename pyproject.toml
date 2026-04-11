@@ -44,18 +44,25 @@ dependencies = [
     # === LLM: local inference (transformers provider) ===
     # Lazy-imported when provider: "transformers" is configured.
     # Requires torch to be installed separately (see note above).
-    "transformers>=4.40.0",
-    "accelerate>=0.27.0",
+    "transformers>=5.5.0",
+    "accelerate>=1.10.0",
 
     # === LLM: Gemini API (primary PDF parser) ===
     # Lazy-imported when parser: "gemini" is configured
     "google-genai>=1.0.0",
 
-    # === Optimized attention kernels for Qwen3.5+ ===
-    # Eliminates "fast path not available" warning; auto-detected by transformers.
-    # causal-conv1d is implemented in Triton inside flash-linear-attention.
-    # Requires torch (installed separately).
+    # === Qwen3.5 optimized inference kernels ===
+    # flash-attn: required for attn_implementation: "flash_attention_2"
+    # flash-linear-attention: provides fused Triton kernels for Qwen3.5
+    #   linear attention layers (75% of the model).
+    # causal-conv1d: required for the SSM/linear attention fast path in decode.
+    #   Without it, 75% of layers fall back to slow torch conv1d.
+    # triton: pulled in automatically by flash-linear-attention.
+    #
+    # NOTE: These are auto-detected by transformers — no code changes needed.
+    "flash-attn>=2.8.0",
     "flash-linear-attention>=0.4.0",
+    "causal-conv1d>=1.5.0",
 
     # === Experiment tracking ===
     # Lazy-imported with graceful degradation if not available
@@ -79,7 +86,7 @@ dev = [
 quant = [
     # Required for quantization: quantization: "4bit" / "8bit" in YAML config
     # Requires torch to be installed separately first
-    "bitsandbytes>=0.42.0",
+    "bitsandbytes>=0.48.0",
 ]
 marker = [
     # Alternative PDF parser (local, GPU-based).
@@ -153,8 +160,10 @@ module = [
     "google.genai.*",
     "requests",
     "statsmodels.*",
+    "flash_attn.*",
     "flash_linear_attention.*",
     "fla.*",
+    "causal_conv1d.*",
     "torch",
     "accelerate",
     "bitsandbytes",

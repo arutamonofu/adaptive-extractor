@@ -204,6 +204,8 @@ llm:
       attn_implementation: "sdpa" # Attention: "sdpa", "flash_attention_2", "eager"
       repetition_penalty: 1.2     # Penalize repeated tokens (>1.0)
       no_repeat_ngram_size: 0     # Prevent n-gram repeats (0 = off)
+      enable_thinking: false      # Disable native thinking for Qwen3.5 (default: None = model default)
+      stream: false               # Stream tokens to stdout in real-time (like Ollama streaming)
 
   teacher:
     provider: "ollama"              # REQUIRED: "ollama", "api", or "transformers"
@@ -239,6 +241,8 @@ llm:
       attn_implementation: "sdpa" # Attention implementation
       repetition_penalty: 1.2     # Penalize repeated tokens (>1.0)
       no_repeat_ngram_size: 0     # Prevent n-gram repeats (0 = off)
+      enable_thinking: false      # Disable native thinking for Qwen3.5
+      stream: false               # Stream tokens to stdout in real-time
 ```
 
 ### Optimization Configuration
@@ -408,6 +412,8 @@ llm:
       attn_implementation: "sdpa"
       repetition_penalty: 1.2
       no_repeat_ngram_size: 0
+      enable_thinking: false
+      stream: false
 ```
 
 > **Note:** For `provider: "transformers"`, the `timeout` and `rate_limit_delay` fields
@@ -430,6 +436,8 @@ llm:
 | `attn_implementation` | `"sdpa"` | Attention: `"sdpa"`, `"flash_attention_2"`, `"eager"` |
 | `repetition_penalty` | `1.2` | Penalty for repeated tokens (>1.0). Recommended: 1.1-1.3 |
 | `no_repeat_ngram_size` | `0` | Prevent exact n-gram repeats (0 = off, >=2 = size) |
+| `enable_thinking` | `None` | Native thinking for thinking-capable models (e.g., Qwen3.5). `None` = model default (thinking on), `false` = disable (direct JSON output), `true` = enable |
+| `stream` | `false` | Stream tokens to stdout in real-time as they are generated (same format as Ollama streaming) |
 
 **Important notes:**
 - Models are loaded **once** and cached at the class level. Subsequent `copy()` calls (used by DSPy during MIPROv2 bootstrapping) reuse the cached model instead of duplicating weights in VRAM — this prevents OOM errors during optimization

@@ -238,6 +238,17 @@ class TransformersConfig(BaseModel):
         description="Prevent exact n-gram repetition during generation. "
         "Set to 0 to disable, or >= 2 to prevent n-gram repeats. Recommended: 3."
     )
+    enable_thinking: Optional[bool] = Field(
+        default=None,
+        description="Enable native thinking/reasoning for thinking-capable models "
+        "(e.g., Qwen3.5). None = model default (thinking enabled), "
+        "False = disable thinking (pre-fill empty thinking block for direct output)."
+    )
+    stream: bool = Field(
+        default=False,
+        description="Stream model output token-by-token to stdout (like Ollama streaming). "
+        "Does not affect return value — only provides real-time visual feedback."
+    )
 
     @field_validator("quantization")
     @classmethod

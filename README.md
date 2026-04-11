@@ -26,6 +26,23 @@ AutoEvoExtractor automatically extracts structured experimental data from scient
 - **PDF parser:** Gemini API (primary) or Marker (local, GPU, optional)
 - **GPU server:** NVIDIA GPU with CUDA 12.x support (A6000 recommended)
 
+### Critical optimizations for local Transformers inference
+
+When running models like **Qwen3.5-27B** locally, these three packages are required for acceptable performance (~5-7 tok/sec vs ~2 tok/sec without them):
+
+| Package | Purpose | What happens if missing |
+|---------|---------|------------------------|
+| `flash-attn` | FlashAttention-2 kernel | Falls back to slower sdpa attention |
+| `causal-conv1d` | SSM/linear attention fast path | **75% of layers** use slow torch conv1d |
+| `bitsandbytes` | 4-bit quantization (NF4) | Model won't fit in GPU memory |
+
+These are auto-detected by `transformers` — no code changes needed. They are listed in `pyproject.toml` and installed automatically with `[dev,quant]` extras.
+
+After installation, verify kernel status:
+```bash
+python scripts/benchmark_inference.py --config config/systems/example.yaml
+```
+
 ## Installation
 
 ### Option 1: Conda (local development with Jupyter)
@@ -37,14 +54,18 @@ conda activate aee
 
 This installs all dependencies including Jupyter notebooks. The `environment.yml` uses `pyproject.toml` as the single source of truth for Python packages.
 
+> **Important (NFS/home environments):** If your conda env is on an NFS-mounted home directory, you may need to set `LD_LIBRARY_PATH` so that `causal-conv1d` and Triton kernels can find the correct libraries:
+> ```bash
+> export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$CONDA_PREFIX/lib/python3.12/site-packages/torch/lib:$LD_LIBRARY_PATH"
+> ```
+
 ### Option 2: pip venv (GPU server, A6000)
 
 ```bash
 python3.12 -m venv /opt/aee/env
 source /opt/aee/env/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cu124
-pip install -e ".[dev]"           # dev tools
-pip install -e ".[dev,quant]"     # + quantization (4bit/8bit)
+pip install -e ".[dev,quant]"     # includes flash-attn, causal-conv1d, bitsandbytes
 ```
 
 > **Note:** Do not install `[notebook]` extras on the server.
@@ -58,7 +79,7 @@ pip install -e ".[dev,quant]"     # + quantization (4bit/8bit)
 | `notebook` | Jupyter, matplotlib, seaborn | `-e ".[dev,notebook]"` |
 | `marker` | Marker PDF parser (GPU, requires `transformers<5.0`) | See note below |
 
-> **Marker parser:** Requires `transformers<5.0` and is incompatible with the main dependency tree. If you need Marker, install it in a separate environment with pinned transformers version.
+> **Note:** `transformers`, `flash-attn`, `causal-conv1d`, and `accelerate` are in the base dependency list — they install regardless of extras. The `[quant]` group only adds `bitsandbytes` for 4-bit/8-bit quantization support.
 
 ## Quick Start
 
@@ -89,7 +110,13 @@ aee-optimize --config config/systems/example.yaml --task nanozymes
 │   ├── systems/              # System configs (models, providers)
 │   └── tasks/                # Task definitions
 ├── scripts/                  # Utility scripts
+│   ├── benchmark_inference.py  # Performance benchmark (tokens/sec, kernel check)
+│   ├── diagnose_performance.py # Deep diagnostic suite (prefill/decode analysis)
+│   ├── parse.py                # CLI wrapper
+│   ├── extract.py              # CLI wrapper
+│   └── optimize.py             # CLI wrapper
 ├── tests/                    # Unit and integration tests
+├── docs/                     # Documentation
 ├── pyproject.toml            # Package definition and dependencies
 ├── environment.yml           # Conda environment (local dev)
 └── constraints.txt           # NCCL conflict resolution (conda only)

@@ -18,22 +18,69 @@ Usage:
     response = lm("Your prompt here")
 """
 
-import time
 import copy
-import logging
 import json
+import logging
 import threading
-import requests
+import time
 from abc import ABC, abstractmethod
-from threading import Lock
-from typing import Any, List, Union, Optional, Dict, Tuple, Type
 from functools import wraps
+from threading import Lock
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import dspy
-from aee.infrastructure.config.settings import LLMInstanceConfig, Settings, CircuitBreakerConfig, TransformersConfig
+import requests
+
+from aee.infrastructure.config.settings import CircuitBreakerConfig, LLMInstanceConfig, Settings, TransformersConfig
 from aee.infrastructure.llm.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 logger = logging.getLogger(__name__)
+
+
+def _log_kernel_status(attn_impl: str) -> None:
+    """Verify that optimized inference kernels are active (no slow torch fallbacks).
+
+    This runs after model loading to confirm fast-path availability.
+    Only logs warnings — does not raise or block execution.
+    """
+    # Check FlashAttention-2
+    if attn_impl == "flash_attention_2":
+        try:
+            from transformers.utils import is_flash_attn_2_available
+            if is_flash_attn_2_available():
+                logger.info("Kernel check: flash_attention_2 ✅ available")
+            else:
+                logger.warning(
+                    "Kernel check: attn_implementation='flash_attention_2' is set, "
+                    "but flash-attn is NOT installed. Falling back to sdpa."
+                )
+        except ImportError:
+            logger.warning(
+                "Kernel check: flash-attn NOT installed. "
+                "Install with: pip install flash-attn"
+            )
+
+    # Check causal-conv1d (required for Qwen3.5+ SSM/linear attention fast path)
+    # NOTE: transformers 5.x removed is_causal_conv1d_available(), so we check directly.
+    try:
+        import causal_conv1d  # noqa: F401
+        logger.info("Kernel check: causal_conv1d ✅ available (SSM fast-path active)")
+    except ImportError:
+        logger.warning(
+            "Kernel check: causal_conv1d NOT installed. "
+            "75%% of Qwen3.5 linear attention layers will use slow torch fallback. "
+            "Install with: pip install causal-conv1d"
+        )
+
+    # Check FLA (flash-linear-attention) for Qwen3.5+
+    try:
+        import fla  # noqa: F401
+        logger.info("Kernel check: flash-linear-attention ✅ available")
+    except ImportError:
+        logger.debug(
+            "Kernel check: flash-linear-attention NOT installed. "
+            "Required for Qwen3.5+ linear attention layers."
+        )
 
 
 class BaseLMProvider(dspy.LM, ABC):
@@ -443,6 +490,8 @@ class TransformersLM(BaseLMProvider):
         self.provider = "Transformers"
         self.transformers_config = config.transformers
         self.max_new_tokens = self.transformers_config.max_new_tokens
+        self.enable_thinking = self.transformers_config.enable_thinking
+        self.stream = self.transformers_config.stream
 
         # Store model name string in self.model_name for DSPy adapters
         # DSPy's JSONAdapter expects self.model to be a string like "qwen/qwen3.5-0.8b"
@@ -570,10 +619,15 @@ class TransformersLM(BaseLMProvider):
         else:
             device = str(next(model.parameters()).device)
 
+        # Log attention implementation in use
+        attn_impl = getattr(model.config, "_attn_implementation", "unknown")
         logger.info(
             f"Model {model_name} loaded successfully "
-            f"(device: {device}, dtype: {actual_dtype})"
+            f"(device: {device}, dtype: {actual_dtype}, attention: {attn_impl})"
         )
+
+        # Verify optimized kernels are active (no fallback to slow torch paths)
+        _log_kernel_status(attn_impl)
 
         return model, tokenizer
 
@@ -590,11 +644,21 @@ class TransformersLM(BaseLMProvider):
 
         messages = self._normalize_prompt(prompt)
 
+        # Build apply_chat_template kwargs
+        template_kwargs: Dict[str, Any] = {
+            "return_tensors": "pt",
+            "add_generation_prompt": True,
+            "return_dict": True,
+        }
+
+        # Pass enable_thinking only if explicitly set (None = model default)
+        enable_thinking = kwargs.get("enable_thinking", self.enable_thinking)
+        if enable_thinking is not None:
+            template_kwargs["enable_thinking"] = enable_thinking
+
         encoded = self.tokenizer.apply_chat_template(
             messages,
-            return_tensors="pt",
-            add_generation_prompt=True,
-            return_dict=True,
+            **template_kwargs,
         )
         # Extract input_ids and attention_mask from BatchEncoding
         input_ids = encoded.input_ids.to(self._torch_model.device)
@@ -626,6 +690,7 @@ class TransformersLM(BaseLMProvider):
                     "do_sample": self.temperature > 0,
                     "top_p": kwargs.get("top_p", self.top_p),
                     "pad_token_id": self.tokenizer.pad_token_id,
+                    "eos_token_id": self.tokenizer.eos_token_id,
                 }
 
                 # Pass attention mask if provided
@@ -645,6 +710,15 @@ class TransformersLM(BaseLMProvider):
                 if self.transformers_config.no_repeat_ngram_size >= 2:
                     generate_kwargs["no_repeat_ngram_size"] = (
                         self.transformers_config.no_repeat_ngram_size
+                    )
+
+                # Streaming (display-only, like Ollama streaming)
+                if self.stream:
+                    from transformers import TextStreamer
+
+                    logger.info(f"[LLM] Streaming response from {self.model_name}...")
+                    generate_kwargs["streamer"] = TextStreamer(
+                        self.tokenizer, skip_prompt=True
                     )
 
                 return self._torch_model.generate(input_ids, **generate_kwargs)

@@ -20,23 +20,26 @@ llm:
   # Student model — used for extraction and optimisation.
   student:
     provider: "transformers"
-    model: "qwen/qwen3.5-0.8b"
+    model: "qwen/qwen3.5-27b"
     temperature: 0.1
     top_p: 0.85
     max_retries: 5
     enable_cache: true
 
     transformers:
-      device_map: "auto"
-      torch_dtype: "float16"
-      quantization: "4bit"
+      device_map: "cuda"
+      torch_dtype: "bfloat16"
+      quantization: "8bit"
+      bnb_4bit_compute_dtype: "float16"
       bnb_4bit_quant_type: "nf4"
       bnb_4bit_use_double_quant: true
       trust_remote_code: true
       max_new_tokens: 2048
-      attn_implementation: "sdpa"
+      attn_implementation: "flash_attention_2"
       repetition_penalty: 1.05
       no_repeat_ngram_size: 4
+      enable_thinking: false
+      stream: true
 
   # Teacher model — used for generating demonstrations and feedback.
   teacher:

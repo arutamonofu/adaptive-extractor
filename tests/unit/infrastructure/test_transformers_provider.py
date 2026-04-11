@@ -104,6 +104,8 @@ class TestTransformersConfig:
         assert config.attn_implementation == "sdpa"
         assert config.repetition_penalty == 1.2
         assert config.no_repeat_ngram_size == 0
+        assert config.enable_thinking is None
+        assert config.stream is False
 
     def test_quantization_valid_values(self):
         """Test that valid quantization values are accepted."""
@@ -415,6 +417,123 @@ class TestTransformersLM:
         assert result[0] == "Generated text"
         mock_tokenizer.apply_chat_template.assert_called_once()
         mock_model.generate.assert_called_once()
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_call_enable_thinking_false(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config
+    ):
+        """Test that enable_thinking=False is passed to apply_chat_template."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Generated text"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        transformers_config.transformers.enable_thinking = False
+
+        lm = TransformersLM(transformers_config)
+        lm("Test prompt")
+
+        call_kwargs = mock_tokenizer.apply_chat_template.call_args[1]
+        assert call_kwargs["enable_thinking"] is False
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_call_enable_thinking_none_not_passed(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config
+    ):
+        """Test that enable_thinking=None (default) is NOT passed to apply_chat_template."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Generated text"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        # enable_thinking is None by default
+        assert transformers_config.transformers.enable_thinking is None
+
+        lm = TransformersLM(transformers_config)
+        lm("Test prompt")
+
+        call_kwargs = mock_tokenizer.apply_chat_template.call_args[1]
+        assert "enable_thinking" not in call_kwargs
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_call_stream_false_no_streamer(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config
+    ):
+        """Test that stream=False (default) does NOT pass a streamer to model.generate()."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Generated text"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        # stream is False by default
+        assert transformers_config.transformers.stream is False
+
+        lm = TransformersLM(transformers_config)
+        lm("Test prompt")
+
+        generate_kwargs = mock_model.generate.call_args[1]
+        assert "streamer" not in generate_kwargs
+
+    @patch("transformers.AutoModelForCausalLM")
+    @patch("transformers.AutoTokenizer")
+    def test_call_stream_true_passes_streamer(
+        self, mock_tokenizer_cls, mock_model_cls, transformers_config
+    ):
+        """Test that stream=True passes a TextStreamer to model.generate()."""
+        from transformers import TextStreamer
+
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.apply_chat_template.return_value = torch.tensor([[1, 2, 3]])
+        mock_tokenizer.decode.return_value = "Generated text"
+        mock_tokenizer.pad_token_id = 50256
+        mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer
+
+        mock_model = MagicMock()
+        mock_model.device = "cpu"
+        mock_model.generate.return_value = torch.tensor([[1, 2, 3, 4, 5]])
+        mock_model.parameters.return_value = [MagicMock(device="cpu")]
+        mock_model_cls.from_pretrained.return_value = mock_model
+
+        TransformersLM.clear_cache()
+
+        transformers_config.transformers.stream = True
+
+        lm = TransformersLM(transformers_config)
+        lm("Test prompt")
+
+        generate_kwargs = mock_model.generate.call_args[1]
+        assert "streamer" in generate_kwargs
+        assert isinstance(generate_kwargs["streamer"], TextStreamer)
 
     @patch("transformers.AutoModelForCausalLM")
     @patch("transformers.AutoTokenizer")
