@@ -20,7 +20,7 @@ llm:
     max_retries: 3
 
     api:
-      max_tokens: 4096
+      max_tokens: 8192
       base_url: "https://openrouter.ai/api/v1"
       reasoning:
         enabled: false
@@ -64,14 +64,14 @@ paths:
 
 # ── Optimisation (DSPy MIPROv2) ────────────────────────────────────────
 optimization:
-  total_load: 15
-  train_split: 10
-  num_candidates: 15
-  num_trials: 45
-  max_bootstrapped_demos: 1
+  total_load: 3
+  train_split: 3
+  num_candidates: 3
+  num_trials: 3
+  max_bootstrapped_demos: 0
   max_labeled_demos: 1
-  minibatch: false
-  minibatch_size: 10
+  minibatch: true
+  minibatch_size: 1
   view_data_batch_size: 1
   metric_threshold: 1.0
   init_temperature: 1.0
