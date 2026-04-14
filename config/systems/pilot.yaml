@@ -64,14 +64,14 @@ paths:
 
 # ── Optimisation (DSPy MIPROv2) ────────────────────────────────────────
 optimization:
-  total_load: 3
-  train_split: 3
-  num_candidates: 3
-  num_trials: 3
+  total_load: 15
+  train_split: 9
+  num_candidates: 10
+  num_trials: 30
   max_bootstrapped_demos: 0
   max_labeled_demos: 1
   minibatch: true
-  minibatch_size: 1
+  minibatch_size: 4
   view_data_batch_size: 1
   metric_threshold: 1.0
   init_temperature: 1.0

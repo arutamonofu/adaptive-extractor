@@ -12,11 +12,11 @@ fields:
     type: str
     description: "Catalytic activity type determined from the experimental assay methodology, not from author claims"
     required: true
-    choices: [peroxidase, oxidase, catalase, laccase, glucose oxidase]
+    choices: [peroxidase, oxidase, catalase, laccase, glucose, glucose oxidase]
 
   syngony:
     type: str
-    description: "Crystal system explicitly stated as a word in the article text"
+    description: "Crystal system explicitly stated as a word in the article text. Sometimes '0' for amorphous"
     choices: [cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, triclinic, amorphous, rhombohedral, '0']
     required: false
 
