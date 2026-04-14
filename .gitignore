@@ -73,7 +73,7 @@ config/initial_instructions/*
 
 config/tasks/*
 !config/tasks/.gitkeep
-!config/tasks/nanozymes_pilot.yaml
+!config/tasks/nanozymes.yaml
 
 config/systems/*
 !config/systems/.gitkeep
