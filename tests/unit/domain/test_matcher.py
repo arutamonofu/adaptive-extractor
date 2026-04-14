@@ -434,12 +434,12 @@ class TestSemanticJudge:
         report = matcher.get_detailed_report(preds, gts)
         assert report["f1"] == 1.0
 
-    def test_semantic_judge_no_teacher_llm(self, experiment_model):
-        """Test that semantic judge skips when teacher_llm is None."""
+    def test_semantic_judge_no_student_llm(self, experiment_model):
+        """Test that semantic judge skips when student_llm is None."""
         matcher = ExperimentMatcher(
             fields_to_compare=["formula", "activity"],
             float_tolerance=0.05,
-            teacher_llm=None,
+            student_llm=None,
             enable_semantic_judge=True,
         )
 
@@ -572,13 +572,13 @@ class TestSemanticJudge:
         """Test that semantic judge handles JSON parse errors gracefully."""
         # Mock LLM that returns invalid JSON
         class MockLLM:
-            def __call__(self, prompt):
+            def __call__(self, prompt, **kwargs):
                 return ["{invalid json}"]
 
         matcher = ExperimentMatcher(
             fields_to_compare=["formula"],
             float_tolerance=0.05,
-            teacher_llm=MockLLM(),
+            student_llm=MockLLM(),
             enable_semantic_judge=True,
         )
 
@@ -596,13 +596,13 @@ class TestSemanticJudge:
         """Test that semantic judge handles exceptions gracefully."""
         # Mock LLM that raises exception
         class MockLLM:
-            def __call__(self, prompt):
+            def __call__(self, prompt, **kwargs):
                 raise RuntimeError("LLM error")
 
         matcher = ExperimentMatcher(
             fields_to_compare=["formula"],
             float_tolerance=0.05,
-            teacher_llm=MockLLM(),
+            student_llm=MockLLM(),
             enable_semantic_judge=True,
         )
 
@@ -620,13 +620,13 @@ class TestSemanticJudge:
         """Test that YES verdict from judge grants amnesty (TP)."""
         # Mock LLM that always says YES
         class MockLLM:
-            def __call__(self, prompt):
+            def __call__(self, prompt, **kwargs):
                 return ['{"formula": "YES"}']
 
         matcher = ExperimentMatcher(
             fields_to_compare=["formula", "activity"],
             float_tolerance=0.05,
-            teacher_llm=MockLLM(),
+            student_llm=MockLLM(),
             field_descriptions={"formula": "Chemical formula"},
             enable_semantic_judge=True,
         )
@@ -644,13 +644,13 @@ class TestSemanticJudge:
         """Test that NO verdict from judge applies strict penalties."""
         # Mock LLM that always says NO
         class MockLLM:
-            def __call__(self, prompt):
+            def __call__(self, prompt, **kwargs):
                 return ['{"formula": "NO"}']
 
         matcher = ExperimentMatcher(
             fields_to_compare=["formula", "activity"],
             float_tolerance=0.05,
-            teacher_llm=MockLLM(),
+            student_llm=MockLLM(),
             field_descriptions={"formula": "Chemical formula"},
             enable_semantic_judge=True,
         )

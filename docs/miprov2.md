@@ -1190,3 +1190,44 @@ Time     Component                    Action
 00:50    strip_prefix()               Clean prefix
 00:51    return                       Return instruction
 ```
+
+---
+
+## Semantic Judge Model Usage
+
+### Model Roles in AutoEvoExtractor
+
+The system uses two distinct LLM models with different responsibilities:
+
+| Model | Role | Usage |
+|-------|------|-------|
+| **student_llm** | Semantic Judge | Evaluates extraction quality during evaluation |
+| **teacher_llm** | MIPROv2 Optimization | Generates instruction candidates, bootstraps demonstrations |
+
+### Semantic Judge (student_llm)
+
+The semantic judge uses the **student model** to evaluate discrepancies between extracted data and ground truth during evaluation. It:
+
+- Called by `ExperimentMatcher._call_semantic_judge()` when strict comparison fails
+- Analyzes JSON representations of predicted vs. ground truth experiments
+- Returns YES/NO verdicts on whether discrepancies represent actual errors or acceptable variations
+- Falls back to strict penalties if student_llm is unavailable or fails
+
+**Flow:** `TaskMetric → ExperimentMatcher → Semantic Judge (student_llm)`
+
+### MIPROv2 Optimization (teacher_llm)
+
+The teacher model is used exclusively during the optimization phase:
+
+- **prompt_model**: Generates instruction candidates via `GroundedProposer`
+- **task_model**: Not used directly (student runs trials)
+- **teacher**: Bootstraps few-shot demonstrations via `TeacherWrapper`
+
+**Flow:** `MIPROv2 → GroundedProposer (teacher_lm) + TeacherWrapper (teacher_lm)`
+
+### Architecture Rationale
+
+Using the student model for semantic judgment ensures:
+- Evaluation reflects the actual capabilities of the deployed model
+- No dependency on teacher model availability during inference/evaluation
+- Consistent scoring across optimization trials and final validation

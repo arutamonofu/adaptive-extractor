@@ -21,23 +21,25 @@ llm:
   student:
     provider: "transformers"
     model: "qwen/qwen3.5-27b"
-    temperature: 0.1
-    top_p: 0.85
-    max_retries: 5
+    temperature: 0.0
+    top_p: 1.0
     enable_cache: true
+    timeout: 600
+    rate_limit_delay: 10.0
+    max_retries: 3
 
     transformers:
       device_map: "cuda"
       torch_dtype: "bfloat16"
-      quantization: "8bit"
-      bnb_4bit_compute_dtype: "float16"
+      quantization: "4bit"
+      bnb_4bit_compute_dtype: "bfloat16"
       bnb_4bit_quant_type: "nf4"
       bnb_4bit_use_double_quant: true
       trust_remote_code: true
       max_new_tokens: 2048
       attn_implementation: "flash_attention_2"
-      repetition_penalty: 1.05
-      no_repeat_ngram_size: 4
+      repetition_penalty: 1.0
+      no_repeat_ngram_size: 0
       enable_thinking: false
       stream: true
 
@@ -82,13 +84,13 @@ paths:
 optimization:
   total_load: 3
   train_split: 3
-  num_candidates: 20
+  num_candidates: 10
   num_trials: 3
   max_bootstrapped_demos: 1
   max_labeled_demos: 1
   minibatch: false
   minibatch_size: 10
-  view_data_batch_size: 3
+  view_data_batch_size: 1
   metric_threshold: 1.0
   init_temperature: 0.5
   random_seed: 42
@@ -104,7 +106,7 @@ optimization:
 # NOT in this system config.
 task:
   name: "nanozymes"
-  initial_instruction_file: "config/initial_instructions/nanozymes_nanominer.txt"
+  initial_instruction_file: "config/initial_instructions/nanozymes.txt"
 
 # ── Extraction Runtime ──────────────────────────────────────────────────
 extraction:

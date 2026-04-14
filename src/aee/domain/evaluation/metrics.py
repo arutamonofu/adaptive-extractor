@@ -23,7 +23,7 @@ class TaskMetric:
         self,
         task_config: Dict[str, Any],
         float_tolerance: float,
-        teacher_llm: Optional[Any] = None,
+        student_llm: Optional[Any] = None,
         field_descriptions: Optional[Dict[str, str]] = None,
         enable_semantic_judge: bool = True,
     ) -> None:
@@ -33,7 +33,7 @@ class TaskMetric:
             task_config: Configuration dictionary for the task.
                         Must contain 'compare_fields' key with list of field names.
             float_tolerance: Float tolerance for comparisons (0.0 to 1.0).
-            teacher_llm: DSPy LLM object for semantic judgment.
+            student_llm: DSPy LLM object for semantic judgment.
             field_descriptions: Dictionary of field descriptions (optional).
             enable_semantic_judge: Flag to enable/disable semantic judge.
         """
@@ -41,7 +41,7 @@ class TaskMetric:
         self.matcher = ExperimentMatcher(
             fields_to_compare=task_config["compare_fields"],
             float_tolerance=float_tolerance,
-            teacher_llm=teacher_llm,
+            student_llm=student_llm,
             field_descriptions=field_descriptions or {},
             enable_semantic_judge=enable_semantic_judge,
         )
