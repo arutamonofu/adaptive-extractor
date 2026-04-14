@@ -5,17 +5,17 @@ from pathlib import Path
 
 import pytest
 
-from aee.infrastructure.config.settings import Settings
+from aee import Settings
 
 
-class TestNonOllamaConfig:
-    """Tests for NonOllamaConfig with base_url support."""
+class TestApiConfig:
+    """Tests for ApiConfig with base_url support."""
 
-    def test_non_ollama_config_with_base_url(self):
-        """Test NonOllamaConfig accepts base_url field."""
-        from aee.infrastructure.config.settings import NonOllamaConfig
+    def test_api_config_with_base_url(self):
+        """Test ApiConfig accepts base_url field."""
+        from aee.infrastructure.config import ApiConfig
 
-        config = NonOllamaConfig(
+        config = ApiConfig(
             api_key="test-key",
             max_tokens=4096,
             base_url="https://openrouter.ai/api/v1",
@@ -25,11 +25,11 @@ class TestNonOllamaConfig:
         assert config.max_tokens == 4096
         assert config.api_key.get_secret_value() == "test-key"
 
-    def test_non_ollama_config_without_base_url(self):
-        """Test NonOllamaConfig works without base_url (optional field)."""
-        from aee.infrastructure.config.settings import NonOllamaConfig
+    def test_api_config_without_base_url(self):
+        """Test ApiConfig works without base_url (optional field)."""
+        from aee.infrastructure.config import ApiConfig
 
-        config = NonOllamaConfig(
+        config = ApiConfig(
             api_key="test-key",
             max_tokens=4096,
         )
@@ -43,7 +43,7 @@ class TestSettingsOpenRouter:
 
     def test_openrouter_api_key_field_exists(self):
         """Test Settings class has openrouter_api_key field."""
-        from aee.infrastructure.config.settings import Settings
+        from aee import Settings
 
         # Check field exists in model fields
         assert "openrouter_api_key" in Settings.model_fields
@@ -72,21 +72,15 @@ paths:
 task:
   name: test
   initial_instruction_file: {tmp_path}/instruction.txt
-  evaluation:
-    compare_fields:
-      - field1
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: false
+    provider: "api"
     model: "openrouter/qwen/qwen3.5-397b-a17b"
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -94,18 +88,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: false
+    provider: "api"
     model: "openrouter/qwen/qwen3.5-397b-a17b"
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -113,7 +105,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -162,17 +154,17 @@ circuit_breaker:
         assert settings.openrouter_api_key is not None
         assert settings.openrouter_api_key.get_secret_value() == "sk-or-test-key-12345"
 
-    def test_settings_openrouter_applied_to_non_ollama_config(
+    def test_settings_openrouter_applied_to_api_config(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
-        """Test OpenRouter API key is applied to non-Ollama config."""
+        """Test OpenRouter API key is applied to API config."""
         # Clear all API key env vars first, then set only OPENROUTER_API_KEY
         for key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]:
             if key in os.environ:
                 monkeypatch.delenv(key, raising=False)
         monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-openrouter-key")
 
-        # Create minimal config with use_ollama: false for teacher
+        # Create minimal config with provider: "api" for teacher
         config_content = """
 project:
   log_level: INFO
@@ -186,21 +178,15 @@ paths:
 task:
   name: test
   initial_instruction_file: {tmp_path}/instruction.txt
-  evaluation:
-    compare_fields:
-      - field1
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -208,18 +194,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: false
+    provider: "api"
     model: "openrouter/qwen/qwen3.5-397b-a17b"
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -227,7 +211,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 4096
       base_url: "https://openrouter.ai/api/v1"
 parsing:
@@ -274,21 +258,21 @@ circuit_breaker:
         settings = Settings.load(config_path=config_file, load_env_file=False)
 
         # Verify teacher config has API key applied
-        assert settings.llm.teacher.use_ollama is False
-        assert settings.llm.teacher.non_ollama.api_key is not None
+        assert settings.llm.teacher.provider == "api"
+        assert settings.llm.teacher.api.api_key is not None
         assert (
-            settings.llm.teacher.non_ollama.api_key.get_secret_value()
+            settings.llm.teacher.api.api_key.get_secret_value()
             == "sk-or-openrouter-key"
         )
         # Verify base_url is preserved
         assert (
-            settings.llm.teacher.non_ollama.base_url
+            settings.llm.teacher.api.base_url
             == "https://openrouter.ai/api/v1"
         )
 
 
 class TestSettingsBaseURL:
-    """Tests for base_url configuration in non-Ollama settings."""
+    """Tests for base_url configuration in API settings."""
 
     def test_base_url_in_yaml_config(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -313,21 +297,15 @@ paths:
 task:
   name: test
   initial_instruction_file: {tmp_path}/instruction.txt
-  evaluation:
-    compare_fields:
-      - field1
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: false
+    provider: "api"
     model: "openai/gpt-4"
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -335,19 +313,17 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 4096
       base_url: "https://custom-api.example.com/v1"
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -355,7 +331,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -402,6 +378,6 @@ circuit_breaker:
 
         # Verify base_url is loaded (not treated as path)
         assert (
-            settings.llm.student.non_ollama.base_url
+            settings.llm.student.api.base_url
             == "https://custom-api.example.com/v1"
         )

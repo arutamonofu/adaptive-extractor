@@ -11,24 +11,20 @@ from pathlib import Path
 
 import pytest
 
-from aee.infrastructure.storage.agents_fn import (
+from aee.infrastructure.storage import (
     AgentMetadata,
+    create_random_split,
     delete_agent,
     get_agent_info,
     get_latest_agent,
     list_agents,
     load_agent,
-    save_agent,
-)
-from aee.infrastructure.storage.ground_truth_fn import (
-    load_ground_truth,
-    validate_coverage,
-)
-from aee.infrastructure.storage.splits_fn import (
-    create_random_split,
     load_all_splits,
+    load_ground_truth,
     load_split,
+    save_agent,
     save_splits,
+    validate_gt_coverage,
     validate_splits,
 )
 from aee.shared.exceptions import AgentNotFoundError, DataNotFoundError
@@ -220,7 +216,7 @@ class TestLoadGroundTruth:
 
         available_docs = {"paper1", "paper2", "paper3"}
 
-        coverage = validate_coverage(gt_data, available_docs)
+        coverage = validate_gt_coverage(gt_data, available_docs)
 
         assert coverage["covered_documents"] == 2
         assert coverage["total_documents"] == 3
@@ -329,7 +325,7 @@ class TestBackwardCompatibility:
 
     def test_agent_repository_delegates(self, tmp_path: Path):
         """Test AgentRepository delegates to functional API."""
-        from aee.infrastructure.storage.agents import AgentRepository
+        from aee.infrastructure.storage import AgentRepository
 
         repo = AgentRepository(tmp_path / "agents")
 
@@ -350,7 +346,7 @@ class TestBackwardCompatibility:
 
     def test_ground_truth_repository_delegates(self, tmp_path: Path):
         """Test GroundTruthRepository delegates to functional API."""
-        from aee.infrastructure.storage.ground_truth import GroundTruthRepository
+        from aee.infrastructure.storage import GroundTruthRepository
 
         csv_path = tmp_path / "gt.csv"
         csv_path.write_text(
@@ -370,7 +366,7 @@ class TestBackwardCompatibility:
 
     def test_data_split_repository_delegates(self, tmp_path: Path):
         """Test DataSplitRepository delegates to functional API."""
-        from aee.infrastructure.storage.splits import DataSplitRepository
+        from aee.infrastructure.storage import DataSplitRepository
 
         split_path = tmp_path / "splits.json"
         split_path.write_text(

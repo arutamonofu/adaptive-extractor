@@ -4,6 +4,8 @@ This service provides comprehensive validation of datasets, ground truth,
 and data splits to ensure data integrity before experiments.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,7 +40,7 @@ class ValidationResult:
         """Add a warning message."""
         self.warnings.append(message)
 
-    def merge(self, other: 'ValidationResult') -> 'ValidationResult':
+    def merge(self, other: ValidationResult) -> ValidationResult:
         """Merge another validation result into this one."""
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)

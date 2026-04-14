@@ -4,6 +4,10 @@ This module provides the task infrastructure including configuration,
 dynamic model generation, and registry for managing extraction tasks.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from .config import FieldSpec, RowConverterConfig, TaskConfig
 from .dynamic_models import (
     create_all_models,
@@ -26,7 +30,23 @@ from .registry import (
     load_and_register_task,
     register_config,
 )
-from .signature import create_signature
+
+if TYPE_CHECKING:
+    from .signature import create_signature
+
+
+def __getattr__(name: str):
+    """Lazy loading — create_signature imports dspy."""
+    if name == "create_signature":
+        from .signature import create_signature
+
+        return create_signature
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return list(__all__)
+
 
 __all__ = [
     # Configuration

@@ -5,6 +5,9 @@ Tests cover:
 - MarkerParser.parse() method (mocked)
 - Configuration loading from marker_config module
 - Error handling
+
+Note: These tests are skipped when marker is not importable
+(e.g., when using transformers >= 5.0 which removes transformers.onnx).
 """
 
 from pathlib import Path
@@ -12,7 +15,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aee.infrastructure.config.settings import MarkerConfig
+pytest.importorskip("marker.converters.pdf")
+
+from aee.infrastructure.config import MarkerConfig
 from aee.infrastructure.parsers import MarkerParser, get_parser
 
 
@@ -25,9 +30,9 @@ class TestMarkerParserInitialization:
         with pytest.raises(ValueError, match="Configuration object is required"):
             MarkerParser(None)
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_init_with_valid_config(
         self,
         mock_converter_class,
@@ -60,9 +65,9 @@ class TestMarkerParserInitialization:
         assert "renderer" in call_kwargs
         assert "llm_service" in call_kwargs
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_init_uses_marker_config_module(
         self,
         mock_converter_class,
@@ -90,9 +95,9 @@ class TestMarkerParserInitialization:
         assert config_dict_arg.get("force_ocr") is True
         assert config_dict_arg.get("ollama_model") == "qwen2.5vl:72b"
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_init_uses_cuda_device(
         self,
         mock_converter_class,
@@ -117,9 +122,9 @@ class TestMarkerParserInitialization:
         # Verify create_model_dict was called with correct device
         mock_model_dict.assert_called_once_with(device=expected_device)
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_init_uses_custom_processors(
         self,
         mock_converter_class,
@@ -154,9 +159,9 @@ class TestMarkerParserInitialization:
 class TestMarkerParserParse:
     """Tests for MarkerParser.parse() method."""
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_parse_success(
         self,
         mock_converter_class,
@@ -194,9 +199,9 @@ class TestMarkerParserParse:
         # Verify converter was called
         mock_converter.assert_called_once_with(str(pdf_path))
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_parse_with_text_fallback(
         self,
         mock_converter_class,
@@ -229,9 +234,9 @@ class TestMarkerParserParse:
 
         assert result == "# Text Fallback"
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_parse_with_str_fallback(
         self,
         mock_converter_class,
@@ -265,9 +270,9 @@ class TestMarkerParserParse:
 
         assert result == "String fallback"
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_parse_error_raises_exception(
         self,
         mock_converter_class,
@@ -301,9 +306,9 @@ class TestMarkerParserParse:
 class TestGetParserMarker:
     """Tests for get_parser() factory function with Marker."""
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_get_parser_marker(
         self,
         mock_converter_class,
@@ -324,9 +329,9 @@ class TestGetParserMarker:
 
         assert isinstance(parser, MarkerParser)
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
+    @patch("marker.models.create_model_dict")
+    @patch("marker.config.parser.ConfigParser")
+    @patch("marker.converters.pdf.PdfConverter")
     def test_get_parser_marker_case_insensitive(
         self,
         mock_converter_class,
@@ -357,7 +362,7 @@ class TestGetParserMarker:
 
     def test_get_parser_marker_with_wrong_config_raises_error(self):
         """Test that wrong config type raises ValueError."""
-        from aee.infrastructure.config.settings import GeminiParserConfig
+        from aee.infrastructure.config import GeminiParserConfig
 
         gemini_config = GeminiParserConfig()
 

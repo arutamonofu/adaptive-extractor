@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aee.infrastructure.config.settings import GeminiParserConfig, IngestionConfig
+from aee.infrastructure.config import GeminiParserConfig, IngestionConfig
 from aee.infrastructure.parsers import GeminiParser, get_parser
 from aee.infrastructure.parsers.parsers import GEMINI_PDF_TO_MD_PROMPT
 
@@ -74,7 +74,7 @@ class TestIngestionConfigWithGemini:
 
     def test_ingestion_config_marker_still_works(self):
         """Test that Marker parser config still works."""
-        from aee.infrastructure.config.settings import MarkerConfig
+        from aee.infrastructure.config import MarkerConfig
 
         config = IngestionConfig(
             parser="marker",
@@ -86,7 +86,7 @@ class TestIngestionConfigWithGemini:
 
     def test_ingestion_config_marker_requires_config(self):
         """Test that Marker parser auto-creates config when not provided."""
-        from aee.infrastructure.config.settings import MarkerConfig
+        from aee.infrastructure.config import MarkerConfig
 
         config = IngestionConfig(
             parser="marker",
@@ -364,7 +364,7 @@ class TestGetParserFactory:
 
     def test_get_parser_gemini_with_wrong_config_raises_error(self):
         """Test that wrong config type raises ValueError."""
-        from aee.infrastructure.config.settings import MarkerConfig
+        from aee.infrastructure.config import MarkerConfig
 
         marker_config = MarkerConfig()
 
@@ -376,27 +376,34 @@ class TestGetParserFactory:
         with pytest.raises(ValueError, match="Unknown parser: unknown"):
             get_parser("unknown", None)
 
-    @patch("aee.infrastructure.parsers.parsers.create_model_dict")
-    @patch("aee.infrastructure.parsers.parsers.ConfigParser")
-    @patch("aee.infrastructure.parsers.parsers.PdfConverter")
     def test_get_parser_marker_still_works(
         self,
-        mock_converter_class,
-        mock_config_parser_class,
-        mock_model_dict,
     ):
         """Test that Marker parser still works."""
-        from aee.infrastructure.config.settings import MarkerConfig
+        pytest.importorskip("marker.converters.pdf")
 
-        mock_model_dict.return_value = {}
-        mock_config_parser = MagicMock()
-        mock_config_parser.generate_config_dict.return_value = {}
-        mock_config_parser.get_renderer.return_value = MagicMock()
-        mock_config_parser.get_llm_service.return_value = MagicMock()
-        mock_config_parser_class.return_value = mock_config_parser
-        mock_converter_class.return_value = MagicMock()
+        import marker.config.parser
 
-        config = MarkerConfig()
-        parser = get_parser("marker", config)
+        try:
+            import marker.models  # noqa: F401
+        except ImportError:
+            pass
 
-        assert parser.__class__.__name__ == "MarkerParser"
+        with patch("marker.converters.pdf.PdfConverter") as mock_converter_class, \
+             patch("marker.config.parser.ConfigParser") as mock_config_parser_class, \
+             patch("marker.models.create_model_dict") as mock_model_dict:
+
+            from aee.infrastructure.config import MarkerConfig
+
+            mock_model_dict.return_value = {}
+            mock_config_parser = MagicMock()
+            mock_config_parser.generate_config_dict.return_value = {}
+            mock_config_parser.get_renderer.return_value = MagicMock()
+            mock_config_parser.get_llm_service.return_value = MagicMock()
+            mock_config_parser_class.return_value = mock_config_parser
+            mock_converter_class.return_value = MagicMock()
+
+            config = MarkerConfig()
+            parser = get_parser("marker", config)
+
+            assert parser.__class__.__name__ == "MarkerParser"

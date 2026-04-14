@@ -12,11 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from aee import Settings
 from aee.application.use_cases.parse_documents import (
     ParseDocumentsRequest,
     ParseDocumentsUseCase,
 )
-from aee.infrastructure.config.settings import GeminiParserConfig, Settings
+from aee.infrastructure.config import GeminiParserConfig
 from aee.infrastructure.parsers import GeminiParser, get_parser
 from aee.infrastructure.storage import DocumentRepository
 
@@ -174,15 +175,13 @@ paths:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
     temperature: 0.0
     rate_limit_delay: 1.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: true
     ollama:
       num_ctx: 1024
@@ -190,19 +189,17 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 512
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
     temperature: 0.5
     rate_limit_delay: 1.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: true
     ollama:
       num_ctx: 1024
@@ -210,7 +207,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 512
 
 parsing:
@@ -240,10 +237,6 @@ optimization:
 task:
   name: "test"
   initial_instruction_file: "{instruction_file}"
-  evaluation:
-    compare_fields:
-      - "formula"
-    float_tolerance: 0.05
 
 extraction:
   enable_cache: false
@@ -302,15 +295,13 @@ paths:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
     temperature: 0.0
     rate_limit_delay: 1.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: true
     ollama:
       num_ctx: 1024
@@ -318,19 +309,17 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 512
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
     temperature: 0.5
     rate_limit_delay: 1.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: true
     ollama:
       num_ctx: 1024
@@ -338,7 +327,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 512
 
 parsing:
@@ -368,10 +357,6 @@ optimization:
 task:
   name: "test"
   initial_instruction_file: "{instruction_file}"
-  evaluation:
-    compare_fields:
-      - "formula"
-    float_tolerance: 0.05
 
 extraction:
   enable_cache: false

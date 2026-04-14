@@ -5,21 +5,20 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
-# Marker
-from marker.converters.pdf import PdfConverter
-from marker.models import create_model_dict
-from marker.config.parser import ConfigParser
+from aee.infrastructure.config.settings import GeminiParserConfig, MarkerConfig
 
 # Project
 from aee.infrastructure.parsers.base import BaseParser
-from aee.infrastructure.config.settings import MarkerConfig, GeminiParserConfig
 from aee.infrastructure.parsers.marker_config import (
-    get_marker_config_dict,
     get_custom_processors,
+    get_marker_config_dict,
     get_torch_device,
 )
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +144,11 @@ class MarkerParser(BaseParser):
         Raises:
             ValueError: If config is None.
         """
+        # Lazy import — marker is only needed when MarkerParser is instantiated
+        from marker.config.parser import ConfigParser
+        from marker.converters.pdf import PdfConverter
+        from marker.models import create_model_dict
+
         if config is None:
             raise ValueError("Configuration object is required for MarkerParser")
         self.cfg = config
@@ -275,6 +279,10 @@ class GeminiParser(BaseParser):
                     logger.error(f"Gemini parsing failed for {path.name} after {attempt + 1} attempts: {error_msg}")
                     raise
 
+        raise RuntimeError(
+            f"Gemini parsing failed for {path.name} after exhausting all retry attempts"
+        )
+
     def _do_parse(self, path: Path) -> str:
         """Internal method to perform actual Gemini parsing.
 
@@ -380,7 +388,7 @@ def get_parser(parser_name: str, config: Any = None) -> BaseParser:
     Raises:
         ValueError: If parser_name is not recognized or config is invalid.
     """
-    from aee.infrastructure.config.settings import MarkerConfig, GeminiParserConfig
+    from aee.infrastructure.config.settings import GeminiParserConfig, MarkerConfig
 
     parser_name = parser_name.lower()
 

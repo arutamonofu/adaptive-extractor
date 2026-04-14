@@ -56,15 +56,13 @@ project:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "mistral-small3.1-24b-128k:latest"
     temperature: 0.0
     timeout: 600
     max_retries: 5
     rate_limit_delay: 10.0
     top_p: 0.1
-    repeat_penalty: 1.2
-    repeat_last_n: 2048
     enable_cache: true
     ollama:
       num_ctx: 64000
@@ -72,19 +70,17 @@ llm:
       repeat_penalty: 1.2
       repeat_last_n: 2048
       stream: false
-    non_ollama:
+    api:
       max_tokens: 4096
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "gpt-oss:120b"
     temperature: 0.5
     timeout: 600
     max_retries: 2
     rate_limit_delay: 10.0
     top_p: 0.9
-    repeat_penalty: 1.1
-    repeat_last_n: 512
     enable_cache: true
     ollama:
       num_ctx: 64000
@@ -92,7 +88,7 @@ llm:
       repeat_penalty: 1.1
       repeat_last_n: 512
       stream: false
-    non_ollama:
+    api:
       max_tokens: 8192
 
 paths:
@@ -128,29 +124,6 @@ optimization:
 task:
   name: "nanozymes"
   initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"
-  evaluation:
-    compare_fields:
-      - formula
-      - activity
-      - reaction_type
-      - ph
-      - temperature
-      - surface
-      - syngony
-      - length
-      - width
-      - depth
-      - km_value
-      - vmax_value
-      - c_min
-      - c_max
-      - c_const
-      - ccat_value
-      - km_unit
-      - vmax_unit
-      - c_const_unit
-      - ccat_unit
-    float_tolerance: 0.05
 
 extraction:
   enable_cache: false
@@ -198,15 +171,13 @@ project:
 ```yaml
 llm:
   student:
-    use_ollama: true              # Use Ollama (true) or API (false)
+    provider: "ollama"              # REQUIRED: "ollama", "api", or "transformers"
     model: "mistral-small3.1-24b-128k:latest"
     temperature: 0.0              # 0.0 for deterministic output
-    timeout: 600                  # Request timeout (seconds)
+    timeout: 600                  # Request timeout (seconds, ignored for transformers)
     max_retries: 5                # Maximum retry attempts
     rate_limit_delay: 10.0        # Delay between API calls (seconds)
     top_p: 0.1                    # Nucleus sampling top-p parameter
-    repeat_penalty: 1.2           # Penalty for repeated tokens
-    repeat_last_n: 2048           # Tokens to consider for repeat penalty
     enable_cache: true            # Cache LLM responses
 
     # Ollama-specific settings (URL is set via OLLAMA_STUDENT_BASE_URL env var)
@@ -217,20 +188,33 @@ llm:
       repeat_last_n: 2048         # Tokens to consider for repeat penalty
       stream: false               # Enable streaming responses
 
-    # Non-Ollama settings (API key is set via *_API_KEY env var)
-    non_ollama:
+    # API provider settings (API key is set via *_API_KEY env var)
+    api:
       max_tokens: 4096            # Max tokens for API providers
 
+    # Transformers settings (local inference via HuggingFace)
+    transformers:
+      device_map: "auto"          # Device mapping: "auto", "cuda", "cpu"
+      torch_dtype: "float16"      # Tensor dtype: "float16", "bfloat16", "float32"
+      quantization: null           # Quantization: "4bit", "8bit", or null
+      bnb_4bit_quant_type: "nf4"  # 4-bit quant type: "nf4" or "fp4"
+      bnb_4bit_use_double_quant: true  # Double quantization for 4-bit
+      trust_remote_code: false    # Required for some models like Qwen
+      max_new_tokens: 4096        # Max tokens to generate
+      attn_implementation: "sdpa" # Attention: "sdpa", "flash_attention_2", "eager"
+      repetition_penalty: 1.2     # Penalize repeated tokens (>1.0)
+      no_repeat_ngram_size: 0     # Prevent n-gram repeats (0 = off)
+      enable_thinking: false      # Disable native thinking for Qwen3.5 (default: None = model default)
+      stream: false               # Stream tokens to stdout in real-time (like Ollama streaming)
+
   teacher:
-    use_ollama: true              # Use Ollama (true) or API (false)
+    provider: "ollama"              # REQUIRED: "ollama", "api", or "transformers"
     model: "gpt-oss:120b"
     temperature: 0.5              # Higher temperature for evaluation diversity
-    timeout: 600                  # Request timeout (seconds)
+    timeout: 600                  # Request timeout (seconds, ignored for transformers)
     max_retries: 2                # Maximum retry attempts
     rate_limit_delay: 10.0        # Delay between API calls (seconds)
     top_p: 0.9                    # Nucleus sampling top-p parameter
-    repeat_penalty: 1.1           # Penalty for repeated tokens
-    repeat_last_n: 512            # Tokens to consider for repeat penalty
     enable_cache: true            # Cache LLM responses
 
     # Ollama-specific settings (URL is set via OLLAMA_TEACHER_BASE_URL env var)
@@ -241,9 +225,24 @@ llm:
       repeat_last_n: 512          # Tokens to consider for repeat penalty
       stream: false               # Enable streaming responses
 
-    # Non-Ollama settings (API key is set via *_API_KEY env var)
-    non_ollama:
+    # API provider settings (API key is set via *_API_KEY env var)
+    api:
       max_tokens: 8192            # Max tokens for API providers
+
+    # Transformers settings (local inference via HuggingFace)
+    transformers:
+      device_map: "auto"          # Device mapping: "auto", "cuda", "cpu"
+      torch_dtype: "float16"      # Tensor dtype
+      quantization: null           # Quantization: "4bit", "8bit", or null
+      bnb_4bit_quant_type: "nf4"  # 4-bit quant type
+      bnb_4bit_use_double_quant: true
+      trust_remote_code: false    # Required for some models like Qwen
+      max_new_tokens: 8192        # Max tokens to generate
+      attn_implementation: "sdpa" # Attention implementation
+      repetition_penalty: 1.2     # Penalize repeated tokens (>1.0)
+      no_repeat_ngram_size: 0     # Prevent n-gram repeats (0 = off)
+      enable_thinking: false      # Disable native thinking for Qwen3.5
+      stream: false               # Stream tokens to stdout in real-time
 ```
 
 ### Optimization Configuration
@@ -285,45 +284,24 @@ paths:
 
 ### Task Configuration
 
-Task configuration in YAML uses a nested structure under `task.evaluation.*`:
+The system config `task` section only references which task to load and where to find
+the initial instruction file. The actual extraction field definitions (`compare_fields`,
+`float_tolerance`, field specs) live in the **task YAML** (`config/tasks/{name}.yaml`).
 
 ```yaml
 # config/systems/example.yaml
 task:
-  name: "nanozymes"
-  initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"  # REQUIRED (relative to project root)
-  evaluation:
-    compare_fields:            # Fields for evaluation - REQUIRED
-      - formula
-      - activity
-      - syngony
-      - surface
-      - length
-      - width
-      - depth
-      - reaction_type
-      - km_value
-      - km_unit
-      - vmax_value
-      - vmax_unit
-      - ph
-      - temperature
-      - c_min
-      - c_max
-      - c_const
-      - c_const_unit
-      - ccat_value
-      - ccat_unit
-    float_tolerance: 0.05      # 5% tolerance for floats - REQUIRED
+  name: "nanozymes"                                        # Must match config/tasks/nanozymes.yaml
+  initial_instruction_file: "config/initial_instructions/nanozymes_sota.txt"  # Required
 ```
 
 **Fields:**
-- `name` — Task identifier (must match task config in `config/tasks/{task_name}.yaml`)
+- `name` — Task identifier (must match a task config in `config/tasks/{task_name}.yaml`)
 - `initial_instruction_file` — Path to initial instruction file for DSPy optimization, relative to project root (**required**)
-- `evaluation.compare_fields` — List of field names used for evaluation during optimization (**required**)
-- `evaluation.float_tolerance` — Tolerance for floating-point comparisons (0.0 to 1.0) (**required**)
 
-**Note on `float_tolerance`:** This field is required for backward compatibility but is no longer used in current metric calculations.
+> **Note:** `compare_fields` and `float_tolerance` are defined in the task YAML file
+> (`config/tasks/{name}.yaml`), NOT in the system config. See [Adding Tasks](docs/adding_tasks.md)
+> for details.
 
 ### Parsing Configuration
 
@@ -402,6 +380,82 @@ MarkdownRenderer_html_tables_in_markdown = True
 
 > **Note:** The default configuration is optimized for data extraction from scientific chemistry PDFs using Qwen2.5-VL as the LLM backend.
 
+### Transformers Configuration (Local Inference)
+
+The `transformers` provider enables local model inference using HuggingFace Transformers, without requiring external HTTP services or API keys.
+
+**When to use:**
+- You have a GPU with sufficient VRAM for the model
+- You want offline/local inference (no network dependency)
+- You want to avoid API costs for high-volume workloads
+
+**Example configuration:**
+
+```yaml
+llm:
+  student:
+    provider: "transformers"
+    model: "Qwen/Qwen2.5-7B-Instruct"
+    temperature: 0.0
+    max_retries: 5
+    top_p: 0.1
+    enable_cache: true
+
+    transformers:
+      device_map: "auto"
+      torch_dtype: "float16"
+      quantization: "4bit"
+      bnb_4bit_quant_type: "nf4"
+      bnb_4bit_use_double_quant: true
+      trust_remote_code: true
+      max_new_tokens: 4096
+      attn_implementation: "sdpa"
+      repetition_penalty: 1.2
+      no_repeat_ngram_size: 0
+      enable_thinking: false
+      stream: false
+```
+
+> **Note:** For `provider: "transformers"`, the `timeout` and `rate_limit_delay` fields
+> are optional (not needed for local inference). They are only required for
+> `provider: "ollama"` or `provider: "api"`.
+
+**Transformers settings reference:**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `hf_token` | `None` | HuggingFace token for gated models (from env `HUGGINGFACE_TOKEN`) |
+| `device_map` | `"auto"` | Device mapping: `"auto"`, `"cuda"`, `"cpu"` |
+| `torch_dtype` | `"float16"` | Tensor dtype: `"float16"`, `"bfloat16"`, `"float32"` |
+| `quantization` | `None` | Quantization mode: `"4bit"`, `"8bit"`, or `None` (requires `bitsandbytes`) |
+| `bnb_4bit_compute_dtype` | `None` | Compute dtype for 4-bit; defaults to `torch_dtype` |
+| `bnb_4bit_quant_type` | `"nf4"` | 4-bit quant type: `"nf4"` (NormalFloat4) or `"fp4"` (Float4) |
+| `bnb_4bit_use_double_quant` | `true` | Enable double quantization for 4-bit (extra memory savings) |
+| `trust_remote_code` | `false` | Allow remote code execution (required for Qwen, etc.) |
+| `max_new_tokens` | `4096` | Maximum tokens to generate |
+| `attn_implementation` | `"sdpa"` | Attention: `"sdpa"`, `"flash_attention_2"`, `"eager"` |
+| `repetition_penalty` | `1.2` | Penalty for repeated tokens (>1.0). Recommended: 1.1-1.3 |
+| `no_repeat_ngram_size` | `0` | Prevent exact n-gram repeats (0 = off, >=2 = size) |
+| `enable_thinking` | `None` | Native thinking for thinking-capable models (e.g., Qwen3.5). `None` = model default (thinking on), `false` = disable (direct JSON output), `true` = enable |
+| `stream` | `false` | Stream tokens to stdout in real-time as they are generated (same format as Ollama streaming) |
+
+**Important notes:**
+- Models are loaded **once** and cached at the class level. Subsequent `copy()` calls (used by DSPy during MIPROv2 bootstrapping) reuse the cached model instead of duplicating weights in VRAM — this prevents OOM errors during optimization
+- The `timeout` field is converted to `max_time` for `model.generate()` (Transformers built-in mechanism)
+- For gated models (e.g., Meta Llama), set the `HUGGINGFACE_TOKEN` environment variable in your `.env` file (see [Environment Variables](#environment-variables) below)
+- For models with custom architectures (e.g., Qwen), set `trust_remote_code: true`
+
+**Recommended models:**
+- `Qwen/Qwen2.5-7B-Instruct` — good balance of quality and VRAM usage
+- `Qwen/Qwen2.5-14B-Instruct` — higher quality, requires more VRAM
+- `meta-llama/Llama-3.1-8B-Instruct` — Meta's Llama 3.1
+
+**Quantization tips:**
+- `quantization: "4bit"` — reduces VRAM by ~4x, slight quality loss
+- `quantization: "8bit"` — reduces VRAM by ~2x, minimal quality loss
+- 4-bit supports fine-tuning via `bnb_4bit_compute_dtype`, `bnb_4bit_quant_type` (`"nf4"` recommended), and `bnb_4bit_use_double_quant`
+- Requires the `bitsandbytes` library: `pip install autoevoextractor[quant]`
+
 ### Extraction Configuration
 
 ```yaml
@@ -446,7 +500,7 @@ export OLLAMA_STUDENT_BASE_URL="http://localhost:11434"
 export OLLAMA_TEACHER_BASE_URL="http://localhost:11434"
 ```
 
-**For non-Ollama API users:**
+**For API users:**
 ```bash
 export OPENAI_API_KEY="sk-..."
 # OR
@@ -470,6 +524,15 @@ export GEMINI_API_KEY="your_api_key_here"
 export MLFLOW_TRACKING_URI="sqlite:///mlflow.db"    # MLflow tracking URI
 export DSPY_CACHE_DIR="${HOME}/.cache/dspy"         # DSPy cache directory
 ```
+
+### HuggingFace
+
+**For gated model access (e.g., Meta Llama):**
+```bash
+export HUGGINGFACE_TOKEN="hf_your_token_here"
+```
+
+> **Note:** Required when using `provider: "transformers"` with gated models from HuggingFace Hub. Get your token at https://huggingface.co/settings/tokens.
 
 ### Environment Selection
 

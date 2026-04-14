@@ -88,5 +88,9 @@ logs/*
 logs/llm_history/*
 *.log
 
+# --- Diagnostics (large output, keep in docs/ if needed) ---
+diagnose_*.txt
+diagnose_output.txt
+
 # --- GitKeep (always track) ---
 !.gitkeep

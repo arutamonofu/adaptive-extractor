@@ -14,8 +14,8 @@ import dspy
 import pytest
 
 from aee.application.services import AgentManager
-from aee.infrastructure.storage import AgentMetadata, AgentRepository
 from aee.infrastructure.agents import UniversalExtractor
+from aee.infrastructure.storage import AgentMetadata, AgentRepository
 from aee.shared.exceptions import UseCaseExecutionError
 
 

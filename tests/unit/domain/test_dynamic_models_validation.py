@@ -6,8 +6,7 @@ converted to strings for str-typed fields in dynamically generated models.
 
 import pytest
 
-from aee.domain.tasks.config import FieldSpec, TaskConfig
-from aee.domain.tasks.dynamic_models import create_experiment_model
+from aee.domain.tasks import FieldSpec, TaskConfig, create_experiment_model
 
 
 @pytest.mark.unit

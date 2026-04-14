@@ -13,13 +13,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aee.domain.tasks.config import FieldSpec, TaskConfig
+from aee.domain.tasks import FieldSpec, TaskConfig, load_task_from_yaml, load_task_with_models, save_task_to_yaml
 from aee.domain.tasks.loader import (
     _parse_field_spec,
     _parse_row_converter,
-    load_task_from_yaml,
-    load_task_with_models,
-    save_task_to_yaml,
 )
 
 

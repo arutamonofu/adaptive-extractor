@@ -6,14 +6,11 @@ import math
 import re
 from typing import Any, Dict, List, Optional, Tuple, TypeAlias, Union
 
-import numpy as np
 from pydantic import BaseModel
-from scipy.optimize import linear_sum_assignment
-from tabulate import tabulate  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
-_SEMANTIC_JUDGE_EXAMPLE = '{"width": "YES", "reaction_type": "NO"}'
+_SEMANTIC_JUDGE_EXAMPLE = '{"km_value": "YES", "reaction_type": "NO", "ccat_value": "YES"}'
 
 ExperimentEntity: TypeAlias = Union[BaseModel, Any]
 
@@ -35,7 +32,7 @@ class ExperimentMatcher:
         self,
         fields_to_compare: List[str],
         float_tolerance: float,
-        teacher_llm: Optional[Any] = None,
+        student_llm: Optional[Any] = None,
         field_descriptions: Optional[Dict[str, str]] = None,
         enable_semantic_judge: bool = True,
     ):
@@ -45,7 +42,7 @@ class ExperimentMatcher:
             fields_to_compare: List of field names to compare between entities.
             float_tolerance: Tolerance for float comparisons (0.0 to 1.0).
                             Kept for backward compatibility, not used in strict mode.
-            teacher_llm: DSPy LLM object for semantic judgment (optional).
+            student_llm: DSPy LLM object for semantic judgment (optional).
             field_descriptions: Dictionary of field descriptions (optional).
             enable_semantic_judge: Flag to enable/disable semantic judge (default: True).
 
@@ -59,7 +56,7 @@ class ExperimentMatcher:
 
         self.fields = fields_to_compare
         self.tolerance = float_tolerance  # Kept but unused
-        self.teacher_llm = teacher_llm
+        self.student_llm = student_llm
         self.field_descriptions = field_descriptions or {}
         self.enable_semantic_judge = enable_semantic_judge
 
@@ -135,6 +132,9 @@ class ExperimentMatcher:
         Returns:
             List of aligned pairs (pred, gt), with None for unaligned entities.
         """
+        import numpy as np
+        from scipy.optimize import linear_sum_assignment
+
         # Handle edge cases
         if not preds and not gts:
             return []
@@ -231,37 +231,49 @@ Predicted (Extraction):
 The following fields did not match strictly. Evaluate ONLY these fields based on the context above:
 {discrepancies_text}
 
---- INSTRUCTIONS ---
-Evaluate if the discrepancies between the Predicted data and Ground Truth (GT) are actual errors
-or acceptable semantic variations. Use the provided Context (Full Experiments) to inform your decision.
+--- JUDGE ROLE & SCOPE ---
+You are a SEMANTIC EQUIVALENCE JUDGE. You evaluate ONLY whether the Predicted
+and Ground Truth values represent the same physical, chemical, or experimental
+reality. You DO NOT enforce extraction policies. Calculations, unit conversions,
+strict filtering, or literal-only rules applied by the Extractor are IRRELEVANT
+to your judgment. You have NO access to the source article. Rely ONLY on the
+provided JSONs.
 
+--- INSTRUCTIONS ---
 Evaluate EACH discrepancy using the following strict IF-THEN rules:
 
 [ANSWER "YES" (ACCEPTABLE VARIATION) IF:]
-1. Math & Unit Equivalence: Values are physically identical despite different formats
-   (e.g., 5.07e-08 == 5.07 * 10^-8) or unit scales (e.g., 50 uM == 0.05 mM).
-   Minor rounding in the least significant digit is allowed.
-2. Semantic Synonyms: Terms are standard scientific synonyms, IUPAC/common names, case variations,
-   or alternate orderings of mixtures (e.g., "A + B" == "B + A"), AND chemical roles remain identical.
-3. Implicit Nulls (Deduction): Predicted is 'null' AND the missing value is mathematically,
-   geometrically, or physically GUARANTEED by other explicitly stated fields in the Context
-   (e.g., width=null is acceptable if symmetry implies all dimensions are equal).
+1. Math & Unit Equivalence: Values represent the same physical quantity despite
+   notation, scientific format, or unit scales (e.g., 91 μM == 0.091 mM,
+   0  5.07e-08 == 5.07×10^-8). 0 in any unit equals 0 in any other unit. Minor
+   rounding in the last significant digit is allowed.
+2. Paired Value+Unit Fields: For fields split into *_value and *_unit, evaluate
+   the combined physical quantity. If Pred["*_value"] and Pred["*_unit"] are
+   mathematically equivalent to GT's pair, return YES.
+3. Semantic Synonyms & Ordering: Terms are standard scientific synonyms,
+   IUPAC/common names, case variations, or alternate orderings of mixtures
+   (e.g., "A + B" == "B + A"), provided chemical roles are identical.
+4. Ranges & Approximations: Overlapping intervals or equivalent approximations
+   are acceptable (e.g., "10-25" == "15±5", "≈30" == "~30", "room temp" == "25"
+   if contextually standard).
+5. Implicit Nulls (Deduction): Predicted is 'null' AND the missing value is
+   mathematically, geometrically, or physically guaranteed by other explicitly
+   stated fields in the Context.
 
 [ANSWER "NO" (ACTUAL ERROR) IF:]
 1. Hallucination (Strict Rule): GT is 'null' AND Predicted contains ANY value
-   (even "none", "naked", "N/A"). GT is absolute; you cannot accept invented data.
-2. Unjustified Guessing: Predicted is 'null', but the GT value cannot be strictly deduced
-   from scientific laws (e.g., assuming a missing temperature is "25°C", or assuming
-   symmetry where asymmetry is possible).
-3. Factual Contradiction: Magnitudes differ completely (e.g., 0.02 != 20.0), stoichiometry
-   is wrong, or chemical identity is altered.
+   that cannot be strictly deduced from other GT fields or basic scientific laws.
+2. Factual Contradiction: Magnitudes differ by orders of magnitude,
+   stoichiometry/chemical identity is altered, or reaction roles are swapped.
+3. Unjustified Guessing: Predicted fills a missing GT value with an arbitrary
+   assumption not grounded in the provided JSON context.
 
 [OUTPUT FORMAT]
-Return a JSON object ONLY. Keys must be the discrepancy field names.
-Values must be strictly "YES" or "NO".
-Example: {_SEMANTIC_JUDGE_EXAMPLE}
+Return a valid JSON object ONLY. Do not include markdown, explanations, or
+additional text. Keys must be the exact discrepancy field names. Values must be
+strictly "YES" or "NO".
 
-Respond with JSON only:"""
+Example: {_SEMANTIC_JUDGE_EXAMPLE}"""
         ]
         prompt = "".join(prompt_parts)
 
@@ -290,8 +302,8 @@ Respond with JSON only:"""
             logger.debug("[SemanticJudge] Disabled, skipping evaluation")
             return {}
 
-        if self.teacher_llm is None:
-            logger.warning("[SemanticJudge] teacher_llm not provided, skipping evaluation")
+        if self.student_llm is None:
+            logger.warning("[SemanticJudge] student_llm not provided, skipping evaluation")
             return {}
 
         try:
@@ -300,11 +312,21 @@ Respond with JSON only:"""
 
             # Call LLM via DSPy interface
             # DSPy LM returns list of strings, take first
-            response = self.teacher_llm(prompt)
+            # Force reasoning/thinking enabled for semantic judge regardless of config
+            response = self.student_llm(
+                prompt,
+                reasoning={"enabled": True},  # OpenRouter API reasoning models
+                enable_thinking=True,  # Transformers thinking-capable models
+            )
             response_text = response[0] if isinstance(response, list) else response
 
-            # Extract JSON from response (handle markdown wrappers and extra text)
-            json_match = re.search(r"\{.*\}", str(response_text), re.DOTALL)
+            # Extract JSON from response (handle markdown wrappers, extra text, and thinking blocks)
+            # Strip thinking/reasoning blocks first (e.g., <think>...</think>, <think>...</think>)
+            cleaned = re.sub(r"<think>.*?</think>", "", str(response_text), flags=re.DOTALL)
+            cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL)
+
+            # Find JSON object in cleaned response
+            json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
             if json_match:
                 response_text = json_match.group(0)
 
@@ -349,6 +371,8 @@ Respond with JSON only:"""
             discrepancies: List of field names with discrepancies.
             verdicts: Dictionary mapping field names to judge verdicts (YES/NO).
         """
+        from tabulate import tabulate  # type: ignore[import-untyped]
+
         table_data = []
 
         for field in self.fields:
@@ -473,6 +497,10 @@ Respond with JSON only:"""
                 tp += tp_add
                 fp += fp_add
                 fn += fn_add
+
+                # Обновляем per-field score с учётом вердикта судьи
+                if verdict == "YES":
+                    field_correct[field_name] += 1
         else:
             # No discrepancies or judge disabled - apply strict penalties
             for field_name in discrepancies:

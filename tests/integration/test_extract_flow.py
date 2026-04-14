@@ -122,7 +122,7 @@ class TestExtractFlow:
 
     def test_extraction_with_empty_agent(self, extraction_test_setup):
         """Test extraction handles empty/minimal agent gracefully."""
-        from aee.infrastructure.storage.agents import AgentRepository
+        from aee.infrastructure.storage import AgentRepository
 
         repo = AgentRepository(agents_dir=extraction_test_setup["agents_dir"])
 
@@ -136,7 +136,7 @@ class TestExtractFlow:
 
     def test_document_loading_for_extraction(self, extraction_test_setup):
         """Test loading documents for extraction."""
-        from aee.infrastructure.storage.documents import DocumentRepository
+        from aee.infrastructure.storage import DocumentRepository
 
         repo = DocumentRepository(parsed_dir=extraction_test_setup["parsed_dir"])
 
@@ -221,7 +221,7 @@ class TestAgentStateRestoration:
     ):
         """Test agent restoration from flat DSPy format (lm, traces, settings)."""
         from aee.application.services import AgentManager
-        from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
+        from aee.domain.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
         from aee.infrastructure.storage import AgentRepository
 
         # Register task first (check if already registered)
@@ -269,7 +269,7 @@ class TestAgentStateRestoration:
     ):
         """Test agent restoration from nested format (prog: {...})."""
         from aee.application.services import AgentManager
-        from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
+        from aee.domain.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
         from aee.infrastructure.storage import AgentRepository
 
         # Register task first (check if already registered)
@@ -316,7 +316,7 @@ class TestAgentStateRestoration:
     ):
         """Test that agent restoration fails with clear error for invalid format."""
         from aee.application.services import AgentManager
-        from aee.domain.tasks import get_task, load_task_from_yaml, register_config, get_global_registry
+        from aee.domain.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
         from aee.infrastructure.storage import AgentRepository
         from aee.shared.exceptions import UseCaseExecutionError
 

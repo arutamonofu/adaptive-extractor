@@ -21,7 +21,7 @@ Note: Environment variables with double underscores (e.g., OPTIMIZATION__NUM_TRI
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -185,17 +185,111 @@ class OllamaTeacherConfig(OllamaConfig):
     )
 
 
-class NonOllamaConfig(BaseModel):
-    """Non-Ollama LLM configuration.
+class TransformersConfig(BaseModel):
+    """HuggingFace Transformers local inference configuration."""
+    hf_token: Optional[str] = Field(
+        default=None,
+        description="HuggingFace API token for gated models (from env HUGGINGFACE_TOKEN)"
+    )
+    device_map: str = Field(
+        default="auto",
+        description="Device mapping strategy: 'auto', 'cuda', 'cpu'"
+    )
+    torch_dtype: str = Field(
+        default="float16",
+        description="Tensor dtype: 'float16', 'bfloat16', 'float32'"
+    )
+    quantization: Optional[str] = Field(
+        default=None,
+        description="Quantization mode: '4bit', '8bit', or None (requires bitsandbytes)"
+    )
+    bnb_4bit_compute_dtype: Optional[str] = Field(
+        default=None,
+        description="Compute dtype for 4-bit quantization: 'float16', 'bfloat16', 'float32'. "
+        "Defaults to torch_dtype if not set."
+    )
+    bnb_4bit_quant_type: str = Field(
+        default="nf4",
+        description="4-bit quantization type: 'nf4' (NormalFloat4) or 'fp4' (Float4)"
+    )
+    bnb_4bit_use_double_quant: bool = Field(
+        default=True,
+        description="Enable double quantization for 4-bit (extra memory savings)"
+    )
+    trust_remote_code: bool = Field(
+        default=False,
+        description="Allow execution of remote code (required for some models like Qwen)"
+    )
+    max_new_tokens: int = Field(
+        default=4096,
+        description="Maximum number of new tokens to generate"
+    )
+    attn_implementation: str = Field(
+        default="sdpa",
+        description="Attention implementation: 'sdpa', 'flash_attention_2', 'eager'"
+    )
+    repetition_penalty: float = Field(
+        default=1.2,
+        description="Penalty for repeated token generation. Values > 1.0 discourage "
+        "repetition. Recommended: 1.1-1.3. Set to 1.0 to disable."
+    )
+    no_repeat_ngram_size: int = Field(
+        default=0,
+        description="Prevent exact n-gram repetition during generation. "
+        "Set to 0 to disable, or >= 2 to prevent n-gram repeats. Recommended: 3."
+    )
+    enable_thinking: Optional[bool] = Field(
+        default=None,
+        description="Enable native thinking/reasoning for thinking-capable models "
+        "(e.g., Qwen3.5). None = model default (thinking enabled), "
+        "False = disable thinking (pre-fill empty thinking block for direct output)."
+    )
+    stream: bool = Field(
+        default=False,
+        description="Stream model output token-by-token to stdout (like Ollama streaming). "
+        "Does not affect return value — only provides real-time visual feedback."
+    )
+
+    @field_validator("quantization")
+    @classmethod
+    def _validate_quantization(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("4bit", "8bit"):
+            raise ValueError(
+                f"quantization must be '4bit', '8bit', or None, got '{v}'"
+            )
+        return v
+
+    @field_validator("bnb_4bit_quant_type")
+    @classmethod
+    def _validate_quant_type(cls, v: str) -> str:
+        if v not in ("nf4", "fp4"):
+            raise ValueError(
+                f"bnb_4bit_quant_type must be 'nf4' or 'fp4', got '{v}'"
+            )
+        return v
+
+    @field_validator("bnb_4bit_compute_dtype")
+    @classmethod
+    def _validate_bnb_dtype(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("float16", "bfloat16", "float32"):
+            raise ValueError(
+                "bnb_4bit_compute_dtype must be 'float16', 'bfloat16', or 'float32', "
+                f"got '{v}'"
+            )
+        return v
+
+
+class ApiConfig(BaseModel):
+    """API provider configuration.
 
     Environment variables:
-        OPENAI_API_KEY: OpenAI API key (required when use_ollama=False)
-        ANTHROPIC_API_KEY: Anthropic API key (required when use_ollama=False)
-        GEMINI_API_KEY: Google Gemini API key (required when use_ollama=False)
-        OPENROUTER_API_KEY: OpenRouter API key (required when use_ollama=False)
+        OPENAI_API_KEY: OpenAI API key (required when provider="api")
+        ANTHROPIC_API_KEY: Anthropic API key (required when provider="api")
+        GEMINI_API_KEY: Google Gemini API key (required when provider="api")
+        OPENROUTER_API_KEY: OpenRouter API key (required when provider="api")
 
     YAML configuration (config/default.yaml):
-        max_tokens: Maximum tokens for non-Ollama providers
+        max_tokens: Maximum tokens for API providers
         base_url: Custom API base URL (optional, for OpenRouter or compatible endpoints)
 
     Note: API key must be set via environment variable. Validation will fail
@@ -206,11 +300,11 @@ class NonOllamaConfig(BaseModel):
     # For specific providers, use explicit env var names
     api_key: Optional[SecretStr] = Field(
         default=None,
-        description="API key for non-Ollama providers (from environment)"
+        description="API key for API providers (from environment)"
     )
     max_tokens: int = Field(
         ...,
-        description="Maximum tokens for non-Ollama providers"
+        description="Maximum tokens for API providers"
     )
     base_url: Optional[str] = Field(
         default=None,
@@ -224,28 +318,28 @@ class NonOllamaConfig(BaseModel):
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, v: Optional[SecretStr]) -> Optional[SecretStr]:
-        """Validate that API key is set for non-Ollama providers.
+        """Validate that API key is set for API providers.
 
         Note: This validator only checks if the key is provided. The actual
-            requirement (use_ollama=False) is validated at the LLMInstanceConfig level.
+            requirement (provider="api") is validated at the LLMInstanceConfig level.
         """
-        # Validation is deferred to LLMInstanceConfig level where we know use_ollama
+        # Validation is deferred to LLMInstanceConfig level where we know provider
         return v
 
 
 class LLMInstanceConfig(BaseModel):
     """Configuration for a single LLM instance."""
-    use_ollama: bool = Field(
+    provider: Literal["ollama", "api", "transformers"] = Field(
         ...,
-        description="Whether to use Ollama provider (True) or external API (False)"
+        description="LLM provider type: 'ollama', 'api', or 'transformers'"
     )
     model: str = Field(
         ...,
         description="Model name/identifier"
     )
-    timeout: int = Field(
-        ...,
-        description="Request timeout in seconds"
+    timeout: Optional[int] = Field(
+        default=None,
+        description="Request timeout in seconds (required for ollama/api, ignored for transformers)"
     )
     max_retries: int = Field(
         ...,
@@ -253,41 +347,86 @@ class LLMInstanceConfig(BaseModel):
     )
     temperature: float = Field(
         ...,
-        description="Sampling temperature for generation"
+        description="Sampling temperature for generation (>= 0)"
     )
-    rate_limit_delay: float = Field(
-        ...,
-        description="Delay in seconds between API calls for rate limiting"
+    rate_limit_delay: Optional[float] = Field(
+        default=None,
+        description="Delay in seconds between API calls (required for ollama/api, ignored for transformers)"
     )
     top_p: float = Field(
         ...,
-        description="Nucleus sampling top-p parameter"
-    )
-    repeat_penalty: float = Field(
-        ...,
-        description="Penalty for repeated tokens"
-    )
-    repeat_last_n: int = Field(
-        ...,
-        description="Number of tokens to consider for repeat penalty"
+        description="Nucleus sampling top-p parameter (0.0 < value <= 1.0)"
     )
     enable_cache: bool = Field(
         ...,
         description="Enable LLM response caching"
     )
 
-    ollama: OllamaConfig = Field(default_factory=OllamaConfig)  # type: ignore[arg-type]
-    non_ollama: NonOllamaConfig = Field(default_factory=NonOllamaConfig)  # type: ignore[arg-type]
+    ollama: Optional[OllamaConfig] = Field(
+        default=None,
+        description="Ollama-specific configuration (required when provider='ollama')"
+    )
+    api: Optional[ApiConfig] = Field(
+        default=None,
+        description="API provider configuration (required when provider='api')"
+    )
+    transformers: TransformersConfig = Field(
+        default_factory=TransformersConfig,
+        description="HuggingFace Transformers configuration"
+    )
+
+    @field_validator("temperature", mode="after")
+    @classmethod
+    def validate_temperature(cls, v: float) -> float:
+        """Temperature must be non-negative."""
+        if v < 0:
+            raise ValueError(f"temperature must be >= 0, got {v}")
+        return v
+
+    @field_validator("top_p", mode="after")
+    @classmethod
+    def validate_top_p(cls, v: float) -> float:
+        """top_p must be in range (0.0, 1.0]."""
+        if v <= 0.0 or v > 1.0:
+            raise ValueError(f"top_p must be in range (0.0, 1.0], got {v}")
+        return v
 
     @model_validator(mode="after")
-    def validate_non_ollama_api_key(self) -> "LLMInstanceConfig":
-        """Validate that API key is set when using non-Ollama providers."""
-        if not self.use_ollama:
-            if self.non_ollama.api_key is None:
+    def validate_provider_config(self) -> "LLMInstanceConfig":
+        """Validate provider-specific requirements."""
+        if self.provider == "ollama":
+            if self.timeout is None:
+                raise ValueError("timeout is required when provider='ollama'")
+            if self.rate_limit_delay is None:
+                raise ValueError("rate_limit_delay is required when provider='ollama'")
+            if self.ollama is None:
                 raise ValueError(
-                    "API key must be set for non-Ollama providers. "
+                    "ollama configuration is required when provider='ollama'. "
+                    "Add an 'ollama' section with num_ctx, num_predict, "
+                    "repeat_penalty, repeat_last_n, stream, and set the "
+                    "OLLAMA_*_BASE_URL environment variable."
+                )
+            if not self.ollama.ollama_base_url:
+                raise ValueError(
+                    "Ollama URL must be set via OLLAMA_*_BASE_URL env var when provider='ollama'"
+                )
+        elif self.provider == "api":
+            if self.timeout is None:
+                raise ValueError("timeout is required when provider='api'")
+            if self.rate_limit_delay is None:
+                raise ValueError("rate_limit_delay is required when provider='api'")
+            if self.api is None:
+                raise ValueError(
+                    "api configuration is required when provider='api'. "
+                    "Add an 'api' section with max_tokens and set the "
+                    "appropriate API key environment variable."
+                )
+            if self.api.api_key is None:
+                raise ValueError(
+                    "API key must be set for API provider. "
                     "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY in .env file."
                 )
+        # transformers: timeout and rate_limit_delay are optional, defaults are safe
         return self
 
 
@@ -466,22 +605,6 @@ class OptimizationConfig(BaseModel):
     )
 
 
-class EvaluationConfig(BaseModel):
-    """Evaluation configuration."""
-    float_tolerance: float = Field(
-        ...,
-        description="Tolerance for comparing floating-point values"
-    )
-    compare_fields: List[str] = Field(
-        ...,
-        description="List of field names to compare during evaluation"
-    )
-    enable_semantic_judge: bool = Field(
-        default=True,
-        description="Enable semantic judge for evaluation (default: True)"
-    )
-
-
 class TaskConfig(BaseModel):
     """Task-specific configuration."""
     name: str = Field(
@@ -492,7 +615,6 @@ class TaskConfig(BaseModel):
         ...,
         description="Path to initial instruction file for DSPy optimization"
     )
-    evaluation: EvaluationConfig = Field(...)
 
     @field_validator("initial_instruction_file", mode="before")
     @classmethod
@@ -743,17 +865,17 @@ class Settings(BaseSettings):
         # Apply Ollama URL overrides from environment variables
         cls._apply_env_overrides(config_data)
 
-        # Apply API keys from environment variables to non_ollama config
+        # Apply API keys from environment variables to api config
         cls._apply_api_keys(config_data)
 
         return cls(**config_data)
 
     @classmethod
     def _apply_api_keys(cls, config_data: dict) -> None:
-        """Apply API keys from environment variables to non_ollama config.
+        """Apply API keys from environment variables to api config.
 
         API keys are read from environment variables and injected into the
-        llm.student.non_ollama and llm.teacher.non_ollama configurations.
+        llm.student.api and llm.teacher.api configurations.
 
         Env vars applied:
             - OPENAI_API_KEY: OpenAI API key
@@ -832,12 +954,12 @@ class Settings(BaseSettings):
 
         def apply_key_to_component(component_data: dict, component_name: str) -> None:
             """Apply API key to a single LLM component (student or teacher)."""
-            if component_data.get("use_ollama", True):
-                return  # Skip Ollama models
+            if component_data.get("provider") != "api":
+                return  # Skip non-API models (ollama, transformers)
 
             model_name = component_data.get("model", "")
-            non_ollama_config = component_data.get("non_ollama", {})
-            base_url = non_ollama_config.get("base_url")
+            api_config = component_data.get("api", {})
+            base_url = api_config.get("base_url")
 
             # Priority 1: Try to get API key from base_url
             api_key = get_api_key_from_base_url(base_url)
@@ -847,25 +969,26 @@ class Settings(BaseSettings):
                 api_key = get_api_key_for_model(model_name)
 
             if api_key:
-                if "non_ollama" not in component_data:
-                    component_data["non_ollama"] = {}
-                component_data["non_ollama"]["api_key"] = api_key
+                if "api" in component_data:
+                    component_data["api"]["api_key"] = api_key
 
-                # Determine key source for logging
-                key_source = "Unknown"
-                if api_key == openai_key:
-                    key_source = "OpenAI"
-                elif api_key == anthropic_key:
-                    key_source = "Anthropic"
-                elif api_key == gemini_key:
-                    key_source = "Gemini"
-                elif api_key == openrouter_key:
-                    key_source = "OpenRouter"
+                    # Determine key source for logging
+                    key_source = "Unknown"
+                    if api_key == openai_key:
+                        key_source = "OpenAI"
+                    elif api_key == anthropic_key:
+                        key_source = "Anthropic"
+                    elif api_key == gemini_key:
+                        key_source = "Gemini"
+                    elif api_key == openrouter_key:
+                        key_source = "OpenRouter"
+                    else:
+                        key_source = "HuggingFace"
+
+                    source_info = f"base_url: {base_url}" if base_url else f"model prefix: {model_name}"
+                    logger.info(f"Using {key_source} API key for {component_name}: {model_name} ({source_info})")
                 else:
-                    key_source = "HuggingFace"
-
-                source_info = f"base_url: {base_url}" if base_url else f"model prefix: {model_name}"
-                logger.info(f"Using {key_source} API key for {component_name}: {model_name} ({source_info})")
+                    logger.warning(f"No api section in YAML for {component_name}: {model_name}, skipping API key injection")
             else:
                 logger.warning(f"No API key found for {component_name}: {model_name}")
 
@@ -882,63 +1005,73 @@ class Settings(BaseSettings):
         """Apply environment variable overrides to config data.
 
         Ollama URLs are read from environment variables only (NOT from YAML).
+        HuggingFace token is read from HUGGINGFACE_TOKEN env var.
         This method modifies config_data in place.
 
         Note: Ollama URLs must be set in .env file. No fallback is provided.
 
         Env vars applied:
-            - OLLAMA_STUDENT_BASE_URL: Student Ollama server URL (required when use_ollama=True for student)
-            - OLLAMA_TEACHER_BASE_URL: Teacher Ollama server URL (required when use_ollama=True for teacher)
+            - OLLAMA_STUDENT_BASE_URL: Student Ollama server URL (required when provider='ollama' for student)
+            - OLLAMA_TEACHER_BASE_URL: Teacher Ollama server URL (required when provider='ollama' for teacher)
+            - HUGGINGFACE_TOKEN: HuggingFace API token for gated models
 
         Args:
             config_data: Configuration dictionary to update.
 
         Raises:
-            ValueError: If required Ollama URL is not set in environment when use_ollama=True.
+            ValueError: If required Ollama URL is not set in environment when provider='ollama'.
         """
+        # Apply HuggingFace token to all transformers configs (student/teacher)
+        hf_token = os.getenv("HUGGINGFACE_TOKEN")
+        if hf_token:
+            for component in ("student", "teacher"):
+                llm_section = config_data.get("llm", {}).get(component, {})
+                if llm_section.get("provider") == "transformers":
+                    if "transformers" not in llm_section:
+                        llm_section["transformers"] = {}
+                    llm_section["transformers"]["hf_token"] = hf_token.strip()
+
         # Check if Ollama is used for student and teacher
         student_uses_ollama = (
             config_data.get("llm", {})
             .get("student", {})
-            .get("use_ollama", False)
+            .get("provider") == "ollama"
         )
         teacher_uses_ollama = (
             config_data.get("llm", {})
             .get("teacher", {})
-            .get("use_ollama", False)
+            .get("provider") == "ollama"
         )
 
         # Get Ollama URLs from environment
         ollama_student_url = os.getenv("OLLAMA_STUDENT_BASE_URL")
         ollama_teacher_url = os.getenv("OLLAMA_TEACHER_BASE_URL")
 
-        # Validate and apply student URL only if use_ollama=True
+        # Apply student URL only if ollama section exists in YAML
         if student_uses_ollama:
             if not ollama_student_url or ollama_student_url.strip() == "":
                 raise ValueError(
-                    "OLLAMA_STUDENT_BASE_URL environment variable must be set in .env file when use_ollama=True for student"
+                    "OLLAMA_STUDENT_BASE_URL environment variable must be set in .env file when provider='ollama' for student"
                 )
-            if "llm" not in config_data:
-                config_data["llm"] = {}
-            if "student" not in config_data["llm"]:
-                config_data["llm"]["student"] = {}
-            if "ollama" not in config_data["llm"]["student"]:
-                config_data["llm"]["student"]["ollama"] = {}
-            config_data["llm"]["student"]["ollama"]["ollama_base_url"] = ollama_student_url.strip()
+            if "ollama" in config_data.get("llm", {}).get("student", {}):
+                if "llm" not in config_data:
+                    config_data["llm"] = {}
+                if "student" not in config_data["llm"]:
+                    config_data["llm"]["student"] = {}
+                config_data["llm"]["student"]["ollama"]["ollama_base_url"] = ollama_student_url.strip()
 
-        # Validate and apply teacher URL only if use_ollama=True
+        # Apply teacher URL only if ollama section exists in YAML
         if teacher_uses_ollama:
             if not ollama_teacher_url or ollama_teacher_url.strip() == "":
                 raise ValueError(
-                    "OLLAMA_TEACHER_BASE_URL environment variable must be set in .env file when use_ollama=True for teacher"
+                    "OLLAMA_TEACHER_BASE_URL environment variable must be set in .env file when provider='ollama' for teacher"
                 )
-            if "llm" not in config_data:
-                config_data["llm"] = {}
-            if "teacher" not in config_data["llm"]:
-                config_data["llm"]["teacher"] = {}
-            if "ollama" not in config_data["llm"]["teacher"]:
-                config_data["llm"]["teacher"]["ollama"] = {}
-            config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_teacher_url.strip()
+            if "ollama" in config_data.get("llm", {}).get("teacher", {}):
+                if "llm" not in config_data:
+                    config_data["llm"] = {}
+                if "teacher" not in config_data["llm"]:
+                    config_data["llm"]["teacher"] = {}
+                config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_teacher_url.strip()
 
     @classmethod
     def _resolve_paths(cls, config_data: dict, base_dir: Path) -> dict:

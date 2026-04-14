@@ -13,7 +13,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from aee.application.services.dataset_builder import DatasetBuilder
+from aee import DatasetBuilder
+from aee.infrastructure.storage import DocumentRepository
 from aee.shared.exceptions import DataValidationError, UseCaseExecutionError
 
 
@@ -391,7 +392,6 @@ class TestDatasetBuilderIntegration:
         (parsed_dir / "doc2.md").write_text("Document 2 about CuO.")
 
         # Create builder with real document repo
-        from aee.infrastructure.storage import DocumentRepository
         doc_repo = DocumentRepository(parsed_dir=parsed_dir)
 
         builder = DatasetBuilder(document_repo=doc_repo)

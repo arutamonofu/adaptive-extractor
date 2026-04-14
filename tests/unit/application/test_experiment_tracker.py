@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aee.application.services.experiment_tracker import ExperimentTracker
+from aee.application.services import ExperimentTracker
 
 
 def create_mock_mlflow():

@@ -1,109 +1,149 @@
 # Task configuration for nanozyme extraction
-# VERSION 3: Aligned with Ground Truth for MIPROv2 evaluation, with declarative descriptions.
+
 name: nanozymes
+
 fields:
   formula:
     type: str
-    description: "The chemical formula of the nanozyme (e.g., Fe3O4, CeO2, Au, etc.)"
+    description: "Inorganic chemical composition exactly as explicitly reported in the text, excluding organic coatings and modifiers, while including inorganic composites and alloys"
     required: true
-  surface:
-    type: str
-    description: "Type of surface modification of the nanoparticle (e.g., functionalization, coating, doping molecule name)"
-    required: false
-  syngony:
-    type: str
-    description: "The crystal system of the nanozyme (e.g., cubic, hexagonal, monoclinic, etc.)"
-    choices: [cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, triclinic, amorphous, rhombohedral]
-    required: false
-  length:
-    type: str
-    description: "Length of the nanoparticle in nanometers"
-    required: false
-  width:
-    type: str
-    description: "Width of the nanoparticle in nanometers"
-    required: false
-  depth:
-    type: str
-    description: "Depth/thickness of the nanoparticle in nanometers"
-    required: false
+
   activity:
     type: str
-    description: "Type of catalytic activity of the nanozyme (e.g., peroxidase-like, catalase-like, oxidase-like, etc.)"
+    description: "Catalytic activity type determined from the experimental assay"
     required: true
-    choices: [peroxidase, oxidase, catalase, laccase, superoxide_dismutase, glucose oxidase, other]
-  reaction_type:
+    choices: [peroxidase, oxidase, catalase, laccase, glucose oxidase]
+
+  syngony:
     type: str
-    description: "Type of catalyzed reaction (e.g., TMB + H2O2 or TMB, etc.)"
+    description: "Crystal system explicitly stated in the text"
+    choices: [cubic, hexagonal, tetragonal, monoclinic, orthorhombic, trigonal, triclinic, amorphous, rhombohedral, '0']
     required: false
+
+  length:
+    type: str
+    description: "Particle length or size dimension exactly as reported in the text"
+    required: false
+  length_unit:
+    type: str
+    description: "Unit of measurement for particle length exactly as reported in the text"
+    required: false
+
+  width:
+    type: str
+    description: "Particle width exactly as reported in the text"
+    required: false
+  width_unit:
+    type: str
+    description: "Unit of measurement for particle width exactly as reported in the text"
+    required: false
+
+  depth:
+    type: str
+    description: "Particle thickness or third dimension exactly as reported in the text"
+    required: false
+  depth_unit:
+    type: str
+    description: "Unit of measurement for particle depth/thickness exactly as reported in the text"
+    required: false
+
+  surface:
+    type: str
+    description: "Explicitly reported intentional organic surface modification of the nanozyme"
+    required: false
+
   km_value:
     type: str
-    description: "The numerical value of the Michaelis constant (Km)"
+    description: "Km value exactly as reported"
     required: false
   km_unit:
     type: str
-    description: "Unit of measurement for the Michaelis constant (e.g., mM, µM)"
+    description: "Km unit exactly as reported"
     required: false
+
   vmax_value:
     type: str
-    description: "The numerical value of the maximum reaction rate (Vmax)"
+    description: "Vmax value exactly as reported"
     required: false
   vmax_unit:
     type: str
-    description: "Unit of measurement for Vmax (e.g., mM/s, µM/min)"
+    description: "Vmax unit exactly as reported"
     required: false
-  ph:
+
+  reaction_type:
     type: str
-    description: "pH value at which the reaction was conducted"
+    description: "Reaction system as explicitly described in the experiment formatted as Format as [Substrate] (goes first) + [Co-substrate] (goes second) excluding gaesous components (eg., TMB + H2O2)"
     required: false
-  temperature:
-    type: str
-    description: "The temperature at which the reaction was conducted (in °C)"
-    required: false
+
   c_min:
     type: str
-    description: "Minimum substrate concentration in millimolar"
+    description: "Minimum value of the varied component exactly as reported"
     required: false
+  c_min_unit:
+    type: str
+    description: "Unit of the minimum value of the varied component exactly as reported"
+    required: false
+
   c_max:
     type: str
-    description: "Maximum substrate concentration in millimolar"
+    description: "Maximum value of the varied component exactly as reported"
     required: false
+  c_max_unit:
+    type: str
+    description: "Unit of the maximum value of the varied component exactly as reported"
+    required: false
+
   c_const:
     type: str
-    description: "Value of the constant concentration of an unchanged parameter in the reaction"
+    description: "Value of the constant component exactly as reported"
     required: false
   c_const_unit:
     type: str
-    description: "Unit of measurement for the constant concentration(e.g., mM, µM)"
+    description: "Unit of the constant component exactly as reported"
     required: false
+
   ccat_value:
     type: str
-    description: "Value of the catalyst(nanozyme) concentration"
+    description: "Value of the catalyst amount or concentration exactly as reported"
     required: false
   ccat_unit:
     type: str
-    description: "Unit of measurement for the catalyst concentration(e.g., mM, µM, mg/ml)"
+    description: "Unit of the catalyst value exactly as reported"
     required: false
-compare_fields: [formula, activity, syngony, surface, length, width, depth, reaction_type, km_value, km_unit, vmax_value, vmax_unit, ph, temperature, c_min, c_max, c_const, c_const_unit, ccat_value, ccat_unit]
+
+  ph:
+    type: str
+    description: "pH value explicitly reported for the experiment"
+    required: false
+
+  temperature:
+    type: str
+    description: "Numerical experimental temperature exactly as reported"
+    required: false
+
+compare_fields: [formula, activity, syngony, surface, length, width, depth, reaction_type, km_value, km_unit, vmax_value, vmax_unit, ph, temperature, c_min, c_min_unit, c_max, c_max_unit, c_const, c_const_unit, ccat_value, ccat_unit]
 float_tolerance: 0.05
+
 row_converter:
-  formula: [formula, name]
-  surface: [surface, surface_chemistry, coating]
-  syngony: [syngony, crystal_system]
-  length: [length, size, diameter]
+  formula: [formula]
+  activity: [activity]
+  syngony: [syngony]
+  length: [length]
   width: [width]
   depth: [depth]
-  activity: [activity, catalytic_activity]
-  reaction_type: [reaction_type, reaction]
-  km_value: [km_value, km, km_val]
+  surface: [surface]
+  km_value: [km_value]
   km_unit: [km_unit]
-  vmax_value: [vmax_value, vmax, vmax_val]
+  vmax_value: [vmax_value]
   vmax_unit: [vmax_unit]
-  ph: [ph, pH]
-  temperature: [temperature, temp]
-  c_min: [c_min, cmin]
-  c_max: [c_max, cmax]
-  c_const: [c_const, ccons, c_cons]
-  c_const_unit: [c_const_unit, ccons_unit]
-  ccat_value: [ccat_value, ccat]
+  reaction_type: [reaction_type]
+  c_min: [c_min]
+  c_min_unit: [c_min_unit]
+  c_max: [c_max]
+  c_max_unit: [c_max_unit]
+  c_const: [c_const]
+  c_const_unit: [c_const_unit]
+  ccat_value: [ccat_value]
   ccat_unit: [ccat_unit]
+  ph: [ph]
+  temperature: [temperature]

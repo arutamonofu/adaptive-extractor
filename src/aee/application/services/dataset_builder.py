@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import dspy
 
-from aee.infrastructure.storage import DocumentRepository, GroundTruthRepository, DataSplitRepository
+from aee.infrastructure.storage import DataSplitRepository, DocumentRepository, GroundTruthRepository
 from aee.shared.exceptions import DataValidationError, UseCaseExecutionError
 
 logger = logging.getLogger(__name__)

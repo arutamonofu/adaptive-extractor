@@ -6,15 +6,13 @@ project:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
     temperature: 0.0
     rate_limit_delay: 1.0
     top_p: 0.1
-    repeat_penalty: 1.2
-    repeat_last_n: 2048
     enable_cache: true
     ollama:
       num_ctx: 4096
@@ -22,18 +20,16 @@ llm:
       stream: false
       repeat_penalty: 1.1
       repeat_last_n: 512
-    non_ollama:
+    api:
       max_tokens: 4096
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 3
     temperature: 0.5
     rate_limit_delay: 1.0
     top_p: 0.9
-    repeat_penalty: 1.1
-    repeat_last_n: 512
     enable_cache: true
     ollama:
       num_ctx: 4096
@@ -41,7 +37,7 @@ llm:
       stream: false
       repeat_penalty: 1.1
       repeat_last_n: 512
-    non_ollama:
+    api:
       max_tokens: 4096
 
 paths:
@@ -78,9 +74,6 @@ optimization:
 task:
   name: "test"
   initial_instruction_file: "${INSTRUCTION_FILE_PATH}"
-  evaluation:
-    compare_fields: []
-    float_tolerance: 0.05
 
 extraction:
   enable_cache: false

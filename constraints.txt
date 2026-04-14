@@ -1,0 +1,15 @@
+# Constraints for PyTorch installation with conda-forge NCCL.
+#
+# Why this file exists:
+#   PyTorch from pip depends on nvidia-nccl-cu12. If you use conda's nccl
+#   package instead, this constraint prevents pip from installing its own
+#   copy, avoiding conflicts.
+#
+#   If you use a pure pip environment (venv, not conda), you do NOT need
+#   this file. Just run: pip install torch -e ".[dev]"
+#
+# Usage (conda + pip hybrid only):
+#   pip install --constraint constraints.txt torch
+#   pip install --constraint constraints.txt -e ".[dev]"
+
+nvidia-nccl-cu12==0.0.0

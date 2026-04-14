@@ -1,75 +1,124 @@
+# AutoEvoExtractor — Conda environment definition.
+#
+# Conda resolves binary packages (numpy, scipy, pytorch, nccl).
+# pip fills in packages not available on conda-forge.
+#
+# Usage:
+#   conda env create -f environment.yml
+#   conda env remove -n aee && conda env create -f environment.yml
+
 name: aee
 channels:
+  # Channel order matters: pytorch/nvidia first so GPU builds win over conda-forge CPU builds.
+  - pytorch
+  - nvidia
   - conda-forge
   - defaults
 
 dependencies:
-  # Python and base utilities
+  # ============================================================
+  # Python
+  # ============================================================
   - python=3.12
   - pip
-  - setuptools
 
-  # Data processing and scientific computing
+  # ============================================================
+  # PyTorch with CUDA 12.4 (from pytorch channel)
+  # Includes all CUDA runtime libraries — no system CUDA needed.
+  # NOTE: The "pytorch::" prefix forces the GPU build from the pytorch channel,
+  # preventing conda-forge's CPU build from being selected.
+  # ============================================================
+  - pytorch::pytorch>=2.0.0
+  - pytorch-cuda=12.4
+
+  # ============================================================
+  # Scientific computing (conda-forge — resolved together)
+  # ============================================================
   - numpy>=1.26.0
   - pandas>=2.0.0
   - scipy>=1.11.0
-
-  # Jupyter
-  - jupyterlab>=4.0.0
-  - notebook>=7.0.0
-  - ipykernel>=6.25.0
-  - ipywidgets>=8.0.0
-
-  # ML and transformers
+  - statsmodels>=0.14.0
   - scikit-learn>=1.3.0
-  - transformers>=4.40.0
-  - sentence-transformers>=2.2.0
-  - pytorch>=2.0.0
+  - tabulate>=0.9.0
 
-  # Visualization
-  - matplotlib>=3.7.0
-  - seaborn>=0.12.0
-
-  # Validation and configuration
+  # ============================================================
+  # Configuration
+  # ============================================================
   - pydantic>=2.7.1
   - pydantic-settings>=2.0.0
   - pyyaml>=6.0
   - python-dotenv>=1.0.0
 
-  # HTTP client
+  # ============================================================
+  # HTTP
+  # ============================================================
   - requests>=2.28.0
 
-  # Dimensionality reduction
-  - umap-learn>=0.5.0
+  # ============================================================
+  # Transformers (local LLM inference)
+  # ============================================================
+  - transformers>=4.40.0
+  - accelerate>=0.27.0
 
-  # Utilities
-  - tabulate>=0.9.0
+  # ============================================================
+  # NCCL for multi-GPU
+  # ============================================================
+  - nccl>=2.21.0
 
-  # Installed via pip (not available in conda-forge or require specific versions)
+  # ============================================================
+  # Jupyter and visualization (research notebooks)
+  # ============================================================
+  - jupyterlab>=4.0.0
+  - notebook>=7.0.0
+  - ipykernel>=6.25.0
+  - ipywidgets>=8.0.0
+  - matplotlib>=3.7.0
+  - seaborn>=0.12.0
+
+  # ============================================================
+  # Dev tools
+  # ============================================================
+  - pytest>=7.0.0
+  - pytest-cov>=4.0.0
+  - pytest-xdist>=3.0.0
+
+  # ============================================================
+  # pip — packages not available on conda-forge
+  # ============================================================
   - pip:
-      # LLM Framework
-      - dspy-ai>=2.4.4
+      # Core LLM framework (not on conda-forge)
+      - dspy>=3.1.0
 
-      # PDF parsing
-      - marker-pdf>=1.0.0
+      # PDF handling
       - pypdf>=3.0.0
-      - onnxruntime-gpu>=1.15.0
 
-      # Experiment tracking and UI
-      - mlflow>=2.10.0
-      - streamlit>=1.28.0
-
-      # Google Gemini API
+      # Gemini API
       - google-genai>=1.0.0
 
-      # Statistical modeling (for power analysis)
-      - statsmodels>=0.14.0
+      # Qwen3.5 optimized inference kernels
+      # flash-attn: required for attn_implementation: "flash_attention_2"
+      # flash-linear-attention: provides fused Triton kernels for Qwen3.5
+      #   linear attention layers (75% of the model).
+      # causal-conv1d: required for the SSM/linear attention fast path in decode.
+      #   Without it, 75% of layers fall back to slow torch conv1d.
+      - flash-attn>=2.8.0
+      - flash-linear-attention>=0.4.0
+      - causal-conv1d>=1.5.0
 
-      # Development tools
-      - pytest>=7.0.0
-      - pytest-cov>=4.0.0
-      - pytest-xdist>=3.0.0
+      # Experiment tracking
+      - mlflow>=2.10.0
+
+      # Quantization for local LLM inference (required when quantization: "4bit"/"8bit" in YAML)
+      - bitsandbytes>=0.48.0
+
+      # Dev: HTTP mocking, linting, type checking
       - responses>=0.23.0
       - ruff>=0.1.0
       - mypy>=1.0.0
       - flake8>=6.0.0
+
+      # Install the project itself (editable)
+      # pyproject.toml lists torch — pip will install it if not present.
+      # Since pytorch is already installed by conda, pip sees it as
+      # satisfied and skips.
+      - -e .

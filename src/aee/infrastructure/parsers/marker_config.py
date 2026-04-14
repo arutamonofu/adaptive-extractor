@@ -13,7 +13,6 @@ To modify these settings, edit this file directly.
 
 from typing import Any, Dict, List, Optional
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # CORE SETTINGS
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -9,7 +9,7 @@ Tests cover:
 
 import pytest
 
-from aee.domain.tasks.config import FieldSpec, RowConverterConfig, TaskConfig
+from aee.domain.tasks import FieldSpec, RowConverterConfig, TaskConfig
 
 
 @pytest.mark.unit
@@ -520,7 +520,7 @@ class TestDynamicModelStringValidation:
 
     def test_float_to_string_conversion(self):
         """Float values should convert to strings for str-typed fields."""
-        from aee.domain.tasks.dynamic_models import create_experiment_model
+        from aee.domain.tasks import create_experiment_model
 
         config = TaskConfig(
             name="test_string_conv",
@@ -539,7 +539,7 @@ class TestDynamicModelStringValidation:
 
     def test_int_to_string_conversion(self):
         """Int values should convert to strings for str-typed fields."""
-        from aee.domain.tasks.dynamic_models import create_experiment_model
+        from aee.domain.tasks import create_experiment_model
 
         config = TaskConfig(
             name="test_int_conv",
@@ -558,7 +558,7 @@ class TestDynamicModelStringValidation:
 
     def test_string_passthrough(self):
         """String values should pass through unchanged."""
-        from aee.domain.tasks.dynamic_models import create_experiment_model
+        from aee.domain.tasks import create_experiment_model
 
         config = TaskConfig(
             name="test_str_pass",
@@ -577,7 +577,7 @@ class TestDynamicModelStringValidation:
 
     def test_range_string_accepted(self):
         """Range strings like '5-10' should still work."""
-        from aee.domain.tasks.dynamic_models import create_experiment_model
+        from aee.domain.tasks import create_experiment_model
 
         config = TaskConfig(
             name="test_range",
@@ -596,7 +596,7 @@ class TestDynamicModelStringValidation:
 
     def test_scientific_notation(self):
         """Scientific notation floats should convert properly."""
-        from aee.domain.tasks.dynamic_models import create_experiment_model
+        from aee.domain.tasks import create_experiment_model
 
         config = TaskConfig(
             name="test_sci",

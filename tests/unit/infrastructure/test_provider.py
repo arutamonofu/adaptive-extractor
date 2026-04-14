@@ -9,15 +9,8 @@ from unittest.mock import patch
 import pytest
 import responses
 
-from aee.infrastructure.config.settings import LLMInstanceConfig, NonOllamaConfig, OllamaConfig
-from aee.infrastructure.llm.circuit_breaker import CircuitBreaker
-from aee.infrastructure.llm.provider import (
-    BaseHTTPProvider,
-    OllamaLM,
-    OpenRouterLM,
-    create_lm,
-)
-
+from aee.infrastructure.config import ApiConfig, LLMInstanceConfig, OllamaConfig
+from aee.infrastructure.llm import BaseHTTPProvider, CircuitBreaker, OllamaLM, OpenRouterLM, create_lm
 
 # =============================================================================
 # Test Fixtures
@@ -28,15 +21,13 @@ from aee.infrastructure.llm.provider import (
 def ollama_config():
     """Create a valid Ollama configuration for testing."""
     return LLMInstanceConfig(
-        use_ollama=True,
+        provider="ollama",
         model="mistral-small3.1-24b-128k:latest",
         timeout=600,
         max_retries=2,
         temperature=0.5,
         rate_limit_delay=0.0,
         top_p=0.9,
-        repeat_penalty=1.1,
-        repeat_last_n=512,
         enable_cache=True,
         ollama=OllamaConfig(
             num_ctx=8192,
@@ -46,9 +37,6 @@ def ollama_config():
             stream=False,
             ollama_base_url="http://localhost:11434",
         ),
-        non_ollama=NonOllamaConfig(
-            max_tokens=4096,
-        ),
     )
 
 
@@ -56,24 +44,15 @@ def ollama_config():
 def openrouter_config():
     """Create a valid OpenRouter configuration for testing."""
     return LLMInstanceConfig(
-        use_ollama=False,
+        provider="api",
         model="openai/gpt-4o-mini",
         timeout=600,
         max_retries=2,
         temperature=0.5,
         rate_limit_delay=0.0,
         top_p=0.9,
-        repeat_penalty=1.1,
-        repeat_last_n=512,
         enable_cache=True,
-        ollama=OllamaConfig(
-            num_ctx=8192,
-            num_predict=2048,
-            repeat_penalty=1.1,
-            repeat_last_n=512,
-            stream=False,
-        ),
-        non_ollama=NonOllamaConfig(
+        api=ApiConfig(
             api_key="sk-test-key",
             max_tokens=4096,
             base_url="https://openrouter.ai/api/v1",
@@ -289,7 +268,7 @@ class TestOpenRouterLM:
         # This test verifies that config validation works correctly
         with pytest.raises(ValueError, match="API key must be set"):
             LLMInstanceConfig(
-                use_ollama=False,
+                provider="api",
                 model="openai/gpt-4o-mini",
                 timeout=600,
                 max_retries=2,
@@ -306,7 +285,7 @@ class TestOpenRouterLM:
                     repeat_last_n=512,
                     stream=False,
                 ),
-                non_ollama=NonOllamaConfig(
+                api=ApiConfig(
                     max_tokens=4096,
                 ),
             )
@@ -396,7 +375,7 @@ class TestOpenRouterLM:
     def test_init_with_reasoning(self, circuit_breaker):
         """Test OpenRouterLM initialization with reasoning configuration."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -413,7 +392,7 @@ class TestOpenRouterLM:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-test-key",
                 max_tokens=4096,
                 base_url="https://openrouter.ai/api/v1",
@@ -428,7 +407,7 @@ class TestOpenRouterLM:
     def test_prepare_payload_with_reasoning(self, circuit_breaker):
         """Test that reasoning is added to payload when configured."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -445,7 +424,7 @@ class TestOpenRouterLM:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-test-key",
                 max_tokens=4096,
                 base_url="https://openrouter.ai/api/v1",
@@ -469,7 +448,7 @@ class TestOpenRouterLM:
     def test_normalize_prompt_with_reasoning_details(self, circuit_breaker):
         """Test that reasoning_details are preserved in messages."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -486,7 +465,7 @@ class TestOpenRouterLM:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-test-key",
                 max_tokens=4096,
                 base_url="https://openrouter.ai/api/v1",
@@ -514,7 +493,7 @@ class TestOpenRouterLM:
     def test_normalize_prompt_string_ignores_reasoning_details(self, circuit_breaker):
         """Test that string prompts don't get reasoning_details."""
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -531,7 +510,7 @@ class TestOpenRouterLM:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-test-key",
                 max_tokens=4096,
                 base_url="https://openrouter.ai/api/v1",
@@ -726,7 +705,7 @@ class TestOpenRouterLMHTTP:
         )
 
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-oss-120b:free",
             timeout=600,
             max_retries=2,
@@ -743,7 +722,7 @@ class TestOpenRouterLMHTTP:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-test-key",
                 max_tokens=4096,
                 base_url="https://openrouter.ai/api/v1",
@@ -767,7 +746,7 @@ class TestCreateLM:
 
     def test_create_ollama_lm(self, ollama_config):
         """Test create_lm creates OllamaLM for Ollama config."""
-        from aee.infrastructure.config.settings import CircuitBreakerConfig
+        from aee.infrastructure.config import CircuitBreakerConfig
 
         # OllamaLM requires circuit breaker, so we need to provide config
         cb_config = CircuitBreakerConfig(
@@ -789,7 +768,7 @@ class TestCreateLM:
 
     def test_create_lm_with_circuit_breaker(self, ollama_config):
         """Test create_lm creates circuit breaker when enabled."""
-        from aee.infrastructure.config.settings import CircuitBreakerConfig
+        from aee.infrastructure.config import CircuitBreakerConfig
 
         cb_config = CircuitBreakerConfig(
             failure_threshold=5,
@@ -804,7 +783,7 @@ class TestCreateLM:
 
     def test_create_lm_openrouter_with_circuit_breaker(self, openrouter_config):
         """Test create_lm creates circuit breaker for OpenRouter when enabled."""
-        from aee.infrastructure.config.settings import CircuitBreakerConfig
+        from aee.infrastructure.config import CircuitBreakerConfig
 
         cb_config = CircuitBreakerConfig(
             failure_threshold=5,
@@ -835,7 +814,7 @@ class TestCreateLMOpenRouter:
         monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-key")
 
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openrouter/qwen/qwen3.5-397b-a17b",
             timeout=600,
             max_retries=2,
@@ -852,7 +831,7 @@ class TestCreateLMOpenRouter:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-or-test-key",
                 max_tokens=8192,
                 base_url="https://openrouter.ai/api/v1",
@@ -875,7 +854,7 @@ class TestCreateLMOpenRouter:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test-key")
 
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-4o-mini",
             timeout=600,
             max_retries=2,
@@ -892,7 +871,7 @@ class TestCreateLMOpenRouter:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-openai-test-key",
                 max_tokens=4096,
             ),
@@ -919,7 +898,7 @@ class TestCreateLMOpenRouter:
 
         for model_name in test_models:
             config = LLMInstanceConfig(
-                use_ollama=False,
+                provider="api",
                 model=model_name,
                 timeout=600,
                 max_retries=2,
@@ -936,7 +915,7 @@ class TestCreateLMOpenRouter:
                     repeat_last_n=512,
                     stream=False,
                 ),
-                non_ollama=NonOllamaConfig(
+                api=ApiConfig(
                     api_key="sk-or-test-key",
                     max_tokens=8192,
                     base_url="https://openrouter.ai/api/v1",
@@ -957,7 +936,7 @@ class TestCreateLMOpenRouter:
         # Config validation happens at LLMInstanceConfig creation time
         with pytest.raises(ValueError, match="API key must be set"):
             LLMInstanceConfig(
-                use_ollama=False,
+                provider="api",
                 model="openai/gpt-4o-mini",
                 timeout=600,
                 max_retries=2,
@@ -974,7 +953,7 @@ class TestCreateLMOpenRouter:
                     repeat_last_n=512,
                     stream=False,
                 ),
-                non_ollama=NonOllamaConfig(
+                api=ApiConfig(
                     max_tokens=4096,
                 ),
             )
@@ -988,7 +967,7 @@ class TestCreateLMOpenRouter:
 
         # Create valid config first (Pydantic allows max_tokens=0)
         config = LLMInstanceConfig(
-            use_ollama=False,
+            provider="api",
             model="openai/gpt-4o-mini",
             timeout=600,
             max_retries=2,
@@ -1005,7 +984,7 @@ class TestCreateLMOpenRouter:
                 repeat_last_n=512,
                 stream=False,
             ),
-            non_ollama=NonOllamaConfig(
+            api=ApiConfig(
                 api_key="sk-or-test-key",
                 max_tokens=0,  # Invalid: must be positive
             ),

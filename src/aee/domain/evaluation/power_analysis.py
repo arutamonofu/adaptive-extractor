@@ -6,14 +6,14 @@ with production data loading logic.
 
 import json
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
-from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 import statsmodels.formula.api as smf
+from scipy import stats
 
 from aee.domain.evaluation.matcher import ExperimentMatcher
 

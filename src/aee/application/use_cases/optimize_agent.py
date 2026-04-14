@@ -351,7 +351,7 @@ class OptimizeAgentUseCase:
                 "name": task_config.name,
             },
             float_tolerance=task_config.float_tolerance,
-            teacher_llm=request.teacher_lm,
+            student_llm=request.student_lm,
             field_descriptions=task_config.field_descriptions,
             enable_semantic_judge=True,
         )

@@ -8,7 +8,6 @@ from typing import Any, Dict, List
 import pandas as pd
 import pytest
 
-
 # ============================================================================
 # Test Data Paths
 # ============================================================================
@@ -37,9 +36,12 @@ def nanozyme_task(tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path:
         Dictionary with task components (config, experiment_model, output_model, row_converter).
         Note: signature is created lazily on first access as it requires instruction file.
     """
-    from aee.domain.tasks import load_task_from_yaml
-    from aee.domain.tasks.dynamic_models import create_all_models, create_row_converter
-    from aee.domain.tasks.signature import create_signature
+    from aee.domain.tasks import (
+        create_all_models,
+        create_row_converter,
+        create_signature,
+        load_task_from_yaml,
+    )
 
     # Load task from temporary YAML (without instruction file initially)
     config = load_task_from_yaml(tmp_nanozymes_task_yaml)
@@ -598,22 +600,15 @@ paths:
 task:
   name: nanozymes
   initial_instruction_file: {tmp_instruction_file}
-  evaluation:
-    compare_fields:
-      - formula
-      - activity
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -621,18 +616,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -640,7 +633,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -938,15 +931,13 @@ project:
 
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -954,19 +945,17 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: "test-model"
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -974,7 +963,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 
 parsing:
@@ -1011,11 +1000,6 @@ optimization:
 task:
   name: "nanozymes"
   initial_instruction_file: "${INSTRUCTION_FILE_PATH}"
-  evaluation:
-    compare_fields:
-      - "formula"
-      - "activity"
-    float_tolerance: 0.1
 
 extraction:
   enable_cache: false

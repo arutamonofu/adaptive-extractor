@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-
 from aee import setup_logging
 from aee.application.services import AgentManager
 from aee.application.use_cases import BatchPredictionRequest, BatchPredictionUseCase
@@ -226,6 +225,11 @@ def extract_command(argv: Optional[list] = None) -> int:
             if student_lm is not None:
                 history_dir = Path(custom_settings.extraction.llm_history_dir)
                 save_extraction_history(student_lm, history_dir)
+
+        # Free VRAM from cached Transformers models (no-op for HTTP providers)
+        from aee.infrastructure.llm.provider import TransformersLM
+
+        TransformersLM.clear_cache()
 
 
 def main():

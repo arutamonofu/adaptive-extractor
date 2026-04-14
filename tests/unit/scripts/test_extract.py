@@ -97,20 +97,15 @@ paths:
 task:
   name: nanozymes
   initial_instruction_file: {instruction_file}
-  evaluation:
-    compare_fields: [formula, activity]
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -118,18 +113,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -137,7 +130,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -171,7 +164,7 @@ circuit_breaker:
   half_open_max_calls: 1
 """, encoding="utf-8")
 
-        from aee.infrastructure.config.settings import Settings
+        from aee import Settings
         from aee.infrastructure.llm import setup_student
 
         # Reset DSPy config
@@ -211,20 +204,15 @@ paths:
 task:
   name: nanozymes
   initial_instruction_file: {instruction_file}
-  evaluation:
-    compare_fields: [formula, activity]
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -232,18 +220,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -251,7 +237,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -326,20 +312,15 @@ paths:
 task:
   name: nanozymes
   initial_instruction_file: {instruction_file}
-  evaluation:
-    compare_fields: [formula, activity]
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -347,18 +328,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -366,7 +345,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -484,20 +463,15 @@ paths:
 task:
   name: invalid_task
   initial_instruction_file: {instruction_file}
-  evaluation:
-    compare_fields: [formula]
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -505,18 +479,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -524,7 +496,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -613,20 +585,15 @@ paths:
 task:
   name: nanozymes
   initial_instruction_file: {instruction_file}
-  evaluation:
-    compare_fields: [formula]
-    float_tolerance: 0.1
 llm:
   student:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.0
     rate_limit_delay: 0.0
     top_p: 0.1
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -634,18 +601,16 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
   teacher:
-    use_ollama: true
+    provider: "ollama"
     model: test-model
     timeout: 60
     max_retries: 1
     temperature: 0.5
     rate_limit_delay: 0.0
     top_p: 0.9
-    repeat_penalty: 1.0
-    repeat_last_n: 64
     enable_cache: false
     ollama:
       num_ctx: 1024
@@ -653,7 +618,7 @@ llm:
       repeat_penalty: 1.0
       repeat_last_n: 64
       stream: false
-    non_ollama:
+    api:
       max_tokens: 256
 parsing:
   parser: marker
@@ -777,6 +742,7 @@ class TestSuccessfulExtraction:
         # Mock setup_student BEFORE importing extract_command
         # This ensures the mock is in place before any imports happen
         from unittest.mock import MagicMock
+
         import dspy
 
         # Create mock LM

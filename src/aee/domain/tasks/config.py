@@ -8,7 +8,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, Union
 
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import BaseModel
+from pydantic import Field as PydanticField
 
 
 @dataclass

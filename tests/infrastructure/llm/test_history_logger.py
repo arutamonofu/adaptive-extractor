@@ -22,7 +22,9 @@ class TestSaveHistory:
         with open(output_path, encoding="utf-8") as f:
             data = json.load(f)
         assert len(data) == 1
-        assert data[0]["prompt"] == "test"
+        # _clean_entry converts to {messages, outputs, model} format
+        assert data[0]["messages"] == []
+        assert data[0]["outputs"] == ["result"]
 
     def test_save_history_empty(self, tmp_path: Path) -> None:
         """Test with empty history - file should not be created."""
@@ -65,7 +67,8 @@ class TestSaveHistory:
         assert count == 1
         with open(output_path, encoding="utf-8") as f:
             data = json.load(f)
-        assert data[0]["prompt"] == "Привет мир"
+        # _clean_entry converts to {messages, outputs, model} format
+        assert data[0]["messages"] == []
         assert data[0]["outputs"][0] == "你好世界"
 
 

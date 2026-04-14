@@ -2,11 +2,10 @@
 
 **A scientific data extraction system using Large Language Models with automatic prompt optimization.**
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![DSPy](https://img.shields.io/badge/DSPy-MIPROv2-green.svg)](https://github.com/stanfordnlp/dspy)
 
 AutoEvoExtractor automatically extracts structured experimental data from scientific PDF documents using LLMs with automatic prompt optimization via DSPy's MIPROv2 algorithm.
-
 
 ## Documentation
 
@@ -22,8 +21,7 @@ AutoEvoExtractor automatically extracts structured experimental data from scient
 
 ## Requirements
 
-- **Python:** 3.11+
-- **LLM:** Ollama (local) or OpenAI/Anthropic/Gemini/OpenRouter API
-- **Core dependencies:** dspy-ai, pydantic, pandas, mlflow, marker-pdf
-
-[Full list →](pyproject.toml)
+- **Python:** 3.12+
+- **LLM providers:** Ollama, HuggingFace Transformers (local), or API (OpenRouter, OpenAI, Anthropic, Gemini)
+- **PDF parser:** Gemini API (primary) or Marker (local, GPU, optional)
+- **GPU server:** NVIDIA GPU with CUDA 12.x support (A6000 recommended)

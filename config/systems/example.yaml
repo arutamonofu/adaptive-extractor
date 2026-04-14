@@ -1,82 +1,96 @@
-# config/systems/example.yaml
+# Example system configuration for AutoEvoExtractor.
+# Copy this file and adapt for your environment (dev.yaml, prod.yaml, etc.).
+#
+# Configuration loading:
+#   - CLI: --config config/systems/your_env.yaml
+#   - Env: AEE_ENV=dev (loads config/systems/dev.yaml)
+#
+# Secrets (API keys, URLs) go in .env — never in YAML.
 
+# ── Project-level settings ──────────────────────────────────────────────
 project:
   log_level: "INFO"
 
-llm:
-  student:
-    use_ollama: true
-    model: "mistral-small3.1-24b-128k:latest"
-    timeout: 600
-    max_retries: 5
-    temperature: 0.0
-    rate_limit_delay: 10.0
-    top_p: 0.1
-    repeat_penalty: 1.2
-    repeat_last_n: 2048
-    enable_cache: true
-    ollama:
-      num_ctx: 32000
-      num_predict: 2048
-      repeat_penalty: 1.2
-      repeat_last_n: 2048
-      stream: true
-    non_ollama:
-      max_tokens: 4096
-      # base_url: "https://openrouter.ai/api/v1"
+# ── LLM Models ──────────────────────────────────────────────────────────
+# Each model (student / teacher) has a provider: "ollama", "api", or "transformers".
+# Provider-specific sub-sections (ollama, api, transformers) are required only
+# when that provider is active. API keys are read from environment variables.
 
+llm:
+  # Student model — used for extraction and optimisation.
+  student:
+    provider: "transformers"
+    model: "qwen/qwen3.5-27b"
+    temperature: 0.0
+    top_p: 1.0
+    enable_cache: true
+    timeout: 600
+    rate_limit_delay: 10.0
+    max_retries: 3
+
+    transformers:
+      device_map: "cuda"
+      torch_dtype: "bfloat16"
+      quantization: "4bit"
+      bnb_4bit_compute_dtype: "bfloat16"
+      bnb_4bit_quant_type: "nf4"
+      bnb_4bit_use_double_quant: true
+      trust_remote_code: true
+      max_new_tokens: 2048
+      attn_implementation: "flash_attention_2"
+      repetition_penalty: 1.0
+      no_repeat_ngram_size: 0
+      enable_thinking: false
+      stream: true
+
+  # Teacher model — used for generating demonstrations and feedback.
   teacher:
-    use_ollama: true
-    model: "gpt-oss:20b"
+    provider: "api"
+    model: "qwen/qwen3.5-397b-a17b"
     timeout: 600
     max_retries: 2
-    temperature: 0.5
+    temperature: 1
     rate_limit_delay: 10.0
     top_p: 0.9
-    repeat_penalty: 1.1
-    repeat_last_n: 512
     enable_cache: true
-    ollama:
-      num_ctx: 32000
-      num_predict: 4096
-      repeat_penalty: 1.1
-      repeat_last_n: 512
-      stream: true
-    non_ollama:
+
+    api:
       max_tokens: 8192
-      # base_url: "https://api.openai.com/v1"
+      base_url: "https://openrouter.ai/api/v1"
       reasoning:
         enabled: true
 
+# ── Document Ingestion ──────────────────────────────────────────────────
 parsing:
   parser: "gemini"  # Options: "marker" or "gemini"
   overwrite: false
-
-  # Note: Marker settings are defined in src/aee/infrastructure/parsers/marker_config.py
 
   gemini:
     model_name: "gemini-3-flash-preview"
     upload_timeout: 300
     safety_settings: true
 
+# ── File Paths ──────────────────────────────────────────────────────────
+# All paths are resolved relative to the project root.
 paths:
   pdf_dir: "data/pdf"
   parsed_dir: "data/parsed"
   ground_truth_dir: "data/ground_truth"
-  splits_file: "data/splits/nanozymes.json"
+  splits_file: "data/splits/nanozymes_pilot.json"
   agents_dir: "data/agents"
   extractions_dir: "data/extractions"
 
+# ── Optimisation (DSPy MIPROv2) ────────────────────────────────────────
 optimization:
   total_load: 3
   train_split: 3
-  num_candidates: 20
+  num_candidates: 10
   num_trials: 3
   max_bootstrapped_demos: 1
   max_labeled_demos: 1
   minibatch: false
   minibatch_size: 10
-  view_data_batch_size: 3
+  view_data_batch_size: 1
   metric_threshold: 1.0
   init_temperature: 0.5
   random_seed: 42
@@ -86,43 +100,26 @@ optimization:
   save_llm_history: true
   llm_history_dir: "logs/llm_history"
 
+# ── Task Reference ──────────────────────────────────────────────────────
+# task.name determines which task YAML is loaded from config/tasks/<name>.yaml.
+# Note: compare_fields and float_tolerance are defined in the task YAML,
+# NOT in this system config.
 task:
   name: "nanozymes"
-  initial_instruction_file: "config/initial_instructions/nanozymes_nanominer.txt"
-  evaluation:
-    compare_fields:
-      - "formula"
-      - "activity"
-      - "reaction_type"
-      - "ph"
-      - "temperature"
-      - "surface"
-      - "syngony"
-      - "length"
-      - "width"
-      - "depth"
-      - "km_value"
-      - "vmax_value"
-      - "c_min"
-      - "c_max"
-      - "c_const"
-      - "ccat_value"
-      - "km_unit"
-      - "vmax_unit"
-      - "c_const_unit"
-      - "ccat_unit"
-    float_tolerance: 0.05
-    enable_semantic_judge: true
+  initial_instruction_file: "config/initial_instructions/nanozymes.txt"
 
+# ── Extraction Runtime ──────────────────────────────────────────────────
 extraction:
   enable_cache: false
   save_llm_history: false
   llm_history_dir: "logs/llm_history"
 
+# ── Caching ─────────────────────────────────────────────────────────────
 cache:
   disk_size_limit_bytes: 30000000000  # 30 GB
   memory_max_entries: 1000000
 
+# ── Circuit Breaker (LLM call resilience) ───────────────────────────────
 circuit_breaker:
   failure_threshold: 8
   reset_timeout: 30.0

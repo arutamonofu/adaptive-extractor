@@ -8,7 +8,7 @@ import logging
 import time
 from enum import Enum
 from threading import Lock
-from typing import Callable, Any, Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 

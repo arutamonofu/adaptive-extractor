@@ -16,6 +16,18 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
     """Task-agnostic extraction agent.
 
     Wraps a specific task signature (e.g., Nanozymes) with Chain-of-Thought reasoning.
+
+    Performance note:
+        ChainOfThought generates reasoning tokens BEFORE the final answer, which
+        can add 500–1500 tokens of output. With local Transformers inference this
+        means 1.5–4 minutes of extra generation time per document.
+
+        To disable CoT and use direct prediction (faster, but potentially lower quality):
+            Replace dspy.ChainOfThought(signature_class) with dspy.Predict(signature_class)
+
+        The max_new_tokens config limits total output; ensure it is high enough
+        to accommodate both reasoning and the answer (e.g., 1024+ with CoT,
+        512+ without).
     """
 
     def __init__(self, signature_class: Type[dspy.Signature]):

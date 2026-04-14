@@ -7,7 +7,7 @@ are now stored as plain Markdown files.
 """
 
 from aee.domain.entities.experiment import Experiment
-from aee.domain.entities.extraction import ExtractionResult, ExtractionOutput
+from aee.domain.entities.extraction import ExtractionOutput, ExtractionResult
 
 __all__ = [
     "Experiment",

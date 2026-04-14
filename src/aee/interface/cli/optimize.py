@@ -311,6 +311,11 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
                 history_dir = Path(custom_settings.optimization.llm_history_dir)
                 save_optimization_history(student_lm, teacher_lm, history_dir)
 
+        # Free VRAM from cached Transformers models (no-op for HTTP providers)
+        from aee.infrastructure.llm.provider import TransformersLM
+
+        TransformersLM.clear_cache()
+
 
 def main():
     """Main entry point."""

@@ -4,9 +4,12 @@ This module provides functions to dynamically generate Pydantic models
 from TaskConfig, enabling flexible task definitions without hardcoded models.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Type, Union
 
+import pandas
 from pydantic import BaseModel, Field, create_model
 from pydantic.functional_validators import BeforeValidator
 
@@ -15,8 +18,7 @@ from aee.domain.entities import Experiment
 from .config import FieldSpec, TaskConfig
 
 if TYPE_CHECKING:
-    import pandas as pd  # noqa: F401
-    import pandas  # noqa: F401
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +239,7 @@ def _convert_value_to_type(
 
 
 def _extract_field_value(
-    row: "pandas.Series",
+    row: pandas.Series,
     field_name: str,
     spec: FieldSpec,
     row_converter: Any,
@@ -300,7 +302,7 @@ def create_row_converter(
         ```
     """
 
-    def converter(row: "pandas.Series"):
+    def converter(row: pandas.Series):
         """Convert pandas Series to experiment model.
 
         Args:

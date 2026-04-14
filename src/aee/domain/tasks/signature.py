@@ -5,12 +5,14 @@ from TaskConfig, enabling flexible task definitions without hardcoded signatures
 """
 
 import logging
-from typing import Optional, Type
+from typing import TYPE_CHECKING, Optional, Type
 
-import dspy
 from pydantic import BaseModel
 
 from .config import TaskConfig
+
+if TYPE_CHECKING:
+    import dspy
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ def create_signature(
     experiment_model: Type[BaseModel],
     output_model: Optional[Type[BaseModel]] = None,
     instruction: Optional[str] = None,
-) -> Type[dspy.Signature]:
+) -> "Type[dspy.Signature]":
     """Dynamically create a DSPy signature from TaskConfig.
 
     This function generates a DSPy Signature class with input/output fields
@@ -57,6 +59,8 @@ def create_signature(
         result = module(document_text="...")
         ```
     """
+    import dspy
+
     # Get instruction from config (no fallback - strict mode)
     if instruction is None:
         instruction = task_config.get_instruction()
