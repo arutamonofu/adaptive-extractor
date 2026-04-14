@@ -12,6 +12,7 @@ Tests cover:
 import pytest
 
 from aee.domain.evaluation import ExperimentMatcher
+from aee.domain.evaluation.matcher import _extract_first_json
 
 
 @pytest.mark.unit
@@ -663,3 +664,65 @@ class TestSemanticJudge:
 
         # With NO verdict on mismatch, should be FP+FN
         assert report["f1"] == 0.0
+
+
+@pytest.mark.unit
+class TestExtractFirstJson:
+    """Tests for _extract_first_json brace-balancing parser."""
+
+    def test_single_json_object(self):
+        """Extract JSON from clean input."""
+        result = _extract_first_json('{"a": "YES", "b": "NO"}')
+        assert result == '{"a": "YES", "b": "NO"}'
+
+    def test_two_json_objects_concatenated(self):
+        """Extract only the first JSON when two are present."""
+        text = '{"first": "YES"}\n{"second": "NO"}'
+        result = _extract_first_json(text)
+        assert result == '{"first": "YES"}'
+
+    def test_nested_json_object(self):
+        """Handle nested objects correctly."""
+        text = '{"outer": {"inner": "YES"}, "arr": [1, 2]}'
+        result = _extract_first_json(text)
+        assert result == '{"outer": {"inner": "YES"}, "arr": [1, 2]}'
+
+    def test_json_in_markdown_block(self):
+        """Extract JSON from markdown code block."""
+        text = '```json\n{"length": "YES", "width": "YES"}\n```'
+        result = _extract_first_json(text)
+        assert result == '{"length": "YES", "width": "YES"}'
+
+    def test_no_json_found(self):
+        """Return None when no JSON is present."""
+        assert _extract_first_json("just plain text") is None
+        assert _extract_first_json("") is None
+        assert _extract_first_json("no braces here") is None
+
+    def test_trailing_content_ignored(self):
+        """Content after JSON is not included."""
+        text = '{"a": 1} some trailing text {b: 2}'
+        result = _extract_first_json(text)
+        assert result == '{"a": 1}'
+
+    def test_json_with_escaped_quotes(self):
+        """Handle escaped quotes inside string values."""
+        text = '{"key": "value with \\"quotes\\""}'
+        result = _extract_first_json(text)
+        assert result == '{"key": "value with \\"quotes\\""}'
+
+    def test_json_with_string_containing_braces(self):
+        """Braces inside string values should not affect balancing."""
+        text = '{"formula": "Fe{3}O4", "ok": true}'
+        result = _extract_first_json(text)
+        assert result == '{"formula": "Fe{3}O4", "ok": true}'
+
+    def test_unbalanced_fallback_single_level(self):
+        """Fallback to single-level regex for unbalanced input."""
+        text = '{"key": "YES"} broken {incomplete'
+        result = _extract_first_json(text)
+        assert result == '{"key": "YES"}'
+
+    def test_unbalanced_no_fallback_no_braces(self):
+        """Return None when there are no braces at all."""
+        assert _extract_first_json("no braces at all") is None

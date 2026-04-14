@@ -993,3 +993,63 @@ class TestCreateLMOpenRouter:
         # Validation happens at LM creation time in OpenRouterLM.__init__
         with pytest.raises(ValueError, match="Max tokens must be positive"):
             create_lm(config, enable_circuit_breaker=False)
+
+
+# =============================================================================
+# Test ProviderRateLimiter
+# =============================================================================
+
+
+class TestProviderRateLimiter:
+    """Tests for global provider-level rate limiting."""
+
+    def test_shared_limiter_same_base_url(self, openrouter_config, circuit_breaker):
+        """Student and Teacher with same base_url share one rate limiter."""
+        from aee.infrastructure.llm.provider import (
+            _PROVIDER_RATE_LIMITERS,
+            _apply_rate_limit,
+        )
+
+        # Clear any existing limiters for clean test
+        _PROVIDER_RATE_LIMITERS.clear()
+
+        lm1 = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        lm2 = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+
+        base_url = "https://openrouter.ai/api/v1/chat/completions"
+        delay = 0.01  # Small delay for fast test
+
+        lm1 = _apply_rate_limit(lm1, base_url, delay)
+        lm2 = _apply_rate_limit(lm2, base_url, delay)
+
+        # Both should use the same RateLimiter instance
+        limiter1 = _PROVIDER_RATE_LIMITERS[base_url]
+        assert limiter1 is _PROVIDER_RATE_LIMITERS[base_url]
+
+        # Cleanup
+        _PROVIDER_RATE_LIMITERS.clear()
+
+    def test_independent_limiters_different_providers(self, ollama_config, openrouter_config, circuit_breaker):
+        """Ollama and OpenRouter have independent rate limiters."""
+        from aee.infrastructure.llm.provider import (
+            _PROVIDER_RATE_LIMITERS,
+            _apply_rate_limit,
+        )
+
+        _PROVIDER_RATE_LIMITERS.clear()
+
+        lm_ollama = OllamaLM(ollama_config, circuit_breaker=circuit_breaker)
+        lm_openrouter = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+
+        ollama_url = "http://localhost:11434/api/chat"
+        openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
+        delay = 0.01
+
+        lm_ollama = _apply_rate_limit(lm_ollama, ollama_url, delay)
+        lm_openrouter = _apply_rate_limit(lm_openrouter, openrouter_url, delay)
+
+        # Should have two different limiter instances
+        assert _PROVIDER_RATE_LIMITERS[ollama_url] is not _PROVIDER_RATE_LIMITERS[openrouter_url]
+
+        # Cleanup
+        _PROVIDER_RATE_LIMITERS.clear()

@@ -15,6 +15,59 @@ _SEMANTIC_JUDGE_EXAMPLE = '{"km_value": "YES", "reaction_type": "NO", "ccat_valu
 ExperimentEntity: TypeAlias = Union[BaseModel, Any]
 
 
+def _extract_first_json(text: str) -> Optional[str]:
+    """Extract the first valid JSON object from text by brace balancing.
+
+    Handles nested objects, strings (ignores braces inside quotes),
+    and trailing content after the first JSON object.
+
+    Args:
+        text: Input text potentially containing JSON.
+
+    Returns:
+        The first JSON substring if found, None otherwise.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i in range(start, len(text)):
+        ch = text[i]
+
+        if escape_next:
+            escape_next = False
+            continue
+
+        if ch == "\\":
+            escape_next = True
+            continue
+
+        if ch == '"' and not escape_next:
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+
+    # Unbalanced braces — fallback: try to find a single-level JSON object
+    fallback_match = re.search(r"\{[^{}]*\}", text)
+    if fallback_match:
+        return fallback_match.group(0)
+
+    return None
+
+
 class ExperimentMatcher:
     """Evaluation engine for comparing extracted chemical experiments against ground truth.
 
@@ -269,8 +322,9 @@ Evaluate EACH discrepancy using the following strict IF-THEN rules:
    assumption not grounded in the provided JSON context.
 
 [OUTPUT FORMAT]
-Return a valid JSON object ONLY. Do not include markdown, explanations, or
-additional text. Keys must be the exact discrepancy field names. Values must be
+Return exactly ONE JSON object — nothing before or after it.
+Do not include markdown, explanations, or additional text.
+Keys must be the exact discrepancy field names. Values must be
 strictly "YES" or "NO".
 
 Example: {_SEMANTIC_JUDGE_EXAMPLE}"""
@@ -325,13 +379,14 @@ Example: {_SEMANTIC_JUDGE_EXAMPLE}"""
             cleaned = re.sub(r"<think>.*?</think>", "", str(response_text), flags=re.DOTALL)
             cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL)
 
-            # Find JSON object in cleaned response
-            json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-            if json_match:
-                response_text = json_match.group(0)
+            # Find the first JSON object by brace balancing
+            json_str = _extract_first_json(cleaned)
+            if json_str is None:
+                logger.warning(f"[SemanticJudge] No JSON found. Raw response: {str(response_text)[:200]}...")
+                return {}
 
             # Parse JSON response
-            verdicts = json.loads(response_text)
+            verdicts = json.loads(json_str)
 
             # Validate and filter verdicts
             valid_verdicts = {}
@@ -348,7 +403,7 @@ Example: {_SEMANTIC_JUDGE_EXAMPLE}"""
             return valid_verdicts
 
         except json.JSONDecodeError as e:
-            logger.warning(f"[SemanticJudge] JSON parse error: {e}. Raw response: {response_text[:200]}...")
+            logger.warning(f"[SemanticJudge] JSON parse error: {e}. Raw response: {str(response_text)[:200]}...")
             return {}
         except Exception as e:
             logger.warning(f"[SemanticJudge] Failed: {e}")

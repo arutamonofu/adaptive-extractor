@@ -31,10 +31,20 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union
 import dspy
 import requests
 
-from aee.infrastructure.config.settings import CircuitBreakerConfig, LLMInstanceConfig, Settings, TransformersConfig
+from aee.infrastructure.config.settings import CircuitBreakerConfig, LLMInstanceConfig, Settings
+
+try:
+    from aee.infrastructure.config.settings import TransformersConfig
+except ImportError:
+    TransformersConfig = None  # type: ignore[misc,assignment]
 from aee.infrastructure.llm.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 logger = logging.getLogger(__name__)
+
+# Global rate limiters shared across all LM instances of the same provider.
+# Key: provider base_url, Value: RateLimiter instance.
+_PROVIDER_RATE_LIMITERS: Dict[str, "RateLimiter"] = {}
+_PROVIDER_RATE_LIMITERS_LOCK = threading.Lock()
 
 
 def _log_kernel_status(attn_impl: str) -> None:
@@ -830,9 +840,35 @@ class RateLimiter:
         return wrapper
 
 
-def _apply_rate_limit(lm: dspy.LM, delay: float) -> dspy.LM:
-    """Apply a thread-safe rate limit specific to this LM instance."""
-    rate_limiter = RateLimiter(delay)
+def _get_provider_rate_limiter(base_url: str, delay: float) -> RateLimiter:
+    """Get or create a global rate limiter for a provider base_url.
+
+    Args:
+        base_url: The provider's base URL (used as unique key).
+        delay: Rate limit delay in seconds.
+
+    Returns:
+        Shared RateLimiter instance for this provider.
+    """
+    with _PROVIDER_RATE_LIMITERS_LOCK:
+        if base_url not in _PROVIDER_RATE_LIMITERS:
+            _PROVIDER_RATE_LIMITERS[base_url] = RateLimiter(delay)
+            logger.debug(f"Created global rate limiter for {base_url} (delay={delay}s)")
+        return _PROVIDER_RATE_LIMITERS[base_url]
+
+
+def _apply_rate_limit(lm: dspy.LM, base_url: str, delay: float) -> dspy.LM:
+    """Apply a thread-safe global rate limit shared across all LM instances of the same provider.
+
+    Args:
+        lm: The LM instance to wrap.
+        base_url: Provider base URL (used as shared limiter key).
+        delay: Rate limit delay in seconds.
+
+    Returns:
+        LM instance with rate-limited __call__.
+    """
+    rate_limiter = _get_provider_rate_limiter(base_url, delay)
     original_call = lm.__call__
     lm.__call__ = rate_limiter(original_call)
     return lm
@@ -908,7 +944,15 @@ def create_lm(
         raise ValueError(f"Unknown provider: {config.provider}")
 
     if config.rate_limit_delay is not None and config.rate_limit_delay > 0:
-        lm = _apply_rate_limit(lm, config.rate_limit_delay)
+        # Determine base_url for shared rate limiter key
+        if config.provider == "ollama" and config.ollama:
+            provider_url = config.ollama.ollama_base_url.rstrip("/") + "/api/chat"
+        elif config.provider == "api" and config.api:
+            provider_url = (config.api.base_url or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
+        else:
+            provider_url = f"{config.provider}-{config.model}"
+
+        lm = _apply_rate_limit(lm, provider_url, config.rate_limit_delay)
 
     return lm
 
