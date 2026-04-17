@@ -122,3 +122,6 @@ dependencies:
       # Since pytorch is already installed by conda, pip sees it as
       # satisfied and skips.
       - -e .
+
+platforms:
+  - linux-64

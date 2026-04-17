@@ -7,91 +7,139 @@ on:
     branches: [main, develop]
 
 env:
-  PYTHON_VERSION_DEFAULT: "3.12"
   PYTEST_ADDOPTS: "--color=yes"
+  MAMBA_ROOT_PREFIX: "${{ github.workspace }}/.micromamba"
 
 jobs:
   test:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: Tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12"]
+    # 👇 Убрали матрицу — в lock-файле только linux-64 + python 3.12.13
+
+    defaults:
+      run:
+        shell: bash -l {0}  # 👈 Login shell для активации micromamba
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      # 👇 1. Устанавливаем micromamba (базовый, без окружения)
+      - name: Setup micromamba
+        uses: mamba-org/setup-micromamba@v2
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
+          micromamba-version: "latest"
+          init-shell: bash
+          # 👇 Не указываем environment-file — установим через conda-lock ниже
 
-      - name: Cache pip dependencies
+      # 👇 2. Кэшируем само conda-окружение из lock-файла
+      - name: Cache conda environment
         uses: actions/cache@v4
+        id: cache-conda
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/aee
+          key: ${{ runner.os }}-conda-aee-${{ hashFiles('conda-lock.yml') }}
           restore-keys: |
-            ${{ runner.os }}-py${{ matrix.python-version }}-pip-
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-conda-aee-
+
+      # 👇 3. Устанавливаем conda-lock и создаём окружение из lock-файла
+      - name: Install environment from conda-lock
+        if: steps.cache-conda.outputs.cache-hit != 'true'
+        run: |
+          micromamba install -n base -c conda-forge conda-lock -y
+          conda-lock install --mamba -n aee conda-lock.yml
+
+      # 👇 4. Устанавливаем локальный пакет (не в lock-файле)
+      - name: Install local package
+        run: |
+          micromamba activate aee
+          # --no-deps: зависимости уже зафиксированы в lock-файле
+          pip install --no-deps -e ".[dev]"
+
+      # 👇 5. Системные зависимости для pip-пакетов с компиляцией
+      - name: Install system build deps
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libopenmpi-dev
 
       - name: Cache pytest cache
         uses: actions/cache@v4
         with:
           path: .pytest_cache
-          key: ${{ runner.os }}-py${{ matrix.python-version }}-pytest-${{ hashFiles('tests/**') }}
-          restore-keys: |
-            ${{ runner.os }}-pytest-
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-          pip install pytest pytest-cov pytest-xdist
+          key: ${{ runner.os }}-pytest-${{ hashFiles('tests/**') }}
+          restore-keys: ${{ runner.os }}-pytest-
 
       - name: Run unit tests (parallel)
         run: |
-          pytest tests/unit -v -n auto --cov=src/aee --cov-report=xml --cov-report=term-missing -m unit
+          pytest tests/unit -v -n auto \
+            --cov=src/aee \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -m unit
 
       - name: Run integration tests (fast only)
         run: |
-          pytest tests/integration -v -m "integration and not slow" --cov=src/aee --cov-report=xml --cov-report=term-missing --cov-append
+          pytest tests/integration -v \
+            -m "integration and not slow" \
+            --cov=src/aee \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-append
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: tests
-          name: codecov-py${{ matrix.python-version }}
+          name: codecov-py3.12
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
+    needs: test  # 👇 Запускаем после тестов, чтобы не тратить ресурсы зря
+
+    defaults:
+      run:
+        shell: bash -l {0}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup micromamba
+        uses: mamba-org/setup-micromamba@v2
         with:
-          python-version: "${{ env.PYTHON_VERSION_DEFAULT }}"
-          cache: "pip"
+          micromamba-version: "latest"
+          init-shell: bash
 
-      - name: Install dependencies
+      - name: Cache conda environment
+        uses: actions/cache@v4
+        id: cache-conda-lint
+        with:
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/aee
+          key: ${{ runner.os }}-conda-aee-${{ hashFiles('conda-lock.yml') }}
+          restore-keys: ${{ runner.os }}-conda-aee-
+
+      - name: Install environment from conda-lock
+        if: steps.cache-conda-lint.outputs.cache-hit != 'true'
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          micromamba install -n base -c conda-forge conda-lock -y
+          conda-lock install --mamba -n aee conda-lock.yml
+
+      - name: Install local package + lint tools
+        run: |
+          micromamba activate aee
+          pip install --no-deps -e ".[dev]"
+          # Если линтеры не в lock-файле — доустанавливаем
           pip install flake8 mypy ruff
 
       - name: Run ruff check
-        run: |
-          ruff check src/aee tests
+        run: ruff check src/aee tests
 
       - name: Run flake8
         run: |
@@ -99,12 +147,12 @@ jobs:
           flake8 src/aee tests --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
 
       - name: Run mypy
-        run: |
-          mypy src/aee --ignore-missing-imports --no-strict-optional --no-error-summary
+        run: mypy src/aee --ignore-missing-imports --no-strict-optional --no-error-summary
 
   build:
     name: Build & Install
     runs-on: ubuntu-latest
+    # 👇 Сборка не требует conda-окружения — оставляем pip
 
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +160,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "${{ env.PYTHON_VERSION_DEFAULT }}"
+          python-version: "3.12"
           cache: "pip"
 
       - name: Install build dependencies
@@ -121,13 +169,10 @@ jobs:
           pip install build twine
 
       - name: Build package
-        run: |
-          python -m build
+        run: python -m build
 
       - name: Check package with twine
-        run: |
-          twine check dist/*
+        run: twine check dist/*
 
       - name: Install from wheel
-        run: |
-          pip install dist/*.whl
+        run: pip install dist/*.whl
