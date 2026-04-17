@@ -9,6 +9,8 @@ on:
 env:
   PYTEST_ADDOPTS: "--color=yes"
   MAMBA_ROOT_PREFIX: "${{ github.workspace }}/.micromamba"
+  # 👇 Отключаем build isolation глобально для pip
+  PIP_NO_BUILD_ISOLATION: "true"
 
 jobs:
   test:
@@ -16,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        # Login shell обязательно для корректной работы micromamba activate
         shell: bash -l {0}
 
     steps:
@@ -45,8 +46,7 @@ jobs:
       - name: Install local package
         run: |
           micromamba activate aee
-          # --no-deps: зависимости уже зафиксированы в lock-файле
-          pip install --no-deps -e ".[dev]"
+          pip install --no-deps --no-build-isolation -e ".[dev]"
 
       - name: Run unit tests
         run: pytest tests/unit -v -n auto --cov=src/aee --cov-report=xml --cov-report=term-missing -m unit
@@ -95,8 +95,7 @@ jobs:
       - name: Install local package & lint tools
         run: |
           micromamba activate aee
-          pip install --no-deps -e ".[dev]"
-          # Линтеры не входят в conda-lock, ставим через pip
+          pip install --no-deps --no-build-isolation -e ".[dev]"
           pip install flake8 mypy ruff
 
       - name: Run ruff check
@@ -152,5 +151,4 @@ jobs:
       - name: Install from wheel
         run: |
           micromamba activate aee
-          # --no-deps предотвращает попытку pip пересобрать flash-attn/bitsandbytes
-          pip install --no-deps dist/*.whl
+          pip install --no-deps --no-build-isolation dist/*.whl
