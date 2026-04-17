@@ -89,7 +89,7 @@ config/systems/*
 Thumbs.db
 
 # --- Logs ---
-logs/*
+# logs/*
 logs/llm_history/*
 *.log
 
