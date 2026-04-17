@@ -42,7 +42,6 @@ environment.yml.local
 .ipynb_checkpoints/
 
 # --- Data (raw & intermediate) ---
-data/agents/*
 data/extractions/*
 data/pdf/*
 
@@ -53,15 +52,15 @@ data/pdf/*
 research/
 
 # --- ML ---
-mlruns/
-mlflow.db
-*.pth
-*.pt
-*.onnx
-*.pkl
-*.joblib
-checkpoints/
-weights/
+# mlruns/
+# mlflow.db
+# *.pth
+# *.pt
+# *.onnx
+# *.pkl
+# *.joblib
+# checkpoints/
+# weights/
 
 # --- Streamlit ---
 .streamlit/secrets.toml

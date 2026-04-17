@@ -1,0 +1,32 @@
+{
+  "task_name": "nanozymes",
+  "created_at": "2026-04-15T12:50:54.063393",
+  "model_version": "qwen/qwen3.5-27b",
+  "metrics": {
+    "f1": 0.8100745972075736,
+    "validation_examples": 10
+  },
+  "config_snapshot": {
+    "task_name": "nanozymes",
+    "num_trials": 25,
+    "train_size": 9,
+    "val_size": 10,
+    "train_split": "train",
+    "val_split": "val",
+    "model_version": "qwen/qwen3.5-27b",
+    "seed": 42,
+    "num_candidates": 8,
+    "max_bootstrapped_demos": 0,
+    "max_labeled_demos": 1,
+    "minibatch": true,
+    "minibatch_size": 4,
+    "view_data_batch_size": 1,
+    "metric_threshold": 1.0,
+    "init_temperature": 1.0,
+    "verbose": true
+  },
+  "git_commit": null,
+  "description": "Optimized with 25 trials",
+  "initial_instruction_file": "/mnt/tank/scratch/aartamonov/AutoEvoExtractor/config/initial_instructions/nanozymes_pilot.txt",
+  "instruction_hash": "24f9fa3f3f5c"
+}

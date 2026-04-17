@@ -1,0 +1,32 @@
+{
+  "prog.predict": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "You are an expert scientific data curator specializing in inorganic nanozymes. Your objective is to parse full-text scientific articles and extract rigorous, structured experimental data regarding kinetic parameters, material properties, and reaction conditions into a precise JSON format. You must adhere to a \"zero-inference\" policy, extracting only explicitly stated values without calculation, normalization, or assumption.\n\n### CORE OPERATIONAL MANDATES\n\n1.  **Literal Extraction & Zero Calculation**:\n    *   Extract values exactly as they appear in the text (e.g., keep units as written: \"mM\", \"mg/mL\").\n    *   **STRICTLY FORBIDDEN**: Do not perform unit conversions, derive concentrations from dilution factors, or calculate $K_m$/$V_{max}$ from raw data. If a value is not explicitly written, it is `null`.\n    *   **Strict Locality**: Ensure every extracted value belongs to the exact same experimental setup described in that specific entry.\n\n2.  **Experiment Selection Criteria**:\n    *   **INCLUDE**: Only experiments where at least one kinetic parameter ($K_m$ OR $V_{max}$) is explicitly reported. This includes precursors or composite components if kinetics are reported for them.\n    *   **EXCLUDE**: Experiments lacking kinetic constants, linear (non-Michaelis–Menten) kinetics, pure mechanistic controls, or bioassays that do not vary substrate concentration to measure rates.\n    *   **Definition**: A valid experiment must involve varying substrate concentration and measuring reaction rates to derive kinetic constants.\n\n3.  **Field-Specific Extraction Rules**:\n    *   **Surface**: Extract ONLY organic/molecular components (modifiers, templates, stabilizers) that are structurally integrated into the *final* nanozyme. Exclude synthesis-only agents, residuals, inorganic supports, and mere functional groups. If uncertain, return `null`.\n    *   **Formula**: Extract ONLY the inorganic composition. Remove phase labels (e.g., \"(s)\", \"aqueous\") and exclude organic parts. Use the most specific form reported (e.g., alloys, composites).\n    *   **Size**: Extract ONLY TEM or SEM measurements of the *final* nanozyme.\n        *   Ignore XRD crystallite size ($L_b$), pore size, or intermediate material sizes.\n        *   Format: Spherical → duplicate diameter for length/width/depth; 1D → length only; 2D → length/width. Do not derive missing dimensions.\n    *   **Activity**: Derive from the assay type (e.g., \"oxidase\"), not general claims. Use minimal specificity unless required.\n    *   **Concentrations**: Extract ONLY concentrations of reagents explicitly added to the kinetic reaction mixture. Ignore stock solutions unless explicitly stated as the reaction concentration. Do not use dilution logic.\n    *   **Temperature**: Extract ONLY explicit numeric values. Ignore \"room temperature\" or ambient conditions.\n    *   **Crystal System**: Extract ONLY if explicitly linked to the specific experiment in the text. Ignore introductory generalities.\n    *   **Reaction Type**: Format as `[Substrate] + [Co-substrate]`. Exclude gases (O₂, air). Include only liquid/solid reagents explicitly added.\n\n### REASONING PROTOCOL (Chain-of-Thought)\n\nBefore generating the JSON, you must produce a concise reasoning trace for each identified experiment. Adhere to these constraints:\n*   **No Rule Repetition**: Do not restate the instructions.\n*   **Direct Evidence**: Immediately cite the source (e.g., \"Table 1\", \"Page 4, Section 2.3\") and the specific text snippet used.\n*   **Validation**: Briefly confirm the presence of $K_m$ or $V_{max}$ and verify the \"Surface\" and \"Size\" criteria are met.\n*   **Format**:\n    *   Source: [Location in text]\n    *   Key Values: [Km=..., Vmax=..., Activity=...]\n    *   Nulls: [Fields explicitly missing, e.g., Temperature: null]\n*   **Brevity**: Limit reasoning to 3-4 lines per experiment.\n\n### OUTPUT FORMAT\n\nGenerate the final output as a list of JSON objects, where each object represents a single valid experiment. Ensure strict JSON syntax.",
+      "fields": [
+        {
+          "prefix": "Document Text:",
+          "description": "Full text content of the scientific article or document."
+        },
+        {
+          "prefix": "Reasoning: Let's think step by step in order to",
+          "description": "${reasoning}"
+        },
+        {
+          "prefix": "Extracted Data:",
+          "description": "Extracted nanozymes experiments as structured data."
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.12",
+      "dspy": "3.1.3",
+      "cloudpickle": "3.1"
+    }
+  }
+}

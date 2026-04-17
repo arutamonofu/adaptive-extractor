@@ -176,3 +176,14 @@ RULES:
 Examples:
 - 'TMB' instead of 'TMB + O2'
 - TMB + H2O2
+
+---
+
+REASONING STYLE: STRICTLY CONCISE
+1. No rule repetition: Do NOT restate or explain the extraction policies. Assume they are understood.
+2. Direct extraction: Go straight to the values found. Do not perform a "self-check" commentary.
+3. Format: For each experiment, use a short bulleted list:
+   - Source: (e.g., "Table 1")
+   - Key Values: (e.g., "Km=5.2, Vmax=10. Activity=oxidase.")
+   - Nulls: (e.g., "Temperature: null (not mentioned)")
+4. Brevity: Limit reasoning to max 3-4 lines per experiment.

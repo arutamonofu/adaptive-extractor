@@ -64,10 +64,10 @@ paths:
 
 # ── Optimisation (DSPy MIPROv2) ────────────────────────────────────────
 optimization:
-  total_load: 15
+  total_load: 10
   train_split: 9
-  num_candidates: 10
-  num_trials: 30
+  num_candidates: 8
+  num_trials: 25
   max_bootstrapped_demos: 0
   max_labeled_demos: 1
   minibatch: true
@@ -78,7 +78,7 @@ optimization:
   random_seed: 42
   use_cache: true
   verbose: true
-  max_errors: 20
+  max_errors: 3
   save_llm_history: true
   llm_history_dir: "logs/llm_history"
 
