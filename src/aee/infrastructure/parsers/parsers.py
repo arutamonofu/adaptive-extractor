@@ -111,16 +111,68 @@ Table captions and notes should always be kept, even if the same data appears in
 
 ---
 
-# Figures
+# Figures and visual anchors
+
 Images themselves can be skipped.
 Figure captions, numbers, descriptive text, and notes should always be included as text.
 Even if the same information appears elsewhere in the main text, keep the figure captions in their original location.
 Treat each figure and its caption as a distinct block that must appear in the output.
 
+For every actual numbered visual object caption, insert a stable HTML comment anchor immediately before the caption.
+
+Use this format:
+
+<!-- AEE_VISUAL_ANCHOR: <normalized_visual_id> -->
+
+Then preserve the caption text exactly as written.
+
+Examples:
+• Fig. 1 → <!-- AEE_VISUAL_ANCHOR: main_fig_1 -->
+• Figure 2 → <!-- AEE_VISUAL_ANCHOR: main_fig_2 -->
+• Scheme 1 → <!-- AEE_VISUAL_ANCHOR: main_scheme_1 -->
+• Fig. S1 → <!-- AEE_VISUAL_ANCHOR: si_fig_s1 -->
+• Figure S2 → <!-- AEE_VISUAL_ANCHOR: si_fig_s2 -->
+• Scheme S3 → <!-- AEE_VISUAL_ANCHOR: si_scheme_s3 -->
+• Supplementary Figure S4 → <!-- AEE_VISUAL_ANCHOR: si_fig_s4 -->
+
+Normalization rules:
+• use lowercase
+• use underscores
+• remove punctuation
+• preserve the figure number or supplementary label
+• use prefix `main_` for main article figures
+• use prefix `si_` for Supporting Information / Supplementary figures
+• use `fig`, `scheme` according to the label
+
+Do not create anchors for ordinary textual references such as:
+• “as shown in Fig. 1”
+• “see Fig. S2”
+• “Figures 3 and 4 demonstrate...”
+
+Create anchors only for actual figure caption blocks or actual visual-object locations.
+
+If a figure has multiple panels, create only one anchor for the whole figure, not one anchor per panel.
+
+If a visual object has no caption but has a clearly visible label such as “Fig. 3” or “Scheme 2” at the visual location, insert the anchor at that visual location and preserve any visible label text if present.
+
+If a visual object has no clear caption and no clear label, do not invent an anchor.
+
+If you are unsure whether something is an actual caption or only a textual reference, preserve the text but do not add an anchor.
+
+Do not insert chart-to-table conversions.
+Do not insert extracted numerical data from figures.
+Do not insert AEE_CHART_TABLE blocks. These will be added later by another pipeline stage.
+
 ---
 # Output format
-Return the converted document as Markdown containing headings, paragraphs, formulas, tables, figure captions.
-Do not include explanations or additional commentary."""
+Return the converted document as Markdown containing headings, paragraphs, formulas, tables, figure captions, and AEE visual anchor comments.
+
+AEE visual anchor comments are part of the converted Markdown and should be included exactly in this form:
+
+<!-- AEE_VISUAL_ANCHOR: <normalized_visual_id> -->
+
+Do not include explanations or additional commentary.
+Do not wrap the output in code fences."""
 
 
 class MarkerParser(BaseParser):
@@ -349,6 +401,7 @@ class GeminiParser(BaseParser):
                 config=types.GenerateContentConfig(
                     safety_settings=safety_settings,
                     temperature=0.1,
+                    thinking_config=types.ThinkingConfig(thinking_level="low"),
                 ),
             )
 
