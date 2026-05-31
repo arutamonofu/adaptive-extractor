@@ -1,0 +1,64 @@
+# Document Ingestion and Ingestion Parser Configuration
+# This file governs how PDFs are parsed into text/markdown formats.
+
+parsing:
+  # Overwrite already parsed markdown files if they exist
+  overwrite: false
+
+  # Configuration for standard Gemini API parser
+  gemini:
+    model: "gemini-3-flash-preview"
+    # Timeout in seconds for PDF uploads to the Gemini API
+    upload_timeout: 300
+    # Enable safety filtering on API requests
+    safety_settings: true
+
+  # Configuration for visual-informed PDF parser (integrates layout analysis)
+  visual:
+    # Use layout visual pipeline (extracts charts/tables and adds anchors)
+    enabled: false
+    # task_config_path is omitted here to automatically resolve to:
+    # "config/tasks/{task.name}/initial_schema.yaml"
+
+    gemini:
+      model: "gemini-3-flash-preview"
+      # Timeout in seconds for PDF uploads to the Gemini API
+      upload_timeout: 300
+      safety_settings: true
+
+    # Settings for the layout detection and model extraction pipeline
+    pipeline:
+      models:
+        # Layout/manifest generation model configuration
+        manifest:
+          provider: "gemini"
+          model: "gemini-3-flash-preview"
+          temperature: 0.0
+          max_output_tokens: 20000
+          thinking_level: "low"
+        
+        # Bounding box layout extraction model configuration
+        bbox:
+          provider: "gemini"
+          model: "gemini-3-flash-preview"
+          temperature: 0.0
+          max_output_tokens: 2048
+          thinking_level: "high"
+        
+        # Table & chart data extraction model configuration
+        chart_extraction:
+          provider: "gemini"
+          model: "gemini-3-flash-preview"
+          temperature: 0.0
+          max_output_tokens: 20000
+          thinking_level: "high"
+
+      runtime:
+        # DPI resolution for rendering PDF pages to images
+        dpi: 400
+        # Margins to ignore on the page border as a ratio of width/height
+        margin_ratio: 0.01
+        # Number of retries for Gemini API errors
+        gemini_retries: 4
+        # Exponential backoff base delay in seconds for API retries
+        gemini_retry_base_seconds: 2

@@ -66,17 +66,15 @@ research/
 .streamlit/secrets.toml
 
 # --- Configs ---
-config/initial_instructions/*
-!config/initial_instructions/.gitkeep
-!config/initial_instructions/nanozymes_pilot.txt
+config/*.yaml
+!config/core.yaml
+!config/ingestion.yaml
+!config/optimization.yaml
+!config/extraction.yaml
 
 config/tasks/*
-!config/tasks/.gitkeep
-!config/tasks/nanozymes.yaml
-
-config/systems/*
-!config/systems/.gitkeep
-!config/systems/pilot.yaml
+!config/tasks/nanozymes/
+!config/tasks/nanozymes/**
 
 # --- Secrets ---
 .env

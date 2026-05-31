@@ -1,0 +1,56 @@
+Extract visible table-like data from relevant numerical charts in the figure crop.
+
+Target metadata:
+{{TARGET_JSON}}
+
+Extraction schema:
+{{SCHEMA}}
+
+Crop metadata:
+{{CROP_METADATA_JSON}}
+
+The image is the full figure crop.
+
+Use caption and panel metadata as constraints.
+Do not extract panels whose panel metadata has `"num": false`.
+Do not extract panels whose panel metadata has `"rel": "unlikely"`.
+Extract every table-like dataset from every remaining extractable panel.
+If an extractable panel has unreadable values, include what is visible, use null for unreadable cells, and add a warning for that panel.
+Ignore non-chart panels and unrelated charts.
+Copy visible values and units exactly. Do not calculate, infer, normalize, or guess.
+If values are unreadable, use null and add a warning. If no relevant chart data can be extracted, return a non-success status.
+Use `"panel": null` if the figure has no panels or the table comes from the whole figure.
+
+This is chart-to-table extraction, not final schema extraction.
+
+Example format only. Do not copy example values:
+{
+  "status": "success",
+  "tables": [
+    {
+      "panel": "b",
+      "columns": [
+        {"name": "substrate concentration", "unit": "mM"},
+        {"name": "velocity", "unit": "10^-7 M s^-1"}
+      ],
+      "rows": [
+        ["0.5", "0.18"],
+        ["1.0", "0.31"]
+      ]
+    }
+  ],
+  "warnings": []
+}
+
+Return strict JSON only:
+{
+  "status": "success|partial|no_extractable_chart|failed|crop_failed",
+  "tables": [
+    {
+      "panel": null,
+      "columns": [{"name": "x", "unit": ""}, {"name": "y", "unit": ""}],
+      "rows": []
+    }
+  ],
+  "warnings": []
+}

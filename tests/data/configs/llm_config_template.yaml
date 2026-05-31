@@ -49,10 +49,9 @@ paths:
   extractions_dir: "data/extractions"
 
 parsing:
-  parser: "marker"
+  visual:
+    enabled: false
   overwrite: false
-  marker:
-    device: "cpu"
 
 optimization:
   total_load: 10

@@ -1,4 +1,4 @@
-"""Pytest fixtures and configuration for AutoEvoExtractor tests."""
+"""Pytest fixtures and configuration for Adaptive Extractor tests."""
 
 import json
 import shutil
@@ -36,7 +36,7 @@ def nanozyme_task(tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path:
         Dictionary with task components (config, experiment_model, output_model, row_converter).
         Note: signature is created lazily on first access as it requires instruction file.
     """
-    from aee.domain.tasks import (
+    from ae.core.tasks import (
         create_all_models,
         create_row_converter,
         create_signature,
@@ -348,7 +348,7 @@ def reset_task_registry():
     This fixture ensures clean state between tests by clearing
     the global task registry before and after each test.
     """
-    from aee.domain.tasks import get_global_registry
+    from ae.core.tasks import get_global_registry
 
     registry = get_global_registry()
     # Clear before test
@@ -476,54 +476,97 @@ def llm_config_template_path() -> Path:
     return CONFIG_DATA_DIR / "llm_config_template.yaml"
 
 
+def _split_config(src_path: Path, dest_dir: Path, overrides: dict = None) -> Path:
+    import yaml
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    content = src_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(content) or {}
+    if overrides:
+        for k, v in overrides.items():
+            if isinstance(v, dict) and k in data and isinstance(data[k], dict):
+                data[k].update(v)
+            else:
+                data[k] = v
+
+    # 1. core.yaml
+    core_data = {
+        "project": data.get("project", {"log_level": "INFO"}),
+        "paths": data.get("paths", {}),
+        "llm": data.get("llm", {}),
+        "cache": data.get("cache", {}),
+        "circuit_breaker": data.get("circuit_breaker", {})
+    }
+    (dest_dir / "core.yaml").write_text(yaml.dump(core_data), encoding="utf-8")
+    
+    # 2. ingestion.yaml
+    ingestion_data = {
+        "parsing": data.get("parsing", {})
+    }
+    (dest_dir / "ingestion.yaml").write_text(yaml.dump(ingestion_data), encoding="utf-8")
+    
+    # 3. optimization.yaml
+    optimization_data = {
+        "optimization": data.get("optimization", {})
+    }
+    (dest_dir / "optimization.yaml").write_text(yaml.dump(optimization_data), encoding="utf-8")
+    
+    # 4. extraction.yaml
+    task_data = dict(data.get("task", {}))
+    if "initial_instruction_file" in task_data:
+        task_data.pop("initial_instruction_file")
+    extraction_data = {
+        "extraction": data.get("extraction", {}),
+        "task": task_data
+    }
+    (dest_dir / "extraction.yaml").write_text(yaml.dump(extraction_data), encoding="utf-8")
+    
+    return dest_dir
+
+
 @pytest.fixture
 def minimal_config_with_custom_paths(tmp_path: Path, minimal_config_path: Path) -> Path:
-    """Create a copy of minimal config with custom paths for isolated testing.
+    """Create a modular config directory copy for isolated testing.
 
     Args:
         tmp_path: Pytest temporary directory.
         minimal_config_path: Path to minimal config template.
 
     Returns:
-        Path to copied config file.
+        Path to copied config directory.
     """
-    import shutil
-
-    config_copy = tmp_path / "config.yaml"
-    shutil.copy(minimal_config_path, config_copy)
-    return config_copy
+    config_dir = tmp_path / "config"
+    _split_config(minimal_config_path, config_dir)
+    return config_dir
 
 
 @pytest.fixture
 def config_with_instruction_file(
     tmp_path: Path, llm_config_template_path: Path
 ) -> Path:
-    """Create config with resolved instruction file path.
+    """Create config directory with task schema and instruction files.
 
     Args:
         tmp_path: Pytest temporary directory.
         llm_config_template_path: Path to LLM config template.
 
     Returns:
-        Path to config file with resolved instruction path.
+        Path to config directory.
     """
-
-    # Create instruction file
-    instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"
+    config_dir = tmp_path / "config"
+    
+    # Create instruction file in task directory
+    task_name = "test"  # Matches template
+    instruction_file = tmp_path / "config" / "tasks" / task_name / "initial_instruction.txt"
     instruction_file.parent.mkdir(parents=True, exist_ok=True)
     instruction_file.write_text("Test instruction")
+    
+    # Also write a dummy initial_schema.yaml so validator passes
+    (instruction_file.parent / "initial_schema.yaml").write_text("name: test\nfields:\n  a: str\ncompare_fields: [a]\nfloat_tolerance: 0.05\n", encoding="utf-8")
 
-    # Load template
-    config_content = llm_config_template_path.read_text(encoding="utf-8")
-    config_content = config_content.replace(
-        "${INSTRUCTION_FILE_PATH}", str(instruction_file)
-    )
+    # Load template and split it
+    _split_config(llm_config_template_path, config_dir)
 
-    # Save resolved config
-    config_file = tmp_path / "config.yaml"
-    config_file.write_text(config_content, encoding="utf-8")
-
-    return config_file
+    return config_dir
 
 
 # ============================================================================
@@ -566,26 +609,38 @@ def tmp_instruction_file(tmp_path: Path) -> Path:
         Path to created instruction file.
     """
     instruction_file = (
-        tmp_path / "config" / "initial_instructions" / "test_instruction.txt"
+        tmp_path / "config" / "tasks" / "nanozymes" / "initial_instruction.txt"
     )
     instruction_file.parent.mkdir(parents=True, exist_ok=True)
     instruction_file.write_text(
         "Extract structured data from scientific documents. "
         "Focus on key experimental parameters and results."
     )
+    # Also write a minimal schema YAML so settings task validator passes
+    schema_file = instruction_file.parent / "initial_schema.yaml"
+    schema_file.write_text(
+        "name: nanozymes\n"
+        "compare_fields:\n"
+        "  - formula\n"
+        "float_tolerance: 0.05\n"
+        "fields:\n"
+        "  formula:\n"
+        "    type: str\n"
+        "    description: inorganic formula\n"
+    )
     return instruction_file
 
 
 @pytest.fixture
 def tmp_config_with_instruction(tmp_path: Path, tmp_instruction_file: Path) -> Path:
-    """Create a minimal config with resolved instruction file path.
+    """Create a modular config directory with task configuration.
 
     Args:
         tmp_path: Pytest temporary directory.
         tmp_instruction_file: Path to temporary instruction file.
 
     Returns:
-        Path to created config file.
+        Path to config directory.
     """
     config_content = f"""
 project:
@@ -599,7 +654,6 @@ paths:
   extractions_dir: {tmp_path}/extractions
 task:
   name: nanozymes
-  initial_instruction_file: {tmp_instruction_file}
 llm:
   student:
     provider: "ollama"
@@ -636,10 +690,9 @@ llm:
     api:
       max_tokens: 256
 parsing:
-  parser: marker
+  visual:
+    enabled: false
   overwrite: false
-  marker:
-    device: cpu
 optimization:
   num_trials: 1
   train_split: 5
@@ -666,9 +719,13 @@ circuit_breaker:
   reset_timeout: 30.0
   half_open_max_calls: 1
 """
-    config_file = tmp_path / "config.yaml"
-    config_file.write_text(config_content, encoding="utf-8")
-    return config_file
+    # Write monolithic temporary file
+    temp_yaml = tmp_path / "temp_mono.yaml"
+    temp_yaml.write_text(config_content, encoding="utf-8")
+    
+    config_dir = tmp_path / "config"
+    _split_config(temp_yaml, config_dir)
+    return config_dir
 
 
 # ============================================================================
@@ -690,7 +747,7 @@ def tmp_nanozymes_task_yaml(tmp_path_factory) -> Path:
         Path to created nanozymes.yaml file.
     """
     tmp_path = tmp_path_factory.mktemp("config")
-    tasks_dir = tmp_path / "config" / "tasks"
+    tasks_dir = tmp_path / "config" / "tasks" / "nanozymes"
     tasks_dir.mkdir(parents=True, exist_ok=True)
 
     yaml_content = """
@@ -903,27 +960,27 @@ row_converter:
     - ccat_unit
 """
 
-    yaml_path = tasks_dir / "nanozymes.yaml"
+    yaml_path = tasks_dir / "initial_schema.yaml"
     yaml_path.write_text(yaml_content, encoding="utf-8")
     return yaml_path
 
 
 @pytest.fixture(scope="session")
 def tmp_example_system_yaml(tmp_path_factory) -> Path:
-    """Generate a temporary example system YAML file for tests.
+    """Generate a temporary example system config directory for tests.
 
-    This fixture creates a minimal system configuration file in a temporary
+    This fixture creates a minimal system configuration in a temporary
     directory, ensuring tests don't depend on external config files.
 
     Args:
         tmp_path_factory: Pytest temporary directory factory for session scope.
 
     Returns:
-        Path to created example.yaml file.
+        Path to created configuration directory.
     """
-    tmp_path = tmp_path_factory.mktemp("systems")
-    systems_dir = tmp_path / "config" / "systems"
-    systems_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = tmp_path_factory.mktemp("config_dir")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
 
     yaml_content = """
 project:
@@ -967,10 +1024,9 @@ llm:
       max_tokens: 256
 
 parsing:
-  parser: "marker"
+  visual:
+    enabled: false
   overwrite: false
-  marker:
-    device: "cpu"
 
 paths:
   pdf_dir: "data/pdf"
@@ -999,7 +1055,6 @@ optimization:
 
 task:
   name: "nanozymes"
-  initial_instruction_file: "${INSTRUCTION_FILE_PATH}"
 
 extraction:
   enable_cache: false
@@ -1013,7 +1068,9 @@ circuit_breaker:
   reset_timeout: 30.0
   half_open_max_calls: 1
 """
-
-    yaml_path = systems_dir / "example.yaml"
-    yaml_path.write_text(yaml_content, encoding="utf-8")
-    return yaml_path
+    # Write monolithic temporary file
+    temp_yaml = tmp_path / "temp_mono.yaml"
+    temp_yaml.write_text(yaml_content, encoding="utf-8")
+    
+    _split_config(temp_yaml, config_dir)
+    return config_dir

@@ -8,7 +8,7 @@ from _bootstrap import add_src_to_path
 
 add_src_to_path()
 
-from aee.interface.cli.parse import main
+from ae.ingestion.cli import main
 
 if __name__ == "__main__":
     main()

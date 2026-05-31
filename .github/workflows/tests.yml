@@ -35,24 +35,24 @@ jobs:
         uses: actions/cache@v4
         id: cache-conda
         with:
-          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/aee
-          key: ${{ runner.os }}-conda-aee-${{ hashFiles('conda-lock.yml') }}
-          restore-keys: ${{ runner.os }}-conda-aee-
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/ae
+          key: ${{ runner.os }}-conda-ae-${{ hashFiles('conda-lock.yml') }}
+          restore-keys: ${{ runner.os }}-conda-ae-
 
       - name: Install environment from conda-lock
         if: steps.cache-conda.outputs.cache-hit != 'true'
-        run: micromamba create -n aee --file conda-lock.yml
+        run: micromamba create -n ae --file conda-lock.yml
 
       - name: Install local package
         run: |
-          micromamba activate aee
-          pip install --no-deps --no-build-isolation -e ".[dev]"
+          micromamba activate ae
+          pip install --no-deps --no-build-isolation -e ".[development]"
 
       - name: Run unit tests
-        run: pytest tests/unit -v -n auto --cov=src/aee --cov-report=xml --cov-report=term-missing -m unit
+        run: pytest tests/unit -v -n auto --cov=src/ae --cov-report=xml --cov-report=term-missing -m unit
 
       - name: Run integration tests
-        run: pytest tests/integration -v -m "integration and not slow" --cov=src/aee --cov-report=xml --cov-report=term-missing --cov-append
+        run: pytest tests/integration -v -m "integration and not slow" --cov=src/ae --cov-report=xml --cov-report=term-missing --cov-append
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -84,30 +84,30 @@ jobs:
         uses: actions/cache@v4
         id: cache-conda-lint
         with:
-          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/aee
-          key: ${{ runner.os }}-conda-aee-${{ hashFiles('conda-lock.yml') }}
-          restore-keys: ${{ runner.os }}-conda-aee-
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/ae
+          key: ${{ runner.os }}-conda-ae-${{ hashFiles('conda-lock.yml') }}
+          restore-keys: ${{ runner.os }}-conda-ae-
 
       - name: Install environment from conda-lock
         if: steps.cache-conda-lint.outputs.cache-hit != 'true'
-        run: micromamba create -n aee --file conda-lock.yml
+        run: micromamba create -n ae --file conda-lock.yml
 
       - name: Install local package & lint tools
         run: |
-          micromamba activate aee
-          pip install --no-deps --no-build-isolation -e ".[dev]"
+          micromamba activate ae
+          pip install --no-deps --no-build-isolation -e ".[development]"
           pip install flake8 mypy ruff
 
       - name: Run ruff check
-        run: ruff check src/aee tests
+        run: ruff check src/ae tests
 
       - name: Run flake8
         run: |
-          flake8 src/aee tests --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 src/aee tests --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
+          flake8 src/ae tests --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 src/ae tests --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
 
       - name: Run mypy
-        run: mypy src/aee --ignore-missing-imports --no-strict-optional --no-error-summary
+        run: mypy src/ae --ignore-missing-imports --no-strict-optional --no-error-summary
 
   build:
     name: Build & Install
@@ -129,17 +129,17 @@ jobs:
         uses: actions/cache@v4
         id: cache-conda-build
         with:
-          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/aee
-          key: ${{ runner.os }}-conda-aee-${{ hashFiles('conda-lock.yml') }}
-          restore-keys: ${{ runner.os }}-conda-aee-
+          path: ${{ env.MAMBA_ROOT_PREFIX }}/envs/ae
+          key: ${{ runner.os }}-conda-ae-${{ hashFiles('conda-lock.yml') }}
+          restore-keys: ${{ runner.os }}-conda-ae-
 
       - name: Install environment from conda-lock
         if: steps.cache-conda-build.outputs.cache-hit != 'true'
-        run: micromamba create -n aee --file conda-lock.yml
+        run: micromamba create -n ae --file conda-lock.yml
 
       - name: Install build dependencies
         run: |
-          micromamba activate aee
+          micromamba activate ae
           pip install build twine
 
       - name: Build package
@@ -150,5 +150,5 @@ jobs:
 
       - name: Install from wheel
         run: |
-          micromamba activate aee
+          micromamba activate ae
           pip install --no-deps --no-build-isolation dist/*.whl

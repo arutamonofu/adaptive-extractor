@@ -4,7 +4,7 @@ MLflow integration for DSPy experiment tracking.
 
 ## Overview
 
-AutoEvoExtractor uses `mlflow.dspy` for automatic tracking:
+Adaptive Extractor uses `mlflow.dspy` for automatic tracking:
 
 - DSPy program calls and predictions
 - Prompt template evolution

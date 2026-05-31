@@ -1,1 +1,1 @@
-"""Test package for AutoEvoExtractor."""
+"""Test package for Adaptive Extractor."""

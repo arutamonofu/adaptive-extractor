@@ -1,0 +1,75 @@
+# Core Configuration for Adaptive Extractor
+# This file defines global settings, paths, language model instances,
+# and system-wide components (caching, circuit breakers, and current task).
+
+# Project-wide metadata and logging settings
+project:
+  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  log_level: "INFO"
+
+# Active extraction task identifier
+task:
+  name: "nanozymes"
+
+# Large Language Model (LLM) instances for extraction and verification
+llm:
+  # Student model: used for fast, draft-quality extraction candidates
+  student:
+    provider: "api"
+    model: "qwen/qwen3.5-27b"
+    temperature: 0.0
+    top_p: 0.1
+    enable_cache: true
+    # Request timeout in seconds
+    timeout: 600
+    # Wait delay in seconds between consecutive requests to avoid rate limits
+    rate_limit_delay: 10.0
+    max_retries: 3
+    api:
+      max_tokens: 8192
+      base_url: "https://openrouter.ai/api/v1"
+      reasoning:
+        enabled: false
+
+  # Teacher model: high-capacity model used for generation, refinement, and validation
+  teacher:
+    provider: "api"
+    model: "qwen/qwen3.5-397b-a17b"
+    temperature: 1.0
+    top_p: 0.9
+    enable_cache: true
+    # Request timeout in seconds
+    timeout: 600
+    # Wait delay in seconds between consecutive requests to avoid rate limits
+    rate_limit_delay: 10.0
+    max_retries: 3
+    api:
+      max_tokens: 8192
+      base_url: "https://openrouter.ai/api/v1"
+      reasoning:
+        enabled: false
+
+# Directory and file system paths relative to the project root
+paths:
+  pdf_dir: "data/pdf"
+  parsed_dir: "data/parsed"
+  ground_truth_dir: "data/ground_truth"
+  splits_file: "data/splits/nanozymes_pilot.json"
+  agents_dir: "data/agents"
+  extractions_dir: "data/extractions"
+
+# Caching configurations for LLM responses
+cache:
+  # Maximum disk cache size in bytes (e.g. 30 GB)
+  disk_size_limit_bytes: 30000000000
+  # Maximum number of entries in memory cache
+  memory_max_entries: 1000000
+
+# Circuit breaker settings to protect against service outages
+circuit_breaker:
+  # Number of consecutive failures before tripping the circuit open
+  failure_threshold: 8
+  # Timeout in seconds to wait in open state before transitioning to half-open
+  reset_timeout: 30.0
+  # Maximum number of test calls permitted in half-open state
+  half_open_max_calls: 1

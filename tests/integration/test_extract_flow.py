@@ -13,13 +13,13 @@ from pathlib import Path
 
 import pytest
 
-from aee.domain.tasks import get_task, load_task_from_yaml, register_config
+from ae.core.tasks import get_task, load_task_from_yaml, register_config
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_nanozyme_task(tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path: Path):
     """Register nanozyme task for all tests in this module."""
-    from aee.domain.tasks import load_task_from_yaml, register_config
+    from ae.core.tasks import load_task_from_yaml, register_config
 
     task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
     task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
@@ -122,7 +122,7 @@ class TestExtractFlow:
 
     def test_extraction_with_empty_agent(self, extraction_test_setup):
         """Test extraction handles empty/minimal agent gracefully."""
-        from aee.infrastructure.storage import AgentRepository
+        from ae.core.storage import AgentRepository
 
         repo = AgentRepository(agents_dir=extraction_test_setup["agents_dir"])
 
@@ -136,7 +136,7 @@ class TestExtractFlow:
 
     def test_document_loading_for_extraction(self, extraction_test_setup):
         """Test loading documents for extraction."""
-        from aee.infrastructure.storage import DocumentRepository
+        from ae.core.storage import DocumentRepository
 
         repo = DocumentRepository(parsed_dir=extraction_test_setup["parsed_dir"])
 
@@ -181,7 +181,7 @@ class TestTaskPluginIntegration:
 
     def test_task_registry_integration(self, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path):
         """Test task registration and retrieval."""
-        from aee.domain.tasks import TaskRegistry, load_task_from_yaml
+        from ae.core.tasks import TaskRegistry, load_task_from_yaml
 
         registry = TaskRegistry()
 
@@ -220,9 +220,9 @@ class TestAgentStateRestoration:
         self, tmp_path: Path, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
     ):
         """Test agent restoration from flat DSPy format (lm, traces, settings)."""
-        from aee.application.services import AgentManager
-        from aee.domain.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
-        from aee.infrastructure.storage import AgentRepository
+        from ae.core.storage import AgentRepository
+        from ae.core.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
+        from ae.extraction.manager import AgentManager
 
         # Register task first (check if already registered)
         registry = get_global_registry()
@@ -268,9 +268,9 @@ class TestAgentStateRestoration:
         self, tmp_path: Path, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
     ):
         """Test agent restoration from nested format (prog: {...})."""
-        from aee.application.services import AgentManager
-        from aee.domain.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
-        from aee.infrastructure.storage import AgentRepository
+        from ae.core.storage import AgentRepository
+        from ae.core.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
+        from ae.extraction.manager import AgentManager
 
         # Register task first (check if already registered)
         registry = get_global_registry()
@@ -315,10 +315,10 @@ class TestAgentStateRestoration:
         self, tmp_path: Path, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
     ):
         """Test that agent restoration fails with clear error for invalid format."""
-        from aee.application.services import AgentManager
-        from aee.domain.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
-        from aee.infrastructure.storage import AgentRepository
-        from aee.shared.exceptions import UseCaseExecutionError
+        from ae.core.exceptions import UseCaseExecutionError
+        from ae.core.storage import AgentRepository
+        from ae.core.tasks import get_global_registry, get_task, load_task_from_yaml, register_config
+        from ae.extraction.manager import AgentManager
 
         # Register task first (check if already registered)
         registry = get_global_registry()

@@ -1,0 +1,50 @@
+You are creating a visual manifest for a scientific PDF.
+
+PDF: {{PDF_NAME}}
+
+Extraction schema:
+{{SCHEMA}}
+
+Process the entire PDF from first to last page, including Supporting Information, appendices, and pages after references. List all numbered visual objects in the PDF: figures, supplementary figures, extended data figures, schemes, and visual tables. Do not omit objects because they seem irrelevant. Irrelevant objects must still be listed.
+
+For each object decide:
+
+1. `num`: whether it contains a numerical chart.
+A numerical chart has numeric axes, ticks, values, plotted quantities, or quantitative color scale.
+Examples: line plot, scatter plot, bar chart, histogram, spectrum, calibration curve, kinetic curve, time series, heatmap.
+Not numerical charts: microscopy-only images, photos, schemes, drawings, graphical abstracts, logos, ordinary text tables.
+
+2. `rel`: relevance to the extraction schema.
+
+Relevance levels:
+- `direct`: chart itself likely contains values that can fill schema fields.
+- `likely`: chart is closely related to schema fields, but may not show final values directly.
+- `possible`: weak/incomplete connection, but skipping may lose useful data.
+- `unlikely`: chart is very unlikely to help fill the schema.
+
+For multi-panel figures, add panel entries only when panels are visually distinct or have different relevance. If any panel is numerical/relevant, the parent figure must reflect that.
+
+For each whole visual object, set `figure` to the unique figure name used by the PDF, for example `Fig. 3`, `Image 3`, `Scheme 1`, `Supplementary Image S4`, or `Extended Data Fig. 7`. Do not use panel names such as `Fig. 3a` as the whole-object figure name unless the PDF truly labels the whole object that way. If one visual object spans multiple pages, use the same `figure` for all parts.
+
+Use 1-based PDF page numbers in `pages`.
+Do not extract chart data.
+Do not return bounding boxes.
+Return strict JSON only.
+
+Output:
+[
+  {
+    "figure": "Figure 1",
+    "pages": [1],
+    "caption": "",
+    "num": true,
+    "rel": "direct|likely|possible|unlikely",
+    "panels": [
+      {
+        "panel": "a",
+        "num": true,
+        "rel": "direct|likely|possible|unlikely"
+      }
+    ]
+  }
+]

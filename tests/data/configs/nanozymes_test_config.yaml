@@ -53,10 +53,9 @@ llm:
       max_tokens: 256
 
 parsing:
-  parser: "marker"
+  visual:
+    enabled: false
   overwrite: false
-  marker:
-    device: "cpu"
 
 optimization:
   num_trials: 1

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from aee.domain.tasks import TaskRegistry, get_global_registry, get_task, load_task_from_yaml, register_config
+from ae.core.tasks import TaskRegistry, get_global_registry, get_task, load_task_from_yaml, register_config
 
 
 @pytest.mark.integration
@@ -97,7 +97,7 @@ class TestTaskPlugins:
 
     def test_task_not_found_raises(self):
         """Test that getting non-existent task raises error."""
-        from aee.shared.exceptions import TaskNotFoundError
+        from ae.core.exceptions import TaskNotFoundError
 
         registry = TaskRegistry()
 

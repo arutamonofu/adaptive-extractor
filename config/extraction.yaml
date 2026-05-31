@@ -1,0 +1,11 @@
+# Extraction Workflow Configuration
+# This file governs LLM history logging and caching behaviors during extractions.
+
+extraction:
+  # Enable LLM response caching during extraction run to speed up re-runs
+  enable_cache: false
+
+  # Log complete LLM prompts and responses to files for debugging
+  save_llm_history: false
+  # Directory where LLM call histories are written
+  llm_history_dir: "logs/llm_history"

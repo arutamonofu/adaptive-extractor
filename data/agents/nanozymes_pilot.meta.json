@@ -27,6 +27,6 @@
   },
   "git_commit": null,
   "description": "Optimized with 25 trials",
-  "initial_instruction_file": "/mnt/tank/scratch/aartamonov/AutoEvoExtractor/config/initial_instructions/nanozymes_pilot.txt",
+  "initial_instruction_file": "/mnt/tank/scratch/aartamonov/Adaptive Extractor/config/initial_instructions/nanozymes_pilot.txt",
   "instruction_hash": "24f9fa3f3f5c"
 }

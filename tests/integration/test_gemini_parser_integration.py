@@ -12,14 +12,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aee import Settings
-from aee.application.use_cases.parse_documents import (
+from ae import Settings
+from ae.core.config import GeminiParserConfig
+from ae.core.storage import DocumentRepository
+from ae.ingestion.parsers import GeminiParser, get_parser
+from ae.ingestion.pipeline import (
     ParseDocumentsRequest,
     ParseDocumentsUseCase,
 )
-from aee.infrastructure.config import GeminiParserConfig
-from aee.infrastructure.parsers import GeminiParser, get_parser
-from aee.infrastructure.storage import DocumentRepository
 
 
 @pytest.mark.integration
@@ -121,7 +121,7 @@ class TestGeminiParserIntegration:
             input_paths=[pdf1, pdf2],
             output_dir=parsed_dir,
             parser_name="gemini",
-            parser_config=GeminiParserConfig(),
+            parser_config=GeminiParserConfig(request_delay=0.0),
             overwrite=True,
         )
 
@@ -154,9 +154,12 @@ class TestGeminiConfigLoading:
         """Test loading Gemini config from YAML file."""
         # Create required directories and files
         (tmp_path / "data").mkdir()
-        (tmp_path / "config" / "initial_instructions").mkdir(parents=True)
-        instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"
+        
+        task_dir = tmp_path / "config" / "tasks" / "test"
+        task_dir.mkdir(parents=True, exist_ok=True)
+        instruction_file = task_dir / "initial_instruction.txt"
         instruction_file.write_text("test instruction")
+        (task_dir / "initial_schema.yaml").write_text("name: test\ncompare_fields:\n  - formula\nfloat_tolerance: 0.05\nfields:\n  formula:\n    type: str\n    description: inorganic formula\n")
 
         # Create minimal YAML config
         config_path = tmp_path / "gemini_test.yaml"
@@ -211,7 +214,8 @@ llm:
       max_tokens: 512
 
 parsing:
-  parser: "gemini"
+  visual:
+    enabled: false
   overwrite: false
   gemini:
     model_name: "gemini-2.0-flash"
@@ -236,7 +240,6 @@ optimization:
 
 task:
   name: "test"
-  initial_instruction_file: "{instruction_file}"
 
 extraction:
   enable_cache: false
@@ -253,11 +256,15 @@ circuit_breaker:
             encoding="utf-8",
         )
 
-        # Load settings
-        settings = Settings.load(config_path=config_path, load_env_file=False)
+        # Split and load settings from config directory
+        config_dir = tmp_path / "config"
+        from tests.conftest import _split_config
+        _split_config(config_path, config_dir)
+        
+        settings = Settings.load(config_path=config_dir, load_env_file=False)
 
         # Verify parsing config
-        assert settings.parsing.parser == "gemini"
+        assert settings.parsing.visual.enabled is False
         assert settings.parsing.gemini is not None
         assert settings.parsing.gemini.model_name == "gemini-2.0-flash"
         assert settings.parsing.gemini.upload_timeout == 600
@@ -274,9 +281,12 @@ circuit_breaker:
         """Test getting parser instance from loaded settings."""
         # Create required directories and files
         (tmp_path / "data").mkdir()
-        (tmp_path / "config" / "initial_instructions").mkdir(parents=True)
-        instruction_file = tmp_path / "config" / "initial_instructions" / "test.txt"
+        
+        task_dir = tmp_path / "config" / "tasks" / "test"
+        task_dir.mkdir(parents=True, exist_ok=True)
+        instruction_file = task_dir / "initial_instruction.txt"
         instruction_file.write_text("test instruction")
+        (task_dir / "initial_schema.yaml").write_text("name: test\ncompare_fields:\n  - formula\nfloat_tolerance: 0.05\nfields:\n  formula:\n    type: str\n    description: inorganic formula\n")
 
         # Create YAML config (same as above)
         config_path = tmp_path / "gemini_test.yaml"
@@ -331,7 +341,8 @@ llm:
       max_tokens: 512
 
 parsing:
-  parser: "gemini"
+  visual:
+    enabled: false
   overwrite: false
   gemini:
     model_name: "gemini-2.0-flash"
@@ -356,7 +367,6 @@ optimization:
 
 task:
   name: "test"
-  initial_instruction_file: "{instruction_file}"
 
 extraction:
   enable_cache: false
@@ -373,12 +383,17 @@ circuit_breaker:
             encoding="utf-8",
         )
 
-        # Load settings
-        settings = Settings.load(config_path=config_path, load_env_file=False)
+        # Split and load settings from config directory
+        config_dir = tmp_path / "config"
+        from tests.conftest import _split_config
+        _split_config(config_path, config_dir)
+        
+        settings = Settings.load(config_path=config_dir, load_env_file=False)
 
         # Get parser
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}):
-            parser = get_parser(settings.parsing.parser, settings.parsing.gemini)
+            parser_name = "gemini_visual" if settings.parsing.visual.enabled else "gemini"
+            parser = get_parser(parser_name, settings.parsing.gemini)
 
         assert isinstance(parser, GeminiParser)
         assert parser.cfg.model_name == "gemini-2.0-flash"

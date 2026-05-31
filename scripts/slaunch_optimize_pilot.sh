@@ -1,9 +1,9 @@
 #!/bin/sh
 
 . ~/miniconda3/etc/profile.d/conda.sh
-conda activate aee
-cd /mnt/tank/scratch/aartamonov/AutoEvoExtractor
+conda activate ae
+cd /mnt/tank/scratch/aartamonov/Adaptive Extractor
 
 export PYTHONUNBUFFERED=1
 
-python scripts/optimize.py --config config/systems/pilot.yaml
+python scripts/optimize.py

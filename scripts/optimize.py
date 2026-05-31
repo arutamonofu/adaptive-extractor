@@ -10,7 +10,7 @@ from _bootstrap import add_src_to_path
 
 add_src_to_path()
 
-from aee.interface.cli.optimize import optimize_command
+from ae.optimization.cli import optimize_command
 
 if __name__ == "__main__":
     sys.exit(optimize_command())

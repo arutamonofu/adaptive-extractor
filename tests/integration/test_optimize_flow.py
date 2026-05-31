@@ -74,10 +74,10 @@ class TestOptimizeAgentUseCase:
         self, tmp_path: Path, optimization_test_setup, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
     ):
         """Test OptimizeAgentUseCase executes successfully with mocked optimization."""
-        from aee.application.services import AgentManager
-        from aee.application.use_cases import OptimizeAgentRequest, OptimizeAgentUseCase
-        from aee.domain.tasks import load_task_from_yaml, register_config
-        from aee.infrastructure.storage import AgentRepository, GroundTruthRepository
+        from ae.core.storage import AgentRepository, GroundTruthRepository
+        from ae.core.tasks import load_task_from_yaml, register_config
+        from ae.extraction.manager import AgentManager
+        from ae.optimization.orchestrator import OptimizeAgentRequest, OptimizeAgentUseCase
 
         # Load task config and set instruction file
         task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
@@ -85,7 +85,7 @@ class TestOptimizeAgentUseCase:
         register_config(task_config)
 
         # Get registered task
-        from aee.domain.tasks import get_task
+        from ae.core.tasks import get_task
         registered_task = get_task("nanozymes")
 
         # Create directories
@@ -155,10 +155,10 @@ class TestOptimizeAgentUseCase:
         )
 
         # Mock MIPROv2 to avoid actual optimization
-        with patch("aee.application.use_cases.optimize_agent.MIPROv2") as mock_mipro:
+        with patch("ae.optimization.orchestrator.MIPROv2") as mock_mipro:
             # Create mock optimized agent (spec=SerializableAgent ensures
             # the mock passes isinstance checks with @runtime_checkable Protocol)
-            from aee.application.services import SerializableAgent
+            from ae.extraction.agent import SerializableAgent
             mock_optimized_agent = MagicMock(spec=SerializableAgent)
             mock_optimized_agent.dump_state.return_value = {
                 "lm": {"model": "test-model"},
@@ -181,10 +181,11 @@ class TestOptimizeAgentUseCase:
         self, tmp_path: Path, optimization_test_setup, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path
     ):
         """Test OptimizeAgentUseCase handles empty validation set gracefully."""
-        from aee.application.services import AgentManager, DatasetBuilder, DataValidator
-        from aee.application.use_cases import OptimizeAgentRequest, OptimizeAgentUseCase
-        from aee.domain.tasks import load_task_from_yaml, register_config
-        from aee.infrastructure.storage import AgentRepository, DocumentRepository, GroundTruthRepository
+        from ae.core.storage import AgentRepository, DocumentRepository, GroundTruthRepository
+        from ae.core.tasks import load_task_from_yaml, register_config
+        from ae.extraction.manager import AgentManager
+        from ae.optimization.dataset import DatasetBuilder, DataValidator
+        from ae.optimization.orchestrator import OptimizeAgentRequest, OptimizeAgentUseCase
 
         # Register task first
         task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
@@ -192,7 +193,7 @@ class TestOptimizeAgentUseCase:
         register_config(task_config)
 
         # Get task
-        from aee.domain.tasks import get_task
+        from ae.core.tasks import get_task
         task = get_task("nanozymes")
 
         # Create empty validation split
@@ -269,7 +270,7 @@ class TestAgentStateRestoration:
     @pytest.fixture(autouse=True)
     def setup_task(self, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path):
         """Setup task for agent restoration tests."""
-        from aee.domain.tasks import load_task_from_yaml, register_config
+        from ae.core.tasks import load_task_from_yaml, register_config
 
         # Register task first
         task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
@@ -280,9 +281,9 @@ class TestAgentStateRestoration:
 
     def test_restored_agent_is_callable(self, tmp_path: Path):
         """Test that restored agent can be called for inference."""
-        from aee.application.services import AgentManager
-        from aee.domain.tasks import get_task
-        from aee.infrastructure.storage import AgentRepository
+        from ae.core.storage import AgentRepository
+        from ae.core.tasks import get_task
+        from ae.extraction.manager import AgentManager
 
         # Create test directories
         agents_dir = tmp_path / "agents"

@@ -1,0 +1,45 @@
+# Optimization Workflow Configuration
+# This file defines parameters for the DSPy self-optimization routine.
+
+optimization:
+  # Total number of dataset examples to load for training/testing
+  total_load: 10
+  # Number of examples allocated to the training split
+  train_split: 9
+  # Number of prompt candidate instructions to generate per trial
+  num_candidates: 8
+  # Total number of optimization trial steps (rounds) to run
+  num_trials: 25
+
+  # DSPy Few-Shot Settings:
+  # Max bootstrapped/generated demonstrations (use 0 for zero-shot focus)
+  max_bootstrapped_demos: 0
+  # Max hand-labeled demonstrations to include in the prompt
+  max_labeled_demos: 1
+
+  # Evaluation Settings:
+  # Use mini-batching during validation/evaluation steps
+  minibatch: true
+  minibatch_size: 4
+  # Batch size for viewing data details in progress logs
+  view_data_batch_size: 1
+  # Threshold criteria value of target metric to trigger early stopping
+  metric_threshold: 1.0
+
+  # Candidate Generation Settings:
+  # Initial generation temperature for proposing prompt revisions
+  init_temperature: 1.0
+  # Random seed for reproducibility
+  random_seed: 42
+  # Enable LLM response caching during optimization
+  enable_cache: true
+  # Enable verbose progress logs for optimization steps
+  verbose: true
+  # Maximum allowed internal failures before aborting the run
+  max_errors: 3
+
+  # History Tracking Settings:
+  # Save full LLM prompt/response histories for each trial run
+  save_llm_history: true
+  # Directory where LLM optimization histories are written
+  llm_history_dir: "logs/llm_history"

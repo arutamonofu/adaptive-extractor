@@ -10,7 +10,7 @@ from _bootstrap import add_src_to_path
 
 add_src_to_path()
 
-from aee.interface.cli.extract import extract_command
+from ae.extraction.cli import extract_command
 
 if __name__ == "__main__":
     sys.exit(extract_command())
