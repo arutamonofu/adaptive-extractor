@@ -38,21 +38,23 @@ Adaptive Extractor uses `mlflow.dspy` for automatic tracking:
 
 ```bash
 # Disable MLflow tracking
-python scripts/optimize.py --no-mlflow
+ae-optimize --no-mlflow
+# or: python scripts/optimize.py --no-mlflow
 
 # Enable (default)
-python scripts/optimize.py
+ae-optimize
+# or: python scripts/optimize.py
 ```
 
 ### Run Naming
 
 ```bash
 # Experiment A1: Prompt quality comparison
-python scripts/optimize.py --run-name "A1_high"
-python scripts/optimize.py --run-name "A1_low"
+ae-optimize --run-name "A1_high"
+ae-optimize --run-name "A1_low"
 
 # Experiment A2: Teacher temperature comparison
-python scripts/optimize.py --run-name "A2_temp1.0"
+ae-optimize --run-name "A2_temp1.0"
 ```
 
 System appends timestamp automatically (e.g., `A1_high_20260217_143022`).
