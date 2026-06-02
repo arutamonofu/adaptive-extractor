@@ -225,7 +225,8 @@ class BaseHTTPProvider(BaseLMProvider, ABC):
                 attempt += 1
                 logger.warning(f"{self.provider} error (Attempt {attempt}/{self.max_retries}): {e}")
                 if attempt < self.max_retries:
-                    sleep_time = (2 ** attempt) + (0.1 * attempt)
+                    import random
+                    sleep_time = (2 ** attempt) + random.random()
                     time.sleep(sleep_time)
 
         if last_exception:

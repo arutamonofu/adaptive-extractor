@@ -523,6 +523,18 @@ class OptimizationConfig(BaseModel):
         default="logs/llm_history",
         description="Directory for LLM history files"
     )
+    contrastive_analysis: "ContrastiveAnalysisConfig" = Field(
+        default_factory=lambda: ContrastiveAnalysisConfig(),
+        description="Settings for contrastive Ground Truth analyzer"
+    )
+
+
+class ContrastiveAnalysisConfig(BaseModel):
+    """Configuration for contrastive analysis."""
+    enabled: bool = Field(default=False, description="Enable contrastive analysis before optimization")
+    batch_size: int = Field(default=10, description="Default document batch size for contrastive analysis")
+    auto_skip_review: bool = Field(default=False, description="Whether to skip interactive discrepancy review")
+    cache_dir: str = Field(default="data/analysis", description="Directory to cache analysis results")
 
 
 class TaskConfig(BaseModel):

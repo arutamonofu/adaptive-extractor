@@ -55,6 +55,32 @@ def create_argument_parser() -> argparse.ArgumentParser:
         help="Disable MLflow tracking",
     )
 
+    parser.add_argument(
+        "--enable-contrastive",
+        action="store_true",
+        help="Запустить контрастивный анализ перед оптимизацией промпта",
+    )
+
+    parser.add_argument(
+        "--analysis-file",
+        type=Path,
+        default=None,
+        help="Путь к предрассчитанному JSON результату контрастивного анализа (пропуск фаз Map/Reduce)",
+    )
+
+    parser.add_argument(
+        "--analysis-batch-size",
+        type=int,
+        default=10,
+        help="Размер пакета документов для контрастивного анализа",
+    )
+
+    parser.add_argument(
+        "--auto-skip-review",
+        action="store_true",
+        help="Пропустить интерактивный разбор (использовать только 100%% консенсусные правила)",
+    )
+
     return parser
 
 
@@ -178,6 +204,96 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
         # Setup language models
         student_lm, teacher_lm = setup_language_models(custom_settings)
 
+        # Check if contrastive analysis is enabled or analysis_file is provided
+        enable_contrastive = getattr(args, "enable_contrastive", False)
+        analysis_file = getattr(args, "analysis_file", None)
+        
+        schema_in_prompt = False
+        contrastive_prompt = None
+        analysis_result_path = None
+        
+        if enable_contrastive or analysis_file:
+            try:
+                schema_in_prompt = True
+                from ae.optimization.contrastive import (
+                    AnalysisResult,
+                    LocalAnalyzer,
+                    ContrastiveMapRunner,
+                    StrictAggregator,
+                    HumanReviewCLI,
+                    merge_review_into_result,
+                    build_three_level_prompt,
+                    prepare_analysis_inputs
+                )
+                
+                # Prepare folders
+                analysis_dir = Path("data/analysis")
+                analysis_dir.mkdir(parents=True, exist_ok=True)
+                
+                if analysis_file:
+                    analysis_result_path = Path(analysis_file)
+                    logger.info(f"Loading pre-calculated analysis result from {analysis_result_path}")
+                    analysis_result = AnalysisResult.from_json(analysis_result_path)
+                else:
+                    logger.info("Running Map-Reduce contrastive analysis...")
+                    import json
+                    with open(custom_settings.paths.splits_file, "r") as f:
+                        splits = json.load(f)
+                    train_ids = splits.get("train", [])[:args.analysis_batch_size]
+                    
+                    doc_repo = DocumentRepository(parsed_dir=custom_settings.paths.parsed_dir)
+                    documents = {}
+                    for doc_id in train_ids:
+                        try:
+                            doc = doc_repo.get(doc_id)
+                            if doc:
+                                documents[doc_id] = doc.content
+                        except Exception as e:
+                            logger.warning(f"Failed to load document {doc_id}: {e}")
+                    
+                    gt_path_loc = custom_settings.paths.ground_truth_dir / f"{task_name}.csv"
+                    gt_repo_loc = GroundTruthRepository()
+                    gt_data_loc = gt_repo_loc.load(gt_path_loc, task["row_converter"])
+                    
+                    inputs = prepare_analysis_inputs(task["config"], train_ids, documents, gt_data_loc)
+                    
+                    if not teacher_lm:
+                        logger.error("Teacher LM is required for contrastive analysis")
+                        return 1
+                    
+                    analyzer = LocalAnalyzer(lm=teacher_lm, task_config=task["config"], cache_dir=str(analysis_dir))
+                    runner = ContrastiveMapRunner(analyzer=analyzer, max_concurrent=1)
+                    
+                    import asyncio
+                    map_results = asyncio.run(runner.run_batch(inputs))
+                    
+                    aggregator = StrictAggregator(lm=teacher_lm, task_config=task["config"], cache_dir=str(analysis_dir))
+                    analysis_result = aggregator.aggregate(map_results)
+                    
+                    analysis_result_path = analysis_dir / f"{task_name}_analysis_result.json"
+                    analysis_result.to_json(analysis_result_path)
+                
+                auto_skip_review = getattr(args, "auto_skip_review", False)
+                if not auto_skip_review and analysis_result.has_discrepancies():
+                    review_cli = HumanReviewCLI(analysis_result)
+                    session = review_cli.run()
+                    analysis_result = merge_review_into_result(analysis_result, session)
+                    analysis_result.to_json(analysis_result_path)
+                
+                contrastive_prompt = build_three_level_prompt(analysis_result)
+                prompt_path = analysis_result_path.with_suffix(".txt")
+                with open(prompt_path, "w", encoding="utf-8") as f:
+                    f.write(contrastive_prompt)
+                logger.info(f"Contrastive prompt compiled and saved to {prompt_path}")
+            except Exception as contrastive_err:
+                logger.warning(
+                    f"Contrastive analysis failed with error: {contrastive_err}. "
+                    f"Falling back to default signature/instruction and continuing optimization."
+                )
+                schema_in_prompt = False
+                contrastive_prompt = None
+                analysis_result_path = None
+
         # Create dependencies
         dataset_builder, agent_manager, gt_repo, tracker = create_dependencies(
             args, task, task_name, custom_settings
@@ -275,6 +391,9 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
             run_name_prefix=args.run_name,
             initial_instruction_file=task["config"].initial_instruction_file,
             instruction_hash=instruction_metadata["instruction_hash"],
+            schema_in_prompt=schema_in_prompt,
+            analysis_result_path=analysis_result_path,
+            contrastive_prompt=contrastive_prompt,
         )
 
         # Execute optimization
@@ -315,10 +434,127 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
 
 
 
+import click
+
+@click.group()
+def cli():
+    pass
+
+@click.command("analyze")
+@click.option("--config", default="config/core.yaml", help="Путь к core.yaml")
+@click.option("--batch-size", default=10, help="Количество документов для анализа")
+@click.option("--output", default=None, help="Путь для сохранения итогового JSON результатов")
+@click.option("--auto-skip-review", is_flag=True, help="Пропустить интерактивный разбор")
+def analyze_command(config, batch_size, output, auto_skip_review):
+    """Выполняет контрастивный анализ данных Ground Truth и формирует правила."""
+    settings = Settings.load(config_path=Path(config))
+    setup_logging(settings)
+    
+    student_lm, teacher_lm = setup_language_models(settings)
+    if not teacher_lm:
+        logger.error("Teacher LM is required for contrastive analysis")
+        sys.exit(1)
+        
+    task_name = settings.task.name
+    task, _ = load_task_with_instruction(task_name, settings)
+    task_config = task["config"]
+    
+    doc_repo = DocumentRepository(parsed_dir=settings.paths.parsed_dir)
+    gt_repo = GroundTruthRepository()
+    
+    from ae.optimization.dataset import DatasetBuilder
+    dataset_builder = DatasetBuilder(document_repo=doc_repo, gt_repo=gt_repo)
+    
+    import json
+    with open(settings.paths.splits_file, "r") as f:
+        splits = json.load(f)
+    train_ids = splits.get("train", [])[:batch_size]
+    
+    gt_data = gt_repo.load(settings.paths.ground_truth_dir / f"{task_name}.csv", task["row_converter"])
+    
+    documents = {}
+    for doc_id in train_ids:
+        try:
+            doc = doc_repo.get(doc_id)
+            if doc:
+                documents[doc_id] = doc.content
+        except Exception as e:
+            logger.warning(f"Failed to load document {doc_id}: {e}")
+            
+    from ae.optimization.contrastive import (
+        prepare_analysis_inputs,
+        LocalAnalyzer,
+        ContrastiveMapRunner,
+        StrictAggregator,
+        HumanReviewCLI,
+        merge_review_into_result,
+        build_three_level_prompt,
+    )
+    
+    inputs = prepare_analysis_inputs(task_config, train_ids, documents, gt_data)
+    
+    analyzer = LocalAnalyzer(lm=teacher_lm, task_config=task_config, cache_dir="data/analysis")
+    runner = ContrastiveMapRunner(analyzer=analyzer, max_concurrent=1)
+    
+    import asyncio
+    map_results = asyncio.run(runner.run_batch(inputs))
+    
+    aggregator = StrictAggregator(lm=teacher_lm, task_config=task_config, cache_dir="data/analysis")
+    analysis_result = aggregator.aggregate(map_results)
+    
+    if not auto_skip_review and analysis_result.has_discrepancies():
+        review_cli = HumanReviewCLI(analysis_result)
+        session = review_cli.run()
+        analysis_result = merge_review_into_result(analysis_result, session)
+        
+    output_path = Path(output) if output else Path(f"data/analysis/{task_name}_analysis_result.json")
+    analysis_result.to_json(output_path)
+    logger.info(f"Saved analysis results to {output_path}")
+    
+    prompt = build_three_level_prompt(analysis_result)
+    prompt_path = output_path.with_suffix(".txt")
+    with open(prompt_path, "w", encoding="utf-8") as f:
+        f.write(prompt)
+    logger.info(f"Saved compiled three-level prompt to {prompt_path}")
+
+
+@click.command("review")
+@click.option("--analysis-file", required=True, type=click.Path(exists=True), help="Путь к JSON-файлу результатов анализа")
+@click.option("--auto-skip", is_flag=True, help="Автоматически пропускать все расхождения")
+def review_command(analysis_file, auto_skip):
+    """Запускает интерактивную сессию разрешения расхождений."""
+    from ae.optimization.contrastive import AnalysisResult, HumanReviewCLI, merge_review_into_result, build_three_level_prompt
+    
+    analysis_path = Path(analysis_file)
+    analysis_result = AnalysisResult.from_json(analysis_path)
+    
+    review_cli = HumanReviewCLI(analysis_result)
+    session = review_cli.run(auto_skip=auto_skip)
+    analysis_result = merge_review_into_result(analysis_result, session)
+    
+    analysis_result.to_json(analysis_path)
+    logger.info(f"Updated analysis results saved to {analysis_path}")
+    
+    prompt = build_three_level_prompt(analysis_result)
+    prompt_path = analysis_path.with_suffix(".txt")
+    with open(prompt_path, "w", encoding="utf-8") as f:
+        f.write(prompt)
+    logger.info(f"Updated compiled three-level prompt saved to {prompt_path}")
+
+cli.add_command(analyze_command)
+cli.add_command(review_command)
+
 def main():
     """Main entry point."""
-    sys.exit(optimize_command())
-
+    if len(sys.argv) > 1 and sys.argv[1] in ["analyze", "review"]:
+        # Route to Click subcommands
+        cli()
+    else:
+        # Fallback to optimize_command (legacy compatibility)
+        args = sys.argv[1:]
+        if args and args[0] == "optimize":
+            args = args[1:]
+        sys.exit(optimize_command(args))
 
 if __name__ == "__main__":
     main()

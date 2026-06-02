@@ -43,3 +43,10 @@ optimization:
   save_llm_history: true
   # Directory where LLM optimization histories are written
   llm_history_dir: "logs/llm_history"
+
+  # Contrastive Ground Truth analysis configuration
+  contrastive_analysis:
+    enabled: false               # По умолчанию выключен
+    batch_size: 10              # Размер батча документов по умолчанию
+    auto_skip_review: false      # Пропускать ли разбор противоречий
+    cache_dir: "data/analysis"   # Папка для сохранения результатов

@@ -157,7 +157,7 @@ def create_experiment_model(
 
     for field_name, spec in task_config.experiment_fields.items():
         field_type = _create_field_type(spec)
-        pydantic_field = spec.to_pydantic_field()
+        pydantic_field = spec.to_pydantic_field(minimal_description=getattr(task_config, "_schema_in_prompt", False))
 
         # For str-typed fields, add coercion validator to handle numeric JSON values from LLM
         if spec.type is str or spec.type == "str" or spec.type == "string":

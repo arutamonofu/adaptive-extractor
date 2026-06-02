@@ -39,10 +39,10 @@ llm:
     top_p: 0.9
     enable_cache: true
     # Request timeout in seconds
-    timeout: 600
+    timeout: 300
     # Wait delay in seconds between consecutive requests to avoid rate limits
     rate_limit_delay: 10.0
-    max_retries: 3
+    max_retries: 5
     api:
       max_tokens: 8192
       base_url: "https://openrouter.ai/api/v1"

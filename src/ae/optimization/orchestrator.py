@@ -94,6 +94,9 @@ class OptimizeAgentRequest:
     verbose: bool = True
     initial_instruction_file: Optional[str] = None
     instruction_hash: Optional[str] = None
+    schema_in_prompt: bool = False
+    analysis_result_path: Optional[Path] = None
+    contrastive_prompt: Optional[str] = None
 
 
 @dataclass
@@ -195,6 +198,29 @@ class OptimizeAgentUseCase:
             Response with optimization results.
         """
         try:
+            # If contrastive mode is active, recreate signature class and override it in request
+            if request.schema_in_prompt and request.contrastive_prompt:
+                logger.info("Overriding signature class with contrastive prompt and minimal descriptions")
+                from ae.core.tasks.signature import create_signature
+                from ae.core.tasks.dynamic_models import create_experiment_model, create_output_model
+                
+                task_config = request.task["config"]
+                # Use minimal config so that descriptions inside fields are minimized
+                minimal_config = task_config.get_minimal_config()
+                
+                experiment_model = create_experiment_model(minimal_config)
+                output_model = create_output_model(minimal_config, experiment_model)
+                
+                # Recreate signature class with contrastive_prompt
+                sig_class = create_signature(
+                    task_config=task_config,
+                    experiment_model=experiment_model,
+                    output_model=output_model,
+                    instruction=request.contrastive_prompt,
+                    schema_in_prompt=True
+                )
+                request.signature_class = sig_class
+
             # Get task name from config object (TaskConfig has .name attribute)
             task_name = request.task["config"].name
             logger.info(
@@ -210,6 +236,40 @@ class OptimizeAgentUseCase:
                 else:
                     run_name = f"optimization_{timestamp}"
                 self.tracker.start_run(run_name=run_name)
+
+                # Log contrastive analysis metrics if active
+                if request.schema_in_prompt and request.analysis_result_path:
+                    try:
+                        from ae.optimization.contrastive import AnalysisResult, ReviewSession
+                        res_path = Path(request.analysis_result_path)
+                        if res_path.exists():
+                            analysis_result = AnalysisResult.from_json(res_path)
+                            resolved_count = 0
+                            review_path = res_path.parent / f"{analysis_result.task_name}_review.json"
+                            if review_path.exists():
+                                try:
+                                    session = ReviewSession.from_json(review_path)
+                                    resolved_count = len(session.resolved_rules)
+                                except Exception:
+                                    import json
+                                    with open(review_path, "r", encoding="utf-8") as f:
+                                        sess_data = json.load(f)
+                                    resolved_count = len(sess_data.get("resolved_rules", []))
+                                    
+                            self.tracker.log_metrics({
+                                "contrastive_analyzed_documents": float(analysis_result.analyzed_documents),
+                                "contrastive_verified_rules_count": float(len(analysis_result.verified_rules)),
+                                "contrastive_discrepancies_count": float(len(analysis_result.discrepancies) + resolved_count),
+                                "contrastive_resolved_discrepancies": float(resolved_count)
+                            })
+                            
+                            if request.contrastive_prompt:
+                                prompt_temp_path = res_path.parent / f"{analysis_result.task_name}_contrastive_prompt.txt"
+                                with open(prompt_temp_path, "w", encoding="utf-8") as f:
+                                    f.write(request.contrastive_prompt)
+                                self.tracker.log_artifact(prompt_temp_path)
+                    except Exception as tracker_err:
+                        logger.warning(f"Failed to log contrastive metrics/artifacts to MLflow: {tracker_err}")
 
             # Step 1: Load ground truth (once, reuse for validation and dataset building)
             logger.info(f"Loading ground truth from {request.gt_path}")
@@ -429,6 +489,7 @@ class OptimizeAgentUseCase:
             provide_traceback=True,
             num_threads=1,
             async_max_workers=1,
+            cache=False,  # Принудительно отключаем кэш DSPy
         )
 
         # Run optimization with explicit valset

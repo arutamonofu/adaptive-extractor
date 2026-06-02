@@ -38,6 +38,7 @@ class FieldSpec:
     min_value: Optional[float] = None
     max_value: Optional[float] = None
     pattern: Optional[str] = None
+    field_name: Optional[str] = None
 
     def __post_init__(self):
         """Validate field specification after initialization."""
@@ -57,14 +58,17 @@ class FieldSpec:
             # Optional fields without default should have None as default
             self.default = None
 
-    def to_pydantic_field(self) -> "PydanticField":  # type: ignore[valid-type]
+    def to_pydantic_field(self, minimal_description: bool = False) -> "PydanticField":  # type: ignore[valid-type]
         """Convert FieldSpec to Pydantic Field.
 
         Returns:
             Pydantic Field with appropriate constraints.
         """
+        desc = self.field_name if minimal_description else self.description
+        if desc is None:
+            desc = ""
         field_kwargs: Dict[str, Any] = {
-            "description": self.description,
+            "description": desc,
         }
 
         if not self.required:
@@ -133,9 +137,15 @@ class TaskConfig:
     initial_instruction_file: Optional[str] = None
     row_converter: RowConverterConfig = field(default_factory=RowConverterConfig)
     base_class: Optional[Type[BaseModel]] = None
+    _schema_in_prompt: bool = False
+    judge_field_descriptions: Optional[Dict[str, str]] = None
 
     def __post_init__(self):
         """Validate task configuration after initialization."""
+        for name, spec in self.experiment_fields.items():
+            if hasattr(spec, "field_name") and spec.field_name is None:
+                spec.field_name = name
+
         if not self.name or not isinstance(self.name, str):
             raise ValueError("Task name must be a non-empty string")
 
@@ -225,11 +235,23 @@ class TaskConfig:
             Dictionary mapping field names to their descriptions.
             Only includes fields that have a description.
         """
+        if self.judge_field_descriptions is not None:
+            return self.judge_field_descriptions
         return {
             name: spec.description
             for name, spec in self.experiment_fields.items()
             if spec.description
         }
+
+    def get_minimal_config(self) -> "TaskConfig":
+        """Возвращает копию TaskConfig с минимальными описаниями полей."""
+        import copy
+        config_copy = copy.deepcopy(self)
+        config_copy._schema_in_prompt = True
+        config_copy.judge_field_descriptions = self.field_descriptions
+        for name, spec in config_copy.experiment_fields.items():
+            spec.description = name
+        return config_copy
 
     def get_field_choices(self, field_name: str) -> Optional[List[str]]:
         """Get choices for a field if it's a Literal type.
@@ -324,7 +346,7 @@ class TaskConfig:
         errors: list[str] = []
 
         # Validate description
-        if not spec.description:
+        if not getattr(self, "_schema_in_prompt", False) and not spec.description:
             errors.append(f"Field '{field_name}' must have a description")
 
         # Validate choices
