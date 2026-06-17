@@ -94,6 +94,18 @@ def setup_language_models(config=None, enable_cache: bool = True):
     Returns:
         Tuple of (student_lm, teacher_lm).
     """
+    # Configure DSPy cache ONCE before creating any LM instances.
+    # dspy.configure_cache() creates a FanoutCache(shards=16) on ~/.dspy_cache/.
+    # Calling it multiple times (once per LM) causes SQLite lock contention across
+    # all 16 shards → 5-6 minute freeze during MIPROv2 Step 2. Must be called once.
+    import dspy
+    if enable_cache:
+        dspy.configure_cache(enable_disk_cache=True, enable_memory_cache=True)
+        logger.debug("DSPy cache enabled (disk + memory)")
+    else:
+        dspy.configure_cache(enable_disk_cache=False, enable_memory_cache=False)
+        logger.info("DSPy cache disabled for fresh predictions")
+
     # Import LLM setup functions
     from ae.core.llm import setup_student, setup_teacher
 

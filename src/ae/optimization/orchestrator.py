@@ -484,12 +484,14 @@ class OptimizeAgentUseCase:
 
         # Set the LM for optimization with traceback enabled for detailed error reporting
         # num_threads=1 and async_max_workers=1 to avoid rate-limiting on teacher LLM (OpenRouter)
+        # Note: cache is managed via dspy.configure_cache() in setup_language_models(); do NOT pass cache=False
+        # here as it conflicts with the disk cache state and can cause a multi-minute freeze during
+        # MIPROv2 Step 2 (Propose Instruction Candidates).
         dspy.settings.configure(
             lm=request.student_lm,
             provide_traceback=True,
             num_threads=1,
             async_max_workers=1,
-            cache=False,  # Принудительно отключаем кэш DSPy
         )
 
         # Run optimization with explicit valset

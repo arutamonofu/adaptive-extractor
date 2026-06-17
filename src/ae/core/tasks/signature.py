@@ -82,6 +82,9 @@ def create_signature(
 
     # Dynamically create the class inheriting from dspy.Signature
     DynamicSignature = type(signature_name, (dspy.Signature,), class_attributes)
+    # Ensure __name__, __qualname__ and __module__ are set for DSPy's propose/utils.py
+    DynamicSignature.__qualname__ = signature_name
+    DynamicSignature.__module__ = __name__
     # Set the output model as attribute/type hint for the output field so TypedPredictor knows it
     DynamicSignature.__annotations__ = {
         "document_text": str,

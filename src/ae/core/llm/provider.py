@@ -142,10 +142,23 @@ class BaseLMProvider(dspy.LM, ABC):
 
         return new_instance
 
-    @abstractmethod
     def __call__(self, prompt: Optional[Union[str, List[Dict[str, str]]]] = None, **kwargs) -> List[str]:
-        """Call the LLM with a prompt."""
-        ...
+        """Call the LLM. Fully overrides dspy.LM.__call__ via Python MRO.
+
+        In DSPy 3.x, dspy.LM.__call__ is decorated with @with_callbacks and calls
+        self.forward() + self._process_lm_response(). Since our providers return
+        List[str] (not a LiteLLM ModelResponse), we must fully replace __call__
+        rather than overriding forward() alone, which would break _process_lm_response.
+
+        Python MRO ensures our __call__ is found first when DSPy resolves the method
+        on the instance, so dspy.context() / dspy.settings.lm calls go through here.
+        """
+        raise NotImplementedError("Subclasses must implement __call__")
+
+    def forward(self, prompt=None, **kwargs):  # type: ignore[override]
+        """Stub: not used. Our __call__ fully replaces dspy.LM.__call__ via MRO."""
+        # Called only if dspy internals somehow invoke forward() directly.
+        return self(prompt=prompt, **kwargs)
 
 
 class BaseHTTPProvider(BaseLMProvider, ABC):
@@ -168,15 +181,33 @@ class BaseHTTPProvider(BaseLMProvider, ABC):
         if self.max_retries < 0:
             raise ValueError("Max retries cannot be negative")
 
+        # Initialize rate limiter if configured
+        self._rate_limiter: Optional[RateLimiter] = None
+        if config.rate_limit_delay is not None and config.rate_limit_delay > 0:
+            if config.provider == "ollama" and config.ollama:
+                b_url = config.ollama.ollama_base_url or "http://localhost:11434"
+                provider_url = b_url.rstrip("/") + "/api/chat"
+            elif config.provider == "api" and config.api:
+                provider_url = (config.api.base_url or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
+            else:
+                provider_url = f"{config.provider}-{config.model}"
+            self._rate_limiter = _get_provider_rate_limiter(provider_url, config.rate_limit_delay)
+
     def __call__(self, prompt: Optional[Union[str, List[Dict[str, str]]]] = None, **kwargs) -> List[str]:
+        """Execute HTTP request to the LLM provider.
+
+        Fully overrides dspy.LM.__call__ via Python MRO so that DSPy 3.x internal
+        calls (e.g. inside dspy.context()) are routed here instead of going to
+        dspy.LM.forward() + LiteLLM.
+        """
+        messages = kwargs.pop("messages", None)
         if prompt is None:
-            prompt = kwargs.get("messages")
+            prompt = messages
         if prompt is None:
             return [""]
 
         messages = self._normalize_prompt(prompt)
-        kwargs_copy = kwargs.copy()
-        kwargs_copy.pop("messages", None)
+        kwargs_copy = {k: v for k, v in kwargs.items() if k != "messages"}
         payload = self._prepare_payload(messages, **kwargs_copy)
         text_response = self._execute_request(payload)
         self._update_history(messages, text_response, kwargs)
@@ -208,11 +239,19 @@ class BaseHTTPProvider(BaseLMProvider, ABC):
         last_exception: Optional[Exception] = None
 
         while attempt < self.max_retries:
+            if self._rate_limiter:
+                self._rate_limiter.wait()
+
+            logger.info(f"[{self.provider}] Sending request to {self.model} (Attempt {attempt + 1}/{self.max_retries})...")
             try:
                 if self._circuit_breaker:
-                    return self._circuit_breaker.call(self._make_request, payload)
+                    res = self._circuit_breaker.call(self._make_request, payload)
                 else:
-                    return self._make_request(payload)
+                    res = self._make_request(payload)
+
+                if self._rate_limiter:
+                    self._rate_limiter.update_last_call_time()
+                return res
             except CircuitBreakerError:
                 timeout = self._circuit_breaker.reset_timeout if self._circuit_breaker else "unknown"
                 logger.warning(
@@ -460,24 +499,38 @@ class RateLimiter:
         self.last_call_time: Optional[float] = None
 
     def __deepcopy__(self, memo) -> 'RateLimiter':
-        return RateLimiter(delay=self.delay)
+        # Share the exact same RateLimiter instance on deepcopy so that copied LM instances
+        # continue to share the same rate limits for the endpoint.
+        return self
 
     def __copy__(self) -> 'RateLimiter':
-        return self.__deepcopy__({})
+        return self
+
+    def wait(self) -> None:
+        """Wait if the rate limit delay has not elapsed since the last call."""
+        with self.lock:
+            if self.last_call_time is not None and self.delay > 0:
+                elapsed = time.monotonic() - self.last_call_time
+                if elapsed < self.delay:
+                    sleep_time = self.delay - elapsed
+                    logger.info(f"Rate limiting: sleeping for {sleep_time:.2f}s before request")
+                    time.sleep(sleep_time)
+
+    def update_last_call_time(self) -> None:
+        """Update the timestamp of the last successful call."""
+        with self.lock:
+            self.last_call_time = time.monotonic()
 
     def __call__(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            with self.lock:
-                if self.last_call_time is not None and self.delay > 0:
-                    elapsed = time.monotonic() - self.last_call_time
-                    if elapsed < self.delay:
-                        time.sleep(self.delay - elapsed)
-
+            self.wait()
+            try:
                 result = func(*args, **kwargs)
-
-            self.last_call_time = time.monotonic()
-            return result
+                self.update_last_call_time()
+                return result
+            except Exception:
+                raise
         return wrapper
 
 
@@ -496,23 +549,6 @@ def _get_provider_rate_limiter(base_url: str, delay: float) -> RateLimiter:
             _PROVIDER_RATE_LIMITERS[base_url] = RateLimiter(delay)
             logger.debug(f"Created global rate limiter for {base_url} (delay={delay}s)")
         return _PROVIDER_RATE_LIMITERS[base_url]
-
-
-def _apply_rate_limit(lm: dspy.LM, base_url: str, delay: float) -> dspy.LM:
-    """Apply a thread-safe global rate limit shared across all LM instances of the same provider.
-
-    Args:
-        lm: The LM instance to wrap.
-        base_url: Provider base URL (used as shared limiter key).
-        delay: Rate limit delay in seconds.
-
-    Returns:
-        LM instance with rate-limited __call__.
-    """
-    rate_limiter = _get_provider_rate_limiter(base_url, delay)
-    original_call = lm.__call__
-    lm.__call__ = rate_limiter(original_call)
-    return lm
 
 
 def create_lm(
@@ -540,20 +576,14 @@ def create_lm(
 
     logger.info(f"Initializing LLM: {config.model} (provider: {config.provider})")
 
+    # NOTE: dspy.configure_cache() must NOT be called here.
+    # Each call creates a new FanoutCache(shards=16) on ~/.dspy_cache/, and calling
+    # it twice (once for student, once for teacher) causes SQLite lock contention
+    # across all 16 shards, resulting in a 5-6 minute freeze during MIPROv2 Step 2.
+    # Cache must be configured exactly once, before any LM is created (e.g. in
+    # setup_language_models or at CLI startup).
     use_cache = enable_cache if enable_cache is not None else config.enable_cache
-
-    if use_cache:
-        dspy.configure_cache(
-            enable_disk_cache=True,
-            enable_memory_cache=True,
-        )
-        logger.debug("DSPy cache enabled (disk + memory)")
-    else:
-        dspy.configure_cache(
-            enable_disk_cache=False,
-            enable_memory_cache=False,
-        )
-        logger.info("DSPy cache disabled for fresh predictions")
+    logger.debug(f"LM cache setting: {'enabled' if use_cache else 'disabled'} (managed externally)")
 
     circuit_breaker = None
     if enable_circuit_breaker:
@@ -582,18 +612,9 @@ def create_lm(
     else:
         raise ValueError(f"Unknown provider: {config.provider}")
 
-    if config.rate_limit_delay is not None and config.rate_limit_delay > 0:
-        # Determine base_url for shared rate limiter key
-        if config.provider == "ollama" and config.ollama:
-            base_url = config.ollama.ollama_base_url or "http://localhost:11434"
-            provider_url = base_url.rstrip("/") + "/api/chat"
-        elif config.provider == "api" and config.api:
-            provider_url = (config.api.base_url or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
-        else:
-            provider_url = f"{config.provider}-{config.model}"
-
-        lm = _apply_rate_limit(lm, provider_url, config.rate_limit_delay)
-
+    # Note: rate limiter is now initialized internally inside BaseHTTPProvider.__init__
+    # and applied during _execute_request, which correctly integrates with DSPy's
+    # class-level __call__ dispatch mechanism.
     return lm
 
 
