@@ -3,13 +3,13 @@
 
 optimization:
   # Total number of dataset examples to load for training/testing
-  total_load: 3
+  total_load: 15
   # Number of examples allocated to the training split
-  train_split: 2
+  train_split: 9
   # Number of prompt candidate instructions to generate per trial
-  num_candidates: 4
+  num_candidates: 12
   # Total number of optimization trial steps (rounds) to run
-  num_trials: 3
+  num_trials: 44
 
   # DSPy Few-Shot Settings:
   # Max bootstrapped/generated demonstrations (use 0 for zero-shot focus)
