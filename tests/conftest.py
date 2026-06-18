@@ -556,12 +556,12 @@ def config_with_instruction_file(
     
     # Create instruction file in task directory
     task_name = "test"  # Matches template
-    instruction_file = tmp_path / "config" / "tasks" / task_name / "initial_instruction.txt"
+    instruction_file = tmp_path / "config" / "tasks" / task_name / "generated_instruction.txt"
     instruction_file.parent.mkdir(parents=True, exist_ok=True)
     instruction_file.write_text("Test instruction")
     
-    # Also write a dummy initial_schema.yaml so validator passes
-    (instruction_file.parent / "initial_schema.yaml").write_text("name: test\nfields:\n  a: str\ncompare_fields: [a]\nfloat_tolerance: 0.05\n", encoding="utf-8")
+    # Also write a dummy generated_schema.yaml so validator passes
+    (instruction_file.parent / "generated_schema.yaml").write_text("name: test\nfields:\n  a: str\ncompare_fields: [a]\nfloat_tolerance: 0.05\n", encoding="utf-8")
 
     # Load template and split it
     _split_config(llm_config_template_path, config_dir)
@@ -609,7 +609,7 @@ def tmp_instruction_file(tmp_path: Path) -> Path:
         Path to created instruction file.
     """
     instruction_file = (
-        tmp_path / "config" / "tasks" / "nanozymes" / "initial_instruction.txt"
+        tmp_path / "config" / "tasks" / "nanozymes" / "generated_instruction.txt"
     )
     instruction_file.parent.mkdir(parents=True, exist_ok=True)
     instruction_file.write_text(
@@ -617,7 +617,7 @@ def tmp_instruction_file(tmp_path: Path) -> Path:
         "Focus on key experimental parameters and results."
     )
     # Also write a minimal schema YAML so settings task validator passes
-    schema_file = instruction_file.parent / "initial_schema.yaml"
+    schema_file = instruction_file.parent / "generated_schema.yaml"
     schema_file.write_text(
         "name: nanozymes\n"
         "compare_fields:\n"
@@ -960,7 +960,7 @@ row_converter:
     - ccat_unit
 """
 
-    yaml_path = tasks_dir / "initial_schema.yaml"
+    yaml_path = tasks_dir / "generated_schema.yaml"
     yaml_path.write_text(yaml_content, encoding="utf-8")
     return yaml_path
 

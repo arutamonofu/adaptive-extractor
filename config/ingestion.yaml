@@ -18,7 +18,7 @@ parsing:
     # Use layout visual pipeline (extracts charts/tables and adds anchors)
     enabled: false
     # task_config_path is omitted here to automatically resolve to:
-    # "config/tasks/{task.name}/initial_schema.yaml"
+    # "config/tasks/{task.name}/generated_schema.yaml"
 
     gemini:
       model: "gemini-3-flash-preview"

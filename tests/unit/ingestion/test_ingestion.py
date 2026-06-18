@@ -86,7 +86,7 @@ class TestAEVisualParser:
     def test_visual_config(self):
         config = AEVisualParserConfig(
             enabled=True,
-            task_config_path="config/tasks/nanozymes/initial_schema.yaml",
+            task_config_path="config/tasks/nanozymes/generated_schema.yaml",
             pipeline={
                 "models": {
                     "manifest": {"provider": "gemini", "model": "gemini-3-flash-preview"},
@@ -97,7 +97,7 @@ class TestAEVisualParser:
             },
             gemini=GeminiParserConfig(model_name="gemini-2.0-flash")
         )
-        assert config.task_config_path == "config/tasks/nanozymes/initial_schema.yaml"
+        assert config.task_config_path == "config/tasks/nanozymes/generated_schema.yaml"
         assert config.gemini.model_name == "gemini-2.0-flash"
 
         ing_config = IngestionConfig(visual=config, overwrite=False)
@@ -110,7 +110,7 @@ class TestAEVisualParser:
     def test_visual_parse_success(self, mock_run_pipeline, mock_client):
         config = AEVisualParserConfig(
             enabled=True,
-            task_config_path="config/tasks/nanozymes/initial_schema.yaml",
+            task_config_path="config/tasks/nanozymes/generated_schema.yaml",
             pipeline={
                 "models": {
                     "manifest": {"provider": "gemini", "model": "gemini-3-flash-preview"},

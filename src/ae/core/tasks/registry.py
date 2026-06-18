@@ -322,8 +322,8 @@ def load_task_with_instruction(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Load task with initial instruction from task directory.
 
-    Loads task configuration from tasks/{task_name}/initial_schema.yaml,
-    applies initial_instruction.txt from the same directory, registers the task,
+    Loads task configuration from tasks/{task_name}/generated_schema.yaml,
+    applies generated_instruction.txt from the same directory, registers the task,
     and returns all task components along with instruction metadata.
 
     Args:
@@ -339,7 +339,7 @@ def load_task_with_instruction(
     """
     # Find project root and build YAML path
     project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
-    yaml_path = project_root / "config" / "tasks" / task_name / "initial_schema.yaml"
+    yaml_path = project_root / "config" / "tasks" / task_name / "generated_schema.yaml"
 
     if not yaml_path.exists():
         raise FileNotFoundError(f"Task schema YAML config not found: {yaml_path}")
@@ -349,7 +349,7 @@ def load_task_with_instruction(
 
     # Set initial_instruction_file resolved path for internal DSPy compatibility
     task_config.initial_instruction_file = str(
-        project_root / "config" / "tasks" / task_name / "initial_instruction.txt"
+        project_root / "config" / "tasks" / task_name / "generated_instruction.txt"
     )
 
     # Register task in global registry

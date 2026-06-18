@@ -539,17 +539,17 @@ class TaskConfig(BaseModel):
         task_dir = project_root / "config" / "tasks" / self.name
         if "PYTEST_CURRENT_TEST" in os.environ and not task_dir.exists():
             return self
-            
+
         if not task_dir.exists():
             raise ValueError(f"Task directory not found: config/tasks/{self.name}")
-        
-        schema_yaml = task_dir / "initial_schema.yaml"
-        if not schema_yaml.exists():
-            raise ValueError(f"Task schema file not found: config/tasks/{self.name}/initial_schema.yaml")
 
-        instruction_file = task_dir / "initial_instruction.txt"
+        schema_yaml = task_dir / "generated_schema.yaml"
+        if not schema_yaml.exists():
+            raise ValueError(f"Task schema file not found: config/tasks/{self.name}/generated_schema.yaml")
+
+        instruction_file = task_dir / "generated_instruction.txt"
         if not instruction_file.exists():
-            raise ValueError(f"Task instruction file not found: config/tasks/{self.name}/initial_instruction.txt")
+            raise ValueError(f"Task instruction file not found: config/tasks/{self.name}/generated_instruction.txt")
         return self
 
 
@@ -712,7 +712,7 @@ class Settings(BaseSettings):
         if self.parsing.visual and self.parsing.visual.enabled and not self.parsing.visual.task_config_path:
             project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
             self.parsing.visual.task_config_path = str(
-                project_root / "config" / "tasks" / self.task.name / "initial_schema.yaml"
+                project_root / "config" / "tasks" / self.task.name / "generated_schema.yaml"
             )
         return self
 

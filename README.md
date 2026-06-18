@@ -49,7 +49,7 @@ System parameters and LLM settings are managed via YAML files in the `config/` d
 - `ingestion.yaml` — Parser configurations and visual layout parameters.
 - `extraction.yaml` — Agent matching rules and batch sizes.
 - `optimization.yaml` — MIPROv2 hyperparameters (evaluation metrics, number of trials, few-shot parameters).
-- `tasks/` — Directory containing target extraction schemas (e.g., `nanozymes/initial_schema.yaml`).
+- `tasks/` — Directory containing target extraction schemas (e.g., `nanozymes/generated_schema.yaml`).
 
 ## Documentation
 

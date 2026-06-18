@@ -171,7 +171,7 @@ def load_task_from_yaml(
         row_converter = _parse_row_converter(yaml_data["row_converter"])
 
     # Create TaskConfig
-    # Note: initial_instruction_file is loaded from task directory (initial_instruction.txt)
+    # Note: initial_instruction_file is loaded from task directory (generated_instruction.txt)
     config = TaskConfig(
         name=yaml_data["name"],
         experiment_fields=experiment_fields,
@@ -313,7 +313,7 @@ def save_task_to_yaml(
         yaml_data["row_converter"] = config.row_converter.mapping
 
     # Note: initial_instruction_file is not saved to task.yaml
-    # It is located in the task directory (tasks/{task_name}/initial_instruction.txt)
+    # It is located in the task directory (tasks/{task_name}/generated_instruction.txt)
 
     # Write YAML
     output_path.parent.mkdir(parents=True, exist_ok=True)

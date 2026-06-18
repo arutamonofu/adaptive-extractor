@@ -157,9 +157,9 @@ class TestGeminiConfigLoading:
         
         task_dir = tmp_path / "config" / "tasks" / "test"
         task_dir.mkdir(parents=True, exist_ok=True)
-        instruction_file = task_dir / "initial_instruction.txt"
+        instruction_file = task_dir / "generated_instruction.txt"
         instruction_file.write_text("test instruction")
-        (task_dir / "initial_schema.yaml").write_text("name: test\ncompare_fields:\n  - formula\nfloat_tolerance: 0.05\nfields:\n  formula:\n    type: str\n    description: inorganic formula\n")
+        (task_dir / "generated_schema.yaml").write_text("name: test\ncompare_fields:\n  - formula\nfloat_tolerance: 0.05\nfields:\n  formula:\n    type: str\n    description: inorganic formula\n")
 
         # Create minimal YAML config
         config_path = tmp_path / "gemini_test.yaml"
@@ -284,9 +284,9 @@ circuit_breaker:
         
         task_dir = tmp_path / "config" / "tasks" / "test"
         task_dir.mkdir(parents=True, exist_ok=True)
-        instruction_file = task_dir / "initial_instruction.txt"
+        instruction_file = task_dir / "generated_instruction.txt"
         instruction_file.write_text("test instruction")
-        (task_dir / "initial_schema.yaml").write_text("name: test\ncompare_fields:\n  - formula\nfloat_tolerance: 0.05\nfields:\n  formula:\n    type: str\n    description: inorganic formula\n")
+        (task_dir / "generated_schema.yaml").write_text("name: test\ncompare_fields:\n  - formula\nfloat_tolerance: 0.05\nfields:\n  formula:\n    type: str\n    description: inorganic formula\n")
 
         # Create YAML config (same as above)
         config_path = tmp_path / "gemini_test.yaml"
