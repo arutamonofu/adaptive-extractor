@@ -10,7 +10,13 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-_SEMANTIC_JUDGE_EXAMPLE = '{"km_value": "YES", "reaction_type": "NO", "ccat_value": "YES"}'
+_SEMANTIC_JUDGE_EXAMPLE = (
+    '{\n'
+    '  "km_value": {"reasoning": "0.091 mM is mathematically equivalent to 91 \\u03bcM.", "match": "YES"},\n'
+    '  "activity": {"reasoning": "GT has 3 elements, Pred extracted only 2. Incomplete list.", "match": "NO"},\n'
+    '  "surface": {"reasoning": "GT has a specific value, Pred is null. Extractor missed it.", "match": "NO"}\n'
+    '}'
+)
 
 ExperimentEntity: TypeAlias = Union[BaseModel, Any]
 
@@ -265,10 +271,10 @@ class ExperimentMatcher:
             discrepancy_lines.append(f"- {field_name}: GT='{gt_str}', Pred='{pred_str}'")
         discrepancies_text = "\n".join(discrepancy_lines)
 
-        # Build semantic judge prompt with proper line lengths
-        prompt_parts = [
-            f"""You are an expert scientist evaluating an automated data extraction system.
-Task: {task_name}
+        prompt = f"""You are an elite analytical judge and a senior domain expert specializing strictly in the scientific or professional field of the provided task.
+Task Domain: {task_name}
+
+Your primary directive is to dynamically adopt the required technical expertise, terminology, and standard practices of this specific domain to accurately evaluate semantic equivalence.
 
 Schema Definition (Field Meanings):
 {schema_context}
@@ -285,51 +291,31 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
 {discrepancies_text}
 
 --- JUDGE ROLE & SCOPE ---
-You are a SEMANTIC EQUIVALENCE JUDGE. You evaluate ONLY whether the Predicted
-and Ground Truth values represent the same physical, chemical, or experimental
-reality. You DO NOT enforce extraction policies. Calculations, unit conversions,
-strict filtering, or literal-only rules applied by the Extractor are IRRELEVANT
-to your judgment. You have NO access to the source article. Rely ONLY on the
-provided JSONs.
+You are a SEMANTIC EQUIVALENCE JUDGE. Your strict objective is to evaluate whether the Predicted and Ground Truth values represent the exact same factual, physical, or logical reality. 
+You DO NOT enforce text-matching or extraction policies. Calculations, unit conversions, strict filtering, structural reshaping, or literal-only rules applied by the Extractor are IRRELEVANT to your judgment, provided the underlying truth remains identical. 
+You have NO access to the source document. Rely ONLY on the provided JSON context.
 
 --- INSTRUCTIONS ---
-Evaluate EACH discrepancy using the following strict IF-THEN rules:
+PRE-PROCESSING RULE: If the schema splits a single physical concept into multiple fields (e.g., `value` and `unit`), evaluate them collectively as a single physical entity.
 
-[ANSWER "YES" (ACCEPTABLE VARIATION) IF:]
-1. Math & Unit Equivalence: Values represent the same physical quantity despite
-   notation, scientific format, or unit scales (e.g., 91 μM == 0.091 mM,
-   0  5.07e-08 == 5.07×10^-8). 0 in any unit equals 0 in any other unit. Minor
-   rounding in the last significant digit is allowed.
-2. Paired Value+Unit Fields: For fields split into *_value and *_unit, evaluate
-   the combined physical quantity. If Pred["*_value"] and Pred["*_unit"] are
-   mathematically equivalent to GT's pair, return YES.
-3. Semantic Synonyms & Ordering: Terms are standard scientific synonyms,
-   IUPAC/common names, case variations, or alternate orderings of mixtures
-   (e.g., "A + B" == "B + A"), provided chemical roles are identical.
-4. Ranges & Approximations: Overlapping intervals or equivalent approximations
-   are acceptable (e.g., "10-25" == "15±5", "≈30" == "~30", "room temp" == "25"
-   if contextually standard).
-5. Implicit Nulls (Deduction): Predicted is 'null' AND the missing value is
-   mathematically, geometrically, or physically guaranteed by other explicitly
-   stated fields in the Context.
+Evaluate EACH discrepancy strictly routing it through the following logic tree:
 
-[ANSWER "NO" (ACTUAL ERROR) IF:]
-1. Hallucination (Strict Rule): GT is 'null' AND Predicted contains ANY value
-   that cannot be strictly deduced from other GT fields or basic scientific laws.
-2. Factual Contradiction: Magnitudes differ by orders of magnitude,
-   stoichiometry/chemical identity is altered, or reaction roles are swapped.
-3. Unjustified Guessing: Predicted fills a missing GT value with an arbitrary
-   assumption not grounded in the provided JSON context.
+[ANSWER "YES" (SEMANTICS PRESERVED) IF IT FITS ONE OF THESE:]
+1. Quantitative Equivalence (Math/Ranges): Values represent the exact same magnitude, interval, or physical state despite different scientific notation, unit scaling (e.g., 91 μM == 0.091 mM), or overlapping valid approximations (e.g., "~30" == "30±5"). Zero equals zero in any dimension.
+2. Qualitative Equivalence (Text/Ontology): Terms are standard domain synonyms, formal nomenclatures vs. common names, case variations, or alternate orderings of fully identical lists/mixtures. The functional truth in the context is unchanged.
+3. Deductive Equivalence (Implicit Nulls): Ground Truth is 'null' AND Predicted contains a value that is strictly, mathematically, or logically guaranteed by other populated fields in the Ground Truth context.
+
+[ANSWER "NO" (SEMANTICS VIOLATED) IF IT FITS ONE OF THESE:]
+1. Mutation (Factual Contradiction): Both GT and Predicted contain values, but they represent fundamentally different realities. This includes wrong orders of magnitude, swapped functional roles, or incomplete lists (e.g., GT has 3 elements, Pred extracted only 2).
+2. Addition (Hallucination/Guessing): Ground Truth is 'null' AND Predicted contains a value that CANNOT be strictly deduced from the provided context (including guesses based on general domain knowledge).
+3. Subtraction (Omission): Ground Truth contains a specific value, but Predicted is 'null' or empty. The extractor missed a required fact.
 
 [OUTPUT FORMAT]
-Return exactly ONE JSON object — nothing before or after it.
-Do not include markdown, explanations, or additional text.
-Keys must be the exact discrepancy field names. Values must be
-strictly "YES" or "NO".
+Return exactly ONE JSON object — nothing before or after it. Do not include markdown blocks like ```json.
+For EACH discrepancy field, you must provide a nested object containing brief mathematical/logical "reasoning" (max 15 words) and the final "match" boolean ("YES" or "NO").
 
-Example: {_SEMANTIC_JUDGE_EXAMPLE}"""
-        ]
-        prompt = "".join(prompt_parts)
+Example structure:
+{_SEMANTIC_JUDGE_EXAMPLE}"""
 
         return prompt
 
@@ -389,16 +375,23 @@ Example: {_SEMANTIC_JUDGE_EXAMPLE}"""
             verdicts = json.loads(json_str)
 
             # Validate and filter verdicts
+            # Supports new nested format: {"field": {"reasoning": "...", "match": "YES"}}
+            # and legacy flat format: {"field": "YES"} for backward compatibility
             valid_verdicts = {}
             for field_name in discrepancies:
-                if field_name in verdicts:
-                    # Only accept "YES", everything else is "NO"
-                    valid_verdicts[field_name] = (
-                        "YES" if str(verdicts[field_name]).strip().upper() == "YES" else "NO"
-                    )
-                else:
+                raw = verdicts.get(field_name)
+                if raw is None:
                     # Field not in response, treat as NO
                     valid_verdicts[field_name] = "NO"
+                elif isinstance(raw, dict):
+                    # New nested format: extract "match" key
+                    match_val = str(raw.get("match", "NO")).strip().upper()
+                    valid_verdicts[field_name] = "YES" if match_val == "YES" else "NO"
+                else:
+                    # Legacy flat format fallback: {"field": "YES"}
+                    valid_verdicts[field_name] = (
+                        "YES" if str(raw).strip().upper() == "YES" else "NO"
+                    )
 
             return valid_verdicts
 

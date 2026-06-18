@@ -60,7 +60,73 @@ class TaskMetric:
         extracted_data = getattr(obj, "extracted_data", None)
         if extracted_data is None:
             return []
-        return getattr(extracted_data, "experiments", [])
+
+        experiments = []
+        if isinstance(extracted_data, str):
+            import json
+            parsed = None
+            
+            # 1. Try to parse directly as JSON first
+            try:
+                parsed = json.loads(extracted_data)
+            except Exception:
+                pass
+
+            # 2. Extract JSON block using _extract_first_json (within extracted_data marker if present)
+            if parsed is None:
+                try:
+                    from ae.core.evaluation.matcher import _extract_first_json
+                    cleaned_data = extracted_data
+                    if "[[ ## extracted_data ## ]]" in extracted_data:
+                        cleaned_data = extracted_data.split("[[ ## extracted_data ## ]]")[-1].split("[[")[0]
+                    
+                    json_str = _extract_first_json(cleaned_data) or cleaned_data
+                    parsed = json.loads(json_str)
+                except Exception:
+                    pass
+
+            # 3. Fallback: Parse single-quoted Python dict representation using ast.literal_eval
+            if parsed is None:
+                try:
+                    import ast
+                    import re
+                    cleaned_data = extracted_data
+                    if "[[ ## extracted_data ## ]]" in extracted_data:
+                        cleaned_data = extracted_data.split("[[ ## extracted_data ## ]]")[-1].split("[[")[0]
+                    
+                    # Normalize JS/JSON bare keywords to Python equivalents safely
+                    cleaned_data_norm = re.sub(r'\bnull\b', 'None', cleaned_data)
+                    cleaned_data_norm = re.sub(r'\btrue\b', 'True', cleaned_data_norm)
+                    cleaned_data_norm = re.sub(r'\bfalse\b', 'False', cleaned_data_norm)
+                    
+                    parsed = ast.literal_eval(cleaned_data_norm.strip())
+                except Exception as e:
+                    logger.warning(f"Error parsing predicted experiments JSON/literal: {e}")
+                    return []
+
+            if isinstance(parsed, dict):
+                experiments = parsed.get("experiments", []) or parsed.get("extracted_data", [])
+            elif isinstance(parsed, list):
+                experiments = parsed
+            else:
+                experiments = []
+        elif isinstance(extracted_data, dict):
+            experiments = extracted_data.get("experiments", [])
+        elif isinstance(extracted_data, list):
+            experiments = extracted_data
+        elif hasattr(extracted_data, "experiments"):
+            experiments = extracted_data.experiments
+        else:
+            try:
+                if hasattr(extracted_data, "model_dump"):
+                    experiments = extracted_data.model_dump().get("experiments", [])
+                elif hasattr(extracted_data, "dict"):
+                    experiments = extracted_data.dict().get("experiments", [])
+            except Exception:
+                pass
+
+        from types import SimpleNamespace
+        return [SimpleNamespace(**exp) if isinstance(exp, dict) else exp for exp in experiments]
 
     def _log_metrics(self, report: Dict[str, Any]) -> None:
         """Log evaluation metrics as formatted tables."""
