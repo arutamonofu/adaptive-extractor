@@ -30,6 +30,16 @@ llm:
       base_url: "https://openrouter.ai/api/v1"
       reasoning:
         enabled: false
+      openrouter_cache: true
+      prompt_caching: true
+      provider:
+        require_parameter_support: true
+        allow_fallbacks: false
+        priority_order:
+          - alibaba
+          - atlas-cloud/fp8
+          - deepinfra/fp8
+          - siliconflow/fp8
 
   # Teacher model: high-capacity model used for generation, refinement, and validation
   teacher:
@@ -48,6 +58,17 @@ llm:
       base_url: "https://openrouter.ai/api/v1"
       reasoning:
         enabled: true
+      openrouter_cache: true
+      prompt_caching: true
+      provider:
+        require_parameter_support: true
+        allow_fallbacks: false
+        priority_order:
+          - streamlake
+          - chutes/fp8
+          - deepinfra/fp8
+          - morph
+          - parasail/fp8
 
 # Directory and file system paths relative to the project root
 paths:

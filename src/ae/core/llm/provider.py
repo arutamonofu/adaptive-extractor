@@ -373,6 +373,85 @@ class OllamaLM(BaseHTTPProvider):
             raise
 
 
+def apply_prompt_caching(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Apply native prompt caching headers/structure to messages.
+    
+    For a single DSPy string prompt, splits at the '[[ ## document_text ## ]]\n'
+    delimiter to separate the static signature and instructions from the dynamic 
+    document content. Adds cache_control blocks for Anthropic.
+    """
+    if not messages:
+        return messages
+
+    # Case 1: Single message containing the DSPy document delimiter
+    if (
+        len(messages) == 1 
+        and messages[0].get("role") in ("system", "user") 
+        and isinstance(messages[0].get("content"), str)
+    ):
+        content = messages[0]["content"]
+        delimiter = "[[ ## document_text ## ]]\n"
+        if delimiter in content:
+            # Split at the last occurrence to ensure all static few-shot demos
+            # are included in the static_prefix and successfully cached.
+            parts = content.rsplit(delimiter, 1)
+            static_prefix = parts[0] + delimiter
+            dynamic_suffix = parts[1]
+            logger.info("Detected DSPy prompt with document delimiter. Splitting for prompt caching.")
+            return [
+                {
+                    "role": messages[0]["role"],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": static_prefix,
+                            "cache_control": {"type": "ephemeral"}
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": dynamic_suffix
+                }
+            ]
+
+    # Case 2: Standard message list. Cache the first message (e.g. system prompt)
+    new_messages = []
+    for i, msg in enumerate(messages):
+        if i == 0:
+            content_val = msg.get("content", "")
+            if isinstance(content_val, str):
+                new_msg = {
+                    "role": msg["role"],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": content_val,
+                            "cache_control": {"type": "ephemeral"}
+                        }
+                    ]
+                }
+                new_messages.append(new_msg)
+            elif isinstance(content_val, list):
+                new_content = []
+                for block in content_val:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        new_block = block.copy()
+                        new_block["cache_control"] = {"type": "ephemeral"}
+                        new_content.append(new_block)
+                    else:
+                        new_content.append(block)
+                new_msg = msg.copy()
+                new_msg["content"] = new_content
+                new_messages.append(new_msg)
+            else:
+                new_messages.append(msg)
+        else:
+            new_messages.append(msg)
+
+    return new_messages
+
+
 class OpenRouterLM(BaseHTTPProvider):
     """LLM provider for OpenRouter with direct HTTP calls."""
 
@@ -392,6 +471,11 @@ class OpenRouterLM(BaseHTTPProvider):
         self.max_tokens = api_cfg.max_tokens
         self.provider = "OpenRouter"
         self.reasoning = api_cfg.reasoning
+        self.openrouter_cache = getattr(api_cfg, "openrouter_cache", None)
+        self.prompt_caching = getattr(api_cfg, "prompt_caching", None)
+        import uuid
+        self.session_id = getattr(api_cfg, "session_id", None) or f"ae-{uuid.uuid4().hex[:12]}"
+        self.provider_preferences = getattr(api_cfg, "provider", None)
 
         if api_cfg.api_key is None:
             raise ValueError(
@@ -408,6 +492,15 @@ class OpenRouterLM(BaseHTTPProvider):
         temperature = kwargs.get("temperature", self.temperature)
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
 
+        # Pop caching parameters so they are not sent to standard OpenRouter API
+        prompt_caching = kwargs.pop("prompt_caching", self.prompt_caching)
+        openrouter_cache = kwargs.pop("openrouter_cache", self.openrouter_cache)
+        session_id = kwargs.pop("session_id", self.session_id)
+        provider = kwargs.pop("provider", self.provider_preferences)
+
+        if prompt_caching:
+            messages = apply_prompt_caching(messages)
+
         payload = {
             "model": self.model,
             "messages": messages,
@@ -420,16 +513,43 @@ class OpenRouterLM(BaseHTTPProvider):
         if reasoning is not None:
             payload["reasoning"] = reasoning
 
+        if session_id is not None:
+            payload["session_id"] = session_id
+
+        if provider is not None:
+            from pydantic import BaseModel
+            if isinstance(provider, BaseModel):
+                payload["provider"] = provider.model_dump(by_alias=True, exclude_none=True)
+            elif isinstance(provider, dict):
+                mapped_provider = {}
+                for k, v in provider.items():
+                    if k == "priority_order" or k == "order":
+                        mapped_provider["order"] = v
+                    elif k == "require_parameter_support" or k == "require_parameters":
+                        mapped_provider["require_parameters"] = v
+                    else:
+                        mapped_provider[k] = v
+                payload["provider"] = mapped_provider
+
         payload = {k: v for k, v in payload.items() if v is not None}
+        
+        if openrouter_cache is not None:
+            payload["_openrouter_cache"] = openrouter_cache
+
         return payload
 
     def _make_request(self, payload: Dict[str, Any]) -> str:
+        openrouter_cache = payload.pop("_openrouter_cache", None)
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/adaptive-extractor/adaptive-extractor",
             "X-Title": "Adaptive Extractor",
         }
+        if openrouter_cache:
+            headers["X-OpenRouter-Cache"] = "true"
+            logger.info("OpenRouter response cache enabled for this request")
 
         try:
             with requests.post(
@@ -439,9 +559,33 @@ class OpenRouterLM(BaseHTTPProvider):
                 timeout=self.timeout
             ) as response:
                 response.raise_for_status()
-                data = response.json()
+                try:
+                    data = response.json()
+                except json.JSONDecodeError as je:
+                    logger.error(
+                        f"Failed to parse JSON response from OpenRouter. "
+                        f"Status code: {response.status_code}. "
+                        f"Content preview (first 1000 chars): {response.text[:1000]!r}"
+                    )
+                    raise je
 
                 if "choices" in data and len(data["choices"]) > 0:
+                    provider_name = data.get("provider")
+                    usage = data.get("usage")
+                    if usage:
+                        prompt_tokens = usage.get("prompt_tokens", 0)
+                        completion_tokens = usage.get("completion_tokens", 0)
+                        prompt_details = usage.get("prompt_tokens_details", {})
+                        cached_tokens = prompt_details.get("cached_tokens", 0)
+                        cache_write_tokens = prompt_details.get("cache_write_tokens", 0)
+                        
+                        log_msg = (
+                            f"OpenRouter usage for {self.model} (provider={provider_name}): "
+                            f"prompt_tokens={prompt_tokens} (cached={cached_tokens}, write={cache_write_tokens}), "
+                            f"completion_tokens={completion_tokens}"
+                        )
+                        logger.info(log_msg)
+
                     message = data["choices"][0]["message"]
                     content = message.get("content", "")
                     self._reasoning_details = message.get("reasoning_details")
@@ -467,6 +611,7 @@ class OpenRouterLM(BaseHTTPProvider):
         except Exception as e:
             logger.error(f"Unexpected error during OpenRouter request: {e}")
             raise
+
 
 class TeacherWrapper(dspy.Module):
     """Wrapper to use LLM providers as teacher for MIPROv2 bootstrapping."""

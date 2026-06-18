@@ -237,23 +237,14 @@ class ExperimentMatcher:
 
         return pairs
 
-    def _build_judge_prompt(
-        self,
-        task_name: str,
-        gt_json: Dict[str, Any],
-        pred_json: Dict[str, Any],
-        discrepancies: List[str],
-    ) -> str:
-        """Build prompt for semantic judge.
+    def _build_judge_system_prompt(self, task_name: str) -> str:
+        """Build static system prompt for semantic judge containing instructions and schema.
 
         Args:
             task_name: Name of the task (e.g., "nanozymes").
-            gt_json: Ground truth experiment as dictionary (primitive types only).
-            pred_json: Predicted experiment as dictionary (primitive types only).
-            discrepancies: List of field names with mismatches.
 
         Returns:
-            Formatted prompt string.
+            Formatted system prompt string.
         """
         # Build schema context from field descriptions
         schema_lines = []
@@ -261,34 +252,13 @@ class ExperimentMatcher:
             schema_lines.append(f"- {field_name}: {description}")
         schema_context = "\n".join(schema_lines)
 
-        # Build discrepancies list with values
-        discrepancy_lines = []
-        for field_name in discrepancies:
-            gt_val = gt_json.get(field_name)
-            pred_val = pred_json.get(field_name)
-            gt_str = "null" if gt_val is None else str(gt_val)
-            pred_str = "null" if pred_val is None else str(pred_val)
-            discrepancy_lines.append(f"- {field_name}: GT='{gt_str}', Pred='{pred_str}'")
-        discrepancies_text = "\n".join(discrepancy_lines)
-
-        prompt = f"""You are an elite analytical judge and a senior domain expert specializing strictly in the scientific or professional field of the provided task.
+        return f"""You are an elite analytical judge and a senior domain expert specializing strictly in the scientific or professional field of the provided task.
 Task Domain: {task_name}
 
 Your primary directive is to dynamically adopt the required technical expertise, terminology, and standard practices of this specific domain to accurately evaluate semantic equivalence.
 
 Schema Definition (Field Meanings):
 {schema_context}
-
---- CONTEXT (Full Experiments) ---
-Ground Truth (Reference):
-{json.dumps(gt_json, indent=2, default=str)}
-
-Predicted (Extraction):
-{json.dumps(pred_json, indent=2, default=str)}
-
---- DISCREPANCIES TO EVALUATE ---
-The following fields did not match strictly. Evaluate ONLY these fields based on the context above:
-{discrepancies_text}
 
 --- JUDGE ROLE & SCOPE ---
 You are a SEMANTIC EQUIVALENCE JUDGE. Your strict objective is to evaluate whether the Predicted and Ground Truth values represent the exact same factual, physical, or logical reality. 
@@ -317,7 +287,42 @@ For EACH discrepancy field, you must provide a nested object containing brief ma
 Example structure:
 {_SEMANTIC_JUDGE_EXAMPLE}"""
 
-        return prompt
+    def _build_judge_user_prompt(
+        self,
+        gt_json: Dict[str, Any],
+        pred_json: Dict[str, Any],
+        discrepancies: List[str],
+    ) -> str:
+        """Build dynamic user prompt containing compared experiments and discrepancies.
+
+        Args:
+            gt_json: Ground truth experiment as dictionary.
+            pred_json: Predicted experiment as dictionary.
+            discrepancies: List of field names with mismatches.
+
+        Returns:
+            Formatted user prompt string.
+        """
+        # Build discrepancies list with values
+        discrepancy_lines = []
+        for field_name in discrepancies:
+            gt_val = gt_json.get(field_name)
+            pred_val = pred_json.get(field_name)
+            gt_str = "null" if gt_val is None else str(gt_val)
+            pred_str = "null" if pred_val is None else str(pred_val)
+            discrepancy_lines.append(f"- {field_name}: GT='{gt_str}', Pred='{pred_str}'")
+        discrepancies_text = "\n".join(discrepancy_lines)
+
+        return f"""--- CONTEXT (Full Experiments) ---
+Ground Truth (Reference):
+{json.dumps(gt_json, indent=2, default=str)}
+
+Predicted (Extraction):
+{json.dumps(pred_json, indent=2, default=str)}
+
+--- DISCREPANCIES TO EVALUATE ---
+The following fields did not match strictly. Evaluate ONLY these fields based on the context above:
+{discrepancies_text}"""
 
     def _call_semantic_judge(
         self,
@@ -347,16 +352,23 @@ Example structure:
             return {}
 
         try:
-            # Build prompt
-            prompt = self._build_judge_prompt(task_name, gt_json, pred_json, discrepancies)
+            # Build prompts
+            system_prompt = self._build_judge_system_prompt(task_name)
+            user_prompt = self._build_judge_user_prompt(gt_json, pred_json, discrepancies)
 
-            # Call LLM via DSPy interface
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+
+            # Call LLM via DSPy interface with prompt_caching enabled
             # DSPy LM returns list of strings, take first
             # Force reasoning/thinking enabled for semantic judge regardless of config
             response = self.student_llm(
-                prompt,
+                messages,
                 reasoning={"enabled": True},  # OpenRouter API reasoning models
                 enable_thinking=True,  # Transformers thinking-capable models
+                prompt_caching=True,  # Ensure prompt caching is active for semantic judge
             )
             response_text = response[0] if isinstance(response, list) else response
 
@@ -401,6 +413,7 @@ Example structure:
         except Exception as e:
             logger.warning(f"[SemanticJudge] Failed: {e}")
             return {}
+
 
     def _log_comparison_table(
         self,

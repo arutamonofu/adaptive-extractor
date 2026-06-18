@@ -1278,3 +1278,17 @@ Using the student model for semantic judgment ensures:
 - Evaluation reflects the actual capabilities of the deployed model
 - No dependency on teacher model availability during inference/evaluation
 - Consistent scoring across optimization trials and final validation
+
+---
+
+## Prompt Caching in MIPROv2 Optimization
+
+To optimize validation costs, the custom OpenRouter LLM provider implements prompt caching by detecting the document delimiter:
+
+`[[ ## document_text ## ]]\n`
+
+### Caching Behavior
+
+- **Zero-Shot Runs**: The prompt contains only one document delimiter, splitting the static instructions from the single validation document.
+- **Few-Shot Runs**: The prompt contains multiple document delimiters (one for each few-shot demonstration, and one for the target validation document). 
+- **Last-Occurrence Split**: The provider splits the prompt at the **last** occurrence of the delimiter using `rsplit(..., 1)`. This ensures that all instructions, formatting schemas, and bootstrapped/few-shot demonstrations are grouped into the cached `static_prefix`, maximizing cache hits and saving validation token costs.

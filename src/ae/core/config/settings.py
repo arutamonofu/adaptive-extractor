@@ -187,6 +187,78 @@ class OllamaTeacherConfig(OllamaConfig):
 
 
 
+KNOWN_OPENROUTER_PROVIDERS = {
+    "arcee-ai", "sambanova", "reka", "cerebras", "morph", "stealth", "akashml",
+    "moonshot", "openai", "z-ai", "wandb", "featherless", "fireworks", "groq",
+    "crusoe", "ncompass", "cohere", "deepseek", "siliconflow", "perplexity",
+    "infermatic", "x-ai", "alibaba", "novita", "deepinfra", "digitalocean",
+    "phala", "parasail", "gmicloud", "anthropic", "atlas-cloud", "together",
+    "venice", "streamlake", "google", "chutes", "lepton", "runpod", "openrouter"
+}
+
+
+class OpenRouterServiceProviderPreferences(BaseModel):
+    """Provider routing preferences for OpenRouter."""
+    priority_order: Optional[list[str]] = Field(
+        default=None,
+        alias="order",
+        serialization_alias="order",
+        description="Prioritized list of provider lowercase slugs (e.g., ['chutes', 'deepinfra'])"
+    )
+    require_parameter_support: Optional[bool] = Field(
+        default=None,
+        alias="require_parameter_support",
+        serialization_alias="require_parameters",
+        description="Only route to providers supporting all payload parameters (e.g. cache_control)"
+    )
+    allow_fallbacks: Optional[bool] = Field(
+        default=None,
+        alias="allow_fallbacks",
+        serialization_alias="allow_fallbacks",
+        description="Allow fallback providers if preferred ones are offline"
+    )
+
+    model_config = {
+        "populate_by_name": True,
+        "serialize_by_alias": True,
+    }
+
+    @field_validator("priority_order", mode="after")
+    @classmethod
+    def validate_provider_slugs(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        """Validate and clean provider slugs to ensure correct lowercase format.
+        
+        Handles provider/quantization format (e.g. chutes/fp8, parasail/fp8).
+        """
+        if v is not None:
+            cleaned = []
+            for slug in v:
+                if not isinstance(slug, str):
+                    raise ValueError(f"Provider slug must be a string, got {type(slug)}")
+                
+                # Check case and convert to lowercase if needed
+                if slug != slug.lower():
+                    logger.warning(
+                        f"Provider slug '{slug}' is not lowercase. "
+                        f"Canonical OpenRouter slugs are lowercase (e.g. '{slug.lower()}'). "
+                        "Converting to lowercase."
+                    )
+                    slug = slug.lower()
+                
+                # Split by '/' first to handle formats like provider/quantization (e.g. chutes/fp8, parasail/fp8)
+                base_slug = slug.split("/", 1)[0]
+                
+                # Check against known list of slugs to catch spelling mistakes
+                if base_slug not in KNOWN_OPENROUTER_PROVIDERS:
+                    logger.warning(
+                        f"Provider slug '{slug}' (base: '{base_slug}') is not recognized as a standard OpenRouter provider. "
+                        "Double check spelling to avoid routing issues."
+                    )
+                cleaned.append(slug)
+            return cleaned
+        return v
+
+
 class ApiConfig(BaseModel):
     """API provider configuration.
 
@@ -222,6 +294,25 @@ class ApiConfig(BaseModel):
         default=None,
         description="Reasoning configuration for OpenRouter reasoning models (e.g., {'enabled': True})"
     )
+    openrouter_cache: Optional[bool] = Field(
+        default=None,
+        description="Enable OpenRouter response caching (adds X-OpenRouter-Cache header)"
+    )
+    prompt_caching: Optional[bool] = Field(
+        default=None,
+        description="Enable native prompt caching for models that support it"
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Optional OpenRouter session ID for sticky routing"
+    )
+    provider: Optional[OpenRouterServiceProviderPreferences] = Field(
+        default=None,
+        description="Optional OpenRouter provider routing preferences"
+    )
+
+
+
 
     @field_validator("api_key", mode="after")
     @classmethod
@@ -1061,7 +1152,9 @@ class Settings(BaseSettings):
             """Recursively process dictionary."""
             result: dict[str, Any] = {}
             for k, v in d.items():
-                if isinstance(v, dict):
+                if k in ("model", "priority_order", "order"):
+                    result[k] = v
+                elif isinstance(v, dict):
                     result[k] = process_dict(v)
                 elif isinstance(v, list):
                     result[k] = [

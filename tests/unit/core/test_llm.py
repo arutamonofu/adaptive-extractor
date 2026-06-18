@@ -192,3 +192,204 @@ class TestLLMProviders:
         request_headers = responses.calls[0].request.headers
         assert request_headers["Authorization"] == "Bearer sk-test-key"
 
+    @responses.activate
+    def test_openrouter_response_caching_headers(self, openrouter_config, circuit_breaker):
+        """Test X-OpenRouter-Cache header is set when openrouter_cache=True."""
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={"choices": [{"message": {"content": "Test response"}}]},
+            status=200,
+        )
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        lm("Test prompt", openrouter_cache=True)
+
+        request_headers = responses.calls[0].request.headers
+        assert request_headers["X-OpenRouter-Cache"] == "true"
+
+    def test_apply_prompt_caching_dspy_delimiter(self):
+        """Test splitting and formatting DSPy string prompts for caching."""
+        from ae.core.llm.provider import apply_prompt_caching
+
+        dspy_prompt = (
+            "System instructions here...\n"
+            "[[ ## document_text ## ]]\n"
+            "Dynamic document content here"
+        )
+        messages = [{"role": "system", "content": dspy_prompt}]
+        
+        cached_messages = apply_prompt_caching(messages)
+        
+        assert len(cached_messages) == 2
+        assert cached_messages[0]["role"] == "system"
+        assert isinstance(cached_messages[0]["content"], list)
+        assert cached_messages[0]["content"][0]["type"] == "text"
+        assert cached_messages[0]["content"][0]["text"] == "System instructions here...\n[[ ## document_text ## ]]\n"
+        assert cached_messages[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        
+        assert cached_messages[1]["role"] == "user"
+        assert cached_messages[1]["content"] == "Dynamic document content here"
+
+    def test_apply_prompt_caching_dspy_delimiter_few_shot(self):
+        """Test splitting at the last delimiter when few-shot demos are present."""
+        from ae.core.llm.provider import apply_prompt_caching
+
+        few_shot_prompt = (
+            "Instructions here...\n"
+            "[[ ## document_text ## ]]\n"
+            "Demo Document 1\n"
+            "[[ ## extracted_data ## ]]\n"
+            "Demo Output 1\n"
+            "[[ ## document_text ## ]]\n"
+            "Target validation document content"
+        )
+        messages = [{"role": "user", "content": few_shot_prompt}]
+        cached_messages = apply_prompt_caching(messages)
+
+        assert len(cached_messages) == 2
+        
+        # Verify static_prefix contains instructions and the few-shot demo
+        static_part = cached_messages[0]["content"][0]
+        assert static_part["type"] == "text"
+        assert static_part["cache_control"] == {"type": "ephemeral"}
+        assert "Demo Document 1" in static_part["text"]
+        assert "Target validation document" not in static_part["text"]
+        assert static_part["text"].endswith("[[ ## document_text ## ]]\n")
+
+        # Verify dynamic_suffix contains only the final document content
+        assert cached_messages[1]["role"] == "user"
+        assert cached_messages[1]["content"] == "Target validation document content"
+
+    def test_apply_prompt_caching_standard_messages(self):
+        """Test standard messages format converts the first message content to block with cache_control."""
+        from ae.core.llm.provider import apply_prompt_caching
+
+        messages = [
+            {"role": "system", "content": "Static instructions"},
+            {"role": "user", "content": "Dynamic question"}
+        ]
+        
+        cached_messages = apply_prompt_caching(messages)
+        
+        assert len(cached_messages) == 2
+        assert cached_messages[0]["role"] == "system"
+        assert isinstance(cached_messages[0]["content"], list)
+        assert cached_messages[0]["content"][0]["type"] == "text"
+        assert cached_messages[0]["content"][0]["text"] == "Static instructions"
+        assert cached_messages[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        
+        assert cached_messages[1]["role"] == "user"
+        assert cached_messages[1]["content"] == "Dynamic question"
+
+    @responses.activate
+    def test_openrouter_prompt_caching_call(self, openrouter_config, circuit_breaker):
+        """Test that prompt_caching parameter is passed and processed in request payload."""
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={"choices": [{"message": {"content": "Test response"}}]},
+            status=200,
+        )
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        lm("Test prompt", prompt_caching=True)
+
+        req_body = json.loads(responses.calls[0].request.body)
+        messages = req_body["messages"]
+        
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        assert isinstance(messages[0]["content"], list)
+        assert messages[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert messages[0]["content"][0]["text"] == "Test prompt"
+
+    @responses.activate
+    def test_openrouter_session_id(self, openrouter_config, circuit_breaker):
+        """Test that session_id is auto-generated or passed correctly in payload."""
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={"choices": [{"message": {"content": "Test response"}}]},
+            status=200,
+        )
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        assert lm.session_id.startswith("ae-")
+        
+        lm("Test prompt", session_id="custom-session-id")
+        req_body = json.loads(responses.calls[0].request.body)
+        assert req_body["session_id"] == "custom-session-id"
+
+    @responses.activate
+    def test_openrouter_usage_logging(self, openrouter_config, circuit_breaker, caplog):
+        """Test that usage metrics and caching statistics are logged if present in the response."""
+        import logging
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={
+                "choices": [{"message": {"content": "Test response"}}],
+                "usage": {
+                    "prompt_tokens": 120,
+                    "completion_tokens": 30,
+                    "prompt_tokens_details": {
+                        "cached_tokens": 100,
+                        "cache_write_tokens": 20
+                    }
+                }
+            },
+            status=200,
+        )
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        with caplog.at_level(logging.INFO):
+            lm("Test prompt")
+            
+        assert any(
+            "OpenRouter usage" in record.message and "cached=100" in record.message
+            for record in caplog.records
+        )
+
+    @responses.activate
+    def test_openrouter_provider_preferences(self, openrouter_config, circuit_breaker, caplog):
+        """Test that provider preferences are passed correctly in request payload with alias mapping."""
+        import logging
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={"choices": [{"message": {"content": "Test response"}}]},
+            status=200,
+        )
+        # 1. Test when configured in api config as OpenRouterServiceProviderPreferences
+        from ae.core.config.settings import OpenRouterServiceProviderPreferences
+        
+        with caplog.at_level(logging.WARNING):
+            provider_cfg = OpenRouterServiceProviderPreferences(
+                priority_order=["Parasail/FP8", "chutes/fp8", "deepinfra-unknown"],
+                require_parameter_support=True
+            )
+        
+        # Verify lowercase normalisation warning was logged (for Parasail/FP8)
+        assert any("is not lowercase" in record.message and "Parasail/FP8" in record.message for record in caplog.records)
+        # Verify unrecognized provider slug warning was logged (only for deepinfra-unknown)
+        assert any("deepinfra-unknown" in record.message and "is not recognized" in record.message for record in caplog.records)
+        # Verify no unrecognized warning was logged for parasail/fp8 or chutes/fp8
+        assert not any("parasail/fp8" in record.message and "is not recognized" in record.message for record in caplog.records)
+        assert not any("chutes/fp8" in record.message and "is not recognized" in record.message for record in caplog.records)
+        
+        # Verify values are cleaned and normalised to lowercase
+        assert provider_cfg.priority_order == ["parasail/fp8", "chutes/fp8", "deepinfra-unknown"]
+
+        openrouter_config.api.provider = provider_cfg
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        lm("Test prompt")
+        req_body = json.loads(responses.calls[0].request.body)
+        assert req_body["provider"] == {
+            "order": ["parasail/fp8", "chutes/fp8", "deepinfra-unknown"],
+            "require_parameters": True
+        }
+
+        # 2. Test when passed dynamically as kwargs override (dictionary)
+        lm("Test prompt", provider={"priority_order": ["together"], "require_parameter_support": False})
+        req_body_2 = json.loads(responses.calls[1].request.body)
+        assert req_body_2["provider"] == {
+            "order": ["together"],
+            "require_parameters": False
+        }
+
+
+
+
+
