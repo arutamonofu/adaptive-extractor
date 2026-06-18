@@ -3,191 +3,191 @@ fields:
   activity:
     type: str
     description: >-
-      Тип ферментоподобной каталитической активности (например, пероксидазная, каталазная,
-      оксидазная), которую имитирует исследуемый наноматериал (нанозим).
+      The type of enzyme-like catalytic activity (e.g., peroxidase, catalase,
+      oxidase) mimicked by the investigated nanomaterial (nanozyme).
     required: false
   ccat_unit:
     type: str
     description: >-
-      Единица измерения физической величины (массы, массовой или молярной концентрации),
-      описывающая количественное содержание основного катализатора (нанозима) в реакционной
-      системе при проведении кинетических испытаний.
+      The unit of measurement of a physical quantity (mass, mass or molar concentration)
+      describing the quantitative content of the main catalyst (nanozyme) in the reaction
+      system during kinetic assays.
     required: false
   ccat_value:
     type: str
     description: >-
-      Абсолютная практическая масса или концентрация катализатора (нанозима), внесенного
-      в реакционную систему для проведения стационарных кинетических измерений. Атрибут
-      детерминирует макроскопическое количество всего синтезированного композитного
-      материала, выступающего в роли катализатора, и является фундаментальным параметром
-      внешней среды эксперимента.
+      The absolute practical mass or concentration of the catalyst (nanozyme) introduced
+      into the reaction system to conduct steady-state kinetic measurements. The attribute
+      determines the macroscopic amount of the entire synthesized composite
+      material acting as a catalyst and is a fundamental parameter of the
+      external experimental environment.
     required: false
   c_const:
     type: str
     description: >-
-      Фиксированная (постоянная) молярная концентрация ко-субстрата в финальной реакционной
-      смеси при проведении стационарных кинетических измерений (определении параметров
-      Михаэлиса-Ментен), выступающая фоновым условием при варьировании концентрации
-      основного исследуемого субстрата.
+      The fixed (constant) molar concentration of the co-substrate in the final reaction
+      mixture during steady-state kinetic measurements (determination of
+      Michaelis-Menten parameters), acting as a background condition when varying the concentration
+      of the main investigated substrate.
     required: false
   c_const_unit:
     type: str
     description: >-
-      Единица измерения фиксированной (постоянной) молярной концентрации ко-субстрата
-      (например, H2O2 или TMB) в реакционной смеси при проведении кинетических испытаний.
-      Обозначает размерность величины, которая остается неизменной, пока концентрация
-      другого субстрата варьируется.
+      The unit of measurement of the fixed (constant) molar concentration of the co-substrate
+      (e.g., H2O2 or TMB) in the reaction mixture during kinetic assays.
+      Denotes the dimension of the value that remains unchanged while the concentration
+      of another substrate is varied.
     required: false
   c_max:
     type: str
     description: >-
-      Точное числовое значение максимальной концентрации варьируемого субстрата (например,
-      H2O2, TMB), применяемой в серии кинетических экспериментов для расчета параметров
-      ферментативной активности (по модели Михаэлиса-Ментен). Значение представляет
-      собой верхний предел исследованного концентрационного диапазона или максимальный
-      элемент массива заданных концентраций, строго нормализованный к единице измерения
-      миллимоль на литр (мМ).
+      The exact numerical value of the maximum concentration of the varied substrate (e.g.,
+      H2O2, TMB) applied in a series of kinetic experiments to calculate parameters
+      of enzyme activity (according to the Michaelis-Menten model). The value represents
+      the upper limit of the investigated concentration range or the maximum
+      element of the array of specified concentrations, strictly normalized to the unit of measurement
+      millimoles per liter (mM).
     required: false
   c_max_unit:
     type: str
     description: >-
-      Единица измерения максимальной (или граничной) концентрации субстрата, используемой
-      в кинетических экспериментах. Отражает физическую размерность верхнего предела
-      тестируемого диапазона или максимального значения из массива концентраций.
+      The unit of measurement of the maximum (or boundary) substrate concentration used
+      in kinetic experiments. Reflects the physical dimension of the upper limit
+      of the tested range or the maximum value from the array of concentrations.
     required: false
   c_min:
     type: str
-    description: Минимальная концентрация варьируемого субстрата в кинетическом эксперименте.
+    description: The minimum concentration of the varied substrate in the kinetic experiment.
     required: false
   c_min_unit:
     type: str
     description: >-
-      Физическая единица измерения минимальной концентрации целевого субстрата в реакционной
-      смеси, используемая для построения кинетических кривых и расчета каталитических
-      параметров. Абсолютный инвариант: размерность молярной концентрации.
+      The physical unit of measurement of the minimum concentration of the target substrate in the reaction
+      mixture, used to plot kinetic curves and calculate catalytic
+      parameters. Absolute invariant: dimension of molar concentration.
     required: false
   depth:
     type: str
     description: >-
-      Третий пространственный (линейный) размер первичной целевой наночастицы как
-      единого физического макрообъекта (глубина/толщина). Для изотропных частиц (сферические,
-      кубические) геометрически эквивалентен их диаметру или общему размеру (size).
-      Для анизотропных частиц (например, наностержней) эквивалентен ширине (width)
-      поперечного сечения. Описывает физические габариты сухого ядра частицы (по данным
-      электронной микроскопии).
+      The third spatial (linear) dimension of the primary target nanoparticle as
+      a single physical macro-object (depth/thickness). For isotropic particles (spherical,
+      cubic), it is geometrically equivalent to their diameter or overall size.
+      For anisotropic particles (e.g., nanorods), it is equivalent to the width
+      of the cross-section. Describes the physical dimensions of the dry core of the particle (according to
+      electron microscopy data).
     required: false
   depth_unit:
     type: str
     description: >-
-      Единица измерения пространственной протяженности (глубины/толщины) целевой наноструктуры.
-      В контексте изотропных (сферических) или комплексных частиц семантически и синтаксически
-      эквивалентна единице измерения общего размера, диаметра или ширины, характеризующей
-      физические габариты исследуемого объекта.
+      The unit of measurement of the spatial extent (depth/thickness) of the target nanostructure.
+      In the context of isotropic (spherical) or complex particles, it is semantically and syntactically
+      equivalent to the unit of measurement of the overall size, diameter, or width characterizing
+      the physical dimensions of the investigated object.
     required: false
   formula:
     type: str
     description: >-
-      Стандартизированная базовая химическая формула или общепринятая структурная
-      аббревиатура (например, MMT) целевого каталитически активного наноматериала
-      (нанозима). Описывает фундаментальный макро-состав объекта, полностью абстрагируясь
-      от его физической морфологии, структурных эпитетов и функциональных ролей в
-      тексте.
+      The standardized basic chemical formula or generally accepted structural
+      abbreviation (e.g., MMT) of the target catalytically active nanomaterial
+      (nanozyme). Describes the fundamental macro-composition of the object, completely abstracting
+      from its physical morphology, structural epithets, and functional roles in
+      the text.
     required: false
   km_unit:
     type: str
     description: >-
-      Единица измерения константы Михаэлиса (Km). Обозначает размерность концентрации
-      субстрата, при которой скорость каталитической (ферментативной или псевдоферментативной)
-      реакции достигает половины от максимальной (Vmax).
+      The unit of measurement of the Michaelis constant (Km). Denotes the dimension of the concentration
+      of the substrate at which the rate of the catalytic (enzymatic or pseudo-enzymatic)
+      reaction reaches half of the maximum (Vmax).
     required: false
   km_value:
     type: str
     description: >-
-      Числовое значение константы Михаэлиса (Km), отражающее сродство катализатора
-      (фермента или нанозима) к конкретному субстрату. Представляет собой концентрацию
-      субстрата, при которой скорость каталитической реакции достигает половины от
-      максимальной (Vmax).
+      The numerical value of the Michaelis constant (Km), reflecting the catalyst affinity
+      (enzyme or nanozyme) for a specific substrate. Represents the concentration
+      of the substrate at which the rate of the catalytic reaction reaches half of
+      the maximum (Vmax).
     required: false
   length:
     type: str
     description: >-
-      Физический линейный размер (диаметр, длина или усредненный габарит) первичной
-      целевой наночастицы как единого целого (твердого ядра), обычно определяемый
-      методами электронной микроскопии (TEM, SEM).
+      The physical linear dimension (diameter, length, or averaged dimension) of the primary
+      target nanoparticle as a whole (solid core), usually determined
+      by electron microscopy methods (TEM, SEM).
     required: false
   length_unit:
     type: str
     description: >-
-      Строгая метрическая единица измерения (например, нанометры - nm), используемая
-      для количественного выражения линейных геометрических параметров (диаметра,
-      длины, ширины, среднего размера) целевой наночастицы или исследуемой макро-системы.
+      A strict metric unit of measurement (e.g., nanometers - nm) used
+      to quantitatively express the linear geometric parameters (diameter,
+      length, width, average size) of the target nanoparticle or investigated macro-system.
     required: false
   ph:
     type: str
     description: >-
-      Точное значение водородного показателя (pH) внешней реакционной среды (буферного
-      раствора), зафиксированное для проведения стационарных кинетических измерений
-      (steady-state kinetic assays) или утвержденное как оптимальное для целевой каталитической
-      реакции.
+      The exact value of the hydrogen ion exponent (pH) of the external reaction medium (buffer
+      solution) fixed for conducting steady-state kinetic assays
+      or approved as optimal for the target catalytic
+      reaction.
     required: false
   reaction_type:
     type: str
     description: >-
-      Тип каталитической реакции, строго определяемый комбинацией участвующих субстратов
-      и ко-субстратов (например, донора электронов и окислителя), стандартизированный
-      в виде формулы их совместного присутствия в реакционной среде.
+      The type of catalytic reaction, strictly determined by the combination of participating substrates
+      and co-substrates (e.g., electron donor and oxidant), standardized
+      as a formula of their joint presence in the reaction medium.
     required: false
   surface:
     type: str
     description: >-
-      Целенаправленно используемое химическое соединение, полимер или биологическая
-      макромолекула, формирующая внешнее покрытие (оболочку), стабилизирующий слой
-      или матрицу для синтеза индивидуальной наночастицы. Выступает в роли поверхностного
-      модификатора, который предотвращает агломерацию и определяет физико-химические
-      свойства границы раздела фаз нанозима.
+      A purposefully used chemical compound, polymer, or biological
+      macromolecule forming the external coating (shell), stabilizing layer,
+      or matrix for the synthesis of an individual nanoparticle. Acts as a surface
+      modifier that prevents agglomeration and determines the physicochemical
+      properties of the nanozyme interface.
     required: false
   syngony:
     type: str
     description: >-
-      Фундаментальная геометрическая симметрия кристаллической решетки (базовая сингония)
-      целевого наноматериала или его изолированных фаз, определяющая макроскопическую
-      пространственную организацию атомов.
+      The fundamental geometric symmetry of the crystal lattice (basic syngony/crystal system)
+      of the target nanomaterial or its isolated phases, determining the macroscopic
+      spatial organization of atoms.
     required: false
   temperature:
     type: str
     description: >-
-      Точное числовое значение температуры (в градусах Цельсия), при которой проводились
-      основные кинетические или каталитические измерения.
+      The exact numerical value of the temperature (in degrees Celsius) at which the
+      main kinetic or catalytic measurements were conducted.
     required: false
   vmax_unit:
     type: str
     description: >-
-      Физическая единица измерения максимальной скорости каталитической или ферментативной
-      реакции (Vmax), отражающая изменение концентрации вещества (субстрата или продукта)
-      в единицу времени.
+      The physical unit of measurement of the maximum rate of the catalytic or enzymatic
+      reaction (Vmax), reflecting the change in the concentration of a substance (substrate or product)
+      per unit of time.
     required: false
   vmax_value:
     type: str
     description: >-
-      Максимальная скорость ферментативной или каталитической реакции (Vmax). Количественная
-      кинетическая характеристика, отражающая предельную скорость образования продукта
-      (или расходования субстрата) каталитической системой при условии полного насыщения
-      катализатора субстратом.
+      The maximum rate of the enzymatic or catalytic reaction (Vmax). A quantitative
+      kinetic characteristic reflecting the limit rate of product formation
+      (or substrate consumption) by the catalytic system under the condition of complete saturation
+      of the catalyst with the substrate.
     required: false
   width:
     type: str
     description: >-
-      Поперечный линейный размер (ширина) первичной наночастицы. Для изотропных морфологий
-      (сферические, кубические частицы) ширина геометрически эквивалентна диаметру
-      или базовому 'размеру' (size). Для анизотропных структур (наностержни, наноленты)
-      ширина представляет собой поперечное измерение, перпендикулярное длине. Характеризует
-      физические габариты твердого неорганического ядра.
+      The transverse linear dimension (width) of the primary nanoparticle. For isotropic morphologies
+      (spherical, cubic particles), the width is geometrically equivalent to the diameter
+      or basic 'size'. For anisotropic structures (nanorods, nanobelts),
+      the width represents the transverse dimension perpendicular to the length. Characterizes
+      the physical dimensions of the solid inorganic core.
     required: false
   width_unit:
     type: str
     description: >-
-      Единица измерения поперечного линейного размера (ширины, диаметра или эквивалентного
-      габарита) исследуемой наночастицы или её структурного компонента.
+      The unit of measurement of the transverse linear dimension (width, diameter, or equivalent
+      dimension) of the investigated nanoparticle or its structural component.
     required: false
 compare_fields:
 - activity
