@@ -3,23 +3,23 @@
 
 optimization:
   # Total number of dataset examples to load for training/testing
-  total_load: 10
+  total_load: 3
   # Number of examples allocated to the training split
-  train_split: 9
+  train_split: 2
   # Number of prompt candidate instructions to generate per trial
-  num_candidates: 8
+  num_candidates: 4
   # Total number of optimization trial steps (rounds) to run
-  num_trials: 25
+  num_trials: 3
 
   # DSPy Few-Shot Settings:
   # Max bootstrapped/generated demonstrations (use 0 for zero-shot focus)
-  max_bootstrapped_demos: 0
+  max_bootstrapped_demos: 1
   # Max hand-labeled demonstrations to include in the prompt
   max_labeled_demos: 1
 
   # Evaluation Settings:
   # Use mini-batching during validation/evaluation steps
-  minibatch: true
+  minibatch: false
   minibatch_size: 4
   # Batch size for viewing data details in progress logs
   view_data_batch_size: 1
@@ -43,10 +43,3 @@ optimization:
   save_llm_history: true
   # Directory where LLM optimization histories are written
   llm_history_dir: "logs/llm_history"
-
-  # Contrastive Ground Truth analysis configuration
-  contrastive_analysis:
-    enabled: true               # По умолчанию выключен
-    batch_size: 2              # Размер батча документов по умолчанию
-    auto_skip_review: false      # Пропускать ли разбор противоречий
-    cache_dir: "data/analysis"   # Папка для сохранения результатов
