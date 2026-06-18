@@ -17,7 +17,7 @@ llm:
   student:
     provider: "api"
     model: "qwen/qwen3.5-27b"
-    temperature: 0.0
+    temperature: 0.1
     top_p: 0.1
     enable_cache: true
     # Request timeout in seconds
