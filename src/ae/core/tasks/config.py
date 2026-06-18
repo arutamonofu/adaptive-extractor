@@ -58,13 +58,13 @@ class FieldSpec:
             # Optional fields without default should have None as default
             self.default = None
 
-    def to_pydantic_field(self, minimal_description: bool = False) -> "PydanticField":  # type: ignore[valid-type]
+    def to_pydantic_field(self) -> "PydanticField":  # type: ignore[valid-type]
         """Convert FieldSpec to Pydantic Field.
 
         Returns:
             Pydantic Field with appropriate constraints.
         """
-        desc = self.field_name if minimal_description else self.description
+        desc = self.description
         if desc is None:
             desc = ""
         field_kwargs: Dict[str, Any] = {
@@ -137,7 +137,6 @@ class TaskConfig:
     initial_instruction_file: Optional[str] = None
     row_converter: RowConverterConfig = field(default_factory=RowConverterConfig)
     base_class: Optional[Type[BaseModel]] = None
-    _schema_in_prompt: bool = False
     judge_field_descriptions: Optional[Dict[str, str]] = None
 
     def __post_init__(self):
@@ -243,15 +242,7 @@ class TaskConfig:
             if spec.description
         }
 
-    def get_minimal_config(self) -> "TaskConfig":
-        """Возвращает копию TaskConfig с минимальными описаниями полей."""
-        import copy
-        config_copy = copy.deepcopy(self)
-        config_copy._schema_in_prompt = True
-        config_copy.judge_field_descriptions = self.field_descriptions
-        for name, spec in config_copy.experiment_fields.items():
-            spec.description = name
-        return config_copy
+
 
     def get_field_choices(self, field_name: str) -> Optional[List[str]]:
         """Get choices for a field if it's a Literal type.
@@ -346,7 +337,7 @@ class TaskConfig:
         errors: list[str] = []
 
         # Validate description
-        if not getattr(self, "_schema_in_prompt", False) and not spec.description:
+        if not spec.description:
             errors.append(f"Field '{field_name}' must have a description")
 
         # Validate choices

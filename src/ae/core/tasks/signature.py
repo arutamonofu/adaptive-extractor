@@ -22,7 +22,6 @@ def create_signature(
     experiment_model: Type[BaseModel],
     output_model: Optional[Type[BaseModel]] = None,
     instruction: Optional[str] = None,
-    schema_in_prompt: bool = False,
 ) -> "Type[dspy.Signature]":
     """Dynamically create a DSPy signature from TaskConfig.
 
@@ -34,7 +33,6 @@ def create_signature(
         experiment_model: Generated experiment model class.
         output_model: Generated output model class (optional, will be created if not provided).
         instruction: Instruction text (optional, will use task_config if not provided).
-        schema_in_prompt: Whether the schema is embedded in the prompt.
 
     Returns:
         Dynamically generated DSPy Signature class.
@@ -43,8 +41,9 @@ def create_signature(
         ValueError: If no instruction is available.
         FileNotFoundError: If instruction file not found.
     """
-    import dspy
     import hashlib
+
+    import dspy
 
     # Get instruction from config (no fallback - strict mode)
     if instruction is None:
@@ -56,15 +55,7 @@ def create_signature(
     # Create output model if not provided
     if output_model is None:
         from .dynamic_models import create_output_model
-        # Use minimal descriptions if schema_in_prompt is True
-        if schema_in_prompt:
-            minimal_config = task_config.get_minimal_config()
-            # We also need a corresponding minimal experiment model
-            from .dynamic_models import create_experiment_model
-            minimal_exp_model = create_experiment_model(minimal_config)
-            output_model = create_output_model(minimal_config, minimal_exp_model)
-        else:
-            output_model = create_output_model(task_config, experiment_model)
+        output_model = create_output_model(task_config, experiment_model)
 
     compiled_docstring = instruction.strip()
     prompt_hash = hashlib.md5(compiled_docstring.encode("utf-8")).hexdigest()[:8]
@@ -77,7 +68,11 @@ def create_signature(
         ),
         "extracted_data": dspy.OutputField(
             desc=f"Extracted {task_config.name} experiments as structured data."
-        )
+        ),
+        "__annotations__": {
+            "document_text": str,
+            "extracted_data": output_model
+        }
     }
 
     # Dynamically create the class inheriting from dspy.Signature
@@ -85,11 +80,6 @@ def create_signature(
     # Ensure __name__, __qualname__ and __module__ are set for DSPy's propose/utils.py
     DynamicSignature.__qualname__ = signature_name
     DynamicSignature.__module__ = __name__
-    # Set the output model as attribute/type hint for the output field so TypedPredictor knows it
-    DynamicSignature.__annotations__ = {
-        "document_text": str,
-        "extracted_data": output_model
-    }
 
     logger.info(f"Created DSPy signature '{signature_name}' with hash '{prompt_hash}'")
 
