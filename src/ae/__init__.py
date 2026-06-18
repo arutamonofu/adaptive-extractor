@@ -2,6 +2,23 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file at package initialization.
+# This ensures that litellm/dspy imported downstream at module load time
+# respect env settings before initialization.
+_project_root = Path(__file__).resolve().parent.parent.parent
+_env_file = _project_root / ".env"
+if _env_file.exists():
+    load_dotenv(_env_file)
+
+# Set LiteLLM to use local model cost map to avoid handshake timeout warnings
+# on startup in firewalled/offline environments.
+if os.environ.get("LITELLM_LOCAL_MODEL_COST_MAP") is None:
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+
 from typing import TYPE_CHECKING
 
 __version__ = "0.4.0"
