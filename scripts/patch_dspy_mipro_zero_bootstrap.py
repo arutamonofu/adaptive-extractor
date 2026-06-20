@@ -31,42 +31,45 @@ def patch_dspy_utils():
     with open(utils_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Check if already patched
-    if "# PATCHED: Handle zero-shot case (max_bootstrapped_demos=0)" in content:
-        print("✓ utils.py already patched!")
+    # Check if already patched with the corrected version
+    if "# PATCHED CORRECTED: Handle max_bootstrapped_demos=0 and max_labeled_demos > 0 correctly" in content:
+        print("✓ utils.py already patched with corrected version!")
         return True
 
-    # Find and replace the shuffled few-shot case (seed >= 0)
-    # Original code (lines ~395-410):
-    # else:
-    #     # shuffled few-shot
-    #     rng.shuffle(trainset_copy)
-    #     size = rng.randint(min_num_samples, max_bootstrapped_demos)
-    #
-    #     teleprompter = BootstrapFewShot(...)
-
-    old_code = """        else:
-            # shuffled few-shot
-            rng.shuffle(trainset_copy)
-            size = rng.randint(min_num_samples, max_bootstrapped_demos)
-
-            teleprompter = BootstrapFewShot(
-                metric=metric,
-                max_errors=max_errors,
-                metric_threshold=metric_threshold,
-                max_bootstrapped_demos=size,
-                max_labeled_demos=max_labeled_demos,
-                teacher_settings=teacher_settings,
-                max_rounds=max_rounds,
-            )
-
-            program2 = teleprompter.compile(
-                student,
-                teacher=teacher,
-                trainset=trainset_copy,
-            )"""
-
+    # New corrected code
     new_code = """        else:
+            # shuffled few-shot
+            # PATCHED: Handle zero-shot case (max_bootstrapped_demos=0) to avoid randint(1, 0) error
+            # PATCHED CORRECTED: Handle max_bootstrapped_demos=0 and max_labeled_demos > 0 correctly
+            rng.shuffle(trainset_copy)
+
+            if max_bootstrapped_demos <= 0:
+                size = 0
+            else:
+                size = rng.randint(min_num_samples, max_bootstrapped_demos)
+
+            if size == 0 and max_labeled_demos <= 0:
+                # Zero-shot: skip bootstrap, use empty demos
+                program2 = student.reset_copy()
+            else:
+                teleprompter = BootstrapFewShot(
+                    metric=metric,
+                    max_errors=max_errors,
+                    metric_threshold=metric_threshold,
+                    max_bootstrapped_demos=size,
+                    max_labeled_demos=max_labeled_demos,
+                    teacher_settings=teacher_settings,
+                    max_rounds=max_rounds,
+                )
+
+                program2 = teleprompter.compile(
+                    student,
+                    teacher=teacher,
+                    trainset=trainset_copy,
+                )"""
+
+    # We will try to replace either the old patch pattern or the original DSPy pattern
+    old_patched_code = """        else:
             # shuffled few-shot
             # PATCHED: Handle zero-shot case (max_bootstrapped_demos=0) to avoid randint(1, 0) error
             rng.shuffle(trainset_copy)
@@ -93,13 +96,37 @@ def patch_dspy_utils():
                     trainset=trainset_copy,
                 )"""
 
-    if old_code not in content:
-        print("✗ Could not find the code section to patch in utils.py!")
-        print("The DSPy version may have changed.")
-        return False
+    original_code = """        else:
+            # shuffled few-shot
+            rng.shuffle(trainset_copy)
+            size = rng.randint(min_num_samples, max_bootstrapped_demos)
 
-    # Apply the patch
-    patched_content = content.replace(old_code, new_code)
+            teleprompter = BootstrapFewShot(
+                metric=metric,
+                max_errors=max_errors,
+                metric_threshold=metric_threshold,
+                max_bootstrapped_demos=size,
+                max_labeled_demos=max_labeled_demos,
+                teacher_settings=teacher_settings,
+                max_rounds=max_rounds,
+            )
+
+            program2 = teleprompter.compile(
+                student,
+                teacher=teacher,
+                trainset=trainset_copy,
+            )"""
+
+    if old_patched_code in content:
+        print("Found old patched code in utils.py. Replacing with corrected patch...")
+        patched_content = content.replace(old_patched_code, new_code)
+    elif original_code in content:
+        print("Found original code in utils.py. Replacing with corrected patch...")
+        patched_content = content.replace(original_code, new_code)
+    else:
+        print("✗ Could not find the code section to patch in utils.py!")
+        print("The DSPy version may have changed or has an unrecognized patch state.")
+        return False
 
     # Write the patched file
     with open(utils_path, "w", encoding="utf-8") as f:
@@ -107,9 +134,8 @@ def patch_dspy_utils():
 
     print("✓ Successfully patched DSPy utils.py!")
     print("\nChanges made:")
-    print("  - Added check for max_bootstrapped_demos <= 0")
-    print("  - Skip BootstrapFewShot for zero-shot mode")
-    print("  - Use student.reset_copy() for empty demos")
+    print("  - Handled max_bootstrapped_demos=0 correctly when max_labeled_demos > 0")
+    print("  - Prevents randint(1, 0) error and retains labeled few-shot demos")
 
     return True
 
@@ -195,10 +221,66 @@ def patch_mipro_optimizer():
     return True
 
 
+def patch_grounded_proposer():
+    """Patch grounded_proposer.py to allow non-augmented (labeled only) examples."""
+    import dspy
+    dspy_dir = Path(dspy.__file__).parent
+    proposer_path = dspy_dir / "propose" / "grounded_proposer.py"
+
+    print(f"\nPatching DSPy grounded_proposer.py at: {proposer_path}")
+
+    # Read the original file
+    with open(proposer_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Check if already patched
+    if "# PATCHED: Allow both bootstrapped (augmented) and hand-labeled examples" in content:
+        print("✓ grounded_proposer.py already patched!")
+        return True
+
+    old_code = """        def gather_examples_from_sets(candidate_sets, max_examples):
+            \"\"\"Helper function to gather up to augmented examples from given sets.\"\"\"
+            count = 0
+            for candidate_set in candidate_sets:
+                for example in candidate_set:
+                    if "augmented" in example.keys():
+                        fields_to_use = get_signature(program.predictors()[pred_i]).fields
+                        yield create_example_string(fields_to_use, example)
+                        count += 1
+                        if count >= max_examples:
+                            return"""
+
+    new_code = """        def gather_examples_from_sets(candidate_sets, max_examples):
+            \"\"\"Helper function to gather up to augmented examples from given sets.\"\"\"
+            count = 0
+            for candidate_set in candidate_sets:
+                for example in candidate_set:
+                    # PATCHED: Allow both bootstrapped (augmented) and hand-labeled examples
+                    if "augmented" in example.keys() or True:
+                        fields_to_use = get_signature(program.predictors()[pred_i]).fields
+                        yield create_example_string(fields_to_use, example)
+                        count += 1
+                        if count >= max_examples:
+                            return"""
+
+    if old_code not in content:
+        print("✗ Could not find code section to patch in grounded_proposer.py!")
+        return False
+
+    patched_content = content.replace(old_code, new_code)
+
+    # Write the patched file
+    with open(proposer_path, "w", encoding="utf-8") as f:
+        f.write(patched_content)
+
+    print("✓ Successfully patched DSPy grounded_proposer.py!")
+    return True
+
+
 def main():
     """Run all patches."""
     print("=" * 60)
-    print("DSPy MIPROv2 Zero-Shot Optimization Patch")
+    print("DSPy MIPROv2 Zero-Shot & Labeled-Only Optimization Patch")
     print("=" * 60)
 
     success = True
@@ -211,12 +293,16 @@ def main():
     if not patch_mipro_optimizer():
         success = False
 
+    # Patch grounded_proposer.py
+    if not patch_grounded_proposer():
+        success = False
+
     print("\n" + "=" * 60)
     if success:
         print("✓ All patches applied successfully!")
-        print("\nZero-shot optimization is now supported:")
+        print("\nZero-shot and Labeled-only optimization is now supported:")
         print("  - max_bootstrapped_demos: 0")
-        print("  - max_labeled_demos: 0")
+        print("  - max_labeled_demos: >= 0")
     else:
         print("✗ Some patches failed to apply.")
         print("Check the DSPy version and try again.")
@@ -228,3 +314,4 @@ def main():
 if __name__ == "__main__":
     success = main()
     exit(0 if success else 1)
+
