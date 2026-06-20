@@ -25,6 +25,7 @@ dependencies = [
     "pymupdf>=1.24.0",
     "pillow>=10.0.0",
     "optuna>=3.0.0",
+    "mlflow>=2.10.0",
 ]
 
 [project.optional-dependencies]
@@ -36,9 +37,6 @@ development = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "flake8>=6.0.0",
-]
-tracking = [
-    "mlflow>=2.10.0",
 ]
 research = [
     "jupyterlab>=4.0.0",
