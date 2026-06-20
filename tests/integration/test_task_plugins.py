@@ -13,7 +13,6 @@ import pytest
 from ae.core.tasks import TaskRegistry, get_global_registry, get_task, load_task_from_yaml, register_config
 
 
-@pytest.mark.integration
 @pytest.fixture(autouse=True)
 def setup_nanozyme_task(tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path: Path):
     """Automatically register nanozyme task before each test."""

@@ -33,12 +33,12 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def save(self, path: str) -> None:
+    def save(self, path: str, *args: Any, **kwargs: Any) -> None:
         """Save the agent to a file."""
         pass
 
     @abstractmethod
-    def load(self, path: str) -> None:
+    def load(self, path: str, *args: Any, **kwargs: Any) -> None:
         """Load the agent from a file."""
         pass
 
@@ -64,13 +64,13 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
         """Execute the extraction pipeline."""
         return self.prog(document_text=document_text)
 
-    def save(self, path: str) -> None:
+    def save(self, path: str, *args: Any, **kwargs: Any) -> None:
         """Save the agent to a file."""
-        dspy.Module.save(self, path)
+        dspy.Module.save(self, path, *args, **kwargs)
 
-    def load(self, path: str) -> None:
+    def load(self, path: str, *args: Any, **kwargs: Any) -> None:
         """Load the agent from a file."""
-        dspy.Module.load(self, path)
+        dspy.Module.load(self, path, *args, **kwargs)
 
 
 @runtime_checkable
@@ -86,6 +86,6 @@ class SerializableAgent(Protocol):
 class SaveableAgent(Protocol):
     """Protocol for agents that can be saved to a file."""
 
-    def save(self, path: str) -> None:
+    def save(self, path: str, *args: Any, **kwargs: Any) -> None:
         """Save agent to a file."""
         ...

@@ -225,3 +225,27 @@ class TestExperimentTracker:
         tracker.disable_dspy_autolog()
         mlflow_mock.dspy.autolog.assert_called_with(disable=True)
         assert tracker._dspy_autolog_enabled is False
+
+    def test_log_dspy_model(self, mlflow_mock):
+        tracker = ExperimentTracker(experiment_name="test")
+        tracker.start_run(run_name="dspy_run")
+
+        mock_dspy_model = MagicMock()
+
+        # Test successful logging
+        tracker.log_dspy_model(mock_dspy_model, name="dspy_model", save_program=True)
+        mlflow_mock.dspy.log_model.assert_called_with(
+            dspy_model=mock_dspy_model,
+            name="dspy_model",
+            signature=None,
+            input_example=None,
+            use_dspy_model_save=True,
+            save_program=True,
+        )
+
+        # Test fallback when exception is raised during log_model
+        mlflow_mock.dspy.log_model.side_effect = Exception("save_program error")
+        with patch.object(tracker, "_log_dspy_model_fallback") as mock_fallback:
+            tracker.log_dspy_model(mock_dspy_model, name="dspy_model")
+            mock_fallback.assert_called_once_with(mock_dspy_model)
+
