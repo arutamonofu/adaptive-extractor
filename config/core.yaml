@@ -64,6 +64,7 @@ llm:
         require_parameter_support: true
         allow_fallbacks: false
         priority_order:
+          - alibaba
           - streamlake
           - chutes/fp8
           - deepinfra/fp8

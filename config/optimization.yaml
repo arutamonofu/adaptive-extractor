@@ -7,13 +7,13 @@ optimization:
   # Number of examples allocated to the training split
   train_split: 9
   # Number of prompt candidate instructions to generate per trial
-  num_candidates: 12
+  num_candidates: 9
   # Total number of optimization trial steps (rounds) to run
-  num_trials: 44
+  num_trials: 27
 
   # DSPy Few-Shot Settings:
   # Max bootstrapped/generated demonstrations (use 0 for zero-shot focus)
-  max_bootstrapped_demos: 1
+  max_bootstrapped_demos: 0
   # Max hand-labeled demonstrations to include in the prompt
   max_labeled_demos: 1
 
