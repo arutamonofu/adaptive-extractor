@@ -13,4 +13,4 @@ cd "/mnt/tank/scratch/aartamonov/adaptive-extractor"
 
 export PYTHONUNBUFFERED=1
 
-ae-optimize --run-name nanozymes_re
+ae-optimize
