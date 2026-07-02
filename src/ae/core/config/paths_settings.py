@@ -36,7 +36,7 @@ class PathsConfig(BaseModel):
         description="Directory containing PDF files to process"
     )
     ingestion_dir: Path = Field(
-        default=Path("data/processed/parsed"),
+        default=Path("data/interim/ingestion"),
         description="Directory for ingested/parsed document outputs"
     )
     ground_truth_file: Path = Field(

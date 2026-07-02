@@ -201,6 +201,7 @@ class TestMinerUParser:
         assert "Data Formatting Warnings" not in replaced
 
     @patch.dict(os.environ, {"MINERU_API_TOKEN": "test_token"})
+    @patch("ae.ingestion.parsers.mineru.parser.evaluate_relevance")
     @patch("ae.ingestion.parsers.mineru.parser.find_project_root")
     @patch("ae.ingestion.parsers.mineru.parser.MinerUClient")
     @patch("ae.ingestion.parsers.mineru.parser.get_model_client")
@@ -211,6 +212,7 @@ class TestMinerUParser:
         mock_get_model_client,
         mock_client_class,
         mock_find_project_root,
+        mock_evaluate_relevance,
         tmp_path: Path
     ):
         mock_find_project_root.return_value = tmp_path
@@ -220,6 +222,15 @@ class TestMinerUParser:
         # Mock the MinerU client
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
+
+        # Mock evaluate_relevance to return relevant for chart1
+        mock_evaluate_relevance.return_value = {
+            "images/chart1.jpg": {
+                "img_path": "images/chart1.jpg",
+                "is_relevant": True,
+                "reason": "Test relevance"
+            }
+        }
 
         # Mock VLM extraction result
         mock_extract_single_chart.return_value = {
@@ -244,7 +255,8 @@ class TestMinerUParser:
             chart_extraction=ChartExtractionConfig(
                 provider="gemini",
                 model="gemini-3.5-flash"
-            )
+            ),
+            ingestion_dir=tmp_path / "parsed"
         )
 
         parser = MinerUParser(config)
@@ -271,3 +283,74 @@ class TestMinerUParser:
         assert "![](images/chart1.jpg)" not in result_md
         mock_client.parse_pdf.assert_called_once()
         mock_extract_single_chart.assert_called_once()
+
+    def test_parse_html_table_success(self):
+        from ae.ingestion.parsers.mineru.visual.stages.parse_html_table import parse_html_table
+        html = "<table><tr><th>catalyst</th><th>Km (mM)</th></tr><tr><td>Pd cubes</td><td>0.43</td></tr></table>"
+        res = parse_html_table(html)
+        assert res["status"] == "success"
+        assert len(res["tables"]) == 1
+        table = res["tables"][0]
+        assert table["columns"] == [
+            {"name": "catalyst", "unit": None},
+            {"name": "Km", "unit": "mM"}
+        ]
+        assert table["rows"] == [["Pd cubes", "0.43"]]
+
+    def test_collect_visual_candidates(self):
+        from ae.ingestion.parsers.mineru.visual.stages.relevance_filter import collect_visual_candidates
+        content_list = [
+            {
+                "type": "chart",
+                "img_path": "images/chart1.jpg",
+                "chart_caption": [{"text": "Fig 1. Kinetic study"}]
+            },
+            {
+                "type": "image",
+                "img_path": "images/img1.jpg",
+                "image_caption": "TEM image of particles"
+            },
+            {
+                "type": "table",
+                "img_path": "images/table1.jpg",
+                "table_caption": "Table 1. Kinetic parameters",
+                "table_body": "<table></table>"
+            },
+            {
+                "type": "text",
+                "text": "some normal text block"
+            }
+        ]
+        candidates = collect_visual_candidates(content_list)
+        assert len(candidates) == 3
+        
+        # Verify chart candidate
+        c_chart = next(c for c in candidates if c.type == "chart")
+        assert c_chart.img_path == "images/chart1.jpg"
+        assert c_chart.caption == "Fig 1. Kinetic study"
+        
+        # Verify image candidate
+        c_img = next(c for c in candidates if c.type == "image")
+        assert c_img.img_path == "images/img1.jpg"
+        assert c_img.caption == "TEM image of particles"
+
+        # Verify table candidate
+        c_table = next(c for c in candidates if c.type == "table")
+        assert c_table.img_path == "images/table1.jpg"
+        assert c_table.caption == "Table 1. Kinetic parameters"
+        assert c_table.table_body == "<table></table>"
+
+    def test_replace_image_tags_with_irrelevant_placeholder(self):
+        from ae.ingestion.parsers.mineru.visual.stages.insert_visual_tables import replace_image_tags
+        markdown = "Some text.\n![](images/test_img.jpg)\nOther text."
+        results = {
+            "images/test_img.jpg": {
+                "status": "irrelevant",
+                "caption": "Fig. 2: TEM images of nanozymes"
+            }
+        }
+        warnings = []
+        replaced = replace_image_tags(markdown, results, warnings)
+        
+        assert "[Изображение удалено как нерелевантное: Fig. 2: TEM images of nanozymes]" in replaced
+        assert "![](images/test_img.jpg)" not in replaced

@@ -64,7 +64,8 @@ class TestMinerUParserIntegration:
             ),
             chart_extraction=ChartExtractionConfig(
                 enabled=False
-            )
+            ),
+            ingestion_dir=parsed_dir
         )
         parser = MinerUParser(config)
         repo = DocumentRepository(ingestion_dir=parsed_dir)
@@ -133,7 +134,8 @@ class TestMinerUParserIntegration:
             ),
             chart_extraction=ChartExtractionConfig(
                 enabled=True
-            )
+            ),
+            ingestion_dir=parsed_dir
         )
 
         # Create request

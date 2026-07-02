@@ -26,7 +26,7 @@ __version__ = "0.4.0"
 if TYPE_CHECKING:
     from ae.core.config import Settings, setup_logging
     from ae.core.evaluation import ExperimentMatcher, TaskMetric
-    from ae.core.llm import create_lm, setup_student, setup_teacher, setup_ingestor
+    from ae.core.llm import create_lm, setup_student, setup_teacher, setup_visual_extractor
     from ae.core.storage import (
         DataSplitRepository,
         ExtractionRepository,
@@ -63,9 +63,9 @@ def __getattr__(name: str):
     if name == "setup_teacher":
         from ae.core.llm import setup_teacher
         return setup_teacher
-    if name == "setup_ingestor":
-        from ae.core.llm import setup_ingestor
-        return setup_ingestor
+    if name == "setup_visual_extractor":
+        from ae.core.llm import setup_visual_extractor
+        return setup_visual_extractor
     if name == "create_lm":
         from ae.core.llm import create_lm
         return create_lm
@@ -105,7 +105,7 @@ __all__ = [
     # LLM
     "setup_student",
     "setup_teacher",
-    "setup_ingestor",
+    "setup_visual_extractor",
     "create_lm",
     # Storage (Repositories)
     "GroundTruthRepository",

@@ -118,15 +118,15 @@ def _apply_env_overrides(config_data: dict) -> None:
         .get("teacher", {})
         .get("provider") == "ollama"
     )
-    ingestor_uses_ollama = (
+    visual_extractor_uses_ollama = (
         config_data.get("llm", {})
-        .get("ingestor", {})
+        .get("visual_extractor", {})
         .get("provider") == "ollama"
     )
 
     ollama_student_url = os.getenv("OLLAMA_STUDENT_BASE_URL")
     ollama_teacher_url = os.getenv("OLLAMA_TEACHER_BASE_URL")
-    ollama_ingestor_url = os.getenv("OLLAMA_INGESTOR_BASE_URL")
+    ollama_visual_extractor_url = os.getenv("OLLAMA_VISUAL_EXTRACTOR_BASE_URL")
 
     if student_uses_ollama:
         if not ollama_student_url or ollama_student_url.strip() == "":
@@ -154,18 +154,18 @@ def _apply_env_overrides(config_data: dict) -> None:
             config_data["llm"]["teacher"]["ollama"] = {}
         config_data["llm"]["teacher"]["ollama"]["ollama_base_url"] = ollama_teacher_url.strip()
 
-    if ingestor_uses_ollama:
-        if not ollama_ingestor_url or ollama_ingestor_url.strip() == "":
+    if visual_extractor_uses_ollama:
+        if not ollama_visual_extractor_url or ollama_visual_extractor_url.strip() == "":
             raise ValueError(
-                "OLLAMA_INGESTOR_BASE_URL environment variable must be set in .env file when provider='ollama' for ingestor"
+                "OLLAMA_VISUAL_EXTRACTOR_BASE_URL environment variable must be set in .env file when provider='ollama' for visual_extractor"
             )
         if "llm" not in config_data:
             config_data["llm"] = {}
-        if "ingestor" not in config_data["llm"]:
-            config_data["llm"]["ingestor"] = {}
-        if "ollama" not in config_data["llm"]["ingestor"]:
-            config_data["llm"]["ingestor"]["ollama"] = {}
-        config_data["llm"]["ingestor"]["ollama"]["ollama_base_url"] = ollama_ingestor_url.strip()
+        if "visual_extractor" not in config_data["llm"]:
+            config_data["llm"]["visual_extractor"] = {}
+        if "ollama" not in config_data["llm"]["visual_extractor"]:
+            config_data["llm"]["visual_extractor"]["ollama"] = {}
+        config_data["llm"]["visual_extractor"]["ollama"]["ollama_base_url"] = ollama_visual_extractor_url.strip()
 
 
 def _apply_api_keys(config_data: dict) -> None:
@@ -260,8 +260,8 @@ def _apply_api_keys(config_data: dict) -> None:
         else:
             logger.warning(f"No API key found for {component_name}: {model_name}")
 
-    if "llm" in config_data and "ingestor" in config_data["llm"]:
-        apply_key_to_component(config_data["llm"]["ingestor"], "ingestor")
+    if "llm" in config_data and "visual_extractor" in config_data["llm"]:
+        apply_key_to_component(config_data["llm"]["visual_extractor"], "visual_extractor")
     if "llm" in config_data and "student" in config_data["llm"]:
         apply_key_to_component(config_data["llm"]["student"], "student")
     if "llm" in config_data and "teacher" in config_data["llm"]:

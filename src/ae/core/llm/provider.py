@@ -1008,15 +1008,15 @@ def setup_teacher(
     return lm
 
 
-def setup_ingestor(
+def setup_visual_extractor(
     llm_config: LLMInstanceConfig,
     circuit_breaker_config: CircuitBreakerConfig,
     enable_circuit_breaker: bool = True,
     enable_cache: Optional[bool] = None,
 ) -> LMProvider:
-    """Set up the ingestor language model."""
+    """Set up the visual extractor language model."""
     if llm_config is None:
-        raise ValueError("llm_config is required for setup_ingestor")
+        raise ValueError("llm_config is required for setup_visual_extractor")
 
     lm = create_lm(
         llm_config,
@@ -1024,5 +1024,5 @@ def setup_ingestor(
         enable_circuit_breaker=enable_circuit_breaker,
         enable_cache=enable_cache,
     )
-    logger.info(f"Ingestor LLM configured: {llm_config.model}")
+    logger.info(f"VisualExtractor LLM configured: {llm_config.model}")
     return lm

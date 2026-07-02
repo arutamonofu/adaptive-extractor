@@ -133,8 +133,16 @@ def replace_image_tags(
             result = next((r for path, r in results_by_img_path.items() if Path(path).name == filename), None)
             
         if not result:
-            logger.debug(f"No VLM extraction results found for image: {img_path}")
+            logger.debug(f"No visual extraction results found for image: {img_path}")
             return ""  # Delete from the markdown
+
+        # Check if the image was evaluated as irrelevant
+        if result.get("status") == "irrelevant":
+            caption_text = result.get("caption") or caption or ""
+            caption_text = caption_text.strip()
+            if caption_text:
+                return f"\n\n[Изображение удалено как нерелевантное: {caption_text}]\n\n"
+            return f"\n\n[Изображение удалено как нерелевантное]\n\n"
             
         result.setdefault("target_id", Path(img_path).name)
             
@@ -142,7 +150,9 @@ def replace_image_tags(
             warnings.append(f"Failed extraction for {img_path}")
             return ""  # Delete from the markdown
             
-        rendered = _render_result(result, warnings, caption=caption, img_path=img_path)
+        # Fallback to result caption if caption in markdown tag is empty
+        final_caption = caption or result.get("caption") or ""
+        rendered = _render_result(result, warnings, caption=final_caption, img_path=img_path)
         if not rendered:
             return ""  # Delete from the markdown
             

@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     circuit_breaker: CircuitBreakerConfig
     re: Optional[REConfig] = None
 
+    @model_validator(mode="after")
+    def sync_ingestion_dir(self) -> "Settings":
+        """Sync ingestion_dir from paths to parsing config if not set."""
+        if self.parsing and self.paths and getattr(self.parsing, "ingestion_dir", None) is None:
+            self.parsing.ingestion_dir = self.paths.ingestion_dir
+        return self
+
     # Infrastructure settings from environment variables only
     mlflow_tracking_uri: Optional[str] = Field(
         default=None,

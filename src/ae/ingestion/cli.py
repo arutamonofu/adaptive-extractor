@@ -90,10 +90,10 @@ def parse_command(argv: Optional[list] = None) -> int:
 
     def setup_llms(settings: Settings) -> None:
         settings_container["settings"] = settings
-        # Configure ingestor LLM for parsing if chart extraction is enabled
+        # Configure visual extractor LLM for parsing if chart extraction is enabled
         if settings.parsing.chart_extraction.enabled:
-            from ae.core.llm import setup_ingestor
-            setup_ingestor(settings.llm.ingestor, settings.circuit_breaker)
+            from ae.core.llm import setup_visual_extractor
+            setup_visual_extractor(settings.llm.visual_extractor, settings.circuit_breaker)
 
     def build_request(
         args: argparse.Namespace,

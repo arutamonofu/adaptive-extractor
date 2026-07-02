@@ -8,8 +8,8 @@ project:
 
 # Large Language Model (LLM) instances for extraction and verification
 llm:
-  # Ingestor model: used for document ingestion pipeline (e.g. chart extraction)
-  ingestor:
+  # VisualExtractor model: used for document ingestion pipeline (e.g. chart/image extraction)
+  visual_extractor:
     provider: "api"
     model: "qwen/qwen3.6-flash"
     temperature: 0.0

@@ -55,6 +55,10 @@ class IngestionConfig(BaseModel):
         default_factory=ChartExtractionConfig,
         description="Chart extraction configuration"
     )
+    ingestion_dir: Optional[Path] = Field(
+        default=None,
+        description="Directory for ingested/parsed document outputs"
+    )
 
 
 class OptimizationConfig(BaseModel):

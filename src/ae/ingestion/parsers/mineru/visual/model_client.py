@@ -117,25 +117,31 @@ class CoreLMModelClient(ModelClient):
             raise ModelGenerationError(f"Core LM call failed: {exc}") from exc
 
 
-_INGESTOR_CLIENT: ModelClient | None = None
+_VISUAL_EXTRACTOR_CLIENT: ModelClient | None = None
+_TEACHER_CLIENT: ModelClient | None = None
 
 
-def get_model_client(provider: str | None = None, lm: dspy.LM | None = None) -> ModelClient:
-    """Return the model client for document ingestion.
+def get_model_client(
+    client_type: str = "visual_extractor",
+    lm: dspy.LM | None = None
+) -> ModelClient:
+    """Return the model client for document ingestion or manifest creation.
     
     If `lm` is explicitly provided, it wraps it in a CoreLMModelClient.
     Otherwise, it checks if a global `dspy.settings.lm` is configured.
-    If not, it dynamically loads Settings, sets up the ingestor model client,
+    If not, it dynamically loads Settings, sets up the model client (either teacher or visual_extractor),
     caches it globally, and returns it.
     """
-    global _INGESTOR_CLIENT
+    global _VISUAL_EXTRACTOR_CLIENT, _TEACHER_CLIENT
     
     if lm is not None:
         return CoreLMModelClient(lm)
 
-    # If the ingestor client is already cached, return it
-    if _INGESTOR_CLIENT is not None:
-        return _INGESTOR_CLIENT
+    # Check client type and return if cached
+    if client_type == "visual_extractor" and _VISUAL_EXTRACTOR_CLIENT is not None:
+        return _VISUAL_EXTRACTOR_CLIENT
+    elif client_type == "teacher" and _TEACHER_CLIENT is not None:
+        return _TEACHER_CLIENT
 
     # Check if a global dspy.settings.lm client is active
     active_lm = getattr(dspy.settings, "lm", None)
@@ -143,11 +149,11 @@ def get_model_client(provider: str | None = None, lm: dspy.LM | None = None) -> 
         # Wrap the active global LM
         return CoreLMModelClient(active_lm)
 
-    # Dynamically initialize the ingestor model
-    logger.info("Initializing ingestor model client dynamically...")
+    # Dynamically initialize the model
+    logger.info(f"Initializing {client_type} model client dynamically...")
     try:
         from ae.core.config.settings import Settings
-        from ae.core.llm import setup_ingestor, DSPyLMAdapter
+        from ae.core.llm import DSPyLMAdapter
         
         try:
             settings = Settings.load()
@@ -155,12 +161,21 @@ def get_model_client(provider: str | None = None, lm: dspy.LM | None = None) -> 
             logger.warning(f"Failed to load settings with env: {e}. Retrying without loading env file.")
             settings = Settings.load(load_env_file=False)
 
-        ingestor_lm = setup_ingestor(settings.llm.ingestor, settings.circuit_breaker)
-        adapter = DSPyLMAdapter(ingestor_lm)
-        _INGESTOR_CLIENT = CoreLMModelClient(adapter)
-        return _INGESTOR_CLIENT
+        if client_type == "teacher":
+            from ae.core.llm import setup_teacher
+            teacher_lm = setup_teacher(settings.llm.teacher, settings.circuit_breaker)
+            adapter = DSPyLMAdapter(teacher_lm)
+            _TEACHER_CLIENT = CoreLMModelClient(adapter)
+            return _TEACHER_CLIENT
+        else:
+            from ae.core.llm import setup_visual_extractor
+            visual_extractor_lm = setup_visual_extractor(settings.llm.visual_extractor, settings.circuit_breaker)
+            adapter = DSPyLMAdapter(visual_extractor_lm)
+            _VISUAL_EXTRACTOR_CLIENT = CoreLMModelClient(adapter)
+            return _VISUAL_EXTRACTOR_CLIENT
+            
     except Exception as exc:
-        logger.error(f"Failed to dynamically initialize ingestor client: {exc}")
+        logger.error(f"Failed to dynamically initialize {client_type} client: {exc}")
         return StubModelClient()
 
 

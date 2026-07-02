@@ -51,7 +51,7 @@ class OllamaConfig(BaseModel):
         if v is None or v.strip() == "":
             raise ValueError(
                 "OLLAMA_*_BASE_URL environment variable must be set in .env file. "
-                "Set OLLAMA_STUDENT_BASE_URL, OLLAMA_TEACHER_BASE_URL, or OLLAMA_INGESTOR_BASE_URL as appropriate."
+                "Set OLLAMA_STUDENT_BASE_URL, OLLAMA_TEACHER_BASE_URL, or OLLAMA_VISUAL_EXTRACTOR_BASE_URL as appropriate."
             )
         return v.strip()
 
@@ -314,9 +314,9 @@ class LLMInstanceConfig(BaseModel):
 
 class LLMConfig(BaseModel):
     """Configuration for LLM instances."""
-    ingestor: Optional[LLMInstanceConfig] = Field(
+    visual_extractor: Optional[LLMInstanceConfig] = Field(
         default=None,
-        description="Ingestor LLM configuration"
+        description="VisualExtractor LLM configuration"
     )
     student: LLMInstanceConfig = Field(
         ...,
@@ -328,8 +328,8 @@ class LLMConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def set_default_ingestor(self) -> "LLMConfig":
-        """Set default ingestor configuration to student model if not provided."""
-        if self.ingestor is None:
-            self.ingestor = self.student
+    def set_default_visual_extractor(self) -> "LLMConfig":
+        """Set default visual extractor configuration to student model if not provided."""
+        if self.visual_extractor is None:
+            self.visual_extractor = self.student
         return self

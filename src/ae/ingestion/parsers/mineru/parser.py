@@ -13,7 +13,12 @@ from ae.core.config.settings import IngestionConfig
 from ae.ingestion.parsers.base import BaseParser
 from ae.ingestion.parsers.mineru.client import MinerUClient
 from ae.ingestion.parsers.mineru.visual.model_client import get_model_client
+from ae.ingestion.parsers.mineru.visual.stages.relevance_filter import (
+    collect_visual_candidates,
+    evaluate_relevance,
+)
 from ae.ingestion.parsers.mineru.visual.stages.extract_chart_tables import extract_single_chart
+from ae.ingestion.parsers.mineru.visual.stages.parse_html_table import parse_html_table
 from ae.ingestion.parsers.mineru.visual.stages.insert_visual_tables import replace_image_tags
 
 logger = logging.getLogger(__name__)
@@ -74,7 +79,18 @@ class MinerUParser(BaseParser):
 
         pdf_stem = pdf_path.stem
         project_root = find_project_root()
-        mineru_dir = project_root / "data" / "parsed" / "service" / "mineru" / pdf_stem
+        
+        # Get ingestion directory (fall back to settings or data/interim/ingestion)
+        ingestion_dir = getattr(self.cfg, "ingestion_dir", None)
+        if not ingestion_dir:
+            try:
+                from ae.core.config.settings import Settings
+                settings = Settings.load(load_env_file=False)
+                ingestion_dir = settings.paths.ingestion_dir
+            except Exception:
+                ingestion_dir = project_root / "data" / "interim" / "ingestion"
+        
+        mineru_dir = Path(ingestion_dir) / "service" / "mineru" / pdf_stem
 
         logger.info(f"Starting MinerU parsing for {pdf_path.name}")
         self.client.parse_pdf(str(pdf_path), str(mineru_dir))
@@ -112,14 +128,15 @@ class MinerUParser(BaseParser):
             logger.warning(f"Unexpected content list JSON structure in {json_file}. Skipping chart extraction.")
             return initial_md
 
-        # Load extraction instruction and ingestor config
+        # Load extraction instruction and settings
         task_name = "nanozymes"
-        ingestor_cfg = None
+        visual_extractor_cfg = None
+        settings = None
         try:
             from ae.core.config.settings import Settings
             settings = Settings.load(load_env_file=False)
             task_name = settings.task.name
-            ingestor_cfg = settings.llm.ingestor
+            visual_extractor_cfg = settings.llm.visual_extractor
         except Exception:
             pass
 
@@ -133,99 +150,94 @@ class MinerUParser(BaseParser):
             instruction = "Locate specific numerical charts and mathematically reverse-engineer their data."
             logger.info("Using default fallback chart extraction instruction")
 
-        # Extract chart data
+        # Collect and evaluate relevance of all visual candidates
+        candidates = collect_visual_candidates(content_list)
+        relevance_map = {}
+        if settings:
+            relevance_map = evaluate_relevance(
+                settings=settings,
+                project_root=project_root,
+                candidates=candidates,
+                mineru_dir=mineru_dir,
+            )
+        else:
+            # Fallback if settings couldn't load: treat all as relevant charts (backward compatibility)
+            relevance_map = {
+                c.img_path: {"is_relevant": c.type == "chart", "reason": "No settings available; defaulted."}
+                for c in candidates
+            }
+
+        # Process each visual candidate
         results_by_img_path = {}
         warnings: list[str] = []
-        client = get_model_client()
+        client = get_model_client(client_type="visual_extractor")
 
         extract_service_dir = mineru_dir / "service" / "extract_chart_tables"
         extract_service_dir.mkdir(parents=True, exist_ok=True)
 
-        normalized_charts = []
+        for candidate in candidates:
+            img_path = candidate.img_path
+            
+            # 1. Handle Irrelevant candidates
+            relevance_info = relevance_map.get(img_path, {"is_relevant": False})
+            if not relevance_info.get("is_relevant", False):
+                results_by_img_path[img_path] = {
+                    "status": "irrelevant",
+                    "caption": candidate.caption,
+                    "target_id": Path(img_path).name,
+                    "tables": []
+                }
+                continue
 
-        def process_element(item: Any) -> None:
-            if not isinstance(item, dict):
-                return
-            if item.get("type") != "chart":
-                return
-
-            img_path = item.get("img_path")
-            caption_val = item.get("chart_caption", "")
-
-            # Check for v2 structure where image_source and captions are nested inside "content"
-            content_dict = item.get("content")
-            if isinstance(content_dict, dict):
-                image_source = content_dict.get("image_source")
-                if isinstance(image_source, dict):
-                    img_path = img_path or image_source.get("path")
-                img_path = img_path or content_dict.get("img_path")
-                caption_val = caption_val or content_dict.get("chart_caption", "")
-
-            if img_path:
-                # Normalize caption to a clean string
-                caption_str = ""
-                if isinstance(caption_val, list):
-                    parts = []
-                    for part in caption_val:
-                        if isinstance(part, str):
-                            parts.append(part)
-                        elif isinstance(part, dict):
-                            parts.append(part.get("text") or part.get("content") or "")
-                    caption_str = " ".join([p.strip() for p in parts if p]).strip()
-                elif isinstance(caption_val, str):
-                    caption_str = caption_val
-
-                normalized_charts.append({
-                    "img_path": img_path,
-                    "caption": caption_str
-                })
-
-        def flatten_and_extract(obj: Any) -> None:
-            if isinstance(obj, list):
-                for sub_obj in obj:
-                    flatten_and_extract(sub_obj)
-            elif isinstance(obj, dict):
-                process_element(obj)
-
-        flatten_and_extract(content_list)
-
-        for chart_info in normalized_charts:
-            img_path = chart_info["img_path"]
             # Resolve absolute path to the image
             img_abs_path = json_file.parent / img_path
             if not img_abs_path.exists() and images_dir:
                 img_abs_path = images_dir / Path(img_path).name
 
-            if not img_abs_path.exists():
-                logger.warning(f"Chart image file not found: {img_path}")
+            # 2. Handle relevant Table blocks (with HTML body) without VLM call
+            if candidate.type == "table" and candidate.table_body and candidate.table_body.strip():
+                logger.info(f"Parsing HTML table body directly for table block: {img_path}")
+                table_result = parse_html_table(candidate.table_body)
+                table_result["caption"] = candidate.caption
+                table_result["target_id"] = Path(img_path).name
+                results_by_img_path[img_path] = table_result
                 continue
 
-            caption = chart_info["caption"]
+            # 3. Handle relevant Chart or Image blocks using VLM
+            if not img_abs_path.exists():
+                logger.warning(f"Visual candidate image file not found: {img_path}")
+                continue
+
             raw_response_path = extract_service_dir / f"{img_abs_path.stem}.raw_response.txt"
 
             vlm_result = extract_single_chart(
                 cfg={
-                    "model": ingestor_cfg.model if ingestor_cfg else "qwen/qwen3.6-flash",
-                    "temperature": ingestor_cfg.temperature if ingestor_cfg else 0.0,
+                    "model": visual_extractor_cfg.model if visual_extractor_cfg else "qwen/qwen3.6-flash",
+                    "temperature": visual_extractor_cfg.temperature if visual_extractor_cfg else 0.0,
                     "max_output_tokens": (
-                        ingestor_cfg.api.max_tokens if ingestor_cfg and ingestor_cfg.api 
-                        else (ingestor_cfg.ollama.num_predict if ingestor_cfg and ingestor_cfg.ollama else 8192)
+                        visual_extractor_cfg.api.max_tokens if visual_extractor_cfg and visual_extractor_cfg.api 
+                        else (visual_extractor_cfg.ollama.num_predict if visual_extractor_cfg and visual_extractor_cfg.ollama else 8192)
                     ),
                     "thinking_level": (
-                        "high" if ingestor_cfg and ingestor_cfg.api and ingestor_cfg.api.reasoning and ingestor_cfg.api.reasoning.get("enabled")
+                        "high" if visual_extractor_cfg and visual_extractor_cfg.api and visual_extractor_cfg.api.reasoning and visual_extractor_cfg.api.reasoning.get("enabled")
                         else None
                     ),
                 },
                 client=client,
                 image_path=img_abs_path,
-                caption=caption,
+                caption=candidate.caption,
                 instruction=instruction,
                 raw_response_path=raw_response_path
             )
+            
+            # Ensure VLM result has caption set correctly
+            if isinstance(vlm_result, dict):
+                vlm_result["caption"] = candidate.caption
+                
             results_by_img_path[img_path] = vlm_result
 
-        # Replace image tags in markdown with rendered tables
-        logger.info("Replacing chart image links in markdown with extracted tables...")
+        # Replace image tags in markdown with rendered tables / placeholders
+        logger.info("Replacing visual image links in markdown with tables or placeholders...")
         enriched_md = replace_image_tags(initial_md, results_by_img_path, warnings)
 
         # Save final enriched markdown and enrichment summary for audit/debug

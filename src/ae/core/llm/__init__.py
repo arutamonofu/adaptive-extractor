@@ -19,7 +19,7 @@ if TYPE_CHECKING:
         create_lm,
         setup_student,
         setup_teacher,
-        setup_ingestor,
+        setup_visual_extractor,
         LMProvider,
         DSPyLMAdapter,
     )
@@ -55,10 +55,10 @@ def __getattr__(name: str):
         from .provider import setup_teacher
 
         return setup_teacher
-    if name == "setup_ingestor":
-        from .provider import setup_ingestor
+    if name == "setup_visual_extractor":
+        from .provider import setup_visual_extractor
 
-        return setup_ingestor
+        return setup_visual_extractor
     if name == "LMProvider":
         from .provider import LMProvider
 
@@ -85,7 +85,7 @@ __all__ = [
     "create_lm",
     "setup_student",
     "setup_teacher",
-    "setup_ingestor",
+    "setup_visual_extractor",
     "LMProvider",
     "DSPyLMAdapter",
 ]
