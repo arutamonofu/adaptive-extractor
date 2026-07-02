@@ -1,0 +1,74 @@
+<mission>
+Locate specific numerical charts within scientific figure images, mathematically reverse-engineer their data based on their chart structure, and extract the comprehensive result into a strict, dynamic JSON schema that preserves series context, data precision, and overlaid textual annotations.
+</mission>
+
+<execution_constraints>
+1. Locate the exact figure and panel identified by the target metadata. Ignore all other charts, tables, and visual objects in the image.
+2. Use caption and panel metadata as strict constraints. Do not extract panels whose panel metadata has `"num": false`.
+3. Extract every table-like dataset from every remaining extractable panel. If the figure has no distinct panels or the data comes from the whole figure, designate the panel as null.
+4. MANDATORY SERIES BINDING: Every object in the `tables` array MUST be explicitly linked to a specific data series via the `"series_name"` field. Identify the name using the chart's legend. If the chart uses inline text pointers or letters (e.g., "a", "b", "c" pointing to lines), resolve what those letters mean using the in-graph key and write the full resolved name. Never leave it anonymous.
+5. TEXT OVERLAYS SCOPE RESOLUTION: Scientific charts contain explicit text written directly on the plot area. You MUST classify and extract them based on their scope:
+   - SERIES-LEVEL: If the text describes an entire curve, dataset, or chart (e.g., kinetic parameters like Vmax, Km, mathematical equations, R^2 values), extract it exactly as written into the `series_level_annotations` array.
+   - POINT-LEVEL: If the text is attached to a specific data point, bar, or category (e.g., statistical significance markers like `*`, `**`, `***`, or explicit numerical value callouts written above bars), you MUST dynamically add a column named "Annotation" to the `columns` array and place the text in the exact row corresponding to that point/bar. If a row has no annotation, use `null`. Do not put point-level annotations into the `series_level_annotations` array.
+6. EXTREMA PRECISION: When reading values from lines/bars, pay extreme attention to local maxima (peaks), local minima (troughs), and boundary limits. Do not artificially flatten peaks. If a peak visually reaches a major tick mark, accurately reflect this.
+7. Read values directly according to the explicit axis scales. Copy units exactly. Do not calculate, infer, normalize, or guess.
+8. If specific values, axis labels, or units are unreadable (e.g., blurry text), output `null` for that cell and explicitly log a descriptive warning in the `warnings` array.
+9. If no relevant chart data can be extracted, log this in the final `status`.
+</execution_constraints>
+
+<extraction_rules>
+<rule name="Discrete_Categorical">
+<definition>Charts mapping discrete categories to scalar values (e.g., Bar charts, Pie charts).</definition>
+<action>Columns must include the category axis and the value axis. Check for error bars. If present, dynamically add an error column (e.g., "Error Bound") to the `columns` array and extract the error value into every row. Extract explicit text written above bars into the "Annotation" column.</action>
+</rule>
+
+<rule name="Discrete_Coordinates">
+<definition>Charts representing sets of explicit tuples with physical markers (e.g., Scatter plots, line plots with distinct dots/squares/triangles).</definition>
+<action>Columns must represent the coordinates (e.g., X and Y). Extract the precise coordinates ONLY for the center of every visible physical marker. IGNORE any unmarked trendline or fit-curve — do not sample arbitrary empty spaces along it.</action>
+</rule>
+
+<rule name="Continuous_Curves">
+<definition>Continuous signal approximations WITHOUT explicit point markers (e.g., pure Line charts, UV-vis spectra, smooth kinetic curves).</definition>
+<action>Columns must represent the axes (e.g., X and Y). Extract structural key points (global/local maxima, minima, axis intercepts). Additionally, sample approximately 10 equally spaced points along the X-axis to capture the curve's overall shape. Ensure highest peaks are captured exactly.</action>
+</rule>
+
+<rule name="Distribution_And_Density">
+<definition>Charts mapping ranges/coordinates to frequencies/intensities (e.g., Histograms, Boxplots, Heatmaps).</definition>
+<action>Adapt columns logically. For Histograms: `bin_start`, `bin_end`, and `frequency`. For Boxplots: `category`, `min`, `q1`, `median`, `q3`, `max`. For Heatmaps: `x`, `y`, and `z_intensity`.</action>
+</rule>
+</extraction_rules>
+
+<input_data>
+1. Cropped figure image(s).
+2. Target metadata: {{TARGET_JSON}}
+3. Extraction instructions: {{INSTRUCTION}}
+</input_data>
+
+<output_contract>
+Return strict JSON only. Do not wrap it in Markdown blocks (like ```json) or add conversational text. The response must exactly match this schema, dynamically adapting columns and rows based on the extraction rules and scope resolution:
+
+{
+  "status": "success|partial|no_extractable_chart|failed|pages_missing",
+  "tables": [
+    {
+      "panel": "string or null (e.g., 'a', 'b')",
+      "chart_type": "string (e.g., 'bar', 'scatter', 'continuous_line', 'histogram', 'boxplot', 'heatmap')",
+      "series_name": "string (The explicit resolved name from the legend)",
+      "series_level_annotations": [
+        "string (Exact text of equations or kinetic parameters like Vmax/Km describing this ENTIRE series. Empty array if none.)"
+      ],
+      "columns": [
+        {"name": "string (logical name inferred from axis label)", "unit": "string or null"},
+        {"name": "Error Bound", "unit": "string or null (Optional, only if error bars exist)"},
+        {"name": "Annotation", "unit": null, "description": "Optional, used ONLY for point-level text like '*', '**', or value callouts"}
+      ],
+      "rows": [
+        ["string_or_number_value1", "string_or_number_value2", "optional_error_value", "optional_annotation_or_null"]
+      ]
+    }
+  ],
+  "warnings": [
+    "string (describe any unreadable text, ambiguous legends, or missing data)"
+  ]
+}
+</output_contract>

@@ -6,16 +6,18 @@ This module provides the command-line interface for parsing PDF documents.
 import argparse
 import logging
 import sys
+import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
-from ae import setup_logging
 from ae.core.config.settings import Settings
 from ae.core.storage import DocumentRepository
-from ae.ingestion.pipeline import (
+from ae.ingestion.use_case import (
     ParseDocumentsRequest,
+    ParseDocumentsResponse,
     ParseDocumentsUseCase,
 )
+from ae.core.cli import run_cli_use_case
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,12 @@ def create_argument_parser() -> argparse.ArgumentParser:
         "--overwrite",
         action="store_true",
         help="Overwrite existing parsed files",
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Check configuration and list PDFs that would be parsed without starting parsing",
     )
 
     return parser
@@ -74,71 +82,42 @@ def collect_pdf_paths(paths: list[Path]) -> list[Path]:
 
 
 def parse_command(argv: Optional[list] = None) -> int:
-    """Execute the parse command.
-
-    Args:
-        argv: Command-line arguments (None for sys.argv[1:]).
-
-    Returns:
-        Exit code:
-            0 - Success (all documents parsed)
-            1 - Failure (error during parsing)
-            2 - Partial success (some documents failed)
-            130 - Interrupted by user (Ctrl+C)
-    """
-    # Parse arguments first to get config path
+    """Execute the parse command."""
     parser = create_argument_parser()
-    args = parser.parse_args(argv)
 
-    # Load settings from config file
-    try:
-        custom_settings = Settings.load(config_path=args.config)
-        logger.info(f"Loaded configuration from CLI argument: {args.config}")
-    except FileNotFoundError as e:
-        logger.error(f"Configuration file not found: {e}")
-        print(f"Error: Configuration file not found: {e}", file=sys.stderr)
-        return 1
-    except ValueError as e:
-        logger.error(f"Configuration error: {e}")
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-    except RuntimeError as e:
-        logger.error(f"Failed to load configuration: {e}")
-        print(f"Error: Failed to load configuration: {e}", file=sys.stderr)
-        return 1
+    settings_container = {}
+    args_container = {}
 
-    # Setup logging with custom settings
-    setup_logging(custom_settings)
+    def setup_llms(settings: Settings) -> None:
+        settings_container["settings"] = settings
+        # Configure ingestor LLM for parsing if chart extraction is enabled
+        if settings.parsing.chart_extraction.enabled:
+            from ae.core.llm import setup_ingestor
+            setup_ingestor(settings.llm.ingestor, settings.circuit_breaker)
 
-    # Configure student LLM for parsing if we are using the gemini_visual parser
-    if custom_settings.parsing.visual.enabled:
-        from ae.core.llm import setup_student
-        setup_student(custom_settings)
-
-    try:
-        logger.info("Starting document parsing")
+    def build_request(
+        args: argparse.Namespace,
+        settings: Settings,
+        cancel_event: threading.Event,
+    ) -> ParseDocumentsRequest:
+        args_container["args"] = args
 
         # Get PDF directory from config
-        pdf_dir = custom_settings.paths.pdf_dir
+        pdf_dir = settings.paths.pdf_dir
 
         if not pdf_dir.exists():
             logger.warning(f"PDF directory does not exist: {pdf_dir}")
             print(f"⚠ PDF directory does not exist: {pdf_dir}")
-            return 0
-
-        # Collect all PDF files from configured directory
-        pdf_files = collect_pdf_paths([pdf_dir])
+            pdf_files = []
+        else:
+            # Collect all PDF files from configured directory
+            pdf_files = collect_pdf_paths([pdf_dir])
 
         if not pdf_files:
             logger.warning(f"No PDF files found in {pdf_dir}")
             print(f"⚠ No PDF files found in {pdf_dir}")
-            return 0
 
         logger.info(f"Found {len(pdf_files)} PDF files to parse")
-        print(f"Found {len(pdf_files)} PDF files to parse")
-
-        # Use output directory from config
-        output_dir = custom_settings.paths.parsed_dir
 
         # Log parsing settings
         logger.info("=" * 60)
@@ -146,38 +125,66 @@ def parse_command(argv: Optional[list] = None) -> int:
         logger.info("=" * 60)
         logger.info(f"Config file: {args.config}")
         logger.info(f"PDF files: {len(pdf_files)}")
-        logger.info(f"Output: {output_dir}")
-        logger.info(f"Parser: {'gemini_visual' if custom_settings.parsing.visual.enabled else 'gemini'}")
+        logger.info(f"Output: {settings.paths.ingestion_dir}")
+        logger.info(f"Parser: mineru")
         logger.info(f"Overwrite: {args.overwrite}")
         logger.info("=" * 60)
 
-        # Create dependencies
-        doc_repo = DocumentRepository(parsed_dir=output_dir)
+        parser_name = "mineru"
+        parser_config = settings.parsing
 
-        # Create use case
-        use_case = ParseDocumentsUseCase(document_repo=doc_repo)
-
-        # Determine parser name and config
-        parser_name = "gemini_visual" if custom_settings.parsing.visual.enabled else "gemini"
-        parser_config = (
-            custom_settings.parsing.visual
-            if custom_settings.parsing.visual.enabled
-            else custom_settings.parsing.gemini
-        )
-
-        # Build request
-        request = ParseDocumentsRequest(
+        return ParseDocumentsRequest(
             input_paths=pdf_files,
-            output_dir=output_dir,
+            output_dir=settings.paths.ingestion_dir,
             parser_name=parser_name,
             overwrite=args.overwrite,
             parser_config=parser_config,
+            concurrency=getattr(settings.parsing, "concurrency", 4),
         )
 
-        # Execute parsing
-        response = use_case.execute(request)
+    def execute_use_case(request: ParseDocumentsRequest) -> ParseDocumentsResponse:
+        settings = settings_container["settings"]
+        args = args_container["args"]
 
-        # Display results
+        if not request.input_paths:
+            return ParseDocumentsResponse(
+                success=True,
+                documents_parsed=0,
+                documents_skipped=0,
+                total_documents=0,
+                failed_documents=0,
+                output_dir=request.output_dir,
+            )
+
+        if args.dry_run:
+            logger.info("Running dry-run validation checks...")
+            logger.info("=" * 60)
+            logger.info("DRY RUN PARSING VALIDATION COMPLETED SUCCESSFULLY")
+            logger.info(f"  PDF directory: {settings.paths.pdf_dir}")
+            logger.info(f"  PDF files found: {len(request.input_paths)}")
+            logger.info(f"  Output directory: {request.output_dir}")
+            logger.info(f"  Parser name: {request.parser_name}")
+            logger.info("✓ Success! Directory is accessible, and PDF files are ready to parse.")
+            logger.info("=" * 60)
+            print("✓ Success! Directory is accessible, and PDF files are ready to parse.")
+            return ParseDocumentsResponse(
+                success=True,
+                documents_parsed=0,
+                documents_skipped=0,
+                total_documents=len(request.input_paths),
+                failed_documents=0,
+                output_dir=request.output_dir,
+            )
+
+        doc_repo = DocumentRepository(ingestion_dir=request.output_dir)
+        use_case = ParseDocumentsUseCase(document_repo=doc_repo)
+        return use_case.execute(request)
+
+    def format_response(response: ParseDocumentsResponse) -> int:
+        args = args_container["args"]
+        if args.dry_run:
+            return 0 if response.success else 1
+
         if response.success:
             logger.info("✓ PARSING COMPLETE")
             logger.info(
@@ -186,26 +193,33 @@ def parse_command(argv: Optional[list] = None) -> int:
 
             print("\n✓ Success!")
             print(f"✓ Parsed: {response.documents_parsed}/{response.total_documents}")
+            if getattr(response, "documents_skipped", 0) > 0:
+                print(f"✓ Skipped (already exist): {response.documents_skipped}")
             print(f"✓ Failed: {response.failed_documents}")
             print(f"✓ Results saved to: {response.output_dir}")
 
             return 0 if response.failed_documents == 0 else 2
-
         else:
             logger.error("✗ PARSING FAILED")
             logger.error(f"✗ Error: {response.error_message}")
             print(f"\n✗ Parsing failed: {response.error_message}")
+            if getattr(response, "documents_parsed", 0) > 0 or getattr(response, "documents_skipped", 0) > 0:
+                print(f"✗ Part of the batch was processed before failure/abort.")
+                print(f"  Parsed: {response.documents_parsed}/{response.total_documents}")
+                if getattr(response, "documents_skipped", 0) > 0:
+                    print(f"  Skipped (already exist): {response.documents_skipped}")
+                print(f"  Failed/Aborted: {response.failed_documents}")
+                return 2
             return 1
 
-    except KeyboardInterrupt:
-        logger.warning("Parsing interrupted by user")
-        print("\n\n⚠ Parsing interrupted by user")
-        return 130
-
-    except Exception as e:
-        logger.error(f"Parsing error: {e}", exc_info=True)
-        print(f"\n✗ Error: {e}")
-        return 1
+    return run_cli_use_case(
+        argv=argv,
+        parser=parser,
+        build_request_fn=build_request,
+        execute_use_case_fn=execute_use_case,
+        format_response_fn=format_response,
+        setup_llms_fn=setup_llms,
+    )
 
 
 def main():

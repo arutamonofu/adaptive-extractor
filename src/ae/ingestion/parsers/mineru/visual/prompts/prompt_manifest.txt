@@ -1,0 +1,49 @@
+<mission>
+Create a comprehensive visual manifest for a scientific PDF by locating, cataloging, and classifying all numbered visual objects across the entire document.
+</mission>
+
+<execution_constraints>
+1. Process the entire PDF from the first to the last page, including Supporting Information, appendices, and pages after references.
+2. List all numbered visual objects in the PDF: figures, supplementary figures, extended data figures, schemes, and visual tables. 
+3. Do not omit objects because they seem irrelevant. Irrelevant objects must still be listed in the output.
+4. For multi-panel figures, add panel entries only when the panels are visually distinct. 
+5. If any distinct panel is classified as numerical (`num`: true), the parent figure must also reflect that (`num`: true).
+6. For each whole visual object, set `figure` to the unique figure name used by the PDF (e.g., `Fig. 3`, `Image 3`, `Scheme 1`, `Supplementary Image S4`, or `Extended Data Fig. 7`).
+7. Do not use panel names such as `Fig. 3a` as the whole-object figure name unless the PDF truly labels the whole object that way.
+8. If one visual object spans multiple pages, use the exact same `figure` value for all parts.
+9. Use 1-based PDF page numbers in the `pages` array.
+10. Do not extract internal chart data (values, coordinates).
+11. Do not return bounding boxes.
+</execution_constraints>
+
+<classification_rules>
+<rule name="Numerical_Chart_Identification">
+<definition>Determine the `num` boolean flag based on whether the object or panel contains a numerical chart.</definition>
+<criteria_true>Assign `true` if the chart has numeric axes, ticks, values, plotted quantities, or a quantitative color scale. Examples: line plot, scatter plot, bar chart, histogram, spectrum, calibration curve, kinetic curve, time series, heatmap.</criteria_true>
+<criteria_false>Assign `false` if it is not a numerical chart. Examples: microscopy-only images, photos, schemes, drawings, graphical abstracts, logos, ordinary text tables.</criteria_false>
+</rule>
+</classification_rules>
+
+<input_data>
+1. PDF Name: {{PDF_NAME}}
+2. Full rendered PDF page image(s).
+</input_data>
+
+<output_contract>
+Return strict JSON only. Do not wrap it in Markdown blocks (like ```json) or add conversational text. The response must exactly match this schema array:
+
+[
+  {
+    "figure": "string (e.g., 'Figure 1')",
+    "pages": ["integer (1-based page number)"],
+    "caption": "string",
+    "num": "boolean",
+    "panels": [
+      {
+        "panel": "string (e.g., 'a')",
+        "num": "boolean"
+      }
+    ]
+  }
+]
+</output_contract>

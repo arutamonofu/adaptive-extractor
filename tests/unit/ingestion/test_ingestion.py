@@ -1,185 +1,273 @@
 import os
+import io
+import json
+import zipfile
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import responses
 
-from ae.core.config import (
-    AEVisualParserConfig,
-    GeminiParserConfig,
-    IngestionConfig,
-)
-from ae.ingestion.gemini_parser import GeminiParser
+from ae.core.config import IngestionConfig, MinerUParserConfig, ChartExtractionConfig
+from ae.ingestion.parsers.mineru.client import MinerUClient
+from ae.ingestion.parsers.mineru.parser import MinerUParser, find_mineru_outputs
 from ae.ingestion.parsers import get_parser
-from ae.ingestion.visual_parser import AEVisualParser
+from ae.ingestion.parsers.mineru.visual.stages.insert_visual_tables import replace_image_tags
 
 
 @pytest.mark.unit
-class TestGeminiParser:
-    """Unit tests for Gemini parser configuration and mocked parsing."""
+class TestMinerUParserConfig:
+    """Unit tests for MinerU parser configuration."""
 
     def test_config_validation(self):
-        config = GeminiParserConfig(model_name="gemini-2.0-flash", upload_timeout=600, safety_settings=False)
-        assert config.model_name == "gemini-2.0-flash"
-        assert config.upload_timeout == 600
-        assert config.safety_settings is False
+        config = IngestionConfig(
+            overwrite=False,
+            concurrency=2,
+            mineru=MinerUParserConfig(
+                api_url="https://test.mineru.net/api/v4",
+                model_version="vlm",
+                poll_interval=1,
+                poll_timeout=10,
+            ),
+            chart_extraction=ChartExtractionConfig(
+                enabled=True,
+            )
+        )
+        assert config.mineru.api_url == "https://test.mineru.net/api/v4"
+        assert config.mineru.poll_timeout == 10
+        assert config.chart_extraction.enabled is True
 
-        ing_config = IngestionConfig(gemini=config, overwrite=False)
-        assert ing_config.gemini.model_name == "gemini-2.0-flash"
-        assert ing_config.visual.enabled is False
 
-    @patch.dict(os.environ, {}, clear=False)
-    def test_init_without_api_key_raises_error(self):
-        os.environ.pop("GEMINI_API_KEY", None)
-        config = GeminiParserConfig()
-        with pytest.raises(ValueError, match="GEMINI_API_KEY environment variable"):
-            GeminiParser(config)
+@pytest.mark.unit
+class TestMinerUClient:
+    """Unit tests for MinerUClient using responses mock."""
 
-    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
-    @patch("google.genai.Client")
-    @patch("time.sleep")
-    def test_parse_success_and_wait_loop(self, mock_sleep, mock_client_class, tmp_path: Path):
+    @patch.dict(os.environ, {"MINERU_API_TOKEN": "test_token"})
+    @responses.activate
+    def test_parse_pdf_flow_success(self, tmp_path: Path):
         pdf_path = tmp_path / "test.pdf"
-        pdf_path.write_bytes(b"%PDF-fake-content")
+        pdf_path.write_bytes(b"%PDF-fake")
 
+        # Mock 1: Request upload URL
+        responses.add(
+            responses.POST,
+            "https://mineru.net/api/v4/file-urls/batch",
+            json={
+                "code": 0,
+                "msg": "success",
+                "data": {
+                    "batch_id": "batch_123",
+                    "file_urls": ["https://mineru.net/upload/test.pdf"]
+                }
+            },
+            status=200
+        )
+
+        # Mock 2: PUT upload file
+        responses.add(
+            responses.PUT,
+            "https://mineru.net/upload/test.pdf",
+            status=200
+        )
+
+        # Mock 3: Poll status (returns done)
+        responses.add(
+            responses.GET,
+            "https://mineru.net/api/v4/extract-results/batch/batch_123",
+            json={
+                "code": 0,
+                "msg": "success",
+                "data": {
+                    "extract_result": [
+                        {
+                            "state": "done",
+                            "full_zip_url": "https://mineru.net/download/result.zip"
+                        }
+                    ]
+                }
+            },
+            status=200
+        )
+
+        # Create dummy ZIP in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+            zip_file.writestr("full.md", "Hello world! ![](images/test_chart.jpg)")
+            zip_file.writestr(
+                "content_list.json",
+                json.dumps([
+                    {
+                        "type": "chart",
+                        "img_path": "images/test_chart.jpg",
+                        "chart_caption": "A nice chart"
+                    }
+                ])
+            )
+            zip_file.writestr("images/test_chart.jpg", b"fake-image-bytes")
+
+        # Mock 4: Download ZIP
+        responses.add(
+            responses.GET,
+            "https://mineru.net/download/result.zip",
+            body=zip_buffer.getvalue(),
+            status=200
+        )
+
+        config = MinerUParserConfig(
+            api_url="https://mineru.net/api/v4",
+            poll_interval=1,
+            poll_timeout=10
+        )
+        client = MinerUClient(config)
+
+        output_dir = tmp_path / "mineru_output"
+        result = client.parse_pdf(str(pdf_path), str(output_dir))
+
+        assert result["state"] == "done"
+        assert (output_dir / "full.md").exists()
+        assert (output_dir / "content_list.json").exists()
+        assert (output_dir / "images" / "test_chart.jpg").exists()
+
+
+@pytest.mark.unit
+class TestMinerUParser:
+    """Unit tests for MinerUParser and image tag replacement."""
+
+    def test_find_mineru_outputs(self, tmp_path: Path):
+        # Setup mock MinerU directory structure
+        mineru_dir = tmp_path / "mineru_run"
+        mineru_dir.mkdir()
+        (mineru_dir / "full.md").write_text("Hello", encoding="utf-8")
+        (mineru_dir / "content_list.json").write_text("[]", encoding="utf-8")
+        (mineru_dir / "images").mkdir()
+        (mineru_dir / "images" / "img.jpg").write_text("data", encoding="utf-8")
+
+        md_file, json_file, images_dir = find_mineru_outputs(mineru_dir)
+        assert md_file.name == "full.md"
+        assert json_file.name == "content_list.json"
+        assert images_dir.name == "images"
+
+    def test_replace_image_tags(self):
+        markdown = "Some text.\n![](images/test_chart.jpg)\nOther text."
+        results = {
+            "images/test_chart.jpg": {
+                "status": "success",
+                "tables": [
+                    {
+                        "columns": ["X", "Y"],
+                        "rows": [["1", "2"], ["3", "4"]]
+                    }
+                ]
+            }
+        }
+        warnings = []
+        replaced = replace_image_tags(markdown, results, warnings)
+        
+        expected_table = "| X | Y |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |"
+        assert expected_table in replaced
+        assert "![](images/test_chart.jpg)" not in replaced
+
+    def test_replace_image_tags_with_caption_status_warnings(self):
+        markdown = "Some text.\n![Figure 1: Comparison](images/test_chart.jpg)\nOther text."
+        results = {
+            "images/test_chart.jpg": {
+                "status": "partial",
+                "tables": [
+                    {
+                        "panel": "a",
+                        "chart_type": "bar",
+                        "series_name": "SeriesA",
+                        "columns": ["X", "Y"],
+                        "rows": [["1", "2", "3"]]
+                    }
+                ],
+                "warnings": ["unreadable labels"]
+            }
+        }
+        warnings = []
+        replaced = replace_image_tags(markdown, results, warnings)
+        
+        assert "**Figure Caption:** Figure 1: Comparison" in replaced
+        assert "Panel a, Series: SeriesA, Type: bar" in replaced
+        assert "| X | Y |" in replaced
+        assert "test_chart.jpg:row_1_column_count_mismatch" in warnings
+        
+        # Verify removed elements are not present in output markdown
+        assert "*Source Image:" not in replaced
+        assert "Extraction Status" not in replaced
+        assert "Warnings / Ambiguities" not in replaced
+        assert "unreadable labels" not in replaced
+        assert "Data Formatting Warnings" not in replaced
+
+    @patch.dict(os.environ, {"MINERU_API_TOKEN": "test_token"})
+    @patch("ae.ingestion.parsers.mineru.parser.find_project_root")
+    @patch("ae.ingestion.parsers.mineru.parser.MinerUClient")
+    @patch("ae.ingestion.parsers.mineru.parser.get_model_client")
+    @patch("ae.ingestion.parsers.mineru.parser.extract_single_chart")
+    def test_mineru_parser_end_to_end(
+        self,
+        mock_extract_single_chart,
+        mock_get_model_client,
+        mock_client_class,
+        mock_find_project_root,
+        tmp_path: Path
+    ):
+        mock_find_project_root.return_value = tmp_path
+        pdf_path = tmp_path / "document.pdf"
+        pdf_path.write_bytes(b"%PDF-fake")
+
+        # Mock the MinerU client
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
 
-        # Mock uploaded file starting in PROCESSING then ACTIVE
-        mock_uploaded_file = MagicMock()
-        mock_uploaded_file.state.name = "PROCESSING"
-        mock_uploaded_file.name = "files/test-file"
-
-        mock_active_file = MagicMock()
-        mock_active_file.state.name = "ACTIVE"
-        mock_active_file.name = "files/test-file"
-
-        mock_client.files.upload.return_value = mock_uploaded_file
-        mock_client.files.get.side_effect = [mock_uploaded_file, mock_active_file]
-
-        # Mock generate content
-        mock_chunk = MagicMock()
-        mock_chunk.text = "# Content"
-        mock_client.models.generate_content_stream.return_value = [mock_chunk]
-
-        parser = GeminiParser(GeminiParserConfig())
-        result = parser.parse(pdf_path)
-
-        assert result == "# Content"
-        mock_client.files.upload.assert_called_once()
-        mock_client.files.delete.assert_called_once_with(name="files/test-file")
-        assert mock_sleep.call_count >= 1
-
-    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
-    @patch("google.genai.Client")
-    def test_get_parser_factory(self, mock_client_class):
-        config = GeminiParserConfig()
-        parser = get_parser("gemini", config)
-        assert isinstance(parser, GeminiParser)
-
-
-@pytest.mark.unit
-class TestAEVisualParser:
-    """Unit tests for AEVisualParser configuration and enrichment pipeline."""
-
-    def test_visual_config(self):
-        config = AEVisualParserConfig(
-            enabled=True,
-            task_config_path="config/tasks/nanozymes/generated_schema.yaml",
-            pipeline={
-                "models": {
-                    "manifest": {"provider": "gemini", "model": "gemini-3-flash-preview"},
-                    "bbox": {"provider": "gemini", "model": "gemini-3-flash-preview"},
-                    "chart_extraction": {"provider": "gemini", "model": "gemini-3-flash-preview"}
-                },
-                "runtime": {"dpi": 400}
-            },
-            gemini=GeminiParserConfig(model_name="gemini-2.0-flash")
-        )
-        assert config.task_config_path == "config/tasks/nanozymes/generated_schema.yaml"
-        assert config.gemini.model_name == "gemini-2.0-flash"
-
-        ing_config = IngestionConfig(visual=config, overwrite=False)
-        assert ing_config.visual.enabled is True
-
-
-    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
-    @patch("google.genai.Client")
-    @patch("ae.ingestion.visual_parser.run_visual_pipeline")
-    def test_visual_parse_success(self, mock_run_pipeline, mock_client):
-        config = AEVisualParserConfig(
-            enabled=True,
-            task_config_path="config/tasks/nanozymes/generated_schema.yaml",
-            pipeline={
-                "models": {
-                    "manifest": {"provider": "gemini", "model": "gemini-3-flash-preview"},
-                    "bbox": {"provider": "gemini", "model": "gemini-3-flash-preview"},
-                    "chart_extraction": {"provider": "gemini", "model": "gemini-3-flash-preview"}
-                },
-                "runtime": {"dpi": 400}
-            }
-        )
-        parser = AEVisualParser(config)
-
-        # Mock the base text parser
-        parser.base_parser.parse = MagicMock(return_value="Initial Markdown with <!-- AE_VISUAL_ANCHOR: main_fig_1 -->")
-
-        # Mock run_visual_pipeline to return our enriched markdown
-        mock_run_pipeline.return_value = "Enriched Visual Markdown"
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            pdf_path = Path(temp_dir) / "article.pdf"
-            pdf_path.write_text("dummy pdf", encoding="utf-8")
-
-            result = parser.parse(pdf_path)
-
-        assert result == "Enriched Visual Markdown"
-        mock_run_pipeline.assert_called_once()
-
-    def test_filter_tables_single_panel_robustness(self):
-        from ae.ingestion.visual_pipeline.stages.extract_chart_tables import _filter_tables_by_panel_metadata
-
-        # Case 1: Exactly 1 allowed panel, and LLM output has no panel.
-        # It should auto-assign it.
-        target = {
-            "panels": [
-                {"panel": "a", "num": True, "rel": "direct"}
-            ]
-        }
-        parsed = {
+        # Mock VLM extraction result
+        mock_extract_single_chart.return_value = {
+            "status": "success",
             "tables": [
                 {
-                    "panel": None,
-                    "columns": ["col1"],
-                    "rows": [["val1"]]
+                    "columns": ["ColA", "ColB"],
+                    "rows": [["val1", "val2"]]
                 }
             ],
             "warnings": []
         }
-        result = _filter_tables_by_panel_metadata(parsed, target)
-        assert len(result["tables"]) == 1
-        assert result["tables"][0]["panel"] == "a"
-        assert any("auto_assigned_table_to_single_panel" in w for w in result["warnings"])
 
-        # Case 2: Disallowed panel mismatch with multiple allowed panels
-        target_multi = {
-            "panels": [
-                {"panel": "a", "num": True, "rel": "direct"},
-                {"panel": "b", "num": True, "rel": "direct"}
-            ]
-        }
-        parsed_multi = {
-            "tables": [
-                {
-                    "panel": None,
-                    "columns": ["col1"],
-                    "rows": [["val1"]]
-                }
-            ],
-            "warnings": []
-        }
-        result_multi = _filter_tables_by_panel_metadata(parsed_multi, target_multi)
-        # Should be dropped because multiple allowed panels exist and none matches null
-        assert len(result_multi["tables"]) == 0
-        assert any("dropped_table_disallowed_panel" in w for w in result_multi["warnings"])
+        # Mock parser config
+        config = IngestionConfig(
+            overwrite=True,
+            mineru=MinerUParserConfig(
+                api_url="https://mineru.net/api/v4",
+                poll_interval=1,
+                poll_timeout=10
+            ),
+            chart_extraction=ChartExtractionConfig(
+                provider="gemini",
+                model="gemini-3.5-flash"
+            )
+        )
+
+        parser = MinerUParser(config)
+
+        # Setup side effect for parse_pdf: write output files to mock output dir
+        def mock_parse_pdf(pdf, out_dir):
+            out_path = Path(out_dir)
+            out_path.mkdir(parents=True, exist_ok=True)
+            (out_path / "full.md").write_text("Text\n![](images/chart1.jpg)", encoding="utf-8")
+            (out_path / "content_list.json").write_text(
+                json.dumps([{"type": "chart", "img_path": "images/chart1.jpg"}]),
+                encoding="utf-8"
+            )
+            (out_path / "images").mkdir(exist_ok=True)
+            (out_path / "images" / "chart1.jpg").write_text("fake image bytes", encoding="utf-8")
+            return {"state": "done"}
+
+        mock_client.parse_pdf.side_effect = mock_parse_pdf
+
+        # Run parser
+        result_md = parser.parse(pdf_path)
+
+        assert "| ColA | ColB |" in result_md
+        assert "![](images/chart1.jpg)" not in result_md
+        mock_client.parse_pdf.assert_called_once()
+        mock_extract_single_chart.assert_called_once()
