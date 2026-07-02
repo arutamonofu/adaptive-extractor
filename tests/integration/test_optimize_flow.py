@@ -75,18 +75,15 @@ class TestOptimizeAgentUseCase:
     ):
         """Test OptimizeAgentUseCase executes successfully with mocked optimization."""
         from ae.core.storage import AgentRepository, GroundTruthRepository
-        from ae.core.tasks import load_task_from_yaml, register_config
+        from ae.core.schema import load_schema_complete
         from ae.extraction.manager import AgentManager
-        from ae.optimization.orchestrator import OptimizeAgentRequest, OptimizeAgentUseCase
+        from ae.optimization.use_case import OptimizeAgentRequest, OptimizeAgentUseCase
 
-        # Load task config and set instruction file
-        task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
-        task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
-        register_config(task_config)
-
-        # Get registered task
-        from ae.core.tasks import get_task
-        registered_task = get_task("nanozymes")
+        # Load task config directly using load_schema_complete
+        registered_task = load_schema_complete(
+            yaml_path=tmp_nanozymes_task_yaml,
+            instruction_path=nanozyme_test_instruction_path,
+        )
 
         # Create directories
         agents_dir = optimization_test_setup["agents_dir"]
@@ -154,8 +151,8 @@ class TestOptimizeAgentUseCase:
             max_errors=5,
         )
 
-        # Mock MIPROv2 to avoid actual optimization
-        with patch("ae.optimization.orchestrator.MIPROv2") as mock_mipro:
+        # Mock CheckpointingMIPROv2 to avoid actual optimization
+        with patch("ae.optimization.use_case.CheckpointingMIPROv2") as mock_mipro:
             # Create mock optimized agent (spec=SerializableAgent ensures
             # the mock passes isinstance checks with @runtime_checkable Protocol)
             from ae.extraction.agent import SerializableAgent
@@ -182,19 +179,17 @@ class TestOptimizeAgentUseCase:
     ):
         """Test OptimizeAgentUseCase handles empty validation set gracefully."""
         from ae.core.storage import AgentRepository, DocumentRepository, GroundTruthRepository
-        from ae.core.tasks import load_task_from_yaml, register_config
+        from ae.core.schema import load_schema_complete
         from ae.extraction.manager import AgentManager
-        from ae.optimization.dataset import DatasetBuilder, DataValidator
-        from ae.optimization.orchestrator import OptimizeAgentRequest, OptimizeAgentUseCase
+        from ae.optimization.dataset_builder import DatasetBuilder
+        from ae.optimization.data_validator import DataValidator
+        from ae.optimization.use_case import OptimizeAgentRequest, OptimizeAgentUseCase
 
-        # Register task first
-        task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
-        task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
-        register_config(task_config)
-
-        # Get task
-        from ae.core.tasks import get_task
-        task = get_task("nanozymes")
+        # Load task config directly using load_schema_complete
+        task = load_schema_complete(
+            yaml_path=tmp_nanozymes_task_yaml,
+            instruction_path=nanozyme_test_instruction_path,
+        )
 
         # Create empty validation split
         splits_path = optimization_test_setup["splits_path"]
@@ -204,7 +199,7 @@ class TestOptimizeAgentUseCase:
         )
 
         # Create repositories
-        doc_repo = DocumentRepository(parsed_dir=optimization_test_setup["parsed_dir"])
+        doc_repo = DocumentRepository(ingestion_dir=optimization_test_setup["parsed_dir"])
         gt_repo = GroundTruthRepository()
         agent_repo = AgentRepository(agents_dir=optimization_test_setup["agents_dir"])
 
@@ -267,22 +262,9 @@ class TestOptimizeAgentUseCase:
 class TestAgentStateRestoration:
     """Tests for agent state restoration after optimization."""
 
-    @pytest.fixture(autouse=True)
-    def setup_task(self, nanozyme_test_instruction_path: Path, tmp_nanozymes_task_yaml: Path):
-        """Setup task for agent restoration tests."""
-        from ae.core.tasks import load_task_from_yaml, register_config
-
-        # Register task first
-        task_config = load_task_from_yaml(tmp_nanozymes_task_yaml)
-        task_config.initial_instruction_file = str(nanozyme_test_instruction_path)
-        register_config(task_config)
-
-        yield
-
-    def test_restored_agent_is_callable(self, tmp_path: Path):
+    def test_restored_agent_is_callable(self, tmp_path: Path, nanozyme_task: dict):
         """Test that restored agent can be called for inference."""
         from ae.core.storage import AgentRepository
-        from ae.core.tasks import get_task
         from ae.extraction.manager import AgentManager
 
         # Create test directories
@@ -299,7 +281,7 @@ class TestAgentStateRestoration:
         # Create metadata
         meta_path = agent_path.with_suffix(".meta.json")
         meta_path.write_text(
-            '{"task_name": "nanozymes", "created_at": "2026-01-01T00:00:00", '
+            '{"created_at": "2026-01-01T00:00:00", '
             '"model_version": "test", "metrics": {"f1": 0.85}, "config_snapshot": {}}',
             encoding="utf-8",
         )
@@ -308,11 +290,8 @@ class TestAgentStateRestoration:
         repo = AgentRepository(agents_dir=agents_dir)
         manager = AgentManager(agent_repo=repo)
 
-        # Get task for signature
-        task = get_task("nanozymes")
-
         # Restore agent
-        agent = manager.load_agent_as_object(agent_path, task)
+        agent = manager.load_agent_as_object(agent_path, nanozyme_task)
 
         # Verify agent is callable (has __call__ method via UniversalExtractor)
         assert agent is not None

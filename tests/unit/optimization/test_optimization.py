@@ -165,6 +165,10 @@ class TestExperimentTracker:
         tracker = ExperimentTracker(experiment_name="test_exp", tracking_uri="sqlite:///test.db")
         assert tracker.experiment_name == "test_exp"
         assert tracker.enabled is True
+        assert tracker.experiment_id is None
+        mlflow_mock.set_tracking_uri.assert_not_called()
+
+        tracker.start_run()
         assert tracker.experiment_id == "test-123"
         mlflow_mock.set_tracking_uri.assert_called_once_with("sqlite:///test.db")
 
@@ -248,4 +252,260 @@ class TestExperimentTracker:
         with patch.object(tracker, "_log_dspy_model_fallback") as mock_fallback:
             tracker.log_dspy_model(mock_dspy_model, name="dspy_model")
             mock_fallback.assert_called_once_with(mock_dspy_model)
+
+
+@pytest.mark.unit
+class TestCheckpointingMIPROv2:
+    """Unit tests for CheckpointingMIPROv2."""
+
+    def test_save_checkpoint(self, tmp_path, monkeypatch):
+        from ae.optimization.mipro import CheckpointingMIPROv2
+        
+        # Override data directory to use a temp path
+        monkeypatch.setattr("ae.optimization.mipro.Path", lambda *args: Path(tmp_path, *args))
+
+        # Mock the student model/program
+        mock_program = MagicMock()
+        mock_program.dump_state.return_value = {"key": "val"}
+
+        # Instantiate teleprompter
+        teleprompter = CheckpointingMIPROv2(
+            metric=lambda x, y: 1.0,
+            task_name="test_task",
+            prompt_model=MagicMock(),
+            task_model=MagicMock(),
+        )
+        
+        # Save checkpoint
+        teleprompter._save_checkpoint(mock_program, 0.95, params={"param1": 1})
+        
+        # Verify it saved
+        checkpoint_path = tmp_path / "data" / "processed" / "agents" / "test_task_checkpoint.json"
+        assert checkpoint_path.exists()
+        
+        import json
+        with open(checkpoint_path, "r") as f:
+            data = json.load(f)
+            
+        assert data["score"] == 0.95
+        assert data["program"] == {"key": "val"}
+        assert data["params"] == {"param1": 1}
+
+    @patch("ae.optimization.mipro._import_optuna")
+    @patch("dspy.teleprompt.utils.eval_candidate_program")
+    @patch("dspy.teleprompt.utils.save_candidate_program")
+    def test_optimize_prompt_parameters_graceful_exit(self, mock_save, mock_eval, mock_import_optuna, tmp_path, monkeypatch):
+        from ae.optimization.mipro import CheckpointingMIPROv2
+        import threading
+        
+        # Set up optuna mock
+        mock_optuna = MagicMock()
+        mock_import_optuna.return_value = mock_optuna
+        
+        # Mock study.optimize to invoke our objective function once
+        def mock_optimize(objective, n_trials):
+            trial = MagicMock()
+            trial.number = 0
+            objective(trial)
+            
+        mock_study = MagicMock()
+        mock_study.optimize.side_effect = mock_optimize
+        mock_optuna.create_study.return_value = mock_study
+        
+        # Mock other dependencies
+        mock_eval.return_value = MagicMock(score=0.5)
+        
+        # Configure cancel_event to trigger cancellation
+        cancel_event = threading.Event()
+        
+        teleprompter = CheckpointingMIPROv2(
+            metric=lambda x, y: 1.0,
+            task_name="test_task",
+            cancel_event=cancel_event,
+            prompt_model=MagicMock(),
+            task_model=MagicMock(),
+        )
+        monkeypatch.setattr("ae.optimization.mipro.Path", lambda *args: Path(tmp_path, *args))
+        
+        # Setup mock program
+        mock_program = MagicMock()
+        mock_predictors = MagicMock()
+        mock_program.predictors.return_value = [mock_predictors]
+        mock_program.deepcopy.return_value = mock_program
+        
+        # Trigger cancellation
+        cancel_event.set()
+        
+        res = teleprompter._optimize_prompt_parameters(
+            program=mock_program,
+            instruction_candidates={},
+            demo_candidates=None,
+            evaluate=MagicMock(),
+            valset=[],
+            num_trials=5,
+            minibatch=False,
+            minibatch_size=5,
+            minibatch_full_eval_steps=5,
+            seed=42
+        )
+        
+        assert res is not None
+
+
+@pytest.mark.unit
+class TestOptimizeAgentDegradedMode:
+    """Unit tests for OptimizeAgentUseCase degraded mode fallbacks."""
+
+    @patch("ae.optimization.use_case.CheckpointingMIPROv2")
+    @patch("ae.optimization.use_case.save_optimization_history")
+    def test_run_optimization_teacher_fails_falls_back_to_student(
+        self, mock_save, mock_mipro_class, tmp_path
+    ):
+        from ae.optimization.use_case import OptimizeAgentUseCase, OptimizeAgentRequest
+        
+        # Configure CheckpointingMIPROv2 mocks to fail on first attempt, succeed on second (student fallback)
+        mock_mipro_instance_1 = MagicMock()
+        mock_mipro_instance_1.compile.side_effect = Exception("Teacher API Error 500")
+        
+        mock_mipro_instance_2 = MagicMock()
+        mock_optimized_agent = MagicMock()
+        mock_mipro_instance_2.compile.return_value = mock_optimized_agent
+        
+        mock_mipro_class.side_effect = [mock_mipro_instance_1, mock_mipro_instance_2]
+        
+        # Mock other fields
+        mock_builder = MagicMock()
+        mock_manager = MagicMock()
+        use_case = OptimizeAgentUseCase(dataset_builder=mock_builder, agent_manager=mock_manager)
+        
+        mock_task = MagicMock()
+        mock_task.config.name = "test_task"
+        
+        mock_student_lm = MagicMock()
+        mock_student_lm.model = "student-model"
+        mock_teacher_lm = MagicMock()
+        mock_teacher_lm.model = "teacher-model"
+        
+        request = OptimizeAgentRequest(
+            task=mock_task,
+            signature_class=MagicMock(),
+            gt_path=Path("gt.csv"),
+            split_path=Path("split.json"),
+            student_lm=mock_student_lm,
+            teacher_lm=mock_teacher_lm,
+            num_trials=2,
+            seed=42,
+            num_candidates=2,
+            max_bootstrapped_demos=1,
+            max_labeled_demos=1,
+            minibatch=False,
+            minibatch_size=2,
+            view_data_batch_size=2,
+            metric_threshold=0.9,
+            init_temperature=0.7,
+            max_errors=3,
+        )
+        
+        base_agent = MagicMock()
+        trainset = []
+        valset = []
+        metric = MagicMock()
+        
+        res = use_case._run_optimization(
+            base_agent=base_agent,
+            trainset=trainset,
+            valset=valset,
+            metric=metric,
+            request=request,
+        )
+        
+        # The first call failed, the second compile succeeded, returning mock_optimized_agent
+        assert res == mock_optimized_agent
+        # Check that CheckpointingMIPROv2 was instantiated twice (first with teacher, second with student as teacher)
+        assert mock_mipro_class.call_count == 2
+        # First call has prompt_model=teacher
+        first_call_args = mock_mipro_class.call_args_list[0]
+        # Second call should have prompt_model=student
+        second_call_args = mock_mipro_class.call_args_list[1]
+        assert second_call_args[1]["prompt_model"] is not request.teacher_lm
+
+    @patch("ae.optimization.use_case.CheckpointingMIPROv2")
+    @patch("ae.optimization.use_case.save_optimization_history")
+    def test_run_optimization_all_fail_falls_back_to_zero_shot(
+        self, mock_save, mock_mipro_class, tmp_path
+    ):
+        from ae.optimization.use_case import OptimizeAgentUseCase, OptimizeAgentRequest
+        
+        # Configure CheckpointingMIPROv2 mocks to fail on first and second, succeed on third (zero shot)
+        mock_mipro_instance_1 = MagicMock()
+        mock_mipro_instance_1.compile.side_effect = Exception("Teacher API Error 500")
+        
+        mock_mipro_instance_2 = MagicMock()
+        mock_mipro_instance_2.compile.side_effect = Exception("Student API Error 500")
+        
+        mock_mipro_instance_3 = MagicMock()
+        mock_optimized_agent = MagicMock()
+        mock_mipro_instance_3.compile.return_value = mock_optimized_agent
+        
+        mock_mipro_class.side_effect = [
+            mock_mipro_instance_1,
+            mock_mipro_instance_2,
+            mock_mipro_instance_3,
+        ]
+        
+        # Mock other fields
+        mock_builder = MagicMock()
+        mock_manager = MagicMock()
+        use_case = OptimizeAgentUseCase(dataset_builder=mock_builder, agent_manager=mock_manager)
+        
+        mock_task = MagicMock()
+        mock_task.config.name = "test_task"
+        
+        mock_student_lm = MagicMock()
+        mock_student_lm.model = "student-model"
+        mock_teacher_lm = MagicMock()
+        mock_teacher_lm.model = "teacher-model"
+        
+        request = OptimizeAgentRequest(
+            task=mock_task,
+            signature_class=MagicMock(),
+            gt_path=Path("gt.csv"),
+            split_path=Path("split.json"),
+            student_lm=mock_student_lm,
+            teacher_lm=mock_teacher_lm,
+            num_trials=2,
+            seed=42,
+            num_candidates=2,
+            max_bootstrapped_demos=1,
+            max_labeled_demos=1,
+            minibatch=False,
+            minibatch_size=2,
+            view_data_batch_size=2,
+            metric_threshold=0.9,
+            init_temperature=0.7,
+            max_errors=3,
+        )
+        
+        base_agent = MagicMock()
+        trainset = []
+        valset = []
+        metric = MagicMock()
+        
+        res = use_case._run_optimization(
+            base_agent=base_agent,
+            trainset=trainset,
+            valset=valset,
+            metric=metric,
+            request=request,
+        )
+        
+        assert res == mock_optimized_agent
+        # Check that CheckpointingMIPROv2 was instantiated three times
+        assert mock_mipro_class.call_count == 3
+        
+        # Third call has max_bootstrapped_demos=0
+        third_call_args = mock_mipro_class.call_args_list[2]
+        assert third_call_args[1]["max_bootstrapped_demos"] == 0
+
+
 

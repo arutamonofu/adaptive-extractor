@@ -7,9 +7,45 @@ abstracting away MLflow specifics and providing convenience methods.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class ExperimentTrackingPort(Protocol):
+    """Port for experiment tracking to isolate application layer from MLflow."""
+
+    def start_run(
+        self,
+        run_name: Optional[str] = None,
+        nested: bool = False,
+    ) -> "ExperimentTrackingPort":
+        """Start a new run/experiment."""
+        ...
+
+    def end_run(self) -> None:
+        """End the current run/experiment."""
+        ...
+
+    def log_params(self, params: Dict[str, Any]) -> None:
+        """Log parameters."""
+        ...
+
+    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None) -> None:
+        """Log metrics."""
+        ...
+
+    def log_optimization_results(
+        self,
+        metrics: Dict[str, float],
+        config: Dict[str, Any],
+        agent_path: Path,
+        task_name: str,
+        dspy_model: Optional[Any] = None,
+    ) -> None:
+        """Log optimization results."""
+        ...
 
 
 class ExperimentTracker:
@@ -47,6 +83,7 @@ class ExperimentTracker:
             enable_dspy_autolog: Whether to enable DSPy autologging.
         """
         self.experiment_name = experiment_name
+        self.tracking_uri = tracking_uri
         self.enabled = enabled
         self._run_id: Optional[str] = None
         self._dspy_autolog_enabled = False
@@ -58,25 +95,7 @@ class ExperimentTracker:
         if enabled:
             try:
                 import mlflow
-
                 self.mlflow = mlflow
-
-                if tracking_uri:
-                    mlflow.set_tracking_uri(tracking_uri)
-
-                # Create or get experiment
-                experiment = mlflow.set_experiment(experiment_name)
-                self.experiment_id = experiment.experiment_id
-
-                # Suppress MLflow/Alembic verbose logging to avoid duplicate logs
-                logging.getLogger("mlflow").setLevel(logging.WARNING)
-                logging.getLogger("alembic").setLevel(logging.WARNING)
-
-                logger.info(f"Initialized ExperimentTracker: {experiment_name}")
-
-                # NOTE: DSPy autologging is enabled in start_run() after the run is created
-                # to avoid NonRecordingSpan warnings during DSPy operations
-
             except ImportError:
                 logger.warning(
                     "MLflow not installed. Experiment tracking disabled."
@@ -105,6 +124,18 @@ class ExperimentTracker:
             return self
 
         try:
+            # Set tracking URI and experiment if not already done
+            if self.tracking_uri:
+                self.mlflow.set_tracking_uri(self.tracking_uri)
+
+            if self.experiment_id is None:
+                experiment = self.mlflow.set_experiment(self.experiment_name)
+                self.experiment_id = experiment.experiment_id
+
+                # Suppress MLflow/Alembic verbose logging to avoid duplicate logs
+                logging.getLogger("mlflow").setLevel(logging.WARNING)
+                logging.getLogger("alembic").setLevel(logging.WARNING)
+
             if run_name is None:
                 # Auto-generate unique run name with timestamp
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -383,9 +414,19 @@ class ExperimentTracker:
         """
         if hasattr(dspy_model, "save"):
             import tempfile
-            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
-                dspy_model.save(f.name)
-                self.log_artifact(Path(f.name))
+            import os
+            temp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+                    temp_path = f.name
+                    dspy_model.save(temp_path)
+                self.log_artifact(Path(temp_path))
+            finally:
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.unlink(temp_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to delete temp file {temp_path}: {e}")
 
     def log_optimization_results(
         self,

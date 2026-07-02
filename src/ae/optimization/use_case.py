@@ -8,25 +8,23 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import dspy
-from dspy.teleprompt import MIPROv2
 
 from ae.core.evaluation import TaskMetric
 from ae.core.exceptions import UseCaseExecutionError
+from ae.core.llm import LMProvider, DSPyLMAdapter
 from ae.core.llm.history_logger import save_optimization_history
 from ae.core.llm.provider import TeacherWrapper
-from ae.core.storage import GroundTruthRepository
+from ae.core.storage import GroundTruthRepository, DataSplitRepository
+from ae.core.schema import ExtractionBundle
 from ae.extraction.agent import BaseAgent
 from ae.extraction.manager import AgentManager
-from ae.optimization.dataset import DatasetBuilder, DataValidator
+from ae.optimization.dataset_builder import DatasetBuilder
+from ae.optimization.data_validator import DataValidator
 from ae.optimization.tracking import ExperimentTracker
-
-try:
-    from dspy import LM
-except ImportError:
-    LM = type(None)
+from ae.optimization.mipro import CheckpointingMIPROv2, GracefulExit
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +34,14 @@ class OptimizeAgentRequest:
     """Request for agent optimization.
 
     Attributes:
-        task: Task definition to optimize for (dict with config, signature, row_converter, etc.).
+        task: Task definition to optimize for (TaskBundle).
         signature_class: DSPy signature class for the task.
         gt_path: Path to ground truth CSV.
         split_path: Path to data splits JSON.
         train_split_name: Name of training split (default: "train").
         val_split_name: Name of validation split (default: "val").
-        student_lm: Student language model for optimization.
-        teacher_lm: Optional teacher model for demonstrations.
+        student_lm: Student language model for optimization (LMProvider).
+        teacher_lm: Optional teacher model for demonstrations (LMProvider).
         num_trials: Number of optimization trials (required).
         train_limit: Optional limit on training examples.
         val_limit: Optional limit on validation examples.
@@ -66,11 +64,11 @@ class OptimizeAgentRequest:
         max_errors: Maximum number of errors allowed before stopping optimization (required).
     """
 
-    task: Dict[str, Any]
+    task: ExtractionBundle
     signature_class: Any
     gt_path: Path
     split_path: Path
-    student_lm: "LM"
+    student_lm: LMProvider
     num_trials: int
     seed: int
     num_candidates: int
@@ -84,7 +82,7 @@ class OptimizeAgentRequest:
     max_errors: int
     train_split_name: str = "train"
     val_split_name: str = "val"
-    teacher_lm: Optional["LM"] = None
+    teacher_lm: Optional[LMProvider] = None
     train_limit: Optional[int] = None
     val_limit: Optional[int] = None
     model_version: str = "unknown"
@@ -94,6 +92,8 @@ class OptimizeAgentRequest:
     verbose: bool = True
     initial_instruction_file: Optional[str] = None
     instruction_hash: Optional[str] = None
+    cancel_event: Optional[Any] = None
+    dry_run: bool = False
 
 
 @dataclass
@@ -127,34 +127,14 @@ class OptimizeAgentUseCase:
     4. Evaluate on validation set
     5. Save optimized agent with metadata
     6. Track experiment with MLflow (optional)
-
-    Example:
-        ```python
-        use_case = OptimizeAgentUseCase(
-            dataset_builder=builder,
-            agent_manager=manager,
-            gt_repo=gt_repo,
-        )
-
-        request = OptimizeAgentRequest(
-            task=nanozyme_task,
-            gt_path=Path("data/ground_truth/gt.csv"),
-            split_path=Path("data/splits/nanozymes.json"),
-            student_lm=student_lm,
-            num_trials=10,
-        )
-
-        response = use_case.execute(request)
-        if response.success:
-            print(f"Optimized agent saved to {response.agent_path}")
-        ```
     """
 
     def __init__(
         self,
         dataset_builder: DatasetBuilder,
         agent_manager: AgentManager,
-        gt_repo: GroundTruthRepository,
+        gt_repo: Optional[GroundTruthRepository] = None,
+        split_repo: Optional[DataSplitRepository] = None,
         tracker: Optional[ExperimentTracker] = None,
         validator: Optional[DataValidator] = None,
         enable_preflight_check: bool = True,
@@ -165,20 +145,23 @@ class OptimizeAgentUseCase:
             dataset_builder: Service for building datasets.
             agent_manager: Service for managing agents.
             gt_repo: Repository for ground truth data.
+            split_repo: Repository for split configurations.
             tracker: Optional experiment tracker.
             validator: Optional data validator for pre-flight checks.
             enable_preflight_check: Whether to run pre-flight validation (default: True).
         """
+        from ae.core.storage import GroundTruthRepository, DataSplitRepository
         self.dataset_builder = dataset_builder
         self.agent_manager = agent_manager
-        self.gt_repo = gt_repo
+        self.gt_repo = gt_repo or GroundTruthRepository()
+        self.split_repo = split_repo or DataSplitRepository()
         self.tracker = tracker
         self.validator = validator
         self.enable_preflight_check = enable_preflight_check
 
         # Only create default validator if explicitly enabled
         if enable_preflight_check and validator is None:
-            self.validator = DataValidator(gt_repo=gt_repo)
+            self.validator = DataValidator(gt_repo=gt_repo, split_repo=split_repo)
 
         logger.debug(
             f"Initialized OptimizeAgentUseCase "
@@ -196,7 +179,7 @@ class OptimizeAgentUseCase:
         """
         try:
             # Get task name from config object (TaskConfig has .name attribute)
-            task_name = request.task["config"].name
+            task_name = request.task.config.name
             logger.info(
                 f"Starting agent optimization for task '{task_name}' "
                 f"with {request.num_trials} trials"
@@ -211,11 +194,9 @@ class OptimizeAgentUseCase:
                     run_name = f"optimization_{timestamp}"
                 self.tracker.start_run(run_name=run_name)
 
-
-
             # Step 1: Load ground truth (once, reuse for validation and dataset building)
             logger.info(f"Loading ground truth from {request.gt_path}")
-            gt_data = self.gt_repo.load(request.gt_path, request.task["row_converter"])
+            gt_data = self.gt_repo.load(request.gt_path, request.task.row_converter)
 
             # Step 1.5: Pre-flight validation (optional, enabled by default)
             if self.enable_preflight_check:
@@ -239,6 +220,29 @@ class OptimizeAgentUseCase:
                 )
 
             logger.info(f"Dataset sizes: train={len(trainset)}, val={len(valset)}")
+
+            if request.dry_run:
+                train_val_res = self.validator.validate_dataset(trainset, request.train_split_name)
+                val_val_res = self.validator.validate_dataset(valset, request.val_split_name)
+                
+                self.validator.log_validation_result(train_val_res, "Train Dataset Validation")
+                self.validator.log_validation_result(val_val_res, "Validation Dataset Validation")
+                
+                if not train_val_res.success or not val_val_res.success:
+                    errors = train_val_res.errors + val_val_res.errors
+                    error_msg = f"Dataset dry run validation failed with {len(errors)} error(s):\n"
+                    for i, error in enumerate(errors, 1):
+                        error_msg += f"  {i}. {error}\n"
+                    raise UseCaseExecutionError("OptimizeAgent (Dry Run)", error_msg)
+                
+                logger.info("✓ Dry run dataset checks completed successfully. All datasets are valid.")
+                return OptimizeAgentResponse(
+                    success=True,
+                    agent_path=None,
+                    final_metrics={"train_size": len(trainset), "val_size": len(valset)},
+                    trial_count=0,
+                    optimization_config={},
+                )
 
             # Step 3: Create metric
             metric = self._create_metric(request)
@@ -285,9 +289,18 @@ class OptimizeAgentUseCase:
                     metrics=final_metrics,
                     config=config,
                     agent_path=agent_path,
-                    task_name=request.task["config"].name,
+                    task_name=request.task.config.name,
                     dspy_model=optimized_agent,
                 )
+
+            # Remove checkpoint after successful completion
+            checkpoint_path = Path(f"data/processed/agents/{request.task.config.name}_checkpoint.json")
+            if checkpoint_path.exists():
+                try:
+                    checkpoint_path.unlink()
+                    logger.info("Cleaned up optimization checkpoint.")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up checkpoint: {e}")
 
             # Success!
             return OptimizeAgentResponse(
@@ -348,14 +361,15 @@ class OptimizeAgentUseCase:
 
     def _create_metric(self, request: OptimizeAgentRequest) -> TaskMetric:
         """Create evaluation metric for the task."""
-        task_config = request.task["config"]
+        task_config = request.task.config
+        student_lm_adapter = DSPyLMAdapter(request.student_lm)
         return TaskMetric(
             task_config={
                 "compare_fields": task_config.compare_fields,
                 "name": task_config.name,
             },
             float_tolerance=task_config.float_tolerance,
-            student_llm=request.student_lm,
+            student_llm=student_lm_adapter,
             field_descriptions=task_config.field_descriptions,
             enable_semantic_judge=True,
         )
@@ -363,15 +377,7 @@ class OptimizeAgentUseCase:
     def _create_base_agent(
         self, request: OptimizeAgentRequest, signature_class: Any
     ) -> BaseAgent:
-        """Create the base agent to optimize.
-
-        Args:
-            request: Optimization request.
-            signature_class: DSPy signature class for the task.
-
-        Returns:
-            Base agent instance for optimization.
-        """
+        """Create the base agent to optimize."""
         from ae.extraction.agent import UniversalExtractor
 
         return UniversalExtractor(signature_class=signature_class)
@@ -384,35 +390,24 @@ class OptimizeAgentUseCase:
         metric: TaskMetric,
         request: OptimizeAgentRequest,
     ) -> BaseAgent:
-        """Run the optimization process.
+        """Run the optimization process."""
+        # Wrap LMs with DSPyLMAdapter for DSPy integration
+        student_lm_adapter = DSPyLMAdapter(request.student_lm)
+        teacher_lm_adapter = DSPyLMAdapter(request.teacher_lm) if request.teacher_lm else None
 
-        Args:
-            base_agent: Base agent to optimize.
-            trainset: Training examples.
-            valset: Validation examples for trial evaluation.
-            metric: Evaluation metric.
-            request: Optimization request.
-
-        Returns:
-            Optimized agent.
-        """
         # Create teacher module for bootstrapping
-        # TeacherWrapper wraps the raw LLM (OllamaLM) in a dspy.Module interface
         teacher_module = TeacherWrapper(
             signature_class=request.signature_class,
-            teacher_lm=request.teacher_lm
+            teacher_lm=teacher_lm_adapter
         )
 
         # Configure MIPROv2
-        # prompt_model: generates instruction candidates
-        # task_model: runs trials and generates predictions
-        # teacher: bootstraps few-shot demonstrations
-        teleprompter = MIPROv2(
+        teleprompter = CheckpointingMIPROv2(
             metric=metric,
-            prompt_model=request.teacher_lm,
-            task_model=request.student_lm,
-            teacher_settings={"lm": request.teacher_lm},
-            auto=None,  # Intentionally None: allows custom values for num_candidates, max_bootstrapped_demos, etc.
+            prompt_model=teacher_lm_adapter,
+            task_model=student_lm_adapter,
+            teacher_settings={"lm": teacher_lm_adapter},
+            auto=None,  # Intentionally None: allows custom values
             num_candidates=request.num_candidates,
             max_bootstrapped_demos=request.max_bootstrapped_demos,
             max_labeled_demos=request.max_labeled_demos,
@@ -422,38 +417,120 @@ class OptimizeAgentUseCase:
             metric_threshold=request.metric_threshold,
             num_threads=1,
             max_errors=request.max_errors,
+            task_name=request.task.config.name,
+            cancel_event=request.cancel_event,
         )
 
-        # Set the LM for optimization with traceback enabled for detailed error reporting
-        # num_threads=1 and async_max_workers=1 to avoid rate-limiting on teacher LLM (OpenRouter)
-        # Note: cache is managed via dspy.configure_cache() in setup_language_models(); do NOT pass cache=False
-        # here as it conflicts with the disk cache state and can cause a multi-minute freeze during
-        # MIPROv2 Step 2 (Propose Instruction Candidates).
-        dspy.settings.configure(
-            lm=request.student_lm,
-            provide_traceback=True,
-            num_threads=1,
-            async_max_workers=1,
-        )
-
-        # Run optimization with explicit valset
-        optimized_agent = teleprompter.compile(
-            base_agent,
-            trainset=trainset,
-            valset=valset,
-            teacher=teacher_module,  # TeacherWrapper for bootstrapping
-            num_trials=request.num_trials,
-            max_bootstrapped_demos=request.max_bootstrapped_demos,
-            max_labeled_demos=request.max_labeled_demos,
-            seed=request.seed,
-            minibatch=request.minibatch,
-            minibatch_size=request.minibatch_size,
-            view_data_batch_size=request.view_data_batch_size,
-        )
+        try:
+            with dspy.context(
+                lm=student_lm_adapter,
+                provide_traceback=True,
+                num_threads=1,
+                async_max_workers=1,
+            ):
+                # Run optimization with explicit valset
+                optimized_agent = teleprompter.compile(
+                    base_agent,
+                    trainset=trainset,
+                    valset=valset,
+                    teacher=teacher_module,
+                    num_trials=request.num_trials,
+                    max_bootstrapped_demos=request.max_bootstrapped_demos,
+                    max_labeled_demos=request.max_labeled_demos,
+                    seed=request.seed,
+                    minibatch=request.minibatch,
+                    minibatch_size=request.minibatch_size,
+                    view_data_batch_size=request.view_data_batch_size,
+                )
+        except Exception as e:
+            logger.warning(f"Teacher LLM is unavailable (error: {e}). Switching to degraded mode...")
+            try:
+                logger.info("Attempting degraded mode fallback: using student LLM as teacher...")
+                degraded_teacher_module = TeacherWrapper(
+                    signature_class=request.signature_class,
+                    teacher_lm=student_lm_adapter
+                )
+                degraded_teleprompter = CheckpointingMIPROv2(
+                    metric=metric,
+                    prompt_model=student_lm_adapter,
+                    task_model=student_lm_adapter,
+                    teacher_settings={"lm": student_lm_adapter},
+                    auto=None,
+                    num_candidates=request.num_candidates,
+                    max_bootstrapped_demos=request.max_bootstrapped_demos,
+                    max_labeled_demos=request.max_labeled_demos,
+                    seed=request.seed,
+                    init_temperature=request.init_temperature,
+                    verbose=request.verbose,
+                    metric_threshold=request.metric_threshold,
+                    num_threads=1,
+                    max_errors=request.max_errors,
+                    task_name=request.task.config.name,
+                    cancel_event=request.cancel_event,
+                )
+                with dspy.context(
+                    lm=student_lm_adapter,
+                    provide_traceback=True,
+                    num_threads=1,
+                    async_max_workers=1,
+                ):
+                    optimized_agent = degraded_teleprompter.compile(
+                        base_agent,
+                        trainset=trainset,
+                        valset=valset,
+                        teacher=degraded_teacher_module,
+                        num_trials=request.num_trials,
+                        max_bootstrapped_demos=request.max_bootstrapped_demos,
+                        max_labeled_demos=request.max_labeled_demos,
+                        seed=request.seed,
+                        minibatch=request.minibatch,
+                        minibatch_size=request.minibatch_size,
+                        view_data_batch_size=request.view_data_batch_size,
+                    )
+            except Exception as e_inner:
+                logger.warning(
+                    f"Degraded mode fallback with student LLM failed (error: {e_inner}). "
+                    "Switching to zero-shot training / optimization without bootstrapping..."
+                )
+                zero_shot_teleprompter = CheckpointingMIPROv2(
+                    metric=metric,
+                    prompt_model=student_lm_adapter,
+                    task_model=student_lm_adapter,
+                    teacher_settings={"lm": student_lm_adapter},
+                    auto=None,
+                    num_candidates=request.num_candidates,
+                    max_bootstrapped_demos=0,
+                    max_labeled_demos=request.max_labeled_demos,
+                    seed=request.seed,
+                    init_temperature=request.init_temperature,
+                    verbose=request.verbose,
+                    metric_threshold=request.metric_threshold,
+                    num_threads=1,
+                    max_errors=request.max_errors,
+                    task_name=request.task.config.name,
+                    cancel_event=request.cancel_event,
+                )
+                with dspy.context(
+                    lm=student_lm_adapter,
+                    provide_traceback=True,
+                    num_threads=1,
+                    async_max_workers=1,
+                ):
+                    optimized_agent = zero_shot_teleprompter.compile(
+                        base_agent,
+                        trainset=trainset,
+                        valset=valset,
+                        teacher=None,
+                        num_trials=request.num_trials,
+                        max_bootstrapped_demos=0,
+                        max_labeled_demos=request.max_labeled_demos,
+                        seed=request.seed,
+                        minibatch=request.minibatch,
+                        minibatch_size=request.minibatch_size,
+                        view_data_batch_size=request.view_data_batch_size,
+                    )
 
         # Save LLM history after optimization
-        # teacher_lm.history now contains all calls including instruction generation
-        # (thanks to OllamaLM.copy() sharing history with original)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         history_dir = Path("logs/llm_history")
         history_counts = save_optimization_history(
@@ -469,16 +546,7 @@ class OptimizeAgentUseCase:
     def _evaluate_agent(
         self, agent: Any, valset: List[dspy.Example], metric: TaskMetric
     ) -> Dict[str, float]:
-        """Evaluate agent on validation set.
-
-        Args:
-            agent: Optimized agent to evaluate.
-            valset: Validation examples.
-            metric: Evaluation metric.
-
-        Returns:
-            Dictionary with evaluation metrics.
-        """
+        """Evaluate agent on validation set."""
         logger.info(f"Evaluating agent on {len(valset)} validation examples...")
 
         total_score = 0.0
@@ -505,22 +573,12 @@ class OptimizeAgentUseCase:
         metrics: Dict[str, float],
         config: Dict[str, Any],
     ) -> Path:
-        """Save the optimized agent.
-
-        Args:
-            agent: Optimized agent to save.
-            request: Optimization request.
-            metrics: Evaluation metrics.
-            config: Optimization configuration.
-
-        Returns:
-            Path to saved agent file.
-        """
+        """Save the optimized agent."""
         logger.info("Saving optimized agent...")
 
         return self.agent_manager.save_agent(
             agent=agent,
-            task=request.task["config"],
+            schema_config=request.task.config,
             metrics=metrics,
             config=config,
             model_version=request.model_version,
@@ -534,7 +592,7 @@ class OptimizeAgentUseCase:
     ) -> Dict[str, Any]:
         """Build configuration dictionary for logging."""
         return {
-            "task_name": request.task["config"].name,
+            "task_name": request.task.config.name,
             "num_trials": request.num_trials,
             "train_size": train_size,
             "val_size": val_size,
@@ -559,10 +617,6 @@ class OptimizeAgentUseCase:
         gt_data: Dict[str, Any],
     ) -> None:
         """Run pre-flight validation checks before optimization.
-
-        Args:
-            request: Optimization request.
-            gt_data: Loaded ground truth data.
 
         Raises:
             UseCaseExecutionError: If critical validation checks fail.
