@@ -11,33 +11,31 @@ from typing import Any, Dict, List, Optional
 
 from ae.core.llm.circuit_breaker import CircuitBreakerError
 from ae.core.storage import DocumentRepository, ExtractionRepository
-from ae.core.tasks import TaskConfig
 from ae.extraction.manager import AgentManager
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class BatchPredictionRequest:
-    """Request for batch prediction.
+class BatchExtractionRequest:
+    """Request for batch extraction.
 
     Attributes:
-        task: Task definition (TaskConfig).
-        task_dict: Task dictionary from get_task() containing 'signature' key.
+        task: Task definition (TaskBundle).
         agent_path: Path to trained agent.
         document_ids: List of document IDs to process.
         output_dir: Directory to save extractions.
     """
 
-    task: TaskConfig
-    task_dict: Dict[str, Any]
+    task: Any
     agent_path: Path
     document_ids: List[str]
     output_dir: Path
+    task_dict: Optional[Dict[str, Any]] = None
 
 
 @dataclass
-class BatchPredictionResponse:
+class BatchExtractionResponse:
     """Response from batch extraction.
 
     Attributes:
@@ -47,6 +45,7 @@ class BatchPredictionResponse:
         failed_documents: Number of failed documents.
         output_dir: Directory where extractions were saved.
         error_message: Error message if failed.
+        aborted: Whether the extraction was aborted due to a fatal error/interruption.
     """
 
     success: bool
@@ -55,9 +54,10 @@ class BatchPredictionResponse:
     failed_documents: int = 0
     output_dir: Optional[Path] = None
     error_message: Optional[str] = None
+    aborted: bool = False
 
 
-class BatchPredictionUseCase:
+class BatchExtractionUseCase:
     """Use case for batch extraction.
 
     This use case handles:
@@ -65,24 +65,6 @@ class BatchPredictionUseCase:
     2. Loading documents
     3. Running extractions
     4. Saving results
-
-    Example:
-        ```python
-        use_case = BatchPredictionUseCase(
-            agent_manager=manager,
-            document_repo=doc_repo,
-            extraction_repo=ext_repo,
-        )
-
-        request = BatchPredictionRequest(
-            task=nanozyme_task,
-            agent_path=Path("data/agents/agent.json"),
-            document_ids=["doc1", "doc2"],
-            output_dir=Path("data/extractions"),
-        )
-
-        response = use_case.execute(request)
-        ```
     """
 
     def __init__(
@@ -101,9 +83,9 @@ class BatchPredictionUseCase:
         self.agent_manager = agent_manager
         self.document_repo = document_repo
         self.extraction_repo = extraction_repo
-        logger.debug("Initialized BatchPredictionUseCase")
+        logger.debug("Initialized BatchExtractionUseCase")
 
-    def execute(self, request: BatchPredictionRequest) -> BatchPredictionResponse:
+    def execute(self, request: BatchExtractionRequest) -> BatchExtractionResponse:
         """Execute batch extraction.
 
         Args:
@@ -119,25 +101,23 @@ class BatchPredictionUseCase:
 
             # Load agent as callable object (reconstruct from saved state)
             agent = self.agent_manager.load_agent_as_object(
-                request.agent_path, request.task_dict
+                request.agent_path, task=request.task, task_dict=request.task_dict
             )
-
-            # Load documents
-            documents = self.document_repo.load_all()
 
             # Create output directory
             request.output_dir.mkdir(parents=True, exist_ok=True)
 
             # Log starting extraction
-            logger.info(f"Loaded {len(documents)} documents, starting extraction")
+            logger.info("Starting extraction")
 
             # Run extractions
             stats = {"success": 0, "failed": 0, "total": len(request.document_ids)}
+            aborted = False
 
             for idx, doc_id in enumerate(request.document_ids):
                 try:
                     # Get document text
-                    doc_text = documents.get(doc_id)
+                    doc_text = self.document_repo.get(doc_id)
                     if doc_text is None:
                         logger.warning(f"Document not found: {doc_id}")
                         stats["failed"] += 1
@@ -172,7 +152,8 @@ class BatchPredictionUseCase:
                         f"[{idx + 1}/{len(request.document_ids)}] Circuit breaker OPEN for {doc_id}: "
                         f"{e}. Stopping batch processing."
                     )
-                    stats["failed"] += 1
+                    stats["failed"] += len(request.document_ids) - idx
+                    aborted = True
                     break
                 except Exception as e:
                     logger.error(
@@ -181,11 +162,22 @@ class BatchPredictionUseCase:
                     stats["failed"] += 1
                     continue
 
+            if aborted:
+                return BatchExtractionResponse(
+                    success=False,
+                    aborted=True,
+                    extractions_saved=stats["success"],
+                    total_documents=stats["total"],
+                    failed_documents=stats["failed"],
+                    output_dir=request.output_dir,
+                    error_message="Batch processing was aborted due to CircuitBreakerError.",
+                )
+
             logger.info(
                 f"Batch extraction complete: {stats['success']}/{stats['total']} succeeded"
             )
 
-            return BatchPredictionResponse(
+            return BatchExtractionResponse(
                 success=True,
                 extractions_saved=stats["success"],
                 total_documents=stats["total"],
@@ -196,7 +188,7 @@ class BatchPredictionUseCase:
         except Exception as e:
             logger.error(f"Batch extraction failed: {e}", exc_info=True)
 
-            return BatchPredictionResponse(
+            return BatchExtractionResponse(
                 success=False,
                 error_message=str(e),
             )

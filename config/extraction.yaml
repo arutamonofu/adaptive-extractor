@@ -8,4 +8,4 @@ extraction:
   # Log complete LLM prompts and responses to files for debugging
   save_llm_history: false
   # Directory where LLM call histories are written
-  llm_history_dir: "logs/llm_history"
+  llm_history_dir: "logs/extraction_llm"

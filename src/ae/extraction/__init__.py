@@ -6,17 +6,17 @@ managing agent lifecycle, persistence, and batch predictions.
 
 from .agent import BaseAgent, UniversalExtractor
 from .manager import AgentManager
-from .pipeline import (
-    BatchPredictionRequest,
-    BatchPredictionResponse,
-    BatchPredictionUseCase,
+from .use_case import (
+    BatchExtractionRequest,
+    BatchExtractionResponse,
+    BatchExtractionUseCase,
 )
 
 __all__ = [
     "BaseAgent",
     "UniversalExtractor",
     "AgentManager",
-    "BatchPredictionRequest",
-    "BatchPredictionResponse",
-    "BatchPredictionUseCase",
+    "BatchExtractionRequest",
+    "BatchExtractionResponse",
+    "BatchExtractionUseCase",
 ]

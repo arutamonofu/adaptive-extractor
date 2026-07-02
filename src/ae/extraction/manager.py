@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from ae.core.exceptions import AgentNotFoundError, UseCaseExecutionError
 from ae.core.storage import AgentMetadata, AgentRepository
+from ae.core.schema import ExtractionBundle
 
 from .agent import SaveableAgent, SerializableAgent, UniversalExtractor
 
@@ -31,7 +32,7 @@ class AgentManager:
     def save_agent(
         self,
         agent: Union[SerializableAgent, SaveableAgent, Dict[str, Any]],
-        task: Any,  # TaskConfig
+        schema_config: Any,
         metrics: Dict[str, float],
         config: Dict[str, Any],
         model_version: str = "unknown",
@@ -42,9 +43,20 @@ class AgentManager:
     ) -> Path:
         """Save a trained agent with metadata."""
         try:
+            schema_hash = None
+            if schema_config is not None:
+                if not isinstance(schema_config, dict):
+                    if hasattr(schema_config, "get_schema_hash"):
+                        schema_hash = schema_config.get_schema_hash()
+                    elif hasattr(schema_config, "config") and hasattr(schema_config.config, "get_schema_hash"):
+                        schema_hash = schema_config.config.get_schema_hash()
+                else:
+                    config_val = schema_config.get("config")
+                    if config_val and hasattr(config_val, "get_schema_hash"):
+                        schema_hash = config_val.get_schema_hash()
+
             metadata = AgentMetadata(
-                task_name=task.name,
-                created_at=datetime.now().isoformat(),
+                created_at=datetime.now(),
                 model_version=model_version,
                 metrics=metrics,
                 config_snapshot=config,
@@ -52,19 +64,18 @@ class AgentManager:
                 description=description,
                 initial_instruction_file=initial_instruction_file,
                 instruction_hash=instruction_hash,
+                schema_hash=schema_hash,
             )
 
             agent_dict = self._serialize_agent(agent)
 
             agent_path = self.agent_repo.save(
                 agent=agent_dict,
-                task_name=task.name,
                 metadata=metadata,
             )
 
             logger.info(
-                f"Saved agent for task '{task.name}' to {agent_path} "
-                f"(metrics: {metrics})"
+                f"Saved agent to {agent_path} (metrics: {metrics})"
             )
 
             return agent_path
@@ -81,8 +92,7 @@ class AgentManager:
             agent_dict, metadata = self.agent_repo.load(agent_path)
 
             logger.info(
-                f"Loaded agent from {agent_path} "
-                f"(task={metadata.task_name}, created={metadata.created_at})"
+                f"Loaded agent from {agent_path} (created={metadata.created_at})"
             )
 
             return agent_dict
@@ -98,26 +108,80 @@ class AgentManager:
     def load_agent_as_object(
         self,
         agent_path: Path,
-        task_dict: Dict[str, Any],
+        task: Optional[Any] = None,
+        task_dict: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Load an agent and reconstruct it as a callable object."""
         try:
             agent_dict, metadata = self.agent_repo.load(agent_path)
 
-            signature_class = task_dict.get("signature")
+            # Resolve signature class
+            signature_class = None
+            if task_dict and "signature" in task_dict:
+                signature_class = task_dict["signature"]
+            elif task:
+                if isinstance(task, dict):
+                    signature_class = task.get("signature")
+                else:
+                    signature_class = getattr(task, "signature", None)
+
             if signature_class is None:
                 raise UseCaseExecutionError(
                     "AgentManager.load_agent_as_object",
-                    "Task dict must contain 'signature' key for agent reconstruction"
+                    "Task must contain signature for agent reconstruction"
                 )
+
+            # Check prompt hash mismatch and warning
+            task_config = None
+            if task_dict and "config" in task_dict:
+                task_config = task_dict["config"]
+            elif task:
+                if isinstance(task, dict):
+                    task_config = task.get("config")
+                else:
+                    task_config = getattr(task, "config", None)
+                    if task_config is None:
+                        from ae.core.schema.config import SchemaConfig
+                        if isinstance(task, SchemaConfig):
+                            task_config = task
+
+            if task_config is not None:
+                # Check schema hash mismatch first and raise clear validation exception if they differ
+                if getattr(metadata, "schema_hash", None) is not None:
+                    try:
+                        current_schema_hash = task_config.get_schema_hash()
+                        if current_schema_hash != metadata.schema_hash:
+                            raise ValueError(
+                                f"Schema hash mismatch for agent loaded from {agent_path}! "
+                                f"Saved schema hash: {metadata.schema_hash}, "
+                                f"current schema hash: {current_schema_hash}. "
+                                "The loaded agent was trained on a different task schema and is incompatible."
+                            )
+                    except ValueError:
+                        raise
+                    except Exception as e:
+                        logger.warning(f"Failed to check schema hash: {e}")
+
+                # Check prompt hash mismatch and warning
+                if metadata.instruction_hash:
+                    try:
+                        current_hash = task_config.get_instruction_hash()
+                        if current_hash != metadata.instruction_hash:
+                            logger.warning(
+                                f"Prompt hash mismatch for agent loaded from {agent_path}! "
+                                f"Saved hash: {metadata.instruction_hash}, "
+                                f"current hash: {current_hash}. "
+                                "The loaded agent was trained on a different prompt than the current one."
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to check prompt hash: {e}")
 
             reconstructed_agent = UniversalExtractor(signature_class)
             state_to_load = self._normalize_agent_state(agent_dict)
             reconstructed_agent.load_state(state_to_load)
 
             logger.info(
-                f"Reconstructed agent from {agent_path} "
-                f"(task={metadata.task_name})"
+                f"Reconstructed agent from {agent_path}"
             )
 
             return reconstructed_agent
@@ -215,13 +279,13 @@ class AgentManager:
                 f"Failed to load agent with metadata: {e}"
             ) from e
 
-    def load_latest_agent(self, task_name: str) -> Optional[Any]:
-        """Load the most recent agent for a task."""
+    def load_latest_agent(self) -> Optional[Any]:
+        """Load the most recent agent."""
         try:
-            latest_path = self.agent_repo.get_latest(task_name)
+            latest_path = self.agent_repo.get_latest()
 
             if latest_path is None:
-                logger.warning(f"No agents found for task '{task_name}'")
+                logger.warning("No agents found")
                 return None
 
             return self.load_agent(latest_path)
@@ -233,12 +297,12 @@ class AgentManager:
             ) from e
 
     def get_agent_history(
-        self, task_name: str, limit: Optional[int] = None
+        self, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """Get history of agents for a task."""
+        """Get history of agents."""
         try:
             agent_paths = self.agent_repo.list_agents(
-                task_name=task_name, sort_by="created_at"
+                sort_by="created_at"
             )
 
             if limit:
@@ -254,7 +318,7 @@ class AgentManager:
                     continue
 
             logger.debug(
-                f"Retrieved {len(history)} agents for task '{task_name}'"
+                f"Retrieved {len(history)} agents"
             )
 
             return history
@@ -274,7 +338,6 @@ class AgentManager:
                 _, metadata = self.agent_repo.load(path)
                 comparisons.append({
                     "path": str(path),
-                    "task": metadata.task_name,
                     "created_at": metadata.created_at,
                     "model_version": metadata.model_version,
                     "metrics": metadata.metrics,
@@ -374,11 +437,11 @@ class AgentManager:
         return agent
 
     def get_best_agent(
-        self, task_name: str, metric: str = "f1"
+        self, metric: str = "f1"
     ) -> Optional[Path]:
-        """Get the best performing agent for a task."""
+        """Get the best performing agent."""
         try:
-            history = self.get_agent_history(task_name)
+            history = self.get_agent_history()
 
             if not history:
                 return None
@@ -390,7 +453,7 @@ class AgentManager:
 
             if not agents_with_metric:
                 logger.warning(
-                    f"No agents found with metric '{metric}' for task '{task_name}'"
+                    f"No agents found with metric '{metric}'"
                 )
                 return None
 
@@ -401,7 +464,7 @@ class AgentManager:
 
             best_path = Path(best["path"])
             logger.info(
-                f"Best agent for '{task_name}' by {metric}: "
+                f"Best agent by {metric}: "
                 f"{best_path.name} ({metric}={best['metrics'][metric]:.3f})"
             )
 

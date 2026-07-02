@@ -25,15 +25,14 @@ class TestAgentManager:
         agent.prog.predict.demos = [demo]
 
         metadata = AgentMetadata(
-            task_name="nanozymes",
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.now(),
             model_version="test-model",
             metrics={"f1": 0.85},
             config_snapshot={},
         )
 
         agent_dict = agent.dump_state()
-        agent_path = repo.save(agent=agent_dict, task_name="nanozymes", metadata=metadata)
+        agent_path = repo.save(agent=agent_dict, metadata=metadata)
 
         # 2. Reconstruct agent as object
         reconstructed = manager.load_agent_as_object(agent_path=agent_path, task_dict=nanozyme_task)
@@ -60,13 +59,12 @@ class TestAgentManager:
 
         agent = UniversalExtractor(nanozyme_task["signature"])
         metadata = AgentMetadata(
-            task_name="nanozymes",
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.now(),
             model_version="test",
             metrics={},
             config_snapshot={},
         )
-        agent_path = repo.save(agent=agent.dump_state(), task_name="nanozymes", metadata=metadata)
+        agent_path = repo.save(agent=agent.dump_state(), metadata=metadata)
 
         bad_task_dict = {"config": nanozyme_task["config"]}
         with pytest.raises(UseCaseExecutionError, match="signature"):
@@ -99,7 +97,7 @@ class TestAgentManager:
         original_agent = UniversalExtractor(nanozyme_task["signature"])
         saved_path = manager.save_agent(
             agent=original_agent,
-            task=nanozyme_task["config"],
+            schema_config=nanozyme_task["config"],
             metrics={"f1": 0.90},
             config={"num_trials": 10},
             model_version="test-v1",
@@ -113,3 +111,44 @@ class TestAgentManager:
         loaded_object = manager.load_agent_as_object(saved_path, nanozyme_task)
         assert isinstance(loaded_object, UniversalExtractor)
         assert callable(loaded_object)
+
+    def test_schema_hash_mismatch_validation(self, tmp_agents_dir: Path, nanozyme_task: Dict[str, Any]):
+        repo = AgentRepository(agents_dir=tmp_agents_dir)
+        manager = AgentManager(agent_repo=repo)
+
+        original_agent = UniversalExtractor(nanozyme_task["signature"])
+        
+        saved_path = manager.save_agent(
+            agent=original_agent,
+            schema_config=nanozyme_task["config"],
+            metrics={"f1": 0.90},
+            config={"num_trials": 10},
+            model_version="test-v1",
+        )
+
+        from copy import deepcopy
+        from ae.core.schema.config import SchemaConfig, FieldSpec
+        
+        orig_config = nanozyme_task["config"]
+        modified_fields = deepcopy(orig_config.experiment_fields)
+        modified_fields["new_dummy_field"] = FieldSpec(type=str, description="dummy field")
+        
+        modified_config = SchemaConfig(
+            name=orig_config.name,
+            experiment_fields=modified_fields,
+            compare_fields=orig_config.compare_fields + ["new_dummy_field"],
+            float_tolerance=orig_config.float_tolerance,
+            instruction_file=orig_config.instruction_file,
+            row_converter=orig_config.row_converter,
+            base_class=orig_config.base_class,
+        )
+        
+        modified_task = {
+            "config": modified_config,
+            "signature": nanozyme_task["signature"]
+        }
+
+        with pytest.raises(UseCaseExecutionError) as exc_info:
+            manager.load_agent_as_object(saved_path, modified_task)
+            
+        assert "Schema hash mismatch" in str(exc_info.value)
