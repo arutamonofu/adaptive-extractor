@@ -41,20 +41,17 @@ environment.yml.local
 # --- Jupyter ---
 .ipynb_checkpoints/
 
-# --- Data (raw & intermediate) ---
-data/extractions/*
-data/pdf/*
-data/analysis/*
-
-!data/.gitkeep
-!data/*/.gitkeep
+# --- Data (raw, interim, processed) ---
+data/raw/pdf/*
+data/interim/reverse_engineering/*
+data/processed/extracted/*
 
 # --- Research ---
 research/
 
 # --- ML ---
 # mlruns/
-# mlflow.db
+mlflow.db
 # *.pth
 # *.pt
 # *.onnx
@@ -65,17 +62,6 @@ research/
 
 # --- Streamlit ---
 .streamlit/secrets.toml
-
-# --- Configs ---
-config/*.yaml
-!config/core.yaml
-!config/ingestion.yaml
-!config/optimization.yaml
-!config/extraction.yaml
-
-config/tasks/*
-!config/tasks/nanozymes/
-!config/tasks/nanozymes/**
 
 # --- Secrets ---
 .env
@@ -88,9 +74,7 @@ config/tasks/*
 Thumbs.db
 
 # --- Logs ---
-# logs/*
-logs/llm_history/*
-*.log
+logs/*
 
 # --- Diagnostics (large output, keep in docs/ if needed) ---
 diagnose_*.txt
