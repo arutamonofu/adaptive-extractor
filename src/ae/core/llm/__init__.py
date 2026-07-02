@@ -19,6 +19,9 @@ if TYPE_CHECKING:
         create_lm,
         setup_student,
         setup_teacher,
+        setup_ingestor,
+        LMProvider,
+        DSPyLMAdapter,
     )
 
 
@@ -52,6 +55,18 @@ def __getattr__(name: str):
         from .provider import setup_teacher
 
         return setup_teacher
+    if name == "setup_ingestor":
+        from .provider import setup_ingestor
+
+        return setup_ingestor
+    if name == "LMProvider":
+        from .provider import LMProvider
+
+        return LMProvider
+    if name == "DSPyLMAdapter":
+        from .provider import DSPyLMAdapter
+
+        return DSPyLMAdapter
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -70,4 +85,7 @@ __all__ = [
     "create_lm",
     "setup_student",
     "setup_teacher",
+    "setup_ingestor",
+    "LMProvider",
+    "DSPyLMAdapter",
 ]

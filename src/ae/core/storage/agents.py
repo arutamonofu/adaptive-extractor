@@ -6,22 +6,21 @@ including version tracking, metadata management, and audit trails.
 
 import json
 import logging
-from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from pydantic import BaseModel, field_validator
 
 from ae.core.exceptions import AgentNotFoundError, InvalidAgentError, RepositoryError
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class AgentMetadata:
+class AgentMetadata(BaseModel):
     """Metadata associated with a trained agent.
 
     Attributes:
-        task_name: Name of the task this agent was trained for.
         created_at: Timestamp when the agent was created.
         model_version: Version of the LLM model used.
         metrics: Performance metrics (e.g., f1, precision, recall).
@@ -30,10 +29,10 @@ class AgentMetadata:
         description: Human-readable description (optional).
         initial_instruction_file: Path to the initial instruction file used (optional).
         instruction_hash: SHA256 hash (first 12 chars) of the initial instruction (optional).
+        schema_hash: SHA256 hash (first 12 chars) of the schema fields (optional).
     """
 
-    task_name: str
-    created_at: str
+    created_at: datetime
     model_version: str
     metrics: Dict[str, float]
     config_snapshot: Dict[str, Any]
@@ -41,41 +40,42 @@ class AgentMetadata:
     description: Optional[str] = None
     initial_instruction_file: Optional[str] = None
     instruction_hash: Optional[str] = None
+    schema_hash: Optional[str] = None
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def parse_datetime(cls, v: Any) -> datetime:
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v)
+            except ValueError:
+                pass
+        return v
 
 
 def _generate_filename(
-    task_name: str,
-    timestamp: Optional[str] = None,
-    agents_dir: Optional[Path] = None,
+    timestamp: Optional[Union[str, datetime]] = None,
 ) -> str:
     """Generate a unique filename for an agent.
 
-    Format: {task}_v{version}_{timestamp}.json
+    Format: agent_{timestamp}.json
 
     Args:
-        task_name: Name of the task.
-        timestamp: Optional timestamp (ISO format). If None, uses current time.
-        agents_dir: Optional directory to count existing versions.
+        timestamp: Optional timestamp. If None, uses current time.
 
     Returns:
         Generated filename.
     """
     if timestamp is None:
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now()
+    if isinstance(timestamp, datetime):
+        # Format: YYYYMMDD_HHMMSS
+        timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S")
+    else:
+        # If it's a string, make it filename-safe
+        timestamp_str = timestamp.replace(":", "").replace("-", "").replace(".", "_")[:15]
 
-    # Convert ISO timestamp to filename-safe format
-    timestamp_safe = timestamp.replace(":", "-").replace(".", "-")[:19]
-
-    # Count existing versions for this task
-    version = 1
-    if agents_dir:
-        existing = [
-            f for f in agents_dir.glob(f"{task_name}_v*.json")
-            if not f.name.endswith(".meta.json")
-        ]
-        version = len(existing) + 1
-
-    return f"{task_name}_v{version}_{timestamp_safe}.json"
+    return f"agent_{timestamp_str}.json"
 
 
 def _create_default_metadata(agent_path: Path) -> AgentMetadata:
@@ -87,11 +87,8 @@ def _create_default_metadata(agent_path: Path) -> AgentMetadata:
     Returns:
         Default metadata.
     """
-    task_name = agent_path.stem.split("_")[0] if "_" in agent_path.stem else "unknown"
-
     return AgentMetadata(
-        task_name=task_name,
-        created_at=datetime.fromtimestamp(agent_path.stat().st_mtime).isoformat(),
+        created_at=datetime.fromtimestamp(agent_path.stat().st_mtime),
         model_version="unknown",
         metrics={},
         config_snapshot={},
@@ -100,9 +97,8 @@ def _create_default_metadata(agent_path: Path) -> AgentMetadata:
 
 def save_agent(
     agent: Dict[str, Any],
-    task_name: str,
     agents_dir: Path,
-    metadata: Optional[AgentMetadata] = None,
+    metadata: Optional[Union[AgentMetadata, Dict[str, Any]]] = None,
     filename: Optional[str] = None,
     metrics: Optional[Dict[str, float]] = None,
     config_snapshot: Optional[Dict[str, Any]] = None,
@@ -110,12 +106,12 @@ def save_agent(
     description: Optional[str] = None,
     initial_instruction_file: Optional[str] = None,
     instruction_hash: Optional[str] = None,
+    schema_hash: Optional[str] = None,
 ) -> Path:
     """Save an agent with metadata.
 
     Args:
         agent: The trained agent object (must be JSON-serializable).
-        task_name: Name of the task.
         agents_dir: Directory where agents are stored.
         metadata: Optional AgentMetadata instance. If not provided, creates default.
         filename: Optional custom filename. If None, generates automatically.
@@ -125,6 +121,7 @@ def save_agent(
         description: Human-readable description.
         initial_instruction_file: Path to instruction file.
         instruction_hash: Hash of instruction.
+        schema_hash: Hash of the task schema.
 
     Returns:
         Path to the saved agent file.
@@ -137,9 +134,8 @@ def save_agent(
         agents_dir.mkdir(parents=True, exist_ok=True)
 
         if metadata is None:
-            timestamp = datetime.now().isoformat()
+            timestamp = datetime.now()
             metadata = AgentMetadata(
-                task_name=task_name,
                 created_at=timestamp,
                 model_version=model_version,
                 metrics=metrics or {},
@@ -147,10 +143,13 @@ def save_agent(
                 description=description,
                 initial_instruction_file=initial_instruction_file,
                 instruction_hash=instruction_hash,
+                schema_hash=schema_hash,
             )
+        elif isinstance(metadata, dict):
+            metadata = AgentMetadata(**metadata)
 
         if filename is None:
-            filename = _generate_filename(task_name, metadata.created_at, agents_dir)
+            filename = _generate_filename(metadata.created_at)
 
         agent_path = agents_dir / filename
         metadata_path = agent_path.with_suffix(".meta.json")
@@ -159,7 +158,7 @@ def save_agent(
             json.dump(agent, f, indent=2, ensure_ascii=False)
 
         with open(metadata_path, "w", encoding="utf-8") as f:
-            json.dump(asdict(metadata), f, indent=2, ensure_ascii=False)
+            json.dump(metadata.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
 
         logger.info(f"Saved agent to {agent_path}")
         logger.debug(f"Saved metadata to {metadata_path}")
@@ -201,7 +200,7 @@ def load_agent(
         if metadata_path.exists():
             with open(metadata_path, "r", encoding="utf-8") as f:
                 metadata_dict = json.load(f)
-            metadata = AgentMetadata(**metadata_dict)
+            metadata = AgentMetadata.model_validate(metadata_dict)
         else:
             logger.warning(f"Metadata not found for {agent_path}, creating default")
             metadata = _create_default_metadata(agent_path)
@@ -221,25 +220,31 @@ def load_agent(
 
 def list_agents(
     agents_dir: Path,
-    task_name: Optional[str] = None,
     sort_by: str = "created_at",
 ) -> List[Path]:
-    """List all agent files, optionally filtered by task.
+    """List all agent files.
 
     Args:
         agents_dir: Directory where agents are stored.
-        task_name: Optional task name filter.
         sort_by: Sort criterion ("created_at" or "name").
 
     Returns:
         List of agent file paths.
     """
     agents_dir = Path(agents_dir)
-    pattern = f"{task_name}_*.json" if task_name else "*.json"
+    pattern = "agent_*.json"
     agents = [
         p for p in agents_dir.glob(pattern)
         if not p.name.endswith(".meta.json")
     ]
+
+    # Fallback to listing any JSON files (excluding meta) if no agent_*.json matches,
+    # in case someone lists older structured files during transition.
+    if not agents:
+        agents = [
+            p for p in agents_dir.glob("*.json")
+            if not p.name.endswith(".meta.json")
+        ]
 
     if sort_by == "created_at":
         agents.sort(key=lambda p: p.stat().st_mtime, reverse=True)
@@ -251,18 +256,16 @@ def list_agents(
 
 def get_latest_agent(
     agents_dir: Path,
-    task_name: str,
 ) -> Optional[Path]:
-    """Get the most recently created agent for a task.
+    """Get the most recently created agent.
 
     Args:
         agents_dir: Directory where agents are stored.
-        task_name: Name of the task.
 
     Returns:
         Path to the latest agent, or None if no agents found.
     """
-    agents = list_agents(agents_dir, task_name=task_name, sort_by="created_at")
+    agents = list_agents(agents_dir, sort_by="created_at")
     return agents[0] if agents else None
 
 
@@ -307,8 +310,7 @@ def get_agent_info(
 
     return {
         "path": str(agent_path),
-        "task_name": metadata.task_name,
-        "created_at": metadata.created_at,
+        "created_at": metadata.created_at.isoformat() if isinstance(metadata.created_at, datetime) else metadata.created_at,
         "model_version": metadata.model_version,
         "metrics": metadata.metrics,
         "description": metadata.description,
@@ -330,14 +332,12 @@ class AgentRepository:
     def save(
         self,
         agent: Dict[str, Any],
-        task_name: str,
         metadata: AgentMetadata,
         filename: Optional[str] = None,
     ) -> Path:
         """Save an agent with its metadata."""
         return save_agent(
             agent=agent,
-            task_name=task_name,
             agents_dir=self.agents_dir,
             metadata=metadata,
             filename=filename,
@@ -348,14 +348,14 @@ class AgentRepository:
         return load_agent(agent_path)
 
     def list_agents(
-        self, task_name: Optional[str] = None, sort_by: str = "created_at"
+        self, sort_by: str = "created_at"
     ) -> List[Path]:
-        """List all agent files, optionally filtered by task."""
-        return list_agents(self.agents_dir, task_name=task_name, sort_by=sort_by)
+        """List all agent files."""
+        return list_agents(self.agents_dir, sort_by=sort_by)
 
-    def get_latest(self, task_name: str) -> Optional[Path]:
-        """Get the most recently created agent for a task."""
-        return get_latest_agent(self.agents_dir, task_name)
+    def get_latest(self) -> Optional[Path]:
+        """Get the most recently created agent."""
+        return get_latest_agent(self.agents_dir)
 
     def delete(self, agent_path: Path) -> None:
         """Delete an agent and its metadata."""

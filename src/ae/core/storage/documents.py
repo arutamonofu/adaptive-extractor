@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ae.core.exceptions import DataNotFoundError, RepositoryError
+from ae.core.utils import normalize_document_key
 
 logger = logging.getLogger(__name__)
 
@@ -21,29 +22,29 @@ class DocumentRepository:
 
     Example:
         ```python
-        repo = DocumentRepository(parsed_dir=Path("data/parsed"))
+        repo = DocumentRepository(ingestion_dir=Path("data/interim/ingestion"))
 
         # Load a single document
-        text = repo.load(Path("data/parsed/document.md"))
+        text = repo.load(Path("data/interim/ingestion/document.md"))
 
         # Load all documents
         all_docs = repo.load_all()  # Dict[str, str]
 
         # Save a document
-        repo.save(markdown_text, Path("data/parsed/new_doc.md"))
+        repo.save(markdown_text, Path("data/interim/ingestion/new_doc.md"))
         ```
     """
 
-    def __init__(self, parsed_dir: Optional[Path] = None):
+    def __init__(self, ingestion_dir: Optional[Path] = None):
         """Initialize the document repository.
 
         Args:
-            parsed_dir: Default directory for parsed documents.
+            ingestion_dir: Default directory for parsed documents.
         """
-        self.parsed_dir = Path(parsed_dir) if parsed_dir else None
-        if self.parsed_dir:
-            self.parsed_dir.mkdir(parents=True, exist_ok=True)
-        logger.debug(f"Initialized DocumentRepository at {self.parsed_dir}")
+        self.ingestion_dir = Path(ingestion_dir) if ingestion_dir else None
+        if self.ingestion_dir:
+            self.ingestion_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Initialized DocumentRepository at {self.ingestion_dir}")
 
     def load(self, file_path: Path) -> str:
         """Load a single document text from a Markdown file.
@@ -89,7 +90,7 @@ class DocumentRepository:
         Raises:
             RepositoryError: If directory doesn't exist or is invalid.
         """
-        load_dir = Path(directory) if directory else self.parsed_dir
+        load_dir = Path(directory) if directory else self.ingestion_dir
 
         if load_dir is None:
             raise RepositoryError(
@@ -165,16 +166,7 @@ class DocumentRepository:
         Returns:
             Normalized document key.
         """
-        # Remove .md extension and normalize
-        key = file_path.stem.lower().strip()
-
-        # Remove common suffixes
-        for suffix in ["_parsed", "_processed", "_result"]:
-            if key.endswith(suffix):
-                key = key[:-len(suffix)]
-                break
-
-        return key
+        return normalize_document_key(str(file_path))
 
     def list_document_keys(
         self,
@@ -188,7 +180,7 @@ class DocumentRepository:
         Returns:
             List of document keys.
         """
-        load_dir = Path(directory) if directory else self.parsed_dir
+        load_dir = Path(directory) if directory else self.ingestion_dir
 
         if load_dir is None or not load_dir.exists():
             return []
@@ -215,7 +207,7 @@ class DocumentRepository:
         Returns:
             Document text content, or ``None`` if the document is not found.
         """
-        load_dir = Path(directory) if directory else self.parsed_dir
+        load_dir = Path(directory) if directory else self.ingestion_dir
 
         if load_dir is None:
             return None
@@ -254,7 +246,7 @@ class DocumentRepository:
         Returns:
             True if document exists, False otherwise.
         """
-        load_dir = Path(directory) if directory else self.parsed_dir
+        load_dir = Path(directory) if directory else self.ingestion_dir
 
         if load_dir is None:
             return False

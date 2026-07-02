@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Union
 import pandas as pd
 
 from ae.core.exceptions import DataNotFoundError, DataValidationError, InvalidDataFormatError
+from ae.core.utils import normalize_document_key
 
 logger = logging.getLogger(__name__)
 
@@ -18,24 +19,7 @@ logger = logging.getLogger(__name__)
 ID_COLUMNS = ["pdf", "filename", "source", "doi", "document"]
 
 
-def _normalize_document_key(doc_id: str) -> str:
-    """Normalize document ID by removing extensions and standardizing.
 
-    Args:
-        doc_id: Document identifier.
-
-    Returns:
-        Normalized document key (lowercase, stripped, no extension).
-    """
-    doc_id = str(doc_id).strip().lower()
-
-    # Remove common extensions
-    for ext in [".pdf", ".txt", ".doc"]:
-        if doc_id.endswith(ext):
-            doc_id = doc_id[:-len(ext)]
-            break
-
-    return doc_id
 
 
 def _load_csv(csv_path: Path) -> pd.DataFrame:
@@ -121,7 +105,7 @@ def _group_and_convert(
     total_rows = 0
 
     for doc_id, group in df.groupby(id_column):
-        doc_key = _normalize_document_key(str(doc_id))
+        doc_key = normalize_document_key(str(doc_id))
         experiments = []
 
         for idx, row in group.iterrows():
@@ -211,7 +195,7 @@ def validate_coverage(
     Returns:
         Dictionary with coverage information.
     """
-    available_set = {_normalize_document_key(d) for d in available_docs}
+    available_set = {normalize_document_key(d) for d in available_docs}
     gt_set = set(gt_data.keys())
 
     covered = gt_set.intersection(available_set)
@@ -256,7 +240,7 @@ class GroundTruthRepository:
 
     def _normalize_document_key(self, document_id: str) -> str:
         """Normalize document ID. Added for test compatibility."""
-        return _normalize_document_key(document_id)
+        return normalize_document_key(document_id)
 
     def load(
         self,

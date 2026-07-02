@@ -24,23 +24,26 @@ class TestStorage:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
 
+        # Remove task_name from sample_agent_metadata dict if present
+        if "task_name" in sample_agent_metadata:
+            sample_agent_metadata.pop("task_name")
+
         # Functional save
         metadata = AgentMetadata(**sample_agent_metadata)
-        agent_path = save_agent(sample_agent_dict, "nanozymes", agents_dir, metadata=metadata)
+        agent_path = save_agent(sample_agent_dict, agents_dir, metadata=metadata)
 
         # Functional load
         loaded_agent, loaded_meta = load_agent(agent_path)
         assert loaded_agent["lm"]["model"] == "test-model"
-        assert loaded_meta.task_name == "nanozymes"
 
         # Repository-based list and delete
         repo = AgentRepository(agents_dir=agents_dir)
-        agents = repo.list_agents(task_name="nanozymes")
+        agents = repo.list_agents()
         assert len(agents) == 1
         assert agents[0] == agent_path
 
         repo.delete(agent_path)
-        assert len(repo.list_agents(task_name="nanozymes")) == 0
+        assert len(repo.list_agents()) == 0
 
     def test_ground_truth_storage(self, tmp_path, sample_gt_csv, row_converter):
         """Test loading ground truth and document key normalization."""

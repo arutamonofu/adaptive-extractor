@@ -1,5 +1,6 @@
 """Evaluation engine for comparing extracted chemical experiments against ground truth."""
 
+import functools
 import json
 import logging
 import math
@@ -7,6 +8,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple, TypeAlias, Union
 
 from pydantic import BaseModel
+from tabulate import tabulate  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,16 @@ def _extract_first_json(text: str) -> Optional[str]:
     return None
 
 
+_RE_STRICT_CLEAN = re.compile(r"\s+")
+_DASH_MAP = str.maketrans({"−": "-", "–": "-", "—": "-"})
+
+
+@functools.lru_cache(maxsize=4096)
+def _normalize_text_cached(val_str: str) -> str:
+    """Helper to normalize text with caching."""
+    return _RE_STRICT_CLEAN.sub("", val_str.translate(_DASH_MAP))
+
+
 class ExperimentMatcher:
     """Evaluation engine for comparing extracted chemical experiments against ground truth.
 
@@ -82,10 +94,10 @@ class ExperimentMatcher:
     """
 
     # Pre-compiled regex for performance
-    _RE_STRICT_CLEAN = re.compile(r"\s+")
+    _RE_STRICT_CLEAN = _RE_STRICT_CLEAN
 
     # Dash normalization mapping
-    _DASH_MAP = str.maketrans({"−": "-", "–": "-", "—": "-"})
+    _DASH_MAP = _DASH_MAP
 
     def __init__(
         self,
@@ -135,7 +147,7 @@ class ExperimentMatcher:
 
         # Convert to string, normalize dashes, remove whitespace
         # NOTE: No .lower() - case-sensitive comparison
-        return self._RE_STRICT_CLEAN.sub("", str(value).translate(self._DASH_MAP))
+        return _normalize_text_cached(str(value))
 
     def _compare_floats(self, val_pred: float, val_gold: float) -> bool:
         """Compare two float values with strict tolerance.
@@ -432,8 +444,6 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             discrepancies: List of field names with discrepancies.
             verdicts: Dictionary mapping field names to judge verdicts (YES/NO).
         """
-        from tabulate import tabulate  # type: ignore[import-untyped]
-
         table_data = []
 
         for field in self.fields:

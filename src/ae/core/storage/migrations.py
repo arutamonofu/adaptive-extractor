@@ -182,6 +182,15 @@ class AgentMigrator:
         return data
 
 
+def _get_project_root() -> Path:
+    current = Path(__file__).resolve()
+    while current != current.parent:
+        if (current / "pyproject.toml").exists():
+            return current
+        current = current.parent
+    return Path(__file__).resolve().parent.parent.parent.parent.parent
+
+
 class GroundTruthMigrator:
     """Handles migration of ground truth CSV files.
 
@@ -191,9 +200,29 @@ class GroundTruthMigrator:
     - Deprecated columns
     """
 
-    # Current ground truth format
-    CURRENT_COLUMNS = {
-        "nanozymes": [
+    def __init__(self) -> None:
+        """Initialize the ground truth migrator."""
+        self._column_renames: Dict[str, Dict[str, str]] = {
+            # Example: "nanozymes": {"old_name": "new_name"}
+        }
+
+    def _get_expected_columns(self) -> List[str]:
+        """Dynamically load expected columns from the schema YAML.
+
+        Returns:
+            List of expected columns.
+        """
+        try:
+            from ae.core.config import Settings
+            from ae.core.schema.loader import load_schema_from_yaml
+            settings = Settings.load()
+            task_config = load_schema_from_yaml(settings.paths.schema_file)
+            return ["filename"] + list(task_config.experiment_fields.keys())
+        except Exception as e:
+            logger.error(f"Failed to dynamically load schema columns: {e}")
+
+        # Fallback to nanozymes columns
+        return [
             "filename",
             "formula",
             "activity",
@@ -216,13 +245,6 @@ class GroundTruthMigrator:
             "ccat_value",
             "ccat_unit",
         ]
-    }
-
-    def __init__(self) -> None:
-        """Initialize the ground truth migrator."""
-        self._column_renames: Dict[str, Dict[str, str]] = {
-            # Example: "nanozymes": {"old_name": "new_name"}
-        }
 
     def detect_format(self, csv_path: Path) -> Optional[str]:
         """Detect the format version of a ground truth CSV.
@@ -231,7 +253,7 @@ class GroundTruthMigrator:
             csv_path: Path to CSV file.
 
         Returns:
-            Task name or None if undetectable.
+            Format type name or None if undetectable.
         """
         import pandas as pd
 
@@ -239,22 +261,18 @@ class GroundTruthMigrator:
             df = pd.read_csv(csv_path, nrows=1)
             columns = set(df.columns)
 
-            # Try to match against known formats
-            for task_name, expected_columns in self.CURRENT_COLUMNS.items():
-                if set(expected_columns).issubset(columns):
-                    return task_name
+            expected_columns = self._get_expected_columns()
+            if expected_columns and set(expected_columns).issubset(columns):
+                return "schema"
 
-            # Check for partial match
-            for task_name, expected_columns in self.CURRENT_COLUMNS.items():
-                overlap = len(columns.intersection(expected_columns))
-                if overlap > len(expected_columns) * 0.5:
-                    logger.warning(
-                        f"Partial match for {task_name}: {overlap}/{len(expected_columns)} columns"
-                    )
-                    return task_name
+            overlap = len(columns.intersection(expected_columns))
+            if overlap > len(expected_columns) * 0.5:
+                logger.warning(
+                    f"Partial match for schema: {overlap}/{len(expected_columns)} columns"
+                )
+                return "schema"
 
             return None
-
         except Exception as e:
             logger.error(f"Cannot detect format for {csv_path}: {e}")
             return None
@@ -262,14 +280,14 @@ class GroundTruthMigrator:
     def migrate(
         self,
         csv_path: Path,
-        task_name: str,
+        task_name: Optional[str] = None,
         output_path: Optional[Path] = None,
     ) -> Path:
         """Migrate a ground truth CSV to the current format.
 
         Args:
             csv_path: Path to input CSV file.
-            task_name: Name of the task.
+            task_name: Ignored (legacy parameter).
             output_path: Optional output path (default: overwrite input).
 
         Returns:
@@ -279,12 +297,8 @@ class GroundTruthMigrator:
 
         df = pd.read_csv(csv_path)
 
-        # Apply column renames
-        if task_name in self._column_renames:
-            df = df.rename(columns=self._column_renames[task_name])
-
         # Add missing columns with None
-        expected_columns = self.CURRENT_COLUMNS.get(task_name, [])
+        expected_columns = self._get_expected_columns()
         for col in expected_columns:
             if col not in df.columns:
                 df[col] = None
@@ -297,7 +311,7 @@ class GroundTruthMigrator:
         target_path = output_path or csv_path
         df.to_csv(target_path, index=False)
 
-        logger.info(f"Migrated ground truth {csv_path} for task {task_name}")
+        logger.info(f"Migrated ground truth {csv_path} to schema format")
 
         return target_path
 

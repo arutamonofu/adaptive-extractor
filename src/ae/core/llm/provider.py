@@ -18,6 +18,7 @@ Usage:
     response = lm("Your prompt here")
 """
 
+from collections import deque
 import copy
 import json
 import logging
@@ -31,7 +32,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 import dspy
 import requests
 
-from ae.core.config.settings import CircuitBreakerConfig, LLMInstanceConfig, Settings
+from ae.core.config.settings import CircuitBreakerConfig, LLMInstanceConfig
 from ae.core.llm.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,113 @@ _PROVIDER_RATE_LIMITERS: Dict[str, "RateLimiter"] = {}
 _PROVIDER_RATE_LIMITERS_LOCK = threading.Lock()
 
 
-class BaseLMProvider(dspy.LM, ABC):
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
+class LMProvider(Protocol):
+    """PEP-544 Protocol representing a Language Model provider."""
+    model: str
+    temperature: float
+    max_retries: int
+    top_p: float
+    history: List[Dict[str, Any]]
+
+    def clear_history(self) -> None:
+        ...
+
+    def deepcopy(self) -> "LMProvider":
+        ...
+
+    def reset_copy(self) -> "LMProvider":
+        ...
+
+    def copy(self, **kwargs) -> "LMProvider":
+        ...
+
+    def __call__(
+        self,
+        prompt: Optional[Union[str, List[Dict[str, str]]]] = None,
+        **kwargs: Any
+    ) -> List[str]:
+        ...
+
+
+class DSPyLMAdapter(dspy.LM):
+    """Adapter that wraps an LMProvider to inherit from dspy.LM for DSPy integration."""
+
+    def __init__(self, provider: LMProvider):
+        model = getattr(provider, "model", "unknown")
+        super().__init__(model=model)
+        self.provider = provider
+        self.model = model
+        self.temperature = getattr(provider, "temperature", 0.0)
+        self.max_retries = getattr(provider, "max_retries", 3)
+        self.top_p = getattr(provider, "top_p", 1.0)
+        
+        if hasattr(provider, "kwargs"):
+            self.kwargs = provider.kwargs
+        else:
+            self.kwargs = {}
+
+    @property
+    def history(self) -> List[Dict[str, Any]]:
+        return getattr(self.provider, "history", [])
+
+    @history.setter
+    def history(self, val: List[Dict[str, Any]]) -> None:
+        try:
+            self.provider.history = val
+        except AttributeError:
+            pass
+
+    def clear_history(self) -> None:
+        if hasattr(self.provider, "clear_history"):
+            self.provider.clear_history()
+
+    def reset_circuit_breaker(self) -> None:
+        if hasattr(self.provider, "reset_circuit_breaker"):
+            self.provider.reset_circuit_breaker()
+
+    def get_circuit_breaker_stats(self) -> Optional[dict]:
+        if hasattr(self.provider, "get_circuit_breaker_stats"):
+            return self.provider.get_circuit_breaker_stats()
+        return None
+
+    def deepcopy(self) -> "DSPyLMAdapter":
+        if hasattr(self.provider, "deepcopy"):
+            return DSPyLMAdapter(self.provider.deepcopy())
+        return DSPyLMAdapter(self.provider)
+
+    def reset_copy(self) -> "DSPyLMAdapter":
+        if hasattr(self.provider, "reset_copy"):
+            return DSPyLMAdapter(self.provider.reset_copy())
+        return DSPyLMAdapter(self.provider)
+
+    def copy(self, **kwargs) -> "DSPyLMAdapter":
+        if hasattr(self.provider, "copy"):
+            return DSPyLMAdapter(self.provider.copy(**kwargs))
+        return DSPyLMAdapter(self.provider)
+
+    def __call__(self, prompt: Optional[Union[str, List[Dict[str, str]]]] = None, **kwargs) -> List[str]:
+        if hasattr(self.provider, "temperature"):
+            self.provider.temperature = self.temperature
+        if hasattr(self.provider, "max_retries"):
+            self.provider.max_retries = self.max_retries
+        if hasattr(self.provider, "top_p"):
+            self.provider.top_p = self.top_p
+        return self.provider(prompt=prompt, **kwargs)
+
+    def forward(self, prompt=None, **kwargs):
+        if hasattr(self.provider, "temperature"):
+            self.provider.temperature = self.temperature
+        if hasattr(self.provider, "max_retries"):
+            self.provider.max_retries = self.max_retries
+        if hasattr(self.provider, "top_p"):
+            self.provider.top_p = self.top_p
+        return self.provider(prompt=prompt, **kwargs)
+
+
+class BaseLMProvider(ABC):
     """Abstract base for all LLM providers (HTTP and non-HTTP).
 
     Contains shared logic used by both HTTP-based providers
@@ -62,10 +169,9 @@ class BaseLMProvider(dspy.LM, ABC):
             config: Configuration for the LLM instance.
             circuit_breaker: Optional circuit breaker for failure protection.
         """
-        super().__init__(config.model)
-
         # Store config for deepcopy
         self._config = config
+        self._shared_cost = {"cumulative_cost": 0.0}
 
         # Common LLM parameters
         self.model = config.model
@@ -77,25 +183,47 @@ class BaseLMProvider(dspy.LM, ABC):
         self._circuit_breaker = circuit_breaker
 
         # History tracking
-        self.history: List[Dict[str, Any]] = []
+        self._history: deque[Dict[str, Any]] = deque(maxlen=self.MAX_HISTORY)
 
-    def _update_history(self, messages: List[Dict[str, Any]], response: str, kwargs: Dict[str, Any]) -> None:
+        self.kwargs: Dict[str, Any] = {}
+
+    @property
+    def cumulative_cost(self) -> float:
+        """Get the cumulative cost of requests made by this provider."""
+        return self._shared_cost["cumulative_cost"]
+
+    @cumulative_cost.setter
+    def cumulative_cost(self, val: float) -> None:
+        """Set the cumulative cost."""
+        self._shared_cost["cumulative_cost"] = val
+
+    @property
+    def history(self) -> List[Dict[str, Any]]:
+        """Get the interaction history as a list."""
+        return list(self._history)
+
+    @history.setter
+    def history(self, val: Any) -> None:
+        """Set the interaction history (converts to deque)."""
+        self._history = deque(val or [], maxlen=self.MAX_HISTORY)
+
+    def _update_history(self, messages: List[Dict[str, Any]], response: str, kwargs: Dict[str, Any], latency_s: Optional[float] = None) -> None:
         """Update the history with the latest interaction."""
         kwargs_clean = {k: v for k, v in kwargs.items() if k != "messages"}
 
-        self.history.append({
+        entry = {
             "messages": messages,
             "outputs": [response],
             "model": self.model,
             "kwargs": kwargs_clean
-        })
-
-        if len(self.history) > self.MAX_HISTORY:
-            self.history = self.history[-self.MAX_HISTORY:]
+        }
+        if latency_s is not None:
+            entry["latency_s"] = latency_s
+        self._history.append(entry)
 
     def clear_history(self) -> None:
         """Clear the interaction history."""
-        self.history.clear()
+        self._history.clear()
 
     def reset_circuit_breaker(self) -> None:
         """Manually reset the circuit breaker to CLOSED state."""
@@ -113,20 +241,23 @@ class BaseLMProvider(dspy.LM, ABC):
         """Create a deep copy of this LM instance."""
         cb_copy = copy.deepcopy(self._circuit_breaker) if self._circuit_breaker else None
         new_instance = self.__class__(self._config, circuit_breaker=cb_copy)
-        new_instance.history = copy.deepcopy(self.history)
+        new_instance._history = copy.deepcopy(self._history)
+        new_instance._shared_cost = self._shared_cost
         return new_instance
 
     def reset_copy(self):
         """Create a copy with same config but empty history."""
         cb_copy = copy.deepcopy(self._circuit_breaker) if self._circuit_breaker else None
         copy_instance = self.__class__(self._config, circuit_breaker=cb_copy)
-        copy_instance.history = []
+        copy_instance._shared_cost = self._shared_cost
         return copy_instance
 
     def copy(self, **kwargs):
         """Create a copy sharing history with the original (for MIPROv2)."""
-        new_instance = copy.deepcopy(self)
-        new_instance.history = self.history  # Share history
+        cb_copy = copy.deepcopy(self._circuit_breaker) if self._circuit_breaker else None
+        new_instance = self.__class__(self._config, circuit_breaker=cb_copy)
+        new_instance._history = self._history  # Share history
+        new_instance._shared_cost = self._shared_cost
 
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -193,6 +324,10 @@ class BaseHTTPProvider(BaseLMProvider, ABC):
                 provider_url = f"{config.provider}-{config.model}"
             self._rate_limiter = _get_provider_rate_limiter(provider_url, config.rate_limit_delay)
 
+        # Thread-local storage for latency tracking
+        import threading
+        self._thread_local = threading.local()
+
     def __call__(self, prompt: Optional[Union[str, List[Dict[str, str]]]] = None, **kwargs) -> List[str]:
         """Execute HTTP request to the LLM provider.
 
@@ -210,7 +345,8 @@ class BaseHTTPProvider(BaseLMProvider, ABC):
         kwargs_copy = {k: v for k, v in kwargs.items() if k != "messages"}
         payload = self._prepare_payload(messages, **kwargs_copy)
         text_response = self._execute_request(payload)
-        self._update_history(messages, text_response, kwargs)
+        latency_s = getattr(self._thread_local, "last_latency_s", None)
+        self._update_history(messages, text_response, kwargs, latency_s=latency_s)
         return [text_response]
 
     def _normalize_prompt(self, prompt: Union[str, List[Dict[str, str]]]) -> List[Dict[str, Any]]:
@@ -237,18 +373,25 @@ class BaseHTTPProvider(BaseLMProvider, ABC):
     def _execute_request(self, payload: Dict[str, Any]) -> str:
         attempt = 0
         last_exception: Optional[Exception] = None
+        if hasattr(self, "_thread_local"):
+            self._thread_local.last_latency_s = None
 
         while attempt < self.max_retries:
             if self._rate_limiter:
                 self._rate_limiter.wait()
 
             logger.info(f"[{self.provider}] Sending request to {self.model} (Attempt {attempt + 1}/{self.max_retries})...")
+            start_time = time.perf_counter()
             try:
                 if self._circuit_breaker:
                     res = self._circuit_breaker.call(self._make_request, payload)
                 else:
                     res = self._make_request(payload)
 
+                duration = time.perf_counter() - start_time
+                logger.info(f"Request completed in {duration:.2f}s")
+                if hasattr(self, "_thread_local"):
+                    self._thread_local.last_latency_s = duration
                 if self._rate_limiter:
                     self._rate_limiter.update_last_call_time()
                 return res
@@ -452,6 +595,17 @@ def apply_prompt_caching(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     return new_messages
 
 
+MODEL_PRICING = {
+    "anthropic/claude-3-5-sonnet": {"input": 3.0, "output": 15.0, "cache_read": 0.3},
+    "anthropic/claude-3.5-sonnet": {"input": 3.0, "output": 15.0, "cache_read": 0.3},
+    "anthropic/claude-3-sonnet": {"input": 3.0, "output": 15.0, "cache_read": 0.3},
+    "google/gemini-2.5-pro": {"input": 1.25, "output": 5.0, "cache_read": 0.125},
+    "google/gemini-2.5-flash": {"input": 0.075, "output": 0.3, "cache_read": 0.0075},
+    "meta-llama/llama-3-70b-instruct": {"input": 0.59, "output": 0.79, "cache_read": 0.059},
+    "deepseek/deepseek-chat": {"input": 0.14, "output": 0.28, "cache_read": 0.014},
+}
+
+
 class OpenRouterLM(BaseHTTPProvider):
     """LLM provider for OpenRouter with direct HTTP calls."""
 
@@ -586,6 +740,27 @@ class OpenRouterLM(BaseHTTPProvider):
                         )
                         logger.info(log_msg)
 
+                        # Cost calculation ($)
+                        input_price = getattr(self._config, "input_price_per_1m", None)
+                        output_price = getattr(self._config, "output_price_per_1m", None)
+                        cache_read_price = getattr(self._config, "cache_read_price_per_1m", None)
+
+                        if input_price is None or output_price is None:
+                            pricing = MODEL_PRICING.get(self.model, {"input": 1.0, "output": 1.0, "cache_read": 0.5})
+                            input_price = pricing["input"]
+                            output_price = pricing["output"]
+                            cache_read_price = pricing.get("cache_read", input_price * 0.1)
+
+                        non_cached_prompt_tokens = max(0, prompt_tokens - cached_tokens)
+                        cost = (
+                            (non_cached_prompt_tokens * input_price) +
+                            (cached_tokens * (cache_read_price or (input_price * 0.1))) +
+                            (completion_tokens * output_price)
+                        ) / 1_000_000.0
+
+                        self.cumulative_cost += cost
+                        logger.info(f"Request cost: ${cost:.6f} | Cumulative: ${self.cumulative_cost:.6f}")
+
                     message = data["choices"][0]["message"]
                     content = message.get("content", "")
                     self._reasoning_details = message.get("reasoning_details")
@@ -696,12 +871,46 @@ def _get_provider_rate_limiter(base_url: str, delay: float) -> RateLimiter:
         return _PROVIDER_RATE_LIMITERS[base_url]
 
 
+class LLMProviderRegistry:
+    """Registry for LLM providers (Open-Closed Principle compliant)."""
+
+    def __init__(self) -> None:
+        self._providers: Dict[str, Type[LMProvider]] = {}
+
+    def register(self, name: str, provider_class: Type[LMProvider]) -> None:
+        """Register an LLM provider class."""
+        self._providers[name.lower()] = provider_class
+        logger.debug(f"Registered LLM provider '{name}' with class '{provider_class.__name__}'")
+
+    def create_lm(
+        self,
+        config: LLMInstanceConfig,
+        circuit_breaker: Optional[CircuitBreaker] = None,
+    ) -> LMProvider:
+        """Create a language model instance using the registered provider."""
+        provider_name = config.provider.lower()
+        if provider_name not in self._providers:
+            raise ValueError(
+                f"Unknown provider: {config.provider}. Registered providers: {sorted(list(self._providers.keys()))}"
+            )
+        provider_class = self._providers[provider_name]
+        return provider_class(config, circuit_breaker=circuit_breaker)
+
+
+# Global registry singleton
+LLM_PROVIDER_REGISTRY = LLMProviderRegistry()
+
+# Register default providers
+LLM_PROVIDER_REGISTRY.register("ollama", OllamaLM)
+LLM_PROVIDER_REGISTRY.register("api", OpenRouterLM)
+
+
 def create_lm(
     config: LLMInstanceConfig,
     circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
     enable_circuit_breaker: bool = True,
     enable_cache: Optional[bool] = None,
-) -> dspy.LM:
+) -> LMProvider:
     """Create a language model instance.
 
     Args:
@@ -711,7 +920,7 @@ def create_lm(
         enable_cache: Override config's enable_cache setting (optional).
 
     Returns:
-        dspy.LM: Language model instance.
+        LMProvider: Language model instance.
 
     Raises:
         ValueError: If configuration is invalid.
@@ -750,12 +959,7 @@ def create_lm(
             f"timeout={reset_timeout}s)"
         )
 
-    if config.provider == "ollama":
-        lm = OllamaLM(config, circuit_breaker=circuit_breaker)
-    elif config.provider == "api":
-        lm = OpenRouterLM(config, circuit_breaker=circuit_breaker)
-    else:
-        raise ValueError(f"Unknown provider: {config.provider}")
+    lm = LLM_PROVIDER_REGISTRY.create_lm(config, circuit_breaker=circuit_breaker)
 
     # Note: rate limiter is now initialized internally inside BaseHTTPProvider.__init__
     # and applied during _execute_request, which correctly integrates with DSPy's
@@ -764,39 +968,61 @@ def create_lm(
 
 
 def setup_student(
-    config: Settings,
+    llm_config: LLMInstanceConfig,
+    circuit_breaker_config: CircuitBreakerConfig,
     enable_circuit_breaker: bool = True,
     enable_cache: Optional[bool] = None,
-) -> dspy.LM:
+) -> LMProvider:
     """Set up the student language model and configure DSPy globally."""
-    if config is None:
-        raise ValueError("config is required for setup_student")
+    if llm_config is None:
+        raise ValueError("llm_config is required for setup_student")
 
     lm = create_lm(
-        config.llm.student,
-        circuit_breaker_config=config.circuit_breaker,
+        llm_config,
+        circuit_breaker_config=circuit_breaker_config,
         enable_circuit_breaker=enable_circuit_breaker,
         enable_cache=enable_cache,
     )
-    dspy.settings.configure(lm=lm)
-    logger.info(f"Student LLM configured: {config.llm.student.model}")
+    dspy.settings.configure(lm=DSPyLMAdapter(lm))
+    logger.info(f"Student LLM configured: {llm_config.model}")
     return lm
 
 
 def setup_teacher(
-    config: Settings,
+    llm_config: LLMInstanceConfig,
+    circuit_breaker_config: CircuitBreakerConfig,
     enable_circuit_breaker: bool = True,
     enable_cache: Optional[bool] = None,
-) -> dspy.LM:
+) -> LMProvider:
     """Set up the teacher language model."""
-    if config is None:
-        raise ValueError("config is required for setup_teacher")
+    if llm_config is None:
+        raise ValueError("llm_config is required for setup_teacher")
 
     lm = create_lm(
-        config.llm.teacher,
-        circuit_breaker_config=config.circuit_breaker,
+        llm_config,
+        circuit_breaker_config=circuit_breaker_config,
         enable_circuit_breaker=enable_circuit_breaker,
         enable_cache=enable_cache,
     )
-    logger.info(f"Teacher LLM configured: {config.llm.teacher.model}")
+    logger.info(f"Teacher LLM configured: {llm_config.model}")
+    return lm
+
+
+def setup_ingestor(
+    llm_config: LLMInstanceConfig,
+    circuit_breaker_config: CircuitBreakerConfig,
+    enable_circuit_breaker: bool = True,
+    enable_cache: Optional[bool] = None,
+) -> LMProvider:
+    """Set up the ingestor language model."""
+    if llm_config is None:
+        raise ValueError("llm_config is required for setup_ingestor")
+
+    lm = create_lm(
+        llm_config,
+        circuit_breaker_config=circuit_breaker_config,
+        enable_circuit_breaker=enable_circuit_breaker,
+        enable_cache=enable_cache,
+    )
+    logger.info(f"Ingestor LLM configured: {llm_config.model}")
     return lm

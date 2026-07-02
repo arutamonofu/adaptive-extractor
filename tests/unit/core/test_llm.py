@@ -389,6 +389,75 @@ class TestLLMProviders:
             "require_parameters": False
         }
 
+    @responses.activate
+    def test_openrouter_cost_calculation(self, openrouter_config, circuit_breaker):
+        """Test that prompt/completion/cached token costs are correctly computed and accumulated."""
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={
+                "choices": [{"message": {"content": "Costed response"}}],
+                "usage": {
+                    "prompt_tokens": 100000,
+                    "completion_tokens": 50000,
+                    "prompt_tokens_details": {
+                        "cached_tokens": 80000,
+                        "cache_write_tokens": 20000
+                    }
+                }
+            },
+            status=200,
+        )
+        # Configure model prices in configuration (prices per 1M tokens)
+        openrouter_config.input_price_per_1m = 10.0
+        openrouter_config.output_price_per_1m = 20.0
+        openrouter_config.cache_read_price_per_1m = 1.0
+
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        assert lm.cumulative_cost == 0.0
+
+        lm("Test prompt")
+        # Expected calculation:
+        # non-cached prompt tokens = 100000 - 80000 = 20000
+        # non-cached cost = 20000 * 10 / 1_000_000 = 0.20
+        # cached prompt cost = 80000 * 1 / 1_000_000 = 0.08
+        # completion cost = 50000 * 20 / 1_000_000 = 1.00
+        # total expected cost = 0.20 + 0.08 + 1.00 = 1.28
+        assert abs(lm.cumulative_cost - 1.28) < 1e-6
+
+    @responses.activate
+    def test_provider_latency_logging(self, openrouter_config, circuit_breaker, caplog):
+        """Test that request latency is logged during BaseHTTPProvider._execute_request."""
+        import logging
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={"choices": [{"message": {"content": "Timed response"}}]},
+            status=200,
+        )
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        with caplog.at_level(logging.INFO):
+            lm("Test prompt")
+            
+        assert any(
+            "Request completed in" in record.message
+            for record in caplog.records
+        )
+
+    @responses.activate
+    def test_provider_latency_recorded_in_history(self, openrouter_config, circuit_breaker):
+        """Test that request latency is recorded in provider's history."""
+        responses.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={"choices": [{"message": {"content": "Timed response"}}]},
+            status=200,
+        )
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        lm("Test prompt")
+        
+        assert len(lm.history) == 1
+        assert "latency_s" in lm.history[0]
+        assert isinstance(lm.history[0]["latency_s"], float)
+        assert lm.history[0]["latency_s"] >= 0.0
+
 
 
 

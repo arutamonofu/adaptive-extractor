@@ -1,10 +1,16 @@
 # src/ae/evaluation/metrics.py
 """Task-specific evaluation metrics for Adaptive Extractor."""
 
+import ast
+import json
 import logging
+import re
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from ae.core.evaluation.matcher import ExperimentEntity, ExperimentMatcher
+from tabulate import tabulate  # type: ignore[import-untyped]
+
+from ae.core.evaluation.matcher import ExperimentEntity, ExperimentMatcher, _extract_first_json
 
 if TYPE_CHECKING:
     import dspy
@@ -63,7 +69,6 @@ class TaskMetric:
 
         experiments = []
         if isinstance(extracted_data, str):
-            import json
             parsed = None
             
             # 1. Try to parse directly as JSON first
@@ -75,7 +80,6 @@ class TaskMetric:
             # 2. Extract JSON block using _extract_first_json (within extracted_data marker if present)
             if parsed is None:
                 try:
-                    from ae.core.evaluation.matcher import _extract_first_json
                     cleaned_data = extracted_data
                     if "[[ ## extracted_data ## ]]" in extracted_data:
                         cleaned_data = extracted_data.split("[[ ## extracted_data ## ]]")[-1].split("[[")[0]
@@ -88,8 +92,6 @@ class TaskMetric:
             # 3. Fallback: Parse single-quoted Python dict representation using ast.literal_eval
             if parsed is None:
                 try:
-                    import ast
-                    import re
                     cleaned_data = extracted_data
                     if "[[ ## extracted_data ## ]]" in extracted_data:
                         cleaned_data = extracted_data.split("[[ ## extracted_data ## ]]")[-1].split("[[")[0]
@@ -125,12 +127,10 @@ class TaskMetric:
             except Exception:
                 pass
 
-        from types import SimpleNamespace
         return [SimpleNamespace(**exp) if isinstance(exp, dict) else exp for exp in experiments]
 
     def _log_metrics(self, report: Dict[str, Any]) -> None:
         """Log evaluation metrics as formatted tables."""
-        from tabulate import tabulate  # type: ignore[import-untyped]
 
         summary = [
             ["F1", f"{report['f1']:.3f}"],

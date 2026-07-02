@@ -24,6 +24,9 @@ def _clean_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
         "model": entry.get("model", ""),
     }
 
+    if "latency_s" in entry:
+        cleaned["latency_s"] = entry["latency_s"]
+
     # Keep only non-message kwargs
     kwargs = entry.get("kwargs", {})
     extra = {k: v for k, v in kwargs.items() if k != "messages"}

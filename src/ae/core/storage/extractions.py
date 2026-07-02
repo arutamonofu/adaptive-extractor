@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel, ValidationError
 
 from ae.core.exceptions import DataValidationError, InvalidDataFormatError, RepositoryError
+from ae.core.utils import normalize_document_key
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +25,14 @@ class ExtractionRepository:
 
     Example:
         ```python
-        from ae.core.tasks import get_task
+        from ae.core.schema import load_schema_complete
 
-        task = get_task("nanozymes")
+        bundle = load_schema_complete("config/schema.yaml")
 
         repo = ExtractionRepository()
         extractions = repo.load(
             results_dir=Path("data/extractions"),
-            experiment_model=task["experiment_model"]
+            experiment_model=bundle.experiment_model
         )
         ```
     """
@@ -247,15 +248,7 @@ class ExtractionRepository:
         Returns:
             Normalized document key.
         """
-        # Remove common suffixes from filename
-        filename = file_path.stem
-        for suffix in ["_result", "_extraction", "_extractions", "_ext"]:
-            if filename.endswith(suffix):
-                filename = filename[:-len(suffix)]
-                break
-
-        # Normalize: lowercase, no extension
-        return filename.lower().strip()
+        return normalize_document_key(str(file_path))
 
     def save(
         self,

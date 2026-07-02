@@ -11,30 +11,14 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set, Union
 
 from ae.core.exceptions import DataNotFoundError, InvalidDataFormatError, RepositoryError
+from ae.core.utils import normalize_document_key
 
 logger = logging.getLogger(__name__)
 
 VALID_SPLIT_NAMES = ["train", "test", "val", "validation", "dev"]
 
 
-def _normalize_document_key(doc_id: str) -> str:
-    """Normalize document ID by removing extensions.
 
-    Args:
-        doc_id: Document identifier.
-
-    Returns:
-        Normalized document key (lowercase, no extension).
-    """
-    doc_id = str(doc_id).strip().lower()
-
-    # Remove common extensions
-    for ext in [".pdf", ".txt", ".doc"]:
-        if doc_id.endswith(ext):
-            doc_id = doc_id[:-len(ext)]
-            break
-
-    return doc_id
 
 
 def _load_json(json_path: Path) -> Dict[str, Any]:
@@ -78,7 +62,7 @@ def load_all_splits(
     result = {}
     for split_name, docs in splits.items():
         if normalize_keys:
-            result[split_name] = {_normalize_document_key(d) for d in docs}
+            result[split_name] = {normalize_document_key(d) for d in docs}
         else:
             result[split_name] = set(docs)
 
@@ -200,7 +184,7 @@ def validate_splits(
     Returns:
         Dictionary with validation results for each split.
     """
-    available_set = {_normalize_document_key(d) for d in available_docs}
+    available_set = {normalize_document_key(d) for d in available_docs}
     results = {}
 
     for split_name, docs in splits.items():
