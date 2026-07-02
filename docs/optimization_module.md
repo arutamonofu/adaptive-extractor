@@ -91,12 +91,14 @@ Configuration settings are loaded from `config/core.yaml` and `config/optimizati
 │   ├── core.yaml            # Core system configuration
 │   └── optimization.yaml    # Optimization workflow parameters
 ├── data/
-│   ├── ground_truth/
-│   │   └── <task_name>.csv  # CSV ground truth containing target extraction outputs
-│   ├── splits/
-│   │   └── <task_name>.json # JSON data splits (lists of train/val documents)
-│   ├── agents/
-│   │   └── <agent_name>.json # Serialized optimized agent output
+│   ├── raw/
+│   │   ├── ground_truth/
+│   │   │   └── <task_name>.csv  # CSV ground truth containing target extraction outputs
+│   │   └── splits/
+│   │       └── <task_name>.json # JSON data splits (lists of train/val documents)
+│   ├── processed/
+│   │   └── agents/
+│   │       └── <agent_name>.json # Serialized optimized agent output
 └── logs/
     └── llm_history/         # History files containing raw LLM requests and responses
 ```

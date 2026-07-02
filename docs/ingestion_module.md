@@ -5,9 +5,9 @@
 The **Ingestion** module converts raw chemistry PDF papers into structured Markdown. This is the first step in the Adaptive Extractor pipeline, preceding prompt optimization and final data extraction.
 
 ### Key Capabilities:
-*   **Standard Text Extraction**: Sequence-aware parsing of PDF texts while preserving reading order.
-*   **Table Layout Preserving**: Automatic conversion of standard PDF tables into HTML `<table>` elements to maintain row and column spans.
-*   **Visual-Informed Parsing**: Rendering page regions, bounding box detection of figures and charts, and extraction of visual data as Markdown tables.
+*   **MinerU PDF Parsing**: Standard PDF parsing using the MinerU API to extract Markdown (`full.md`), list of content blocks with layout bounding boxes and labels (`content_list.json`), and cropped images (`images/`).
+*   **Visual Reverse Engineering**: Automatic identification of chart blocks (`"type": "chart"`), running multimodal VLM (e.g. Gemini 3.5 Flash) on the cropped chart images, and converting them into structured Markdown tables.
+*   **Table Insertion**: Substituting Markdown image links (`![](images/<hash>.jpg)`) in the text with the rendered Markdown tables.
 
 ---
 
@@ -38,8 +38,10 @@ The Ingestion module implements the Strategy Pattern to dynamically switch betwe
 | [pipeline.py](../src/ae/ingestion/pipeline.py) | [ParseDocumentsUseCase](../src/ae/ingestion/pipeline.py#L59) | Orchestrates the end-to-end PDF-to-Markdown batch parsing pipeline. |
 | [base_parser.py](../src/ae/ingestion/base_parser.py) | [BaseParser](../src/ae/ingestion/base_parser.py#L9) | Abstract strategy interface defining the `.parse()` contract. |
 | [parsers.py](../src/ae/ingestion/parsers.py) | [get_parser](../src/ae/ingestion/parsers.py#L14) | Factory function that instantiates the parser based on selected configurations. |
-| [gemini_parser.py](../src/ae/ingestion/gemini_parser.py) | [GeminiParser](../src/ae/ingestion/gemini_parser.py#L168) | Standard text parser using the Google Gemini API. |
-| [visual_parser.py](../src/ae/ingestion/visual_parser.py) | [AEVisualParser](../src/ae/ingestion/visual_parser.py#L17) | Enriched parser integrating layout analysis and visual extraction. |
+| [mineru_client.py](../src/ae/ingestion/mineru_client.py) | [MinerUClient](../src/ae/ingestion/mineru_client.py#L12) | Client wrapper around MinerU Web API with HTTP retries. |
+| [mineru_parser.py](../src/ae/ingestion/mineru_parser.py) | [MinerUParser](../src/ae/ingestion/mineru_parser.py#L46) | Ingestion parser integrating MinerU client and visual reverse engineering. |
+| [extract_chart_tables.py](../src/ae/ingestion/visual_pipeline/stages/extract_chart_tables.py) | [extract_single_chart](../src/ae/ingestion/visual_pipeline/stages/extract_chart_tables.py#L14) | Multimodal VLM extraction helper that parses cropped chart images into tabular JSON. |
+| [insert_visual_tables.py](../src/ae/ingestion/visual_pipeline/stages/insert_visual_tables.py) | [replace_image_tags](../src/ae/ingestion/visual_pipeline/stages/insert_visual_tables.py#L58) | Replaces Markdown image tags with structured Markdown tables. |
 
 ---
 
@@ -49,11 +51,16 @@ Configuration parameters are loaded from `config/core.yaml` and `config/ingestio
 
 | YAML Path | Variable Mapping | Type | Description |
 | :--- | :--- | :--- | :--- |
-| `paths.pdf_dir` | `custom_settings.paths.pdf_dir` | Path | Directory containing raw input PDFs (Default: `data/pdf`). |
-| `paths.parsed_dir` | `custom_settings.paths.parsed_dir` | Path | Directory where parsed Markdown results are stored (Default: `data/parsed`). |
-| `parsing.visual.enabled` | `custom_settings.parsing.visual.enabled` | bool | Enables (`true`) visual-informed mode or standard text mode (`false`). |
-| `parsing.gemini.model` | `custom_settings.parsing.gemini.model` | str | Gemini model instance used for base Markdown conversion (Default: `gemini-3-flash-preview`). |
-| `parsing.gemini.upload_timeout` | `custom_settings.parsing.gemini.upload_timeout` | int | Timeout in seconds for PDF uploads to the Gemini API (Default: `300`). |
+| `paths.pdf_dir` | `custom_settings.paths.pdf_dir` | Path | Directory containing raw input PDFs (Default: `data/raw/pdf`). |
+| `paths.ingestion_dir` | `custom_settings.paths.ingestion_dir` | Path | Directory where parsed Markdown results are stored (Default: `data/interim/ingestion`). |
+| `parsing.mineru.api_url` | `custom_settings.parsing.mineru.api_url` | str | MinerU API base URL (Default: `https://mineru.net/api/v4`). |
+| `parsing.mineru.model_version` | `custom_settings.parsing.mineru.model_version` | str | MinerU model version (Default: `vlm`). |
+| `parsing.mineru.poll_interval` | `custom_settings.parsing.mineru.poll_interval` | int | Interval in seconds between status polls (Default: `3`). |
+| `parsing.mineru.poll_timeout` | `custom_settings.parsing.mineru.poll_timeout` | int | Timeout in seconds for parsing (Default: `600`). |
+| `parsing.chart_extraction.model` | `custom_settings.parsing.chart_extraction.model` | str | Gemini/VLM model used to extract chart tables (Default: `gemini-3.5-flash`). |
+
+> [!NOTE]
+> Authorization token for MinerU Web API is not stored in YAML configs; it is read dynamically from the `MINERU_API_TOKEN` environment variable (in `.env`).
 
 ---
 
@@ -61,41 +68,29 @@ Configuration parameters are loaded from `config/core.yaml` and `config/ingestio
 
 ```mermaid
 flowchart TD
-    subgraph Phase1 ["Phase 1: Setup & Align"]
-        A[Base MD + PDF] --> B["Build Visual Manifest (LLM)"]
-        B --> C["Index MD Anchors (Regex)"]
-        C --> D["Filter Relevant Targets"]
-    end
-
-    subgraph Phase2 ["Phase 2: Image Processing"]
-        D --> E["Render pages to PNG (PyMuPDF)"]
-        E --> F["Locate Bounding Boxes (LLM)"]
-        F --> G["Crop & Composite Figures (Pillow)"]
-    end
-
-    subgraph Phase3 ["Phase 3: Extraction & Assembly"]
-        G --> H["Extract tables from crops (LLM)"]
-        H --> I["Replace anchors with MD tables (Code)"]
-        I --> J["Generate Reports"]
-    end
+    PDF[Raw PDF Document] -->|Upload & Poll| MU[MinerU Web API]
+    MU -->|Extract Zip| Workspace[MinerU Intermediate Directory]
+    Workspace -->|Read| MD[full.md]
+    Workspace -->|Read| JSON[content_list.json]
     
-    style Phase1 fill:#f9f,stroke:#333,stroke-width:1px
-    style Phase2 fill:#bbf,stroke:#333,stroke-width:1px
-    style Phase3 fill:#bfb,stroke:#333,stroke-width:1px
+    JSON -->|Filter type: 'chart'| Filter[Chart Images List]
+    Filter -->|For each chart| VLM["VLM (Gemini-3.5-Flash)
+    Extract Table JSON"]
+    VLM -->|Render| MarkdownTables[Markdown Tables]
+    
+    MarkdownTables -->|Replace image tags
+    '![]\\(images/img_name.jpg\\)'| MD
+    
+    MD -->|Save final text| FinalMD[article.md]
+    Workspace -->|Save for debug| DebugFolder[data/interim/ingestion/service/mineru/pdf_stem]
 ```
 
-### Detailed Phases & In-Process Pipeline:
-1.  **Standard Mode (`gemini`)**: The `GeminiParser` uploads the PDF directly, sequentially parses the text, formats tables as HTML, and inserts anchors before figures: `<!-- AE_VISUAL_ANCHOR: <normalized_id> -->`.
-2.  **Enriched Mode (`gemini_visual`)**: The `AEVisualParser` calls `GeminiParser` to extract base text and anchors, then triggers [run_visual_pipeline](../src/ae/ingestion/visual_pipeline/__init__.py#L25) which executes these stages:
-    *   **Stage 1: Manifest**: Generates a figure manifest via Gemini ([manifest.py](../src/ae/ingestion/visual_pipeline/stages/manifest.py)).
-    *   **Stage 2: Anchor Indexing**: Scans base Markdown for anchor comments via regex ([md_anchors.py](../src/ae/ingestion/visual_pipeline/stages/md_anchors.py)).
-    *   **Stage 3: Target Matching**: Aligns figure anchors with manifest descriptions ([create_targets.py](../src/ae/ingestion/visual_pipeline/stages/create_targets.py)).
-    *   **Stage 4: Page Rendering**: Renders target pages to high-resolution PNGs ([render_pages.py](../src/ae/ingestion/visual_pipeline/stages/render_pages.py)).
-    *   **Stage 5: Bbox Localization**: Detects exact bounding box coordinates of charts ([locate_bboxes.py](../src/ae/ingestion/visual_pipeline/stages/locate_bboxes.py)).
-    *   **Stage 6: Figure Cropping**: Crops target areas using Pillow ([crop_figures.py](../src/ae/ingestion/visual_pipeline/stages/crop_figures.py)).
-    *   **Stage 7: Data Extraction**: Formats crop visual data into structured Markdown/HTML tables ([extract_chart_tables.py](../src/ae/ingestion/visual_pipeline/stages/extract_chart_tables.py)).
-    *   **Stage 8: Table Insertion**: Injects tables into the Markdown document, substituting target anchors ([insert_visual_tables.py](../src/ae/ingestion/visual_pipeline/stages/insert_visual_tables.py)).
-    *   **Stage 9: Report Compilation**: Saves final insertion logs and statistics ([build_report.py](../src/ae/ingestion/visual_pipeline/stages/build_report.py)).
+### Detailed Phases:
+1.  **MinerU Ingestion**: `MinerUClient` uploads the PDF, polls the API for completion, downloads the zipped extraction package, and unpacks it.
+2.  **Chart Filtering**: The parser scans the content list (`*_content_list.json`) for blocks tagged with `"type": "chart"` to extract their local image paths and captions.
+3.  **VLM Extraction**: For each chart, `extract_single_chart` is invoked with the cropped image and task extraction instructions, query-handling the multimodal model (Gemini 3.5 Flash) to generate formatted JSON tables.
+4.  **Markdown Ingestion**: `replace_image_tags` locates the corresponding image tag `![](images/...)` inside the Markdown document and replaces it with the generated Markdown tables.
+5.  **Audit & Debug**: Intermediate files (raw Markdown, content lists, cropped images, raw responses) are saved to `data/interim/ingestion/service/mineru/<pdf_stem>`.
 
 ---
 
@@ -104,33 +99,26 @@ flowchart TD
 ### Workspace Directory Layout:
 ```text
 ├── data/
-│   └── pdf/
-│       └── article.pdf                  # Raw input PDF document
-├── data/parsed/
-│   ├── article.md                       # Parsed Markdown text with anchors
-│   ├── assets/
-│   │   ├── pages/page_0003.png              # Rendered page image
-│   │   ├── overlays/target_0001.page_0003.png # Image overlay showing detected Bbox coordinates
-│   │   └── crops/target_0001.png            # Cropped chart/figure image
-│   └── service/
-│       ├── table_insertion/
-│       │   ├── article.with_visual_tables.md # Final output (Markdown + charts as tables)
-│       │   └── table_insertion_report.md    # Detail report of skipped/inserted tables
-│       └── report/
-│           └── visual_report.md             # Ingestion pipeline summary metrics
+│   └── raw/
+│       └── pdf/
+│           └── article.pdf                   # Raw input PDF document
+├── data/interim/
+│   └── ingestion/
+│       ├── article.md                        # Final enriched output Markdown
+│       └── service/
+│           └── mineru/
+│               └── article/
+│                   ├── full.md               # Raw MinerU Markdown
+│                   ├── content_list.json     # MinerU layout block content list
+│                   ├── final_enriched.md     # Enriched Markdown
+│                   ├── enrichment_summary.json # Summary of visual enrichment results
+│                   └── images/
+│                       └── <hash>.jpg        # Cropped chart images
 ```
-
-### Format Details:
-*   **Input PDF**: Standard chemistry research paper containing text, plots, and tables.
-*   **Output Markdown**: Well-formatted Markdown document. Visual-mode output (`article.with_visual_tables.md`) substitutes figure visual anchors with detailed Markdown/HTML tables.
 
 ---
 
 ## 7. Error Handling & Resiliency
 
-*   **API Connection Failures**: The parser intercepts transient connection, timeout, and HTTP 503/504 errors, executing retries (default: `max_retries=3`) with progressive backoff.
-*   **Directory Initialization**: Output directories are automatically created if they do not exist.
-*   **Graceful Termination**: Parsing statistics are summarized upon completion, highlighting any document parsing failures without aborting the entire command run.
-
-> [!TIP]
-> The primary output file for downstream extraction is `article.with_visual_tables.md` (when visual parsing is enabled) or `article.md` (standard parsing). Use the overlays in `assets/overlays/` to verify bounding box coordinate extraction accuracy.
+*   **HTTP/Network Retries**: The parser uses simple exponential backoff for requests made by the MinerU client on 5xx status codes or connection errors.
+*   **VLM Recovery**: JSON parsing failures on VLM outputs are automatically retried by increasing model output token allowances or requesting formatting adjustments.

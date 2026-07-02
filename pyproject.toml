@@ -21,7 +21,6 @@ dependencies = [
     "scipy>=1.11.0",
     "tabulate>=0.9.0",
     "requests>=2.28.0",
-    "google-genai>=1.0.0",
     "pymupdf>=1.24.0",
     "pillow>=10.0.0",
     "optuna>=3.0.0",
@@ -54,6 +53,8 @@ research = [
 ae-parse = "ae.ingestion.cli:main"
 ae-extract = "ae.extraction.cli:main"
 ae-optimize = "ae.optimization.cli:main"
+ae-re = "ae.reverse_engineering.cli:main"
+
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -91,7 +92,6 @@ module = [
     "yaml",
     "dotenv",
     "tabulate",
-    "google.genai.*",
     "requests",
     "statsmodels.*",
     "sklearn.*",

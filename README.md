@@ -19,27 +19,34 @@ conda env create -f environment.yml
 
 ## Workflow
 
-The system operates in three main stages:
+The system operates in a 4-step workflow cycle:
 
-1. **Ingest (Parse PDF to Markdown):**
+1. **Reverse Engineer (Bootstrapping Extraction Rules):**
+   ```bash
+   ae-re run --task nanozymes
+   ```
+   *Analyzes Ground Truth CSV records against parsed document texts using a teacher LLM to discover, consolidate, and generalize data extraction guidelines. Generates a refined baseline prompt (`generated_instruction.txt`) for the target task.*
+   *Use `ae-re status --task nanozymes` to view the generation status of the intermediate reverse-engineering artifacts.*
+
+2. **Ingest (Parse PDF to Markdown):**
    ```bash
    ae-parse
    ```
-   *Converts raw PDFs in `data/pdf/` to clean Markdown structure under `data/parsed/`. Supports both standard text parsing and visual-informed chart/table reconstruction.*
+   *Converts raw PDFs in `data/raw/pdf/` to clean Markdown structure under `data/interim/ingestion/`. Uses MinerU Web API for layout-aware PDF conversion and multimodal VLM chart table reconstruction.*
    *See [Ingestion Module Architecture & Workings](docs/ingestion_module.md).*
 
-2. **Optimize (Self-Optimizing Prompts):**
+3. **Optimize (Self-Optimizing Prompts):**
    ```bash
    ae-optimize
    ```
-   *Optimizes signature instructions and few-shot examples using Bayesian Optimization (DSPy MIPROv2) against ground truth labels under `data/ground_truth/`.*
+   *Optimizes signature instructions and few-shot examples using Bayesian Optimization (DSPy MIPROv2) against ground truth labels under `data/raw/ground_truth/`.*
    *See [Optimization Module Architecture & Workings](docs/optimization_module.md).*
 
-3. **Extract (Batch Extract Structured Data):**
+4. **Extract (Batch Extract Structured Data):**
    ```bash
-   ae-extract --agent data/agents/nanozymes_pilot.json
+   ae-extract --agent data/processed/agents/nanozymes_pilot.json
    ```
-   *Runs batch data extraction using a serialized pre-trained agent and outputs structured extractions to JSON under `data/extractions/`.*
+   *Runs batch data extraction using a serialized pre-trained agent and outputs structured extractions to JSON under `data/processed/extracted/`.*
    *See [Extraction Module Architecture & Workings](docs/extraction_module.md).*
 
 ## Configuration
@@ -49,7 +56,6 @@ System parameters and LLM settings are managed via YAML files in the `config/` d
 - `ingestion.yaml` — Parser configurations and visual layout parameters.
 - `extraction.yaml` — Agent matching rules and batch sizes.
 - `optimization.yaml` — MIPROv2 hyperparameters (evaluation metrics, number of trials, few-shot parameters).
-- `tasks/` — Directory containing target extraction schemas (e.g., `nanozymes/generated_schema.yaml`).
 
 ## Documentation
 

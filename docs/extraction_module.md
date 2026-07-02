@@ -96,12 +96,14 @@ flowchart TD
 ### Workspace Directory Layout:
 ```text
 ├── data/
-│   ├── parsed/
-│   │   └── <doc_id>.md      # Input parsed Markdown files
-│   ├── agents/
-│   │   └── <agent_name>.json # Saved prompt instructions and demonstrations
-│   └── extractions/
-│       └── <doc_id>.json    # Final structured output files
+│   ├── interim/
+│   │   └── ingestion/
+│   │       └── <doc_id>.md      # Input parsed Markdown files
+│   ├── processed/
+│   │   ├── agents/
+│   │   │   └── <agent_name>.json # Saved prompt instructions and demonstrations
+│   │   └── extracted/
+│   │       └── <doc_id>.json    # Final structured output files
 └── logs/
     └── llm_history/         # History directories containing LLM logs
 ```
