@@ -1,0 +1,14 @@
+# Configuration for Reverse Engineering (RE) pipeline
+re:
+  # Size of corpus for RE (uses only train split documents)
+  use_split: "train_manual"
+  
+  # Directory for intermediate RE artifacts
+  artifacts_dir: "data/interim/reverse_engineering"
+  
+  # Resume from cache (skip already completed steps)
+  resume: false
+  
+  # Log LLM history for RE calls
+  save_llm_history: true
+  llm_history_dir: "logs/reverse_engineering_llm"
