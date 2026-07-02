@@ -5,10 +5,10 @@ from __future__ import annotations
 
 from ae.core.config.logging import setup_logging
 from ae.core.config.settings import (
-    AEVisualParserConfig,
+    MinerUParserConfig,
+    ChartExtractionConfig,
     ApiConfig,
     CircuitBreakerConfig,
-    GeminiParserConfig,
     IngestionConfig,
     LLMInstanceConfig,
     OllamaConfig,
@@ -22,8 +22,8 @@ __all__ = [
     "OllamaConfig",
     "ApiConfig",
     "CircuitBreakerConfig",
-    "GeminiParserConfig",
-    "AEVisualParserConfig",
+    "MinerUParserConfig",
+    "ChartExtractionConfig",
     "IngestionConfig",
 ]
 

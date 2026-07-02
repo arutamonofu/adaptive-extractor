@@ -1,14 +1,14 @@
-"""Task system for Adaptive Extractor.
+"""Schema system for Adaptive Extractor.
 
-This module provides the task infrastructure including configuration,
-dynamic model generation, and registry for managing extraction tasks.
+This module provides the schema infrastructure including configuration,
+dynamic model generation, and loading/saving schemas.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .config import FieldSpec, RowConverterConfig, TaskConfig
+from .config import FieldSpec, RowConverterConfig, SchemaConfig, ExtractionBundle
 from .dynamic_models import (
     create_all_models,
     create_experiment_model,
@@ -16,19 +16,10 @@ from .dynamic_models import (
     create_row_converter,
 )
 from .loader import (
-    load_task_complete,
-    load_task_from_yaml,
-    load_task_with_models,
-    save_task_to_yaml,
-)
-from .registry import (
-    TaskRegistry,
-    get_config,
-    get_global_registry,
-    get_task,
-    load_and_register_task,
-    load_task_with_instruction,
-    register_config,
+    load_schema_complete,
+    load_schema_from_yaml,
+    load_schema_with_models,
+    save_schema_to_yaml,
 )
 
 if TYPE_CHECKING:
@@ -50,9 +41,10 @@ def __dir__():
 
 __all__ = [
     # Configuration
-    "TaskConfig",
+    "SchemaConfig",
     "FieldSpec",
     "RowConverterConfig",
+    "ExtractionBundle",
     # Dynamic model generation
     "create_experiment_model",
     "create_output_model",
@@ -61,16 +53,8 @@ __all__ = [
     # Signature generation
     "create_signature",
     # YAML loading/saving
-    "load_task_from_yaml",
-    "load_task_with_models",
-    "load_task_complete",
-    "load_task_with_instruction",
-    "save_task_to_yaml",
-    # Registry
-    "TaskRegistry",
-    "get_global_registry",
-    "get_config",
-    "get_task",
-    "register_config",
-    "load_and_register_task",
+    "load_schema_from_yaml",
+    "load_schema_with_models",
+    "load_schema_complete",
+    "save_schema_to_yaml",
 ]

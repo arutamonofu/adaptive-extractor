@@ -42,11 +42,11 @@ llm:
 
 paths:
   pdf_dir: "data/pdf"
-  parsed_dir: "data/parsed"
+  ingestion_dir: "data/interim/ingestion"
   ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
-  agents_dir: "data/agents"
-  extractions_dir: "data/extractions"
+  agents_dir: "data/processed/agents"
+  extracted_dir: "data/extractions"
 
 parsing:
   visual:

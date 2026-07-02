@@ -1,7 +1,7 @@
-"""YAML loader for task configurations.
+"""YAML loader for schema configurations.
 
-This module provides functions to load TaskConfig from YAML manifest files,
-enabling declarative task definitions without Python code changes.
+This module provides functions to load SchemaConfig from YAML manifest files,
+enabling declarative schema definitions without Python code changes.
 """
 
 import logging
@@ -12,7 +12,7 @@ import yaml
 
 from ae.core.evaluation.entities import Experiment
 
-from .config import FieldSpec, RowConverterConfig, TaskConfig
+from .config import FieldSpec, RowConverterConfig, SchemaConfig, ExtractionBundle
 from .dynamic_models import create_all_models, create_row_converter
 from .signature import create_signature
 
@@ -117,39 +117,35 @@ def _parse_row_converter(
     return RowConverterConfig(mapping=mapping)
 
 
-def load_task_from_yaml(
+def load_schema_from_yaml(
     yaml_path: str | Path,
+    instruction_path: Optional[str | Path] = None,
     base_class: Optional[Type[Experiment]] = None,
-) -> TaskConfig:
-    """Load TaskConfig from a YAML file.
+) -> SchemaConfig:
+    """Load SchemaConfig from a YAML file.
 
-    Reads and parses a YAML manifest file into a TaskConfig object.
+    Reads and parses a YAML manifest file into a SchemaConfig object.
     Validates the configuration and resolves relative paths.
 
     Args:
         yaml_path: Path to the YAML manifest file.
+        instruction_path: Optional path to instruction/prompt text file.
         base_class: Optional base class for experiment model (default: Experiment).
 
     Returns:
-        TaskConfig instance.
+        SchemaConfig instance.
 
     Raises:
         FileNotFoundError: If YAML file not found.
         yaml.YAMLError: If YAML parsing fails.
         ValueError: If configuration is invalid.
-
-    Example:
-        ```python
-        config = load_task_from_yaml("src/ae/domain/tasks/nanozymes/task.yaml")
-        print(f"Task: {config.name}, Fields: {len(config.experiment_fields)}")
-        ```
     """
     yaml_path = Path(yaml_path)
 
     if not yaml_path.exists():
-        raise FileNotFoundError(f"Task YAML file not found: {yaml_path}")
+        raise FileNotFoundError(f"Schema YAML file not found: {yaml_path}")
 
-    logger.info(f"Loading task configuration from {yaml_path}")
+    logger.info(f"Loading schema configuration from {yaml_path}")
 
     # Read and parse YAML
     with open(yaml_path, "r", encoding="utf-8") as f:
@@ -170,111 +166,91 @@ def load_task_from_yaml(
     if "row_converter" in yaml_data:
         row_converter = _parse_row_converter(yaml_data["row_converter"])
 
-    # Create TaskConfig
-    # Note: initial_instruction_file is loaded from task directory (generated_instruction.txt)
-    config = TaskConfig(
+    # Create SchemaConfig
+    config = SchemaConfig(
         name=yaml_data["name"],
         experiment_fields=experiment_fields,
         compare_fields=yaml_data["compare_fields"],
         float_tolerance=yaml_data["float_tolerance"],
         row_converter=row_converter,
         base_class=base_class,
+        instruction_file=str(instruction_path) if instruction_path else None,
     )
 
-    logger.info(f"Loaded task configuration: {config.name}")
+    logger.info(f"Loaded schema configuration: {config.name}")
 
     return config
 
 
-def load_task_with_models(
+def load_schema_with_models(
     yaml_path: str | Path,
+    instruction_path: Optional[str | Path] = None,
     base_class: Optional[Type[Experiment]] = None,
-) -> tuple[TaskConfig, Type, Type]:
-    """Load TaskConfig and generate models from YAML.
+) -> tuple[SchemaConfig, Type, Type]:
+    """Load SchemaConfig and generate models from YAML.
 
     Convenience function that loads the configuration and creates
     the experiment and output models.
 
     Args:
         yaml_path: Path to YAML manifest file.
+        instruction_path: Optional path to instruction/prompt text file.
         base_class: Optional base class for experiment model.
 
     Returns:
-        Tuple of (TaskConfig, experiment_model, output_model).
-
-    Example:
-        ```python
-        config, ExperimentModel, OutputModel = load_task_with_models(
-            "src/ae/domain/tasks/nanozymes/task.yaml"
-        )
-        ```
+        Tuple of (SchemaConfig, experiment_model, output_model).
     """
-    config = load_task_from_yaml(yaml_path, base_class=base_class)
+    config = load_schema_from_yaml(yaml_path, instruction_path=instruction_path, base_class=base_class)
 
     experiment_model, output_model = create_all_models(config)
 
     return config, experiment_model, output_model
 
 
-def load_task_complete(
+def load_schema_complete(
     yaml_path: str | Path,
+    instruction_path: Optional[str | Path] = None,
     base_class: Optional[Type[Experiment]] = None,
-) -> dict[str, Any]:
-    """Load complete task setup from YAML.
+) -> ExtractionBundle:
+    """Load complete schema setup from YAML.
 
     Loads configuration, generates models, signature, and converter.
-    Returns a dictionary with all components needed for a task.
+    Returns a ExtractionBundle with all components needed for a task.
 
     Args:
         yaml_path: Path to YAML manifest file.
+        instruction_path: Optional path to instruction/prompt text file.
         base_class: Optional base class for experiment model.
 
     Returns:
-        Dictionary with keys:
-        - config: TaskConfig instance
-        - experiment_model: Generated Pydantic model
-        - output_model: Generated output model
-        - signature: Generated DSPy signature
-        - row_converter: Generated converter function
-
-    Example:
-        ```python
-        task = load_task_complete("tasks/nanozymes/task.yaml")
-        config = task["config"]
-        ExperimentModel = task["experiment_model"]
-        Signature = task["signature"]
-        converter = task["row_converter"]
-        ```
+        ExtractionBundle containing schema config, models, signature, and converter.
     """
-    config, experiment_model, output_model = load_task_with_models(
-        yaml_path, base_class=base_class
+    config, experiment_model, output_model = load_schema_with_models(
+        yaml_path, instruction_path=instruction_path, base_class=base_class
     )
 
     signature = create_signature(config, experiment_model, output_model)
     row_converter = create_row_converter(config, experiment_model)
 
-    return {
-        "config": config,
-        "experiment_model": experiment_model,
-        "output_model": output_model,
-        "signature": signature,
-        "row_converter": row_converter,
-    }
+    return ExtractionBundle(
+        config=config,
+        experiment_model=experiment_model,
+        output_model=output_model,
+        signature=signature,
+        row_converter=row_converter,
+    )
 
 
-
-
-
-def save_task_to_yaml(
-    config: TaskConfig,
+def save_schema_to_yaml(
+    config: SchemaConfig,
     output_path: str | Path,
 ) -> Path:
-    """Save TaskConfig to a YAML file.
+    """Save SchemaConfig to a YAML file.
 
-    Serializes a TaskConfig object to a YAML manifest file.
+    Serializes a SchemaConfig object to a YAML manifest file.
 
     Args:
-        config: TaskConfig to save.
+        config: SchemaConfig to save.
         output_path: Path for output YAML file.
 
     Returns:
@@ -312,14 +288,11 @@ def save_task_to_yaml(
     if config.row_converter.mapping:
         yaml_data["row_converter"] = config.row_converter.mapping
 
-    # Note: initial_instruction_file is not saved to task.yaml
-    # It is located in the task directory (tasks/{task_name}/generated_instruction.txt)
-
     # Write YAML
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         yaml.dump(yaml_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
-    logger.info(f"Saved task configuration to {output_path}")
+    logger.info(f"Saved schema configuration to {output_path}")
 
     return output_path

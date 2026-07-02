@@ -26,15 +26,15 @@ __version__ = "0.4.0"
 if TYPE_CHECKING:
     from ae.core.config import Settings, setup_logging
     from ae.core.evaluation import ExperimentMatcher, TaskMetric
-    from ae.core.llm import create_lm, setup_student, setup_teacher
+    from ae.core.llm import create_lm, setup_student, setup_teacher, setup_ingestor
     from ae.core.storage import (
         DataSplitRepository,
         ExtractionRepository,
         GroundTruthRepository,
     )
     from ae.extraction.agent import UniversalExtractor
-    from ae.ingestion.base_parser import BaseParser
-    from ae.optimization.dataset import DatasetBuilder
+    from ae.ingestion.parsers.base import BaseParser
+    from ae.optimization.dataset_builder import DatasetBuilder
 
 
 def __getattr__(name: str):
@@ -46,7 +46,7 @@ def __getattr__(name: str):
         from ae.core.config import setup_logging
         return setup_logging
     if name == "BaseParser":
-        from ae.ingestion.base_parser import BaseParser
+        from ae.ingestion.parsers.base import BaseParser
         return BaseParser
     if name == "UniversalExtractor":
         from ae.extraction.agent import UniversalExtractor
@@ -63,6 +63,9 @@ def __getattr__(name: str):
     if name == "setup_teacher":
         from ae.core.llm import setup_teacher
         return setup_teacher
+    if name == "setup_ingestor":
+        from ae.core.llm import setup_ingestor
+        return setup_ingestor
     if name == "create_lm":
         from ae.core.llm import create_lm
         return create_lm
@@ -76,7 +79,7 @@ def __getattr__(name: str):
         from ae.core.storage import DataSplitRepository
         return DataSplitRepository
     if name == "DatasetBuilder":
-        from ae.optimization.dataset import DatasetBuilder
+        from ae.optimization.dataset_builder import DatasetBuilder
         return DatasetBuilder
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -102,6 +105,7 @@ __all__ = [
     # LLM
     "setup_student",
     "setup_teacher",
+    "setup_ingestor",
     "create_lm",
     # Storage (Repositories)
     "GroundTruthRepository",

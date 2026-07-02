@@ -1,18 +1,31 @@
 # Core Configuration for Adaptive Extractor
-# This file defines global settings, paths, language model instances,
-# and system-wide components (caching, circuit breakers, and current task).
+version: 1
 
 # Project-wide metadata and logging settings
 project:
   # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
   log_level: "INFO"
 
-# Active extraction task identifier
-task:
-  name: "nanozymes"
-
 # Large Language Model (LLM) instances for extraction and verification
 llm:
+  # Ingestor model: used for document ingestion pipeline (e.g. chart extraction)
+  ingestor:
+    provider: "api"
+    model: "qwen/qwen3.6-flash"
+    temperature: 0.0
+    top_p: 0.95
+    enable_cache: true
+    timeout: 300
+    rate_limit_delay: 1.0
+    max_retries: 3
+    api:
+      max_tokens: 8192
+      base_url: "https://openrouter.ai/api/v1"
+      reasoning:
+        enabled: false
+      openrouter_cache: true
+      prompt_caching: true
+
   # Student model: used for fast, draft-quality extraction candidates
   student:
     provider: "api"
@@ -73,12 +86,15 @@ llm:
 
 # Directory and file system paths relative to the project root
 paths:
-  pdf_dir: "data/pdf"
-  parsed_dir: "data/parsed"
-  ground_truth_dir: "data/ground_truth"
-  splits_file: "data/splits/nanozymes_pilot.json"
-  agents_dir: "data/agents"
-  extractions_dir: "data/extractions"
+  schema_file: "config/schema.yaml"
+  baseline_prompt_file: "config/baseline_instruction.txt"
+  pdf_dir: "data/raw/pdf"
+  ground_truth_file: "data/raw/ground_truth/ground_truth.csv"
+  splits_file: "data/raw/splits/pilot.json"
+  ingestion_dir: "data/interim/ingestion"
+  generated_prompt_file: "data/interim/reverse_engineering/generated_instruction.txt"
+  agents_dir: "data/processed/agents"
+  extracted_dir: "data/processed/extracted"
 
 # Caching configurations for LLM responses
 cache:

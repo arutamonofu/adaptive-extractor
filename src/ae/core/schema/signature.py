@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional, Type
 
 from pydantic import BaseModel
 
-from .config import TaskConfig
+from .config import SchemaConfig
 
 if TYPE_CHECKING:
     import dspy
@@ -18,21 +18,21 @@ logger = logging.getLogger(__name__)
 
 
 def create_signature(
-    task_config: TaskConfig,
+    schema_config: SchemaConfig,
     experiment_model: Type[BaseModel],
     output_model: Optional[Type[BaseModel]] = None,
     instruction: Optional[str] = None,
 ) -> "Type[dspy.Signature]":
-    """Dynamically create a DSPy signature from TaskConfig.
+    """Dynamically create a DSPy signature from SchemaConfig.
 
     This function generates a DSPy Signature class with input/output fields
-    based on the task configuration and generated models.
+    based on the schema configuration and generated models.
 
     Args:
-        task_config: Task configuration.
+        schema_config: Schema configuration.
         experiment_model: Generated experiment model class.
         output_model: Generated output model class (optional, will be created if not provided).
-        instruction: Instruction text (optional, will use task_config if not provided).
+        instruction: Instruction text (optional, will use schema_config if not provided).
 
     Returns:
         Dynamically generated DSPy Signature class.
@@ -47,7 +47,7 @@ def create_signature(
 
     # Get instruction from config (no fallback - strict mode)
     if instruction is None:
-        instruction = task_config.get_instruction()
+        instruction = schema_config.get_instruction()
 
     if not instruction or not instruction.strip():
         raise ValueError("Instruction cannot be empty")
@@ -55,7 +55,7 @@ def create_signature(
     # Create output model if not provided
     if output_model is None:
         from .dynamic_models import create_output_model
-        output_model = create_output_model(task_config, experiment_model)
+        output_model = create_output_model(schema_config, experiment_model)
 
     compiled_docstring = instruction.strip()
     prompt_hash = hashlib.md5(compiled_docstring.encode("utf-8")).hexdigest()[:8]
@@ -67,7 +67,7 @@ def create_signature(
             desc="Full text content of the scientific article or document."
         ),
         "extracted_data": dspy.OutputField(
-            desc=f"Extracted {task_config.name} experiments as structured data."
+            desc=f"Extracted {schema_config.name} experiments as structured data."
         ),
         "__annotations__": {
             "document_text": str,

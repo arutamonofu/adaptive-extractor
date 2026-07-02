@@ -1,7 +1,7 @@
-"""Task configuration dataclasses for dynamic task generation.
+"""Schema configuration dataclasses for dynamic schema generation.
 
-This module provides the core data structures for defining tasks declaratively
-using TaskConfig and FieldSpec, enabling dynamic model and signature generation.
+This module provides the core data structures for defining schemas declaratively
+using SchemaConfig and FieldSpec, enabling dynamic model and signature generation.
 """
 
 import hashlib
@@ -114,18 +114,18 @@ class RowConverterConfig:
 
 
 @dataclass
-class TaskConfig:
-    """Complete configuration for an extraction task.
+class SchemaConfig:
+    """Complete configuration for an extraction schema.
 
-    This is the single source of truth for task definition. All models,
+    This is the single source of truth for schema definition. All models,
     signatures, and converters are generated from this configuration.
 
     Attributes:
-        name: Unique task identifier (e.g., "nanozymes", "catalysts")
+        name: Unique schema identifier (e.g., "nanozymes", "catalysts")
         experiment_fields: Dictionary of field specifications
         compare_fields: List of field names to compare during evaluation
         float_tolerance: Tolerance for float comparisons (0.0 to 1.0)
-        initial_instruction_file: Path to instruction file for DSPy signature (relative to project root)
+        instruction_file: Path to instruction file for DSPy signature (relative to project root)
         row_converter: Configuration for CSV row conversion
         base_class: Base class for experiment model (e.g., Experiment)
     """
@@ -134,25 +134,25 @@ class TaskConfig:
     experiment_fields: Dict[str, FieldSpec]
     compare_fields: List[str]
     float_tolerance: float
-    initial_instruction_file: Optional[str] = None
+    instruction_file: Optional[str] = None
     row_converter: RowConverterConfig = field(default_factory=RowConverterConfig)
     base_class: Optional[Type[BaseModel]] = None
     judge_field_descriptions: Optional[Dict[str, str]] = None
 
     def __post_init__(self):
-        """Validate task configuration after initialization."""
+        """Validate schema configuration after initialization."""
         for name, spec in self.experiment_fields.items():
             if hasattr(spec, "field_name") and spec.field_name is None:
                 spec.field_name = name
 
         if not self.name or not isinstance(self.name, str):
-            raise ValueError("Task name must be a non-empty string")
+            raise ValueError("Schema name must be a non-empty string")
 
         if not self.experiment_fields:
-            raise ValueError("Task must have at least one experiment field")
+            raise ValueError("Schema must have at least one experiment field")
 
         if not self.compare_fields:
-            raise ValueError("Task must have at least one compare field")
+            raise ValueError("Schema must have at least one compare field")
 
         if not isinstance(self.compare_fields, list):
             raise ValueError("compare_fields must be a list")
@@ -179,19 +179,18 @@ class TaskConfig:
             ValueError: If no instruction file is specified.
             FileNotFoundError: If instruction file not found.
         """
-        if not self.initial_instruction_file:
+        if not self.instruction_file:
             raise ValueError(
-                f"No instruction file specified for task '{self.name}'. "
-                "Set 'task.initial_instruction_file' in config/default.yaml"
+                f"No instruction file specified for schema '{self.name}'."
             )
 
         from pathlib import Path
 
-        instruction_path = Path(self.initial_instruction_file)
+        instruction_path = Path(self.instruction_file)
         if not instruction_path.exists():
             raise FileNotFoundError(
-                f"Instruction file not found: {self.initial_instruction_file}. "
-                "Check 'task.initial_instruction_file' in system config and ensure path is relative to project root"
+                f"Instruction file not found: {self.instruction_file}. "
+                "Ensure path is relative to project root"
             )
         return instruction_path.read_text(encoding="utf-8")
 
@@ -203,6 +202,31 @@ class TaskConfig:
         """
         instruction = self.get_instruction()
         return hashlib.sha256(instruction.encode()).hexdigest()[:12]
+
+    def get_schema_hash(self) -> str:
+        """Compute a hash of the schema fields and types to detect incompatible changes.
+
+        Returns:
+            SHA256 hash string (first 12 characters).
+        """
+        import json
+        
+        # Build a canonical representation of the experiment fields
+        canonical_fields = {}
+        for name, spec in sorted(self.experiment_fields.items()):
+            canonical_fields[name] = {
+                "type": getattr(spec.type, "__name__", str(spec.type)),
+                "required": spec.required,
+                "default": spec.default,
+                "choices": spec.choices,
+                "min_value": spec.min_value,
+                "max_value": spec.max_value,
+                "pattern": spec.pattern,
+            }
+        
+        # Serialize to a deterministic JSON string
+        canonical_json = json.dumps(canonical_fields, sort_keys=True)
+        return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()[:12]
 
     def get_required_fields(self) -> List[str]:
         """Get list of required field names.
@@ -242,8 +266,6 @@ class TaskConfig:
             if spec.description
         }
 
-
-
     def get_field_choices(self, field_name: str) -> Optional[List[str]]:
         """Get choices for a field if it's a Literal type.
 
@@ -258,7 +280,7 @@ class TaskConfig:
         return self.experiment_fields[field_name].choices
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert TaskConfig to dictionary.
+        """Convert SchemaConfig to dictionary.
 
         Returns:
             Dictionary representation of the config.
@@ -267,9 +289,9 @@ class TaskConfig:
         return asdict(self)
 
     def validate(self) -> list[str]:
-        """Validate TaskConfig completeness and consistency.
+        """Validate SchemaConfig completeness and consistency.
 
-        Performs comprehensive validation of the task configuration,
+        Performs comprehensive validation of the schema configuration,
         checking all fields, compare_fields, and instruction.
 
         Returns:
@@ -279,11 +301,11 @@ class TaskConfig:
 
         # Validate name
         if not self.name or not isinstance(self.name, str):
-            errors.append("Task name must be a non-empty string")
+            errors.append("Schema name must be a non-empty string")
 
         # Validate experiment_fields
         if not self.experiment_fields:
-            errors.append("Task must have at least one experiment field")
+            errors.append("Schema must have at least one experiment field")
         else:
             for field_name, spec in self.experiment_fields.items():
                 field_errors = self._validate_field_spec(field_name, spec)
@@ -291,7 +313,7 @@ class TaskConfig:
 
         # Validate compare_fields
         if not self.compare_fields:
-            errors.append("Task must have at least one compare field")
+            errors.append("Schema must have at least one compare field")
         elif not isinstance(self.compare_fields, list):
             errors.append("compare_fields must be a list")
         else:
@@ -308,10 +330,6 @@ class TaskConfig:
             errors.append("float_tolerance must be a number")
         elif not 0 <= self.float_tolerance <= 1:
             errors.append("float_tolerance must be between 0 and 1")
-
-        # Note: instruction file validation is deferred to signature creation time
-        # where it is actually needed. This allows TaskConfig to be used in tests
-        # without requiring a physical instruction file.
 
         # Validate row_converter mapping
         for field_name in self.row_converter.mapping:
@@ -380,7 +398,7 @@ class TaskConfig:
         return errors
 
     def validate_or_raise(self) -> None:
-        """Validate TaskConfig and raise exception if invalid.
+        """Validate SchemaConfig and raise exception if invalid.
 
         Raises:
             ValueError: If validation fails.
@@ -388,11 +406,41 @@ class TaskConfig:
         errors = self.validate()
         if errors:
             raise ValueError(
-                f"TaskConfig validation failed for '{self.name}':\n"
+                f"SchemaConfig validation failed for '{self.name}':\n"
                 + "\n".join(f"  - {e}" for e in errors)
             )
 
     def __repr__(self) -> str:
-        """String representation of TaskConfig."""
+        """String representation of SchemaConfig."""
         field_count = len(self.experiment_fields)
-        return f"<TaskConfig: {self.name} ({field_count} fields)>"
+        return f"<SchemaConfig: {self.name} ({field_count} fields)>"
+
+
+@dataclass
+class ExtractionBundle:
+    """Class-container representing a fully loaded schema setup with its models, signature, and converter.
+
+    Attributes:
+        config: The core SchemaConfig instance.
+        signature: Generated DSPy signature class.
+        experiment_model: Generated Pydantic model for individual experiments.
+        output_model: Generated Pydantic output model.
+        row_converter: Generated converter function (Callable).
+    """
+
+    config: SchemaConfig
+    signature: Type
+    experiment_model: Type[BaseModel]
+    output_model: Type[BaseModel]
+    row_converter: Any
+
+    def __getitem__(self, key: str) -> Any:
+        if not hasattr(self, key):
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def keys(self):
+        return ["config", "signature", "experiment_model", "output_model", "row_converter"]

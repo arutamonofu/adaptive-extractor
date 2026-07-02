@@ -1,15 +1,15 @@
 
 import pytest
 
-from ae.core.tasks import (
+from ae.core.schema import (
     FieldSpec,
-    TaskConfig,
+    SchemaConfig,
     create_experiment_model,
-    load_task_from_yaml,
-    load_task_with_models,
-    save_task_to_yaml,
+    load_schema_from_yaml,
+    load_schema_with_models,
+    save_schema_to_yaml,
 )
-from ae.core.tasks.loader import (
+from ae.core.schema.loader import (
     _find_project_root,
     _parse_row_converter,
 )
@@ -58,10 +58,10 @@ class TestRowConverterConfig:
 
 
 @pytest.mark.unit
-class TestTaskConfig:
-    """Tests for TaskConfig properties and validation."""
+class TestSchemaConfig:
+    """Tests for SchemaConfig properties and validation."""
 
-    def test_task_config_validation(self, tmp_path):
+    def test_schema_config_validation(self, tmp_path):
         instruction_file = tmp_path / "instruction.txt"
         instruction_file.write_text("Test instruction")
 
@@ -71,19 +71,19 @@ class TestTaskConfig:
         }
 
         # Valid config
-        config = TaskConfig(
+        config = SchemaConfig(
             name="test_task",
             experiment_fields=fields,
             compare_fields=["formula"],
             float_tolerance=0.05,
-            initial_instruction_file=str(instruction_file),
+            instruction_file=str(instruction_file),
         )
         assert config.name == "test_task"
         assert len(config.validate()) == 0
 
         # Compare field not in fields raises ValueError on post-init
         with pytest.raises(ValueError, match="not found in experiment_fields"):
-            TaskConfig(
+            SchemaConfig(
                 name="invalid",
                 experiment_fields=fields,
                 compare_fields=["nonexistent"],
@@ -92,7 +92,7 @@ class TestTaskConfig:
 
 
 @pytest.mark.unit
-class TestTaskLoaderAndSaver:
+class TestSchemaLoaderAndSaver:
     """Tests for YAML loader and saver roundtrip and root path resolution."""
 
     def test_load_and_save_task_yaml(self, tmp_path):
@@ -120,7 +120,7 @@ row_converter:
         yaml_path.write_text(yaml_content)
 
         # Load with models
-        config, experiment_model, output_model = load_task_with_models(yaml_path)
+        config, experiment_model, output_model = load_schema_with_models(yaml_path)
         assert config.name == "test_yaml_task"
         assert experiment_model.__name__ == "Experiment"
         assert output_model.__name__ == "ExtractionOutput"
@@ -128,10 +128,10 @@ row_converter:
 
         # Roundtrip save and reload
         save_path = tmp_path / "saved_task.yaml"
-        save_task_to_yaml(config, save_path)
+        save_schema_to_yaml(config, save_path)
         assert save_path.exists()
 
-        reloaded = load_task_from_yaml(save_path)
+        reloaded = load_schema_from_yaml(save_path)
         assert reloaded.name == "test_yaml_task"
         assert reloaded.float_tolerance == 0.10
 
@@ -152,7 +152,7 @@ class TestDynamicModelValidation:
     """Tests for Pydantic dynamic model generation, string coercion, and type casting."""
 
     def test_string_field_coercion(self):
-        config = TaskConfig(
+        config = SchemaConfig(
             name="test_coercion",
             experiment_fields={
                 "formula": FieldSpec(type=str, description="Formula", required=True),
@@ -175,7 +175,7 @@ class TestDynamicModelValidation:
         assert exp2.active == "false"
 
     def test_float_field_no_string_coercion(self):
-        config = TaskConfig(
+        config = SchemaConfig(
             name="test_float",
             experiment_fields={
                 "formula": FieldSpec(type=str, description="Formula", required=True),

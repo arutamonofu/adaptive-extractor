@@ -15,7 +15,7 @@ from pydantic.functional_validators import BeforeValidator
 
 from ae.core.evaluation.entities import Experiment
 
-from .config import FieldSpec, TaskConfig
+from .config import FieldSpec, SchemaConfig
 
 if TYPE_CHECKING:
     pass
@@ -111,51 +111,31 @@ StringCoerce = BeforeValidator(_string_coerce_validator)
 
 
 def create_experiment_model(
-    task_config: TaskConfig,
+    schema_config: SchemaConfig,
     base_class: Optional[Type[BaseModel]] = None,
 ) -> Type[BaseModel]:
     """Dynamically create a Pydantic model for experiments.
 
     This function generates a Pydantic model class based on the field
-    specifications in TaskConfig. The generated model includes all fields
+    specifications in SchemaConfig. The generated model includes all fields
     with appropriate types, validation, and descriptions.
 
     For fields defined as str type, automatic conversion from numeric values
     (int, float) to strings is applied to handle LLM JSON responses.
 
     Args:
-        task_config: Task configuration with field specifications.
+        schema_config: Schema configuration with field specifications.
         base_class: Optional base class (default: Experiment).
 
     Returns:
         Dynamically generated Pydantic model class.
-
-    Example:
-        ```python
-        config = TaskConfig(
-            name="nanozymes",
-            experiment_fields={
-                "formula": FieldSpec(type=str, description="Chemical formula"),
-                "activity": FieldSpec(
-                    type=str,
-                    description="Catalytic activity",
-                    choices=["peroxidase", "oxidase", "catalase"]
-                ),
-                "km_value": FieldSpec(type=float, description="Michaelis constant", required=False),
-            },
-            compare_fields=["formula", "activity"],
-        )
-
-        ExperimentModel = create_experiment_model(config)
-        experiment = ExperimentModel(formula="Fe3O4", activity="peroxidase")
-        ```
     """
     if base_class is None:
         base_class = Experiment
 
     fields: Dict[str, Any] = {}
 
-    for field_name, spec in task_config.experiment_fields.items():
+    for field_name, spec in schema_config.experiment_fields.items():
         field_type = _create_field_type(spec)
         pydantic_field = spec.to_pydantic_field()
 
@@ -176,7 +156,7 @@ def create_experiment_model(
 
 
 def create_output_model(
-    task_config: TaskConfig,
+    schema_config: SchemaConfig,
     experiment_model: Type[BaseModel],
 ) -> Type[BaseModel]:
     """Dynamically create a Pydantic model for extraction output.
@@ -184,17 +164,11 @@ def create_output_model(
     Creates a wrapper model containing a list of experiments.
 
     Args:
-        task_config: Task configuration.
+        schema_config: Schema configuration.
         experiment_model: Generated experiment model.
 
     Returns:
         Dynamically generated output model class.
-
-    Example:
-        ```python
-        OutputModel = create_output_model(config, ExperimentModel)
-        output = OutputModel(experiments=[exp1, exp2])
-        ```
     """
     from typing import List
 
@@ -280,7 +254,7 @@ def _extract_field_value(
 
 
 def create_row_converter(
-    task_config: TaskConfig,
+    schema_config: SchemaConfig,
     experiment_model: Type[BaseModel],
 ):
     """Dynamically create a row-to-experiment converter function.
@@ -289,17 +263,11 @@ def create_row_converter(
     instance based on the row_converter configuration.
 
     Args:
-        task_config: Task configuration with row_converter mapping.
+        schema_config: Schema configuration with row_converter mapping.
         experiment_model: Generated experiment model class.
 
     Returns:
         Function that converts pandas Series to experiment model.
-
-    Example:
-        ```python
-        converter = create_row_converter(config, ExperimentModel)
-        experiment = converter(row)  # row is pandas Series
-        ```
     """
 
     def converter(row: pandas.Series):
@@ -314,12 +282,12 @@ def create_row_converter(
         # Extract all field values
         field_values = {}
 
-        for field_name, spec in task_config.experiment_fields.items():
+        for field_name, spec in schema_config.experiment_fields.items():
             value = _extract_field_value(
                 row=row,
                 field_name=field_name,
                 spec=spec,
-                row_converter=task_config.row_converter,
+                row_converter=schema_config.row_converter,
             )
 
             # Check if required field is missing
@@ -340,25 +308,25 @@ def create_row_converter(
 
 
 def create_all_models(
-    task_config: TaskConfig,
+    schema_config: SchemaConfig,
     base_class: Optional[Type[BaseModel]] = None,
 ) -> tuple[Type[BaseModel], Type[BaseModel]]:
-    """Create both experiment and output models from TaskConfig.
+    """Create both experiment and output models from SchemaConfig.
 
     Convenience function that creates both models needed for a task.
 
     Args:
-        task_config: Task configuration.
+        schema_config: Schema configuration.
         base_class: Optional base class for experiment model.
 
     Returns:
         Tuple of (experiment_model, output_model).
     """
     experiment_model = create_experiment_model(
-        task_config,
-        base_class=base_class or task_config.base_class,
+        schema_config,
+        base_class=base_class or schema_config.base_class,
     )
 
-    output_model = create_output_model(task_config, experiment_model)
+    output_model = create_output_model(schema_config, experiment_model)
 
     return experiment_model, output_model

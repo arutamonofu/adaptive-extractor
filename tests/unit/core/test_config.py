@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -31,11 +32,11 @@ project:
   log_level: INFO
 paths:
   pdf_dir: {tmp_path}/pdf
-  parsed_dir: {tmp_path}/parsed
+  ingestion_dir: {tmp_path}/parsed
   ground_truth_dir: {tmp_path}/ground_truth
   splits_file: {tmp_path}/splits.json
   agents_dir: {tmp_path}/agents
-  extractions_dir: {tmp_path}/extractions
+  extracted_dir: {tmp_path}/extractions
 task:
   name: test
 llm:
@@ -127,4 +128,40 @@ circuit_breaker:
         # Load nonexistent config file should raise FileNotFoundError
         with pytest.raises(FileNotFoundError):
             Settings.load(config_path=tmp_path / "nonexistent")
+
+    def test_settings_version_upgrades(self, tmp_path: Path):
+        """Test that missing or older version is automatically upgraded to 1."""
+        from ae.core.config.loader import load_settings
+        
+        # 1. Missing version
+        dir1 = tmp_path / "missing_version"
+        dir1.mkdir()
+        (dir1 / "core.yaml").write_text("project:\n  log_level: INFO\n")
+        
+        from ae.core.config.loader import logger as loader_logger
+        with patch.object(loader_logger, "warning") as mock_warning:
+            res = load_settings(config_path=dir1, load_env_file=False)
+            assert res["version"] == 1
+            mock_warning.assert_any_call("Configuration version is missing. Automatically upgrading to version 1 schema.")
+
+        # 2. Older version (0)
+        dir2 = tmp_path / "older_version"
+        dir2.mkdir()
+        (dir2 / "core.yaml").write_text("version: 0\nproject:\n  log_level: INFO\n")
+        
+        with patch.object(loader_logger, "info") as mock_info:
+            res = load_settings(config_path=dir2, load_env_file=False)
+            assert res["version"] == 1
+            mock_info.assert_any_call("Upgrading configuration schema from version 0 to 1")
+
+    def test_settings_newer_version_error(self, tmp_path: Path):
+        """Test that a newer schema version raises a ValueError."""
+        from ae.core.config.loader import load_settings
+        
+        dir3 = tmp_path / "newer_version"
+        dir3.mkdir()
+        (dir3 / "core.yaml").write_text("version: 2\nproject:\n  log_level: INFO\n")
+        
+        with pytest.raises(ValueError, match="Configuration version 2 is newer than supported version 1"):
+            load_settings(config_path=dir3, load_env_file=False)
 

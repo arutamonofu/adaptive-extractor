@@ -36,17 +36,17 @@ def nanozyme_task(tmp_nanozymes_task_yaml: Path, nanozyme_test_instruction_path:
         Dictionary with task components (config, experiment_model, output_model, row_converter).
         Note: signature is created lazily on first access as it requires instruction file.
     """
-    from ae.core.tasks import (
+    from ae.core.schema import (
         create_all_models,
         create_row_converter,
         create_signature,
-        load_task_from_yaml,
+        load_schema_from_yaml,
     )
 
     # Load task from temporary YAML (without instruction file initially)
-    config = load_task_from_yaml(tmp_nanozymes_task_yaml)
+    config = load_schema_from_yaml(tmp_nanozymes_task_yaml)
     # Set instruction file from test data
-    config.initial_instruction_file = str(nanozyme_test_instruction_path)
+    config.instruction_file = str(nanozyme_test_instruction_path)
 
     # Generate models and converter directly
     experiment_model, output_model = create_all_models(config)
@@ -343,19 +343,8 @@ def mock_llm_response():
 
 @pytest.fixture(autouse=True)
 def reset_task_registry():
-    """Automatically reset task registry after each test.
-
-    This fixture ensures clean state between tests by clearing
-    the global task registry before and after each test.
-    """
-    from ae.core.tasks import get_global_registry
-
-    registry = get_global_registry()
-    # Clear before test
-    registry.clear()
+    """Dummy fixture for compatibility."""
     yield
-    # Clear after test
-    registry.clear()
 
 
 @pytest.fixture
@@ -481,6 +470,15 @@ def _split_config(src_path: Path, dest_dir: Path, overrides: dict = None) -> Pat
     dest_dir.mkdir(parents=True, exist_ok=True)
     content = src_path.read_text(encoding="utf-8")
     data = yaml.safe_load(content) or {}
+
+    # Isolate paths to a temporary test data directory inside dest_dir
+    if "paths" in data and isinstance(data["paths"], dict):
+        test_data_dir = dest_dir / "test_data"
+        test_data_dir.mkdir(parents=True, exist_ok=True)
+        for k, v in data["paths"].items():
+            if isinstance(v, str) and (v.startswith("data/") or v == "data"):
+                data["paths"][k] = str(test_data_dir / v.replace("data/", "", 1))
+
     if overrides:
         for k, v in overrides.items():
             if isinstance(v, dict) and k in data and isinstance(data[k], dict):
@@ -560,8 +558,8 @@ def config_with_instruction_file(
     instruction_file.parent.mkdir(parents=True, exist_ok=True)
     instruction_file.write_text("Test instruction")
     
-    # Also write a dummy generated_schema.yaml so validator passes
-    (instruction_file.parent / "generated_schema.yaml").write_text("name: test\nfields:\n  a: str\ncompare_fields: [a]\nfloat_tolerance: 0.05\n", encoding="utf-8")
+    # Also write a dummy schema.yaml so validator passes
+    (instruction_file.parent / "schema.yaml").write_text("name: test\nfields:\n  a: str\ncompare_fields: [a]\nfloat_tolerance: 0.05\n", encoding="utf-8")
 
     # Load template and split it
     _split_config(llm_config_template_path, config_dir)
@@ -617,7 +615,7 @@ def tmp_instruction_file(tmp_path: Path) -> Path:
         "Focus on key experimental parameters and results."
     )
     # Also write a minimal schema YAML so settings task validator passes
-    schema_file = instruction_file.parent / "generated_schema.yaml"
+    schema_file = instruction_file.parent / "schema.yaml"
     schema_file.write_text(
         "name: nanozymes\n"
         "compare_fields:\n"
@@ -643,15 +641,16 @@ def tmp_config_with_instruction(tmp_path: Path, tmp_instruction_file: Path) -> P
         Path to config directory.
     """
     config_content = f"""
+version: 1
 project:
   log_level: INFO
 paths:
   pdf_dir: {tmp_path}/pdf
-  parsed_dir: {tmp_path}/parsed
+  ingestion_dir: {tmp_path}/parsed
   ground_truth_dir: {tmp_path}/ground_truth
   splits_file: {tmp_path}/splits.json
   agents_dir: {tmp_path}/agents
-  extractions_dir: {tmp_path}/extractions
+  extracted_dir: {tmp_path}/extractions
 task:
   name: nanozymes
 llm:
@@ -960,7 +959,7 @@ row_converter:
     - ccat_unit
 """
 
-    yaml_path = tasks_dir / "generated_schema.yaml"
+    yaml_path = tasks_dir / "schema.yaml"
     yaml_path.write_text(yaml_content, encoding="utf-8")
     return yaml_path
 
@@ -983,6 +982,7 @@ def tmp_example_system_yaml(tmp_path_factory) -> Path:
     config_dir.mkdir(parents=True, exist_ok=True)
 
     yaml_content = """
+version: 1
 project:
   log_level: "INFO"
 
@@ -1030,11 +1030,11 @@ parsing:
 
 paths:
   pdf_dir: "data/pdf"
-  parsed_dir: "data/parsed"
+  ingestion_dir: "data/interim/ingestion"
   ground_truth_dir: "data/ground_truth"
   splits_file: "data/splits.json"
-  agents_dir: "data/agents"
-  extractions_dir: "data/extractions"
+  agents_dir: "data/processed/agents"
+  extracted_dir: "data/extractions"
 
 optimization:
   total_load: 10
