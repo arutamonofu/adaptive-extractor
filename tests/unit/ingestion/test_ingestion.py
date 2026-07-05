@@ -302,19 +302,34 @@ class TestMinerUParser:
         content_list = [
             {
                 "type": "chart",
+                "img_path": "images/chart2_panel_a.jpg",
+                "chart_caption": "a",
+                "page_idx": 1  # Before chart1, will receive backward propagation
+            },
+            {
+                "type": "chart",
                 "img_path": "images/chart1.jpg",
-                "chart_caption": [{"text": "Fig 1. Kinetic study"}]
+                "chart_caption": [{"text": "Fig 1. Kinetic study"}],
+                "page_idx": 1
             },
             {
                 "type": "image",
                 "img_path": "images/img1.jpg",
-                "image_caption": "TEM image of particles"
+                "image_caption": "TEM image of particles",
+                "page_idx": 2
             },
             {
                 "type": "table",
                 "img_path": "images/table1.jpg",
                 "table_caption": "Table 1. Kinetic parameters",
-                "table_body": "<table></table>"
+                "table_body": "<table></table>",
+                "page_idx": 3
+            },
+            {
+                "type": "image",
+                "img_path": "images/table1_part2.jpg",
+                "image_caption": "part 2",
+                "page_idx": 3  # After table1, will receive forward propagation
             },
             {
                 "type": "text",
@@ -322,23 +337,28 @@ class TestMinerUParser:
             }
         ]
         candidates = collect_visual_candidates(content_list)
-        assert len(candidates) == 3
+        assert len(candidates) == 5
         
-        # Verify chart candidate
-        c_chart = next(c for c in candidates if c.type == "chart")
-        assert c_chart.img_path == "images/chart1.jpg"
+        # Verify chart candidate with full caption
+        c_chart = next(c for c in candidates if c.img_path == "images/chart1.jpg")
         assert c_chart.caption == "Fig 1. Kinetic study"
         
+        # Verify backward propagated caption on panel a
+        c_panel = next(c for c in candidates if c.img_path == "images/chart2_panel_a.jpg")
+        assert c_panel.caption == "[a] Fig 1. Kinetic study"
+
         # Verify image candidate
-        c_img = next(c for c in candidates if c.type == "image")
-        assert c_img.img_path == "images/img1.jpg"
+        c_img = next(c for c in candidates if c.img_path == "images/img1.jpg")
         assert c_img.caption == "TEM image of particles"
 
         # Verify table candidate
-        c_table = next(c for c in candidates if c.type == "table")
-        assert c_table.img_path == "images/table1.jpg"
+        c_table = next(c for c in candidates if c.img_path == "images/table1.jpg")
         assert c_table.caption == "Table 1. Kinetic parameters"
         assert c_table.table_body == "<table></table>"
+
+        # Verify forward propagated caption on table part 2
+        c_part2 = next(c for c in candidates if c.img_path == "images/table1_part2.jpg")
+        assert c_part2.caption == "[part 2] Table 1. Kinetic parameters"
 
     def test_replace_image_tags_with_irrelevant_placeholder(self):
         from ae.ingestion.parsers.mineru.visual.stages.insert_visual_tables import replace_image_tags

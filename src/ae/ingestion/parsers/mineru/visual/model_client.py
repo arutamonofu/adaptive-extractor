@@ -321,3 +321,17 @@ def generate_parsed_json(
         raw_response_path=raw_response_path,
     )
 
+
+def get_ingestion_lms() -> tuple[Any | None, Any | None]:
+    """Get the active ingestion LMs (visual_extractor_lm, teacher_lm)."""
+    visual_lm = None
+    teacher_lm = None
+
+    if _VISUAL_EXTRACTOR_CLIENT is not None and hasattr(_VISUAL_EXTRACTOR_CLIENT, "lm"):
+        visual_lm = _VISUAL_EXTRACTOR_CLIENT.lm
+    if _TEACHER_CLIENT is not None and hasattr(_TEACHER_CLIENT, "lm"):
+        teacher_lm = _TEACHER_CLIENT.lm
+
+    return visual_lm, teacher_lm
+
+

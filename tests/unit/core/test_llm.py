@@ -135,8 +135,29 @@ class TestHistoryLogger:
 
         assert counts["student"] == 1
         assert counts["teacher"] == 1
-        assert len(list(out_dir.glob("student_lm_*.json"))) == 1
-        assert len(list(out_dir.glob("teacher_lm_*.json"))) == 1
+        assert len(list(out_dir.glob("student_*.json"))) == 1
+        assert len(list(out_dir.glob("teacher_*.json"))) == 1
+
+    def test_save_ingestion_history(self, tmp_path):
+        """Test saving visual extractor and teacher histories."""
+        from ae.core.llm.history_logger import save_ingestion_history
+
+        class MockLM:
+            def __init__(self, history):
+                self.history = history
+
+        visual = MockLM([{"inputs": "visual"}])
+        teacher = MockLM([{"inputs": "teacher"}])
+
+        out_dir = tmp_path / "logs"
+        counts = save_ingestion_history(visual, teacher, out_dir)
+
+        assert counts["visual"] == 1
+        assert counts["teacher"] == 1
+        assert len(list(out_dir.glob("visual_*.json"))) == 1
+        assert len(list(out_dir.glob("teacher_*.json"))) == 1
+
+
 
 
 # =============================================================================

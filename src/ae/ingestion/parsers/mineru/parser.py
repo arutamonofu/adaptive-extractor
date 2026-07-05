@@ -90,7 +90,7 @@ class MinerUParser(BaseParser):
             except Exception:
                 ingestion_dir = project_root / "data" / "interim" / "ingestion"
         
-        mineru_dir = Path(ingestion_dir) / "service" / "mineru" / pdf_stem
+        mineru_dir = Path(ingestion_dir) / "mineru_artifacts" / pdf_stem
 
         logger.info(f"Starting MinerU parsing for {pdf_path.name}")
         self.client.parse_pdf(str(pdf_path), str(mineru_dir))

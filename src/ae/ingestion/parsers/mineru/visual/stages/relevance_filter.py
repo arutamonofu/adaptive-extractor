@@ -55,7 +55,7 @@ def normalize_caption(item: Dict[str, Any], block_type: str) -> str:
 
 
 def collect_visual_candidates(content_list: List[Any]) -> List[VisualCandidate]:
-    """Gather all image-producing layout blocks from MinerU content list."""
+    """Gather all image-producing layout blocks from MinerU content list and propagate captions."""
     candidates = []
 
     def process_element(item: Any) -> None:
@@ -101,6 +101,49 @@ def collect_visual_candidates(content_list: List[Any]) -> List[VisualCandidate]:
             process_element(obj)
 
     flatten_and_collect(content_list)
+
+    # Propagate captions using type-aware proximity propagation
+    import re
+    
+    def has_full_caption(vc: VisualCandidate) -> bool:
+        cap = vc.caption.strip()
+        return len(cap) > 10 and re.search(r"\b(fig|figure|table|scheme|схема|рисунок)\b", cap, re.I) is not None
+
+    for i, c in enumerate(candidates):
+        if has_full_caption(c):
+            primary_caption = c.caption
+            page_idx = c.page_idx
+            
+            if c.type in ("chart", "image"):
+                # Figures/charts usually have captions placed below them (reading order: panels first, then caption)
+                # So we scan backward to propagate to preceding panel candidates on the same page.
+                j = i - 1
+                while j >= 0:
+                    prev_c = candidates[j]
+                    if prev_c.page_idx != page_idx:
+                        break
+                    if has_full_caption(prev_c):
+                        break
+                    # Propagate caption
+                    old_cap = prev_c.caption
+                    prev_c.caption = f"[{old_cap}] {primary_caption}".strip() if old_cap else primary_caption
+                    j -= 1
+                    
+            elif c.type == "table":
+                # Tables usually have captions placed above them (reading order: caption first, then table panels)
+                # So we scan forward to propagate to succeeding table candidates on the same page.
+                j = i + 1
+                while j < len(candidates):
+                    next_c = candidates[j]
+                    if next_c.page_idx != page_idx:
+                        break
+                    if has_full_caption(next_c):
+                        break
+                    # Propagate caption
+                    old_cap = next_c.caption
+                    next_c.caption = f"[{old_cap}] {primary_caption}".strip() if old_cap else primary_caption
+                    j += 1
+
     return candidates
 
 
