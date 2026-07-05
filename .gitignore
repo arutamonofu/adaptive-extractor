@@ -43,7 +43,11 @@ environment.yml.local
 
 # --- Data (raw, interim, processed) ---
 data/raw/pdf/*
+data/raw/ground_truth/*
+data/raw/splits/*
 data/interim/reverse_engineering/*
+data/interim/ingestion/*
+data/processed/agents/*
 data/processed/extracted/*
 
 # --- Research ---
