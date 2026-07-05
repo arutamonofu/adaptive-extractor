@@ -82,7 +82,7 @@ flowchart TD
     '![]\\(images/img_name.jpg\\)'| MD
     
     MD -->|Save final text| FinalMD[article.md]
-    Workspace -->|Save for debug| DebugFolder[data/interim/ingestion/service/mineru/pdf_stem]
+    Workspace -->|Save for debug| DebugFolder[data/interim/ingestion/mineru_artifacts/pdf_stem]
 ```
 
 ### Detailed Phases:
@@ -90,7 +90,7 @@ flowchart TD
 2.  **Chart Filtering**: The parser scans the content list (`*_content_list.json`) for blocks tagged with `"type": "chart"` to extract their local image paths and captions.
 3.  **VLM Extraction**: For each chart, `extract_single_chart` is invoked with the cropped image and task extraction instructions, query-handling the multimodal model (Gemini 3.5 Flash) to generate formatted JSON tables.
 4.  **Markdown Ingestion**: `replace_image_tags` locates the corresponding image tag `![](images/...)` inside the Markdown document and replaces it with the generated Markdown tables.
-5.  **Audit & Debug**: Intermediate files (raw Markdown, content lists, cropped images, raw responses) are saved to `data/interim/ingestion/service/mineru/<pdf_stem>`.
+5.  **Audit & Debug**: Intermediate files (raw Markdown, content lists, cropped images, raw responses) are saved to `data/interim/ingestion/mineru_artifacts/<pdf_stem>`.
 
 ---
 
@@ -105,15 +105,14 @@ flowchart TD
 ├── data/interim/
 │   └── ingestion/
 │       ├── article.md                        # Final enriched output Markdown
-│       └── service/
-│           └── mineru/
-│               └── article/
-│                   ├── full.md               # Raw MinerU Markdown
-│                   ├── content_list.json     # MinerU layout block content list
-│                   ├── final_enriched.md     # Enriched Markdown
-│                   ├── enrichment_summary.json # Summary of visual enrichment results
-│                   └── images/
-│                       └── <hash>.jpg        # Cropped chart images
+│       └── mineru_artifacts/
+│           └── article/
+│               ├── full.md               # Raw MinerU Markdown
+│               ├── content_list.json     # MinerU layout block content list
+│               ├── final_enriched.md     # Enriched Markdown
+│               ├── enrichment_summary.json # Summary of visual enrichment results
+│               └── images/
+│                   └── <hash>.jpg        # Cropped chart images
 ```
 
 ---
