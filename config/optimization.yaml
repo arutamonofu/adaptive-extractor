@@ -41,5 +41,4 @@ optimization:
   # History Tracking Settings:
   # Save full LLM prompt/response histories for each trial run
   save_llm_history: true
-  # Directory where LLM optimization histories are written
-  llm_history_dir: "logs/optimization_llm"
+

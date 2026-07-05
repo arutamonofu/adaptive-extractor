@@ -1,129 +1,38 @@
-name: nanozymes
 fields:
-  activity:
+  compound_id:
     type: str
     description: '-'
     required: false
-  ccat_unit:
+  target_type:
     type: str
     description: '-'
     required: false
-  ccat_value:
+  target_relation:
     type: str
     description: '-'
     required: false
-  c_const:
+  target_value:
     type: str
     description: '-'
     required: false
-  c_const_unit:
+  target_units:
     type: str
     description: '-'
     required: false
-  c_max:
+  bacteria:
     type: str
     description: '-'
     required: false
-  c_max_unit:
-    type: str
-    description: '-'
-    required: false
-  c_min:
-    type: str
-    description: '-'
-    required: false
-  c_min_unit:
-    type: str
-    description: '-'
-    required: false
-  depth:
-    type: str
-    description: '-'
-    required: false
-  depth_unit:
-    type: str
-    description: '-'
-    required: false
-  formula:
-    type: str
-    description: '-'
-    required: false
-  km_unit:
-    type: str
-    description: '-'
-    required: false
-  km_value:
-    type: str
-    description: '-'
-    required: false
-  length:
-    type: str
-    description: '-'
-    required: false
-  length_unit:
-    type: str
-    description: '-'
-    required: false
-  ph:
-    type: str
-    description: '-'
-    required: false
-  reaction_type:
-    type: str
-    description: '-'
-    required: false
-  surface:
-    type: str
-    description: '-'
-    required: false
-  syngony:
-    type: str
-    description: '-'
-    required: false
-  temperature:
-    type: str
-    description: '-'
-    required: false
-  vmax_unit:
-    type: str
-    description: '-'
-    required: false
-  vmax_value:
-    type: str
-    description: '-'
-    required: false
-  width:
-    type: str
-    description: '-'
-    required: false
-  width_unit:
+  bacteria_unified:
     type: str
     description: '-'
     required: false
 compare_fields:
-- activity
-- ccat_unit
-- ccat_value
-- c_const
-- c_const_unit
-- c_max
-- c_max_unit
-- c_min
-- c_min_unit
-- depth
-- depth_unit
-- formula
-- km_unit
-- km_value
-- length
-- length_unit
-- ph
-- reaction_type
-- surface
-- syngony
-- temperature
-- vmax_unit
-- vmax_value
-- width
-- width_unit
+- compound_id
+- target_type
+- target_relation
+- target_value
+- target_units
+- bacteria
+- bacteria_unified
 float_tolerance: 0.05

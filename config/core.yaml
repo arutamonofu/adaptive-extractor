@@ -8,8 +8,8 @@ project:
 
 # Large Language Model (LLM) instances for extraction and verification
 llm:
-  # VisualExtractor model: used for document ingestion pipeline (e.g. chart/image extraction)
-  visual_extractor:
+  # Ingestor model: used for document ingestion pipeline (e.g. chart extraction)
+  ingestor:
     provider: "api"
     model: "qwen/qwen3.6-flash"
     temperature: 0.0
@@ -22,7 +22,7 @@ llm:
       max_tokens: 8192
       base_url: "https://openrouter.ai/api/v1"
       reasoning:
-        enabled: false
+        enabled: true
       openrouter_cache: true
       prompt_caching: true
 
@@ -89,12 +89,14 @@ paths:
   schema_file: "config/schema.yaml"
   baseline_prompt_file: "config/baseline_instruction.txt"
   pdf_dir: "data/raw/pdf"
-  ground_truth_file: "data/raw/ground_truth/ground_truth.csv"
-  splits_file: "data/raw/splits/pilot.json"
+  ground_truth_file: "data/raw/ground_truth/Benzimidazole antibiotics.csv"
+  splits_file: "data/raw/splits/split.json"
   ingestion_dir: "data/interim/ingestion"
   generated_prompt_file: "data/interim/reverse_engineering/generated_instruction.txt"
   agents_dir: "data/processed/agents"
   extracted_dir: "data/processed/extracted"
+
+
 
 # Caching configurations for LLM responses
 cache:

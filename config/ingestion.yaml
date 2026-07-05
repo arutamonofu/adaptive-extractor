@@ -17,3 +17,5 @@ parsing:
   # Параметры экстракции данных из графиков (на уровне с mineru)
   chart_extraction:
     enabled: true
+
+
