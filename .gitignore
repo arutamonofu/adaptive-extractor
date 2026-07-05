@@ -12,7 +12,6 @@ build/
 .coverage
 coverage.xml
 htmlcov/
-.hypothesis/
 pytestdebug.log
 
 # --- Caches ---
@@ -35,37 +34,32 @@ environment.yml.local
 *~
 .claude/
 .cursor/
-.spyder/
-.qwen/
 
 # --- Jupyter ---
 .ipynb_checkpoints/
 
 # --- Data (raw, interim, processed) ---
-data/raw/pdf/*
-data/raw/ground_truth/*
-data/raw/splits/*
-data/interim/reverse_engineering/*
-data/interim/ingestion/*
-data/processed/agents/*
-data/processed/extracted/*
+data/raw/pdf/**
+!data/raw/pdf/.gitkeep
+data/raw/ground_truth/**
+!data/raw/ground_truth/.gitkeep
+data/raw/splits/**
+!data/raw/splits/.gitkeep
+data/interim/reverse_engineering/**
+!data/interim/reverse_engineering/.gitkeep
+data/interim/ingestion/**
+!data/interim/ingestion/.gitkeep
+data/processed/agents/**
+!data/processed/agents/.gitkeep
+data/processed/extracted/**
+!data/processed/extracted/.gitkeep
 
 # --- Research ---
 research/
 
 # --- ML ---
-# mlruns/
+mlruns/
 mlflow.db
-# *.pth
-# *.pt
-# *.onnx
-# *.pkl
-# *.joblib
-# checkpoints/
-# weights/
-
-# --- Streamlit ---
-.streamlit/secrets.toml
 
 # --- Secrets ---
 .env
@@ -78,11 +72,8 @@ mlflow.db
 Thumbs.db
 
 # --- Logs ---
-logs/*
-
-# --- Diagnostics (large output, keep in docs/ if needed) ---
-diagnose_*.txt
-diagnose_output.txt
+logs/**
+!logs/.gitkeep
 
 # --- GitKeep (always track) ---
 !.gitkeep
