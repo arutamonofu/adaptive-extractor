@@ -122,14 +122,14 @@ def save_optimization_history(
 
     student_count = save_history(
         student_lm,
-        output_dir / f"student_lm_{timestamp}.json"
+        output_dir / f"student_{timestamp}.json"
     )
     counts["student"] = student_count
 
     if teacher_lm is not None:
         teacher_count = save_history(
             teacher_lm,
-            output_dir / f"teacher_lm_{timestamp}.json"
+            output_dir / f"teacher_{timestamp}.json"
         )
         counts["teacher"] = teacher_count
 
@@ -154,5 +154,46 @@ def save_extraction_history(
     if timestamp is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    output_path = output_dir / f"extraction_lm_{timestamp}.json"
+    output_path = output_dir / f"student_{timestamp}.json"
     return save_history(lm, output_path)
+
+
+def save_ingestion_history(
+    visual_lm: Optional[Any],
+    teacher_lm: Optional[Any],
+    output_dir: Path,
+    timestamp: Optional[str] = None,
+) -> Dict[str, int]:
+    """Save ingestion visual extractor and teacher LLM histories.
+
+    Args:
+        visual_lm: Visual extractor LLM instance
+        teacher_lm: Teacher LLM instance (optional)
+        output_dir: Directory for output files
+        timestamp: Optional timestamp string (default: current time)
+
+    Returns:
+        Dict with counts: {"visual": N, "teacher": M}
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    counts: Dict[str, int] = {}
+
+    if visual_lm is not None:
+        visual_count = save_history(
+            visual_lm,
+            output_dir / f"visual_{timestamp}.json"
+        )
+        counts["visual"] = visual_count
+
+    if teacher_lm is not None:
+        teacher_count = save_history(
+            teacher_lm,
+            output_dir / f"teacher_{timestamp}.json"
+        )
+        counts["teacher"] = teacher_count
+
+    return counts
+
+

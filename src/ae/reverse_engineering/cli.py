@@ -239,8 +239,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                         from datetime import datetime
                         from ae.core.llm.history_logger import save_history
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        history_dir = Path(settings.re.llm_history_dir)
-                        save_history(teacher_lm, history_dir / f"re_teacher_lm_{timestamp}.json")
+                        history_dir = Path("logs/llm/reverse_engineering")
+                        save_history(teacher_lm, history_dir / f"teacher_{timestamp}.json")
                     except Exception as e:
                         logger.warning(f"Failed to save LLM history: {e}")
 

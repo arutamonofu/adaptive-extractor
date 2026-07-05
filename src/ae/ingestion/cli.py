@@ -178,7 +178,18 @@ def parse_command(argv: Optional[list] = None) -> int:
 
         doc_repo = DocumentRepository(ingestion_dir=request.output_dir)
         use_case = ParseDocumentsUseCase(document_repo=doc_repo)
-        return use_case.execute(request)
+        try:
+            return use_case.execute(request)
+        finally:
+            if getattr(settings.parsing, "save_llm_history", True):
+                from ae.ingestion.parsers.mineru.visual.model_client import get_ingestion_lms
+                from ae.core.llm.history_logger import save_ingestion_history
+                
+                visual_lm, teacher_lm = get_ingestion_lms()
+                if visual_lm is not None or teacher_lm is not None:
+                    history_dir = Path("logs/llm/ingestion")
+                    save_ingestion_history(visual_lm, teacher_lm, history_dir)
+
 
     def format_response(response: ParseDocumentsResponse) -> int:
         args = args_container["args"]

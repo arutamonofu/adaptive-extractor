@@ -59,6 +59,11 @@ class IngestionConfig(BaseModel):
         default=None,
         description="Directory for ingested/parsed document outputs"
     )
+    save_llm_history: bool = Field(
+        default=True,
+        description="Save LLM call histories after ingestion"
+    )
+
 
 
 class OptimizationConfig(BaseModel):
@@ -149,10 +154,6 @@ class OptimizationConfig(BaseModel):
         default=True,
         description="Save LLM call histories after optimization"
     )
-    llm_history_dir: str = Field(
-        default="logs/llm_history",
-        description="Directory for LLM history files"
-    )
 
 
 class ExtractionConfig(BaseModel):
@@ -165,10 +166,7 @@ class ExtractionConfig(BaseModel):
         default=False,
         description="Save LLM call histories after extraction"
     )
-    llm_history_dir: str = Field(
-        default="logs/llm_history",
-        description="Directory for LLM history files"
-    )
+
 
 
 class CacheConfig(BaseModel):
@@ -217,7 +215,4 @@ class REConfig(BaseModel):
         default=True,
         description="Whether to save the LLM history log for RE calls"
     )
-    llm_history_dir: Path = Field(
-        default=Path("logs/re_llm_history"),
-        description="Directory to save RE LLM logs"
-    )
+

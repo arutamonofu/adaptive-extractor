@@ -532,7 +532,7 @@ class OptimizeAgentUseCase:
 
         # Save LLM history after optimization
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        history_dir = Path("logs/llm_history")
+        history_dir = Path("logs/llm/optimization")
         history_counts = save_optimization_history(
             student_lm=request.student_lm,
             teacher_lm=request.teacher_lm,

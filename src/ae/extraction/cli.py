@@ -206,7 +206,7 @@ def extract_command(argv: Optional[list] = None) -> int:
                 lm = student_lm_container.get("lm")
                 if lm is not None:
                     from ae.core.llm.history_logger import save_extraction_history
-                    history_dir = Path(settings.extraction.llm_history_dir)
+                    history_dir = Path("logs/llm/extraction")
                     save_extraction_history(lm, history_dir)
 
     def format_response(response: BatchExtractionResponse) -> int:

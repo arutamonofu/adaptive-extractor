@@ -276,7 +276,7 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
                 teacher_lm = teacher_lm_container.get("lm")
                 if student_lm is not None:
                     from ae.core.llm.history_logger import save_optimization_history
-                    history_dir = Path(settings.optimization.llm_history_dir)
+                    history_dir = Path("logs/llm/optimization")
                     save_optimization_history(student_lm, teacher_lm, history_dir)
 
     def format_response(response: OptimizeAgentResponse) -> int:
