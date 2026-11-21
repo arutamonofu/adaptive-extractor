@@ -1,0 +1,34 @@
+# Extraction Workflow Configuration
+# Autonomous configuration for batch extraction execution, API transport, and LLM model.
+
+extraction:
+  # ---------------------------------------------------------------------------
+  # 1. Execution & Logging Control
+  # ---------------------------------------------------------------------------
+  execution:
+    max_tool_iterations: 5        # Maximum tool iterations for ReAct extraction graph
+    enable_cache: false           # Enable LLM response caching during extraction run
+    save_llm_history: true        # Log complete LLM prompts and responses to logs/llm/extraction
+    structured_output_batch_size: 0    # Max records per structured output call (0 disables batching)
+    max_structured_output_batches: 10  # Max continuation batches for dense documents
+
+  # ---------------------------------------------------------------------------
+  # 2. API Client & Network Transport
+  # ---------------------------------------------------------------------------
+  api_client:
+    timeout: 600                  # Request timeout in seconds
+    max_retries: 5                # Maximum retries on network errors or rate limits
+    rate_limit_delay: 2.0         # Wait delay in seconds between consecutive requests
+
+  # ---------------------------------------------------------------------------
+  # 3. Extraction Model Configuration
+  # ---------------------------------------------------------------------------
+  model:
+    provider: "gemini"            # Provider: "gemini", "api" (OpenRouter/OpenAI), or "ollama"
+    model: "gemini-3.8-flash"
+    temperature: 0.0
+    top_p: 0.95
+    gemini:
+      max_output_tokens: 65536
+      thinking_level: "medium"
+      thinking_budget: null

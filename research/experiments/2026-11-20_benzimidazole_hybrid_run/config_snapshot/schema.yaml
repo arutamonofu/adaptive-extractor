@@ -1,0 +1,41 @@
+name: benzimidazole_antibiotics
+
+fields:
+  compound_id:
+    type: str
+    required: false
+  smiles:
+    type: str
+    required: false
+    validators:
+      - name: smiles
+        on_error: retry
+  target_type:
+    type: str
+    required: false
+  target_relation:
+    type: str
+    required: false
+  target_value:
+    type: str
+    required: false
+  target_units:
+    type: str
+    required: false
+  bacteria:
+    type: str
+    required: false
+
+compare_fields:
+  - compound_id
+  - smiles
+  - target_type
+  - target_relation
+  - target_value
+  - target_units
+  - bacteria
+
+float_tolerance: 0.05
+
+tools:
+  - name: assemble_markush_smiles

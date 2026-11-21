@@ -1,0 +1,54 @@
+{
+  "experiment": "2026-01-30_nanozymes_text_baseline_m1",
+  "date": "2026-01-30",
+  "semester": "1 (сен 2025 – янв 2026)",
+  "domain": "nanozymes",
+  "corpus": "ChemX: nanozymes",
+  "modality": "text",
+  "parser": "Docling (+ ручная правка таблиц)",
+  "splits": {
+    "train_pool": 20,
+    "val": 20,
+    "test": 20,
+    "manual_prompt_design": 2
+  },
+  "manual_agent_m1": {
+    "model": "mistral-small3.1-24b-128k:latest",
+    "temperature": 0.0,
+    "trials": 1,
+    "prompt": "nanoMINER (SOTA)",
+    "shots": [
+      {
+        "few_shot": 0,
+        "f1": 0.5627,
+        "precision": 0.5564,
+        "recall": 0.6207
+      },
+      {
+        "few_shot": 1,
+        "f1": 0.5811,
+        "precision": 0.56,
+        "recall": 0.6453,
+        "is_best": true
+      },
+      {
+        "few_shot": 2,
+        "f1": 0.5683,
+        "precision": 0.5253,
+        "recall": 0.6872
+      }
+    ]
+  },
+  "initial_mipro_run": {
+    "teacher_model": "gpt-oss:120b",
+    "teacher_temperature": 0.5,
+    "student_model": "mistral-small3.1-24b-128k:latest",
+    "student_temperature": 0.0,
+    "proposal_instructions": 10,
+    "proposal_few_shot_sets": 10,
+    "trials": 70,
+    "demos_in_prompt": 2,
+    "val_f1": 0.69,
+    "test_f1": 0.57
+  }
+}

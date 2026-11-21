@@ -1,0 +1,462 @@
+domain,iteration,split,doc_id,discrepancy_type,field,scope_detail,gt_value,extracted_value,verdict_code,verdict_raw,resolution_and_notes
+benzimidazole_antibiotics,iter_1,val,acsomega.2c06142,value,smiles,"Соединение 5b (обе строки: E. coli, S. aureus)","Raw: CC(C)NC1=NN=C(S1)C1=CC=C(C=C1)C1=NC2=C(N1)C=C(C)C(C)=C2
+Canon: Cc1cc2nc(-c3ccc(-c4nnc(NC(C)C)s4)cc3)[nH]c2cc1C","Raw: Cc1cc2nc(-c3ccc(-c4nnc(NCC)s4)cc3)[nH]c2cc1C
+Canon: CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1",both_wrong,Оба не правы,"Итог: Оба неправы (GT и экстрактор ошиблись в R-группе / SMILES). Исправленный SMILES для GT: C(C(C)C)NC1SC(C2C=CC(C3NC4C=C(C(=CC=4N=3)C)C)=CC=2)=NN=1 | Анализ: Оба неправы.
+
+GT Raw. The error — the R group:
+- Drawing: R = isobutyl (–CH₂–CH(CH₃)₂), i.e. the attachment point → CH₂ → CH(CH₃)₂.
+- SMILES: CC(C)N... = isopropyl (–CH(CH₃)₂). One CH₂ unit is missing.
+
+Predicted Raw:
+- Drawing: N-substituent R = isobutyl, –CH₂–CH(CH₃)₂
+- SMILES: CCN = ethylamino"
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,inclusion,row,Соединение 3 (E.coli),"compound_id = 3, bacteria = E.coli, MIC = 12,5 µg/mL",Отсутствует,gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: в GT ошибочно перенесено значение MIC = 12.5 µg/mL от соединения 4; для соединения 3 в статье числовое значение не указано, строку из GT нужно удалить. | Анализ: Прав экстрактор. Человек в GT ошибочно приписал значение MIC от соединения 4 соединению 3..
+
+• Факт в статье (стр. 1893): «Compound 3 had the best antibacterial activity and compound 4 was discovered to have greater action against Pseudomonas aeruginosa and Streptococcus pyogenes (25 µg/mL), as well as high inhibitory activity (12.5 µg/mL) against E. coli, than reference chloramphenicol (50 µg/mL)».
+
+• Причина расхождения: Грамматически часть сложного предложения после союза and («was discovered to have... as well as high inhibitory activity (12.5 µg/mL) against E. coli») относится к подлежащему второй клаузы — соединению 4. Для соединения 3 дана лишь качественная оценка без цифр."
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,inclusion,row,Соединение 4 (E. coli),Отсутствует,"compound_id = 4, bacteria = E. coli, MIC >= 12.5 µg/mL",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: пропуск в GT. Для соединения 4 (E. coli) в статье указано MIC = 12.5 µg/mL (без оператора '>='); строку нужно добавить в GT (target_relation = '=', target_value = 12.5). | Анализ: -//-"
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,inclusion,row,"Соединение 24 (Staphylococcus aureus, Escherichia coli)",Отсутствует,"Извлечены 2 строки: 
+
+- S. aureus (MIC >= 256 µg/mL)
+- E. coli (MIC >= 512 µg/mL)",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: пропуск в GT (вероятно, из-за дефекта рисунка Fig. 10). В тексте статьи для соединения 24 указаны MIC = 256 µg/mL (S. aureus) и 512 µg/mL (E. coli); строки нужно добавить в GT. | Анализ: Прав экстрактор (либо допустимое разночтение из-за дефекта рисунка в исходнике).
+
+• Факт в статье (стр. 1897): «As seen here, compound 28, MIC of 64 µg/mL, in comparison with MIC of compound 24, which was reported to be 256 and 512 µg/mL, against Staphylococcus aureus and Escherichia coli, correspondingly».
+
+• Причина расхождения: На схеме Fig.-10 (стр. 1898) авторы статьи допустили графическую опечатку в структуре скаффолда 24-28: при копировании потерялось бензольное кольцо бензимидазола (остался имидазольный цикл с экзоциклическими двойными связями), хотя в заголовке раздела, подписи к рисунку и для соседних серий (19-23 и 29-33) прямо указано, что это гибриды бензимидазола.
+
+• Вердикт: По тексту статьи 24 и 28 — целевые бензимидазолы с явно указанными MIC для обеих целевых бактерий. Человек в GT либо пропустил этот абзац на стыке страниц 1897–1898, либо отбраковал соединения из-за опечатки в графической формуле 24-28 на Fig.-10."
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,inclusion,row,"Соединение 28 (Staphylococcus aureus, Escherichia coli)",Отсутствует,"Извлечены 2 строки:
+
+- S. aureus (MIC >= 64 µg/mL)
+- E. coli (MIC >= 64 µg/mL)",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: пропуск в GT (вероятно, из-за дефекта рисунка Fig. 10). В тексте статьи для соединения 28 указан MIC = 64 µg/mL (S. aureus и E. coli); строки нужно добавить в GT. | Анализ: -//-"
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,value,target_relation,Все соединения статьи,Указано '=' для всех 10 строк,Извлечено '>=' для всех 14 строк,extractor_error,Ошибка экстрактора (GT прав),"Итог: Верно значение GT ('='): в тексте статьи операторы неравенства для MIC отсутствуют (предварительно, без ручной правки). | Анализ: Прав Ground Truth. Отсутствие операторов неравенства для MIC: Во всех фрагментах текста, где приводятся значения минимальной подавляющей концентрации (MIC) против Staphylococcus aureus и Escherichia coli, указаны либо точные числа, либо диапазоны, но нигде нет оператора."
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,value,target_value,Соединение 15 (S. aureus),"6,25 (µg/mL)",3.125 (µg/mL),gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: экстрактор прав (расхождение вызвано обрывом предложения в оригинале статьи, но в GT попало некорректное значение). | Анализ: Прав экстрактор, но само расхождение вызвано разночтением из-за опечатки (обрыва предложения) в оригинальном тексте статьи.
+
+В источнике 4 (стр. 1895) фрагмент текста выглядит так:
+
+«Compound 15, which had an oxadiazole nucleus with a p-chlorophenyl group at C3, and a 2-chloro-6-fluorophenyl at C2 of the benzimidazole ring, with MIC (1.6 µg/mL against E. faecalis, 3.125 µg/mL against S. aureus, 6.25 µg/mL.»
+
+Причина расхождения:
+
+1. Логика экстрактора (3.125 µg/mL): В тексте используется конструкция <значение> against <бактерия> (1.6 µg/mL against E. faecalis, затем 3.125 µg/mL against S. aureus). По грамматике этого перечисления значение 3.125 µg/mL относится к S. aureus, а после 6.25 µg/mL авторы статьи при верстке потеряли предлог against, название третьей бактерии и закрывающую скобку.
+
+2. Логика разметчика GT (6,25 µg/mL): Человек проинтерпретировал запятую после S. aureus как разделитель между названием штамма и его значением (посчитав, что 3.125 µg/mL также относится к E. faecalis или что структура записи сбилась в другую сторону).
+
+Поскольку синтаксический паттерн <MIC> against <pathogen> в предложении очевиден и однозначно связывает 3.125 µg/mL с S. aureus, результат экстрактора является более точным."
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,value,smiles / smiles_canonical,Соединение 15 (S. aureus),"Raw: C1=CC(F)=C(C2N(C)C3C(=CC(C4ON=C(C5C=CC(Cl)=CC=5)N=4)=CC=3)N=2)C(Cl)=C1
+Canon: Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21 (2-хлор-6-фторфенильный заместитель)","Raw: Cn1c(-c2cc(Cl)ccc2F)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21
+Canon: Cn1c(-c2cc(Cl)ccc2F)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21 (5-хлор-2-фторфенильный заместитель)",extractor_error,Ошибка экстрактора (GT прав),"Итог: GT прав, ошибка экстрактора. Подтверждённый SMILES для GT: C1C=C(F)C(C2=NC3=CC(=CC=C3N2C)C2=NC(C3=CC=C(Cl)C=C3)=NO2)=C(Cl)C=1 | Анализ: Прав Ground Truth."
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,format,smiles / smiles_canonical,"Соединения 34 и 35 (по 2 строки: E. coli, S. aureus)","Бензимидазольный цикл записан с атомом [N] без водорода (...C3=Nc4ccccc4[N]3...), из-за чего канонический SMILES не приводится к ароматическому виду
+34: C1=CC=C2C(=C1)N=C([N]2)C3=CC=C(C=C3)C4=CC=C(C=C4)N(\N=C\5C(=NN(C5=O)C6=CC=CC(=C6)Cl)C)[H]
+34 canon: CC1=NN(c2ccc(Cl)cc2)C(=O)C1=NNc1ccc(-c2ccc(C3=Nc4ccccc4[N]3)cc2)cc1
+
+35: C1=CC=C2C(=C1)N=C([N]2)C3=CC=C(C=C3)C4=CC=C(C=C4)N(\N=C\5C(=NN(C5=O)C6=CC=CC(=C6)Cl)C)[H]
+35 canon: CC1=NN(c2cccc(Cl)c2)C(=O)C1=NNc1ccc(-c2ccc(C3=Nc4ccccc4[N]3)cc2)cc1","Стандартная ароматическая запись бензимидазола с протонированным [nH] (...-c3nc4ccccc4[nH]3...)
+34: CC1=NN(c2ccc(Cl)cc2)C(=O)C1=NNc1ccc(-c2ccc(-c3nc4ccccc4[nH]3)cc2)cc1
+35: CC1=NN(c2cccc(Cl)c2)C(=O)C1=NNc1ccc(-c2ccc(-c3nc4ccccc4[nH]3)cc2)cc1",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: в GT нарушен формат SMILES по инструкции промпта; вариант экстрактора корректен. | Анализ: Прав экстрактор. Нарушение инструкции со стороны составителя GT (либо инструмента оптического распознавания структур, которым генерировали GT):
+
+- Промпт требует: «extract molecules as SMILES representations... It is imperative that you should not make up any information».
+- На рисунке в статье отчётливо нарисован атом водорода при азоте (NH). Потеря этого водорода и превращение нейтральной молекулы в азот-центрированный радикал [N] в GT искажает молекулярную структуру и молекулярную массу."
+benzimidazole_antibiotics,iter_1,val,RJC.2023.1638382,format,bacteria,"Штамм E. coli (соед. 3, 4, 34, 35) и соед. 24, 28","Написано без пробела после точки: 'E.coli' (3 строки), 'S. aureus' (7 строк)","Написано с пробелом: 'E. coli' (3 строки), 'S. aureus' (7 строк); для соед. 24 и 28 записаны полные названия 'Escherichia coli' (2 строки) и 'Staphylococcus aureus' (2 строки)",gt_error,Ошибка GT (экстрактор прав),"Итог: Опечатка в GT ('E.coli' без пробела); в статье и у экстрактора — 'E. coli' (предварительно, без ручной правки). | Анализ: Прав экстрактор.
+
+- Пробел в «E. coli»: В оригинальном тексте статьи (стр. 1894, 1898) название написано с пробелом (E. coli). Экстрактор точно воспроизвел источник. Ground Truth без пробела (E.coli) — это ошибка разметки, так как промпт не требовал удалять пробелы.
+- Полные названия для соед. 24 и 28: В тексте статьи (стр. 1898) для этих соединений явно указаны полные названия: «...against Staphylococcus aureus and Escherichia coli...». Промпт разрешает извлекать как полные имена, так и аббревиатуры («Record full names, abbreviations...»). Экстрактор честно достал то, что было в тексте, тогда как Ground Truth ошибочно ожидал сокращения, не предусмотренные инструкцией.
+
+Экстрактор строго следовал букве промпта и первоисточнику, в то время как Ground Truth содержит артефакты и скрытые правила нормализации."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2016.01.052,inclusion,row,"Штамм E. coli JM109 для 11 соединений: 13d, 13h, 14h, 14n, 14p, 15c, 15d, 15e, 15k, 16a, 18b","Для этих 11 соединений присутствуют только 3 штамма (E. coli DH52, MRSA N315, S. aureus ATCC25923), а строки с E. coli JM109 отсутствуют (для остальных 37 соединений статьи в GT есть все 4 штамма)","Извлечены все 4 штамма для всех 48 соединений, включая 11 строк с E. coli JM109: 13d (>16), 13h (>0.5), 14h (>256), 14n (>128), 14p (>128), 15c (>512), 15d (>128), 15e (>32), 15k (>256), 16a (>32), 18b (>8)",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: пропуск в GT. Штамм E. coli JM109 относится к целевому виду Escherichia coli; 11 строк нужно добавить в GT. | Анализ: Прав Экстрактор. 
+
+- Обоснование: В промпте дана четкая инструкция: «Extract only measurements with Staphylococcus aureus and Escherichia coli» и «Do not skip any entries». Штамм E. coli JM109 является разновидностью Escherichia coli, поэтому данные по нему подлежали обязательному извлечению наравне с E. coli DH52. 
+- Почему так записано в Ground Truth (GT): Отсутствие 11 строк в GT — это ошибка ручной разметки (human curation error). Тот факт, что для остальных 37 соединений штамм E. coli JM109 в GT присутствует, доказывает, что разметчик считал его валидным объектом для извлечения. Пропуск именно этих 11 соединений, скорее всего, произошел из-за случайного сбоя при ручном переносе данных из PDF-таблицы в датасет (например, ошибка выравнивания колонок, случайное удаление строк или визуальный сбой при копировании). GT нарушил строгое правило «Do not skip any entries»."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2016.01.052,value,target_relation,Все соединения и штаммы статьи,Указано '=' для всех 181 строк,Извлечено '>' для всех 192 строк,extractor_error,Ошибка экстрактора (GT прав),"Итог: В Table 1 указаны точные значения без знаков '>'; верно значение GT '=' (предварительно, без ручной правки). | Анализ: Прав Ground Truth. В Таблице 1 нет знаков > ни в одной ячейке (везде указаны точные значения со стандартным отклонением ± SD, например 0.5 ± 0.05 для 13h или 8 ± 1.15 для 18b)."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2016.01.052,value,target_value,"Соединение 14m, штамм MRSA","0,125 ± 0,01 (µg/mL)",1 (µg/mL),gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка разметки в GT. По Table 1 (стр. 165) для 14m (MRSA) MIC = 1 µg/mL, как извлёк экстрактор. | Анализ: Прав экстрактор, в эталоне (GT) допущена ошибка разметки.
+
+Обоснование по тексту статьи (Table 1, стр. 165): Для соединения 14m против штамма MRSA указано значение MIC: 1 ± 0.12 (µg/mL). Экстрактор корректно извлек точечное значение 1 (опуская стандартное отклонение в соответствии с требованием промпта к target_value: ""The exact numerical value of the measurement"").   Значение 0.125 ± 0.01 (µg/mL) против MRSA относится к соединениям 13f, 15a, 15f и 15m. Вероятнее всего, при составлении GT человек перепутал строки 14m и 15m."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2016.01.052,format,target_value,Все соединения и штаммы статьи,"Значения записаны со стандартным отклонением (например: '0,5 ± 0,05', '4 ± 0,58', '16 ± 1,73')","Извлечены только основные/средние значения без стандартного отклонения (например: '0.5', '4', '16')",gt_error,Ошибка GT (экстрактор прав),"Итог: Формат экстрактора точнее соответствует инструкции промпта («exact numerical value» без ± SD) (предварительно, без ручной правки). | Анализ: Экстрактор правее. Требование промпта к target_value: ""The exact numerical value of the measurement""."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2016.01.052,format,bacteria,Штаммы S. aureus и MRSA (все 48 соединений),"Развернутые описания со штаммом: 'MRSA, Methicillin-Resistant Staphylococcus aureus N315' (48 строк) и 'S. aureus, Staphylococcus aureus ATCC25923' (48 строк)",Краткие названия: 'MRSA' (48 строк) и 'S. aureus' (48 строк) (названия 'E. coli DH52' и 'E. coli JM109' совпадают),both_valid,Оба правы / допустимо,"Итог: Допустимое разночтение формата: промпт разрешает как полные названия со штаммами, так и аббревиатуры (предварительно, без ручной правки). | Анализ: Неоднозначность инструкции в промпте: Формулировка Record full names, abbreviations, or any related taxonomic identifiers с союзом or (или) разрешает записывать как полные названия со штаммами, так и только аббревиатуры. Кроме того, требование maintain the association... with the specific bacterial strain вступает в противоречие с разрешением использовать простые сокращения (abbreviations)."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2016.01.052,format,smiles / smiles_canonical,"8 соединений: 13b, 13c, 13d, 13e, 13g, 13h, 13i, 13j",Таутомер бензимидазола с заместителем в положении 5 относительно [nH]: ...Cc4nc5ccc(X)cc5[nH]4...,"Таутомер бензимидазола с заместителем в положении 6 относительно [nH]: ...Cc4nc5cc(X)ccc5[nH]4... (структурно та же молекула при учете таутомерии, но разная строка smiles_canonical без нормализации таутомеров)",both_valid,Оба правы / допустимо,"Итог: Подтверждено: допустимое расхождение из-за прототропной таутомерии 5/6-замещённого NH-бензимидазола; обе записи химически эквивалентны. | Анализ: Оба правы.
+
+Причина расхождения: Внутренняя неоднозначность самой статьи, обусловленная прототропной таутомерией NH-незамещенного бензимидазольного цикла в растворе (положения 5 и 6 физически неразличимы из-за быстрой миграции протона между атомами азота N-1 и N-3)"
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2020.112996,inclusion,row,"12 клинических изолятов MRSA и VRSA для 4 соединений (8b, 8c, 8h, 8i)","Включены только 2 стандартных референсных штамма (E. coli ATCC 25922, S. aureus ATCC 29213) для 15 соединений — всего 30 строк","Дополнительно извлечены 48 строк (4 соед. × 12 штаммов) для клинических изолятов: MRSA (NR 100, NR 119, NR 10129, NR 10198, NR 10192, NR 10186, NR 10193, NR 10194, NR 10191) и VRSA (VRS1, VRS4, VRS12)",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: неполное извлечение в GT (false negative). Клинические изоляты MRSA и VRSA относятся к S. aureus и должны быть включены в GT. | Анализ: Прав экстрактор (с точки зрения описанного расхождения по штаммам MRSA и VRSA), а составитель эталона (GT) допустил ошибку неполного извлечения (false negative).
+
+Обоснование по тексту статьи и правилам промпта:
+
+1. Таксономическая принадлежность: MRSA (метициллин-резистентный Staphylococcus aureus) и VRSA (ванкомицин-резистентный Staphylococcus aureus) являются штаммами целевого вида Staphylococcus aureus. В разделе 2.2.3 («Determination of MIC against MDR-S. aureus including VRSA») прямо указано, что соединения 8b, 8c, 8h и 8i тестировались против клинических изолятов этого вида (Таблица 4).
+
+2. Требования промпта к полноте и формату штаммов:
+• Инструкция обязывает извлекать все измерения для S. aureus без пропусков («Extract only measurements with Staphylococcus aureus and Escherichia coli... Do not skip any entries»).
+• Промпт явно предписывает учитывать различные штаммы одного вида как отдельные записи и фиксировать их аббревиатуры и идентификаторы: «Record full names, abbreviations, or any related taxonomic identifiers... Make sure to maintain the association between each SMILES notation and its corresponding MIC value along with the specific bacterial strain it pertains to».
+
+3. Причина ошибки в GT: Разметчик ограничился Таблицей 1 (первичный скрининг 15 соединений на стандартных референсных штаммах ATCC) и проигнорировал Таблицу 4, где приведены МИК для 4 отобранных соединений на 12 резистентных изолятах S. aureus.
+
+Нюанс (почему в широком смысле ошиблись оба):
+Если оценивать всю статью строго по букве промпта («extract information about ALL structures of benzimidazole antibiotics»), то и человек, и экстрактор пропустили соединение IV на Рисунке 1 (стр. 2). Это производное бензимидазола, для которого приведена полная структура и указано значение MIC: 2 µg/mL E. coli (соединение V на том же рисунке тестировалось только на M. tuberculosis и под фильтр бактерий не попадает). Однако в рамках вопроса о Таблице 4 действия экстрактора полностью корректны."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2020.112996,inclusion,row,"Соединение 8h, штамм S. aureus ATCC 29213","1 строка для пары (8h, S. aureus ATCC 29213) со значением MIC = 4 µg/mL","2 строки для пары (8h, Staphylococcus aureus ATCC 29213): первая со значением MIC = 4 µg/mL, вторая со значением MIC = 8 µg/mL",both_valid,Оба правы / допустимо,"Итог: Подтверждено: внутреннее противоречие в исходной статье (два разных значения для 8h / S. aureus ATCC 29213); вариант экстрактора формально соответствует инструкции. | Анализ: Разночтение, вызванное внутренним противоречием в исходной статье (с формальным преимуществом экстрактора согласно инструкции промпта).
+
+В статье для пары (8h, S. aureus ATCC 29213) приведены два взаимоисключающих значения MIC в разных таблицах:
+
+1. MIC = 4 µg/mL: указано в Таблице 1 (стр. 4), Таблице 3 (стр. 5), на Рис. 3 (стр. 5) и в основном тексте (стр. 3, 4: «Compounds 8d, 8h and 8i exhibited equipotent inhibitory activity with MIC of 4 µg/mL»).
+2. MIC = 8 µg/mL: указано в первой строке Таблицы 4 (стр. 6) для референсного штамма MSSA S. aureus ATCC 29213 (при этом для соединения 8b там же указано 4 µg/mL вместо 8 µg/mL из Таблицы 1 — авторы статьи перепутали значения при переносе данных).
+
+Оценка сторон:
+
+• Человек (GT): разрешил коллизию экспертно, взяв истинное значение из основного скрининга (4 µg/mL) и проигнорировав опечатку авторов в Таблице 4.
+• Экстрактор: строго выполнил требования промпта («extract and compile each unique set of 'compound_id', 'smiles', 'target_value', and 'bacteria' information» и «Do not skip any entries»). Поскольку кортежи с target_value = 4 и target_value = 8 уникальны и оба явно присутствуют в таблицах статьи, извлечение обеих записей формально безошибочно."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2020.112996,format,bacteria,Референсные штаммы E. coli ATCC 25922 и S. aureus ATCC 29213 (все 15 соединений),"Сокращенные названия рода: 'E. coli ATCC 25922', 'S. aureus ATCC 29213'","Полные биномиальные названия: 'Escherichia coli ATCC 25922', 'Staphylococcus aureus ATCC 29213'",both_valid,Оба правы / допустимо,"Итог: Допустимое разночтение формата: промпт разрешает как полные названия со штаммами, так и аббревиатуры (предварительно, без ручной правки). | Анализ: Неоднозначность инструкции в промпте: Формулировка Record full names, abbreviations, or any related taxonomic identifiers с союзом or (или) разрешает записывать как полные названия со штаммами, так и только аббревиатуры. Кроме того, требование maintain the association... with the specific bacterial strain вступает в противоречие с разрешением использовать простые сокращения (abbreviations)."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2020.112996,format,smiles / smiles_canonical,"3 соединения: 8a, 8f, 8g (по 2 строки на соединение)",Таутомер бензимидазола: положение [nH] дает канонический вид ...c4nc5ccc(X)cc5[nH]4...,Таутомер бензимидазола: положение [nH] дает канонический вид ...c4nc5cc(X)ccc5[nH]4... (структурно та же молекула при учете таутомерии),both_valid,Оба правы / допустимо,"Итог: Подтверждено: структуры химически идентичны (ошибки нет ни у одной стороны, вариант экстрактора точнее по формату). | Анализ: Прав Экстрактор (ошибки нет у обеих сторон, но Экстрактор точнее).
+
+Для ячейки таблицы:
+
+- Вердикт: Прав Экстрактор (расхождение не является ошибкой).
+- Причина: Нарушения инструкции нет — структуры химически идентичны из-за прототропной таутомерии бензимидазола (5- и 6-изомеры равновесны). Вариант Экстрактора предпочтительнее: он строго следует номенклатуре ИЮПАК из экспериментальной части статьи (5-положение заместителя, меньший локант), использует каноническую ароматическую нотацию SMILES и стандартную цвиттер-ионную форму нитрогруппы."
+benzimidazole_antibiotics,iter_1,val,s41598-022-21435-6,inclusion,row,Соединение 7h (E. coli ATCC 25922),"compound_id = 7h, E. coli Escherichia coli ATCC 25922, MIC = 0,001 µg/mL",Отсутствует,gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка фильтрации в GT. Соединение 7h является производным имидазола (без бензимидазольного ядра) и должно быть исключено из GT. | Анализ: Прав экстрактор, а в эталоне (GT) допущена ошибка фильтрации по химическому классу соединения.
+
+Обоснование:
+
+1. Требование промпта: В инструкции явно задано ограничение на извлечение только производных бензимидазола («extract information about ALL structures of benzimidazole antibiotics... For each benzimidazole antibiotic extract the following information»).
+2. Структура соединения 7h: Согласно тексту статьи (раздел Design and synthesis, стр. 3) и схеме синтеза (Figure 3, стр. 4), соединения серий 7a–k и 8a–k являются производными имидазола, а не бензимидазола:
+
+«the salts QIBS derived from imidazole 7a–k (with one methylene group as linker) and 8a–k (with two methylene groups as linker), respectively the salts QIBS derived from benzimidazole 11a–k (with one CH2 group) and 12a–k (with two CH2 groups)».
+
+3. Данные в таблице: В Таблице 6 (стр. 9) действительно приведено значение MIC = 0.001 µg/mL для соединения 7h против E. coli ATCC 25922. Однако, поскольку в молекуле 7h отсутствует бензимидазольное ядро (конденсированная система бензольного и имидазольного колец), оно не подпадает под критерии целевого класса промпта.
+
+Человек-разметчик механически перенес все строки из Таблицы 6, ориентируясь на общий заголовок («hybrid quinoline-imidazole/benzimidazole compounds»), и не проверил химическую структуру серии 7, тогда как экстрактор корректно отфильтровал имидазольное производное."
+benzimidazole_antibiotics,iter_1,val,s41598-022-21435-6,value,bacteria (код штамма ATCC),"Штаммы S. aureus для соединений 11g, 11i, 12h (соед. 11h совпадает — ATCC 25923)",Указаны разные коды штаммов для каждого соединения: 11g -> ATCC 25926; 11i -> ATCC 25925; 12h -> ATCC 25924 (для 11h -> ATCC 25923),"Для всех 4 соединений (11g, 11h, 11i, 12h) указан единый штамм: Staphylococcus aureus ATCC 25923",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: артефакт автозаполнения в GT (25923 → 25924/25925/25926). Во всей статье тестировался только Staphylococcus aureus ATCC 25923; коды в GT нужно исправить. | Анализ: Прав экстрактор. В эталоне (GT) — ошибка человека.
+
+Обоснование по тексту статьи:
+
+1. Единственный штамм S. aureus во всей работе: В статье тестировался только один штамм золотистого стафилококка — Staphylococcus aureus ATCC 25923. Коды ATCC 25924, ATCC 25925 и ATCC 25926 в тексте документа не встречаются ни разу.
+
+2. Данные в Table 6 (стр. 9): Таблица, из которой извлекаются значения MIC для соединений 11h, 12h, 11i, 11g, объединяет их в одну общую строку S. aureus, а в подписи к таблице явно расшифровано: «S. aureus Staphylococcus. aureus ATCC 25923, E. coli Escherichia coli ATCC 25922».
+
+3. Раздел Experimental (стр. 15–16): В описании методики определения MIC (Broth microdilution method) также зафиксирован исключительно штамм Staphylococcus aureus ATCC 25923.
+
+Причина ошибки в GT:
+Типичный артефакт ручной разметки в табличном редакторе (Excel / Google Sheets). Разметчик вписал для первой строки (11h) корректный штамм ATCC 25923, а затем протянул ячейку вниз (autofill) на строки 12h, 11i, 11g без зажатия клавиши копирования, из-за чего табличный процессор автоматически инкрементировал числовой суффикс строки на единицу (25923 → 25924 → 25925 → 25926)."
+benzimidazole_antibiotics,iter_1,val,s41598-022-21435-6,format,bacteria (структура строки),Все соединения статьи,Дублирование сокращенного и полного названия (с точкой внутри второго названия у S. aureus): 'E. coli Escherichia coli ATCC 25922' и 'S. aureus Staphylococcus. aureus ATCC ...',Стандартизованное полное название без повторов: 'Escherichia coli ATCC 25922' и 'Staphylococcus aureus ATCC 25923',extractor_error,Ошибка экстрактора (GT прав),"Итог: Экстрактор избыточно переформатировал строку; верно написание из GT (предварительно, без ручной правки). | Анализ: Прав Ground Truth, экстрактор самостоятельно преукрасил текст."
+benzimidazole_antibiotics,iter_1,val,j.ejmech.2019.03.026,format,bacteria,Все 27 соединений статьи (13–39),"Сокращенные названия: 'E. coli' (27 строк), 'S. aureus' (27 строк)","Полные биномиальные названия: 'Escherichia coli' (27 строк), 'Staphylococcus aureus' (27 строк)",extractor_error,Ошибка экстрактора (GT прав),"Итог: Экстрактор самостоятельно расширил сокращения; верно написание из GT (предварительно, без ручной правки). | Анализ: Прав Ground Truth, экстрактор самостоятельно преукрасил текст."
+benzimidazole_antibiotics,iter_1,train,1570180811666140725185713,format,smiles / smiles_canonical,"5 соединений: 4b, 4c, 4d, 4e, 4g (по 2 строки на соединение: E. coli, S. aureus — 10 строк)","Таутомер бензимидазола с другим положением [nH] (заместитель в 5/6-положении):
+• 4b: ...c3nc4ccc(Cl)cc4[nH]3...
+• 4c: Fc1ccc2nc(...)[nH]c2c1
+• 4d: Cc1ccc2nc(...)[nH]c2c1
+• 4e: O=C(c1ccccc1)c1ccc2nc(...)[nH]c2c1
+• 4g: ...c3nc4ccc(C(=O)c5ccccc5)cc4[nH]3...","Альтернативный таутомер бензимидазола (структурно та же молекула при учёте прототропной таутомерии):
+• 4b: ...c3nc4cc(Cl)ccc4[nH]3...
+• 4c: Fc1ccc2[nH]c(...)nc2c1
+• 4d: Cc1ccc2[nH]c(...)nc2c1
+• 4e: O=C(c1ccccc1)c1ccc2[nH]c(...)nc2c1
+• 4g: ...c3nc4cc(C(=O)c5ccccc5)ccc4[nH]3...",both_valid,Оба правы / допустимо,"Итог: Прототропная таутомерия 5/6-замещённого NH-бензимидазола; оба варианта химически эквивалентны (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны (не ошибка экстрактора).
+
+Экстрактор строго следовал инструкции промпта («identify figures that contain structures... match scaffolds and residues... and extract molecules as SMILES») и собрал SMILES по Scheme 1, тогда как Ground Truth строился по текстовым IUPAC-названиям из экспериментальной части. Физически в растворе для N-незамещенных бензимидазолов 5- и 6-таутомеры находятся в быстром прототропном равновесии и представляют одно и то же вещество (канонизация без нормализации таутомеров типа InChI или rdkit.Chem.MolStandardize.TautomerEnumerator дает разные строки SMILES)."
+benzimidazole_antibiotics,iter_1,train,1570180811666140725185713,format,bacteria,"Все 11 соединений: 4a–4h, 5a–5c (22 строки: E. coli, S. aureus)","Сокращённые названия: 'E. coli' (11 строк), 'S.aureus' без пробела после точки (11 строк)","Полные биномиальные названия: 'Escherichia coli' (11 строк), 'Staphylococcus aureus' (11 строк)",both_valid,Оба правы / допустимо,"Итог: Допустимое разночтение: GT взял сокращения из шапки таблицы, экстрактор нормализовал до полных названий (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны (не ошибка экстрактора).
+
+Ground Truth взял строку буквально из шапки таблицы (S.aureus, E. coli), а Экстрактор нормализовал запись до полного биномиального названия из текста статьи и самого условия промпта (Staphylococcus aureus, Escherichia coli)."
+benzimidazole_antibiotics,iter_1,train,acs.jafc.1c02545,value,compound_id,"Соединение 9c vs 9a (3 строки: MRSA N315, S. aureus, S. aureus ATCC 29213)",9c',9a',both_valid,Оба правы / допустимо,"Итог: Опечатка авторов статьи (в Table 1 вместо 9a напечатано 9c); оба варианта объяснимы источником (предварительно, без ручной правки). | Анализ: GT: прав формально (буквально по Table 1). Экстрактор: прав по Scheme 2.
+
+Опечатка авторов статьи: на Scheme 2 заявлены 9a и 9b, а в Table 1 вместо 9a напечатано 9c (у 9a в GT осталась 1 строка для E. coli, а 3 штамма S. aureus отнесены к 9c)."
+benzimidazole_antibiotics,iter_1,train,acs.jafc.1c02545,value,target_relation,Все 29 соединений статьи (112 строк),Указано '=' для всех 112 строк,Извлечено '>' для всех 112 строк,extractor_error,Ошибка экстрактора (GT прав),"Итог: Ошибка экстрактора (залипание на операторе '>'); в Table 1 операторы неравенства отсутствуют, верно '=' (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: не прав.
+
+Залипание на операторе '>' при декодировании; в Table 1 операторы неравенства отсутствуют (по инструкции должно быть '='). Детектор sanity не поймал из-за единичного качественного '>' в тексте (Lipophilic > hydrophilic)."
+benzimidazole_antibiotics,iter_1,train,acs.jafc.1c02545,value,smiles / smiles_canonical,"12 соединений (48 строк): 5a–5d, 6a–6c, 7a–7e (без учёта таутомера 3e)","Каноническая форма с [n+] в бербериновом ядре (например, COc1cc(-c2...)c2cc3[n+](cc2c1O)...)","5a–5d: кекуле-подобная форма =CC=[N+]1CC...; 6a–6c, 7a–7e: перестановка OMe/OH на кольце (COc1ccc2c(-c3...)c3[n+](cc2c1O)...)",extractor_error,Ошибка экстрактора (GT прав),"Итог: Ошибка экстрактора в региоизомерии (перестановка OMe/OH у 6a–6c, 7a–7e) и кекуле-форме; верен GT (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: не прав.
+
+Все 112 SMILES валидны по RDKit и содержат противоион .[Cl-], орто-изомер 7a (Cc3ccccc3F) исправлен; отличие вызвано региоизомерией (перестановка OMe/OH на кольце для 6a–6c, 7a–7e) и кекуле-ароматизацией берберинового ядра (5a–5d) в Scheme_1/Scheme_2."
+benzimidazole_antibiotics,iter_1,train,acs.jafc.1c02545,format,smiles / smiles_canonical,"Соединение 3e (4 строки: E. coli, MRSA N315, S. aureus, S. aureus ATCC 29213)",Таутомер бензимидазола: ...nc2... [nH]c2c1.[Cl-],Альтернативный таутомер: ...[nH]c(...)nc2c1.[Cl-],both_valid,Оба правы / допустимо,"Итог: Прототропная таутомерия 5/6-метоксибензимидазола; обе записи химически эквивалентны (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны (не ошибка экстрактора).
+
+Прототропная таутомерия 5/6-метоксибензимидазола (структурно идентичные молекулы)."
+benzimidazole_antibiotics,iter_1,train,acs.jafc.1c02545,format,target_units,56 строк (все строки S. aureus / S. aureus ATCC 29213),µmol/mL' (56 строк),mM' (56 строк; 1 µmol/mL = 1 mM),gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: в Table 1 и тексте статьи указаны единицы mM (1 µmol/mL = 1 mM); в GT единицы нужно исправить на mM. | Анализ: GT: не прав. Экстрактор: прав.
+
+В Table 1 и тексте статьи единицы указаны исключительно как mM (1 µmol/mL = 1 mM)."
+benzimidazole_antibiotics,iter_1,train,acs.jafc.1c02545,format,target_value,"5 соединений (10 строк: 3a, 4a, 5a, 5d, 6b, 7a)","Без завершающего нуля: '0,27', '0,51', '0,03', '0,25', '0,47', '0,22'","С завершающим нулём как в Table 1: '0,270', '0,510', '0,030', '0,250', '0,470', '0,220'",both_valid,Оба правы / допустимо,"Итог: Числовые значения полностью эквивалентны; экстрактор сохранил точность до 3 знаков из Table 1 (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны.
+
+Числовые значения полностью эквивалентны; экстрактор сохранил точность до 3 знаков из Table 1."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,inclusion,row,"Серия 98a–98i (9 строк, штамм 'S. aureus + 50% human serum')","9 строк для соединений 98a–98i со штаммом 'S. aureus + 50% human serum' (MIC: 0,125–4 µg/mL)",Отсутствуют (для 98a–98i извлечены только строки с 'S. aureus' без сыворотки),extractor_error,Ошибка экстрактора (GT прав),"Итог: Ошибка экстрактора (пропуск колонки Sa + HS из Table 11); эти 9 строк в GT верны (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: не прав.
+
+В Table 11 (стр. 20) приведены две отдельные колонки: Sa (S. aureus) и Sa + HS (S. aureus + 50% human serum). Промпт требует извлекать все уникальные измерения для S. aureus без пропусков («If the article references multiple samples or variations... Do not skip any entries»)."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,inclusion,row,"Соединение 35e (2 строки: E. coli, S. aureus)",Отсутствует,"Извлечены 2 строки: E. coli (MIC = 64 µg mL⁻¹), S. aureus (MIC = 64 µg mL⁻¹)",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: пропуск в GT. На стр. 7 указана активность 64 µg mL⁻¹ для 35e против всех тестируемых штаммов, включая E. coli и S. aureus; строки нужно добавить в GT. | Анализ: GT: не прав. Экстрактор: прав.
+
+На стр. 7 указано: «Compound 35e showed good activity (64 µg mL⁻¹) against all tested bacterial strains [64]» (список штаммов предложением ранее: S. aureus, B. subtilis, E. coli, P. aeruginosa). Структура 35e однозначно задана на Scheme 10 (стр. 8, Ar = 4-fluorophenyl)."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,target_value,"Соединение 67 (S. aureus, 1 строка)","0,68 (µg/mL)","0,98 (µg/mL)",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка в GT. По тексту на стр. 12 для соединения 67 против S. aureus MIC = 0.98 µg mL⁻¹. | Анализ: GT: не прав. Экстрактор: прав.
+
+На стр. 12 в тексте: «Compound 67 showed the most potent inhibition activity against four bacteria strains (with MIC of 0.98, 0.49, 0.98, 0.98 µg mL⁻¹, respectively, against E. coli, P. aeruginosa, B. subtilis and S. aureus)». Для S. aureus значение равно 0.98."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,smiles / smiles_canonical,"Серия 31a–31c, 32a–32c (6 соединений × 2 бактерии = 12 строк: Escherichia coli (MTCC-723), Staphylococcus aureus (ATCC-29513))","Заместители (Cl, Me, Ph) отнесены к N1-положению пиразолина / индольному бензольному кольцу с другой локализацией двойной связи:
+
+• 31a:
+  smiles_canonical: ClN1N=C(c2c(-c3ccccc3)[nH]c3ccccc23)CC1c1nc2ccccc2[nH]1
+  smiles: ClN1N=C(CC1C1=NC2=CC=CC=C2N1)C1=C(NC2=C1C=CC=C2)C1=CC=CC=C1
+• 31b:
+  smiles_canonical: CN1N=C(c2c(-c3ccccc3)[nH]c3ccccc23)CC1c1nc2ccccc2[nH]1
+  smiles: CN1N=C(CC1C1=NC2=CC=CC=C2N1)C1=C(NC2=C1C=CC=C2)C1=CC=CC=C1
+• 31c:
+  smiles_canonical: c1ccc(-c2[nH]c3ccccc3c2C2=NNC(c3nc4ccccc4[nH]3)C2)cc1
+  smiles: C1C(NN=C1C1=C(NC2=C1C=CC=C2)C1=CC=CC=C1)C1=NC2=CC=CC=C2N1
+• 32a:
+  smiles_canonical: ClN1N=C(c2c(-c3ccccc3)[nH]c3ccc(-c4ccccc4)cc23)CC1c1nc2ccccc2[nH]1
+  smiles: ClN1N=C(CC1C1=NC2=CC=CC=C2N1)C1=C(NC2=C1C=C(C=C2)C1=CC=CC=C1)C1=CC=CC=C1
+• 32b:
+  smiles_canonical: CN1N=C(c2c(-c3ccccc3)[nH]c3ccc(-c4ccccc4)cc23)CC1c1nc2ccccc2[nH]1
+  smiles: CN1N=C(CC1C1=NC2=CC=CC=C2N1)C1=C(NC2=C1C=C(C=C2)C1=CC=CC=C1)C1=CC=CC=C1
+• 32c:
+  smiles_canonical: c1ccc(-c2ccc3[nH]c(-c4ccccc4)c(C4=NNC(c5nc6ccccc6[nH]5)C4)c3c2)cc1
+  smiles: C1C(NN=C1C1=C(NC2=C1C=C(C=C2)C1=CC=CC=C1)C1=CC=CC=C1)C1=NC2=CC=CC=C2N1","Заместители перенесены между индольным циклом и N1 пиразолина:
+
+• 31a:
+  smiles_canonical: Clc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3)c2c1
+  smiles: Clc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3)c2c1
+• 31b:
+  smiles_canonical: Cc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3)c2c1
+  smiles: Cc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3)c2c1
+• 31c:
+  smiles_canonical: c1ccc(-c2[nH]c3ccccc3c2C2CC(c3nc4ccccc4[nH]3)=NN2)cc1
+  smiles: c1ccc(-c2[nH]c3ccccc3c2C2CC(c3nc4ccccc4[nH]3)=NN2)cc1
+• 32a:
+  smiles_canonical: Clc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3c3ccccc3)c2c1
+  smiles: Clc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3c3ccccc3)c2c1
+• 32b:
+  smiles_canonical: Cc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3c3ccccc3)c2c1
+  smiles: Cc1ccc2[nH]c(-c3ccccc3)c(C3CC(c4nc5ccccc5[nH]4)=NN3c3ccccc3)c2c1
+• 32c:
+  smiles_canonical: c1ccc(-c2[nH]c3ccccc3c2C2CC(c3nc4ccccc4[nH]3)=NN2c2ccccc2)cc1
+  smiles: c1ccc(-c2[nH]c3ccccc3c2C2CC(c3nc4ccccc4[nH]3)=NN2c2ccccc2)cc1",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: в самой статье (Scheme 9, стр. 6) допущена опечатка авторов; экстрактор корректно воспроизвёл структуру, GT требует исправления. | Анализ: GT: не прав. Экстрактор: прав.
+
+Разночтение вызвано опечаткой автора обзора на Scheme 9 (стр. 6): в исходных индолах 29a–c и халконах 30a–c заместитель на индоле обозначен как R (Cl, CH3, H), а в реагенте R¹NHNH₂ заместитель при гидразине — R¹ (H для 31a–c, Ph для 32a–c). Однако на картинке финального продукта 31/32 автор перепутал метки местами (написал R¹ на индоле и R на азоте пиразолина). Кроме того, в 29–32 пиррольное кольцо индола отрисовано с двумя двойными связями (невозможная валентность азота). Экстрактор исправил обе ошибки схемы по химической логике синтеза (оставив R на индоле, R¹ на пиразолине и скорректировав локализацию C=N в пиразолине по механизму циклизации халкона 30). GT буквально перенёс опечатки схемы, получив нереализуемые N-хлор/метилпиразолины и 5-фенилиндолы."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,smiles / smiles_canonical,"Серия 61a, 61b, 61c (3 соединения, E. coli — 3 строки)","Метиленовый линкер (-CH2-Ar, бензильный фрагмент):
+
+• 61a (C32H25N7):
+  smiles_canonical: Cc1ccc(-n2nc(C)c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c2Cc2ccccc2)cc1
+  smiles: CC1=CC=C(C=C1)N2C(=C(C(=N2)C)C3=C(C#N)C4=NC5=C(C=CC(=C5)C)N4C(=C3C#N)N)CC6=CC=C(C=C6)
+• 61b (C33H27N7):
+  smiles_canonical: Cc1ccc(Cc2c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c(C)nn2-c2ccc(C)cc2)cc1
+  smiles: CC1=NN(C(CC2=CC=C(C)C=C2)=C1C1=C(C#N)C2=NC3=C(C=CC(C)=C3)N2C(N)=C1C#N)C1=CC=C(C)C=C1
+• 61c (C32H24ClN7):
+  smiles_canonical: Cc1ccc(-n2nc(C)c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c2Cc2ccc(Cl)cc2)cc1
+  smiles: CC1=NN(C(CC2=CC=C(Cl)C=C2)=C1C1=C(C#N)C2=NC3=C(C=CC(C)=C3)N2C(N)=C1C#N)C1=CC=C(C)C=C1","Кислородный линкер (-O-Ar, фенокси-фрагмент):
+
+• 61a (C31H23N7O):
+  smiles_canonical: Cc1ccc(-n2nc(C)c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c2Oc2ccccc2)cc1
+  smiles: Cc1ccc(-n2nc(C)c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c2Oc2ccccc2)cc1
+• 61b (C32H25N7O):
+  smiles_canonical: Cc1ccc(Oc2c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c(C)nn2-c2ccc(C)cc2)cc1
+  smiles: Cc1ccc(-n2nc(C)c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c2Oc2ccc(C)cc2)cc1
+• 61c (C31H22ClN7O):
+  smiles_canonical: Cc1ccc(-n2nc(C)c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c2Oc2ccc(Cl)cc2)cc1
+  smiles: Cc1ccc(-n2nc(C)c(-c3c(C#N)c(N)n4c(nc5cc(C)ccc54)c3C#N)c2Oc2ccc(Cl)cc2)cc1",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: в самой статье (Scheme 15, стр. 11) допущена графическая опечатка авторов; экстрактор прав, GT требует исправления. | Анализ: GT: не прав. Экстрактор: прав.
+
+Разночтение из-за графической опечатки на Scheme 15 (стр. 11): в интермедиатах 59a–59c нарисован кислородный мостик (-O-C₆H₄R, полученный реакцией 58 с фенолом HO-C₆H₄R, в списке литературы [69] статья называется «...derivatives of aryloxypyrazole...»), но в финальной структуре 61a–61c на схеме пропущена буква O на изломе связи, из-за чего она выглядит как метиленовая группа (-CH₂-). GT считал рисунок 61a–c буквально (с -CH₂-), а Экстрактор сохранил -O- из прекурсора 59a–c."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,smiles / smiles_canonical,"Соединение 39i (2 строки: Escherichia coli ATCC 25922, Staphylococcus aureus ATCC 9144)","Циклопентилизоцианатный заместитель при пиразолоне:
+
+• 39i (C23H21N7O2):
+  smiles_canonical: CC1=NN(C2CCC(N=C=O)C2)C(=O)C1=NNc1ccc(-c2nc3ccccc3[nH]2)cc1
+  smiles: CC1=NN(C2CCC(C2)N=C=O)C(=O)\C1=N/NC1=CC=C(C=C1)C1=NC2=CC=CC=C2N1","Изоникотиноильный заместитель при пиразолоне:
+
+• 39i (C23H17N7O2):
+  smiles_canonical: CC1=NN(C(=O)c2ccncc2)C(=O)C1=NNc1ccc(-c2nc3ccccc3[nH]2)cc1
+  smiles: CC1=NN(C(=O)c2ccncc2)C(=O)C1=NNc1ccc(-c2nc3ccccc3[nH]2)cc1",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка в GT (брутто-формула C₅H₄NCO на Scheme 11 ошибочно прочитана в GT; экстрактор корректно собрал изоникотиноил). | Анализ: GT: не прав. Экстрактор: прав.
+
+На Scheme 11 (стр. 8) указано: 39i: R = C₅H₄NCO. Это брутто-запись пиридилкарбонила (изоникотиноила, C₅H₄N-C([link removed])-, остаток изоникотингидразида). В GT формула C₅H₄NCO ошибочно проинтерпретирована как циклопентилизоцианат (в котором 9 атомов водорода — C₅H₈(NCO), а не 4)."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,smiles / smiles_canonical,"Соединение 74 (Staphylococcus aureus, 1 строка)","Изомер положения заместителя в триазолопиримидиновом/пиридазиновом ядре:
+
+• 74 (C25H17ClN6O2S):
+  smiles_canonical: Cn1c(-c2c(S(=O)(=O)c3ccccc3)nnc3cc(-c4ccc(Cl)cc4)nn23)nc2ccccc21
+  smiles: O=S(=O)(C=1C=CC=CC1)C=2N=NC3=CC(=NN3C2C4=NC=5C=CC=CC5N4C)C=6C=CC(Cl)=CC6","Другой изомер положения в конденсированном цикле:
+
+• 74 (C25H17ClN6O2S):
+  smiles_canonical: Cn1c(-c2c(S(=O)(=O)c3ccccc3)nnc3c(-c4ccc(Cl)cc4)cnn23)nc2ccccc21
+  smiles: Cn1c(-c2c(S(=O)(=O)c3ccccc3)nnc3c(-c4ccc(Cl)cc4)cnn23)nc2ccccc21",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка в GT. По Scheme 19 (стр. 14) 4-хлорфенил находится в положении C3 пиразольного кольца, как у экстрактора. | Анализ: GT: не прав. Экстрактор: прав.
+
+На Scheme 19 (стр. 14) в структуре 74 4-хлорфенильный заместитель находится в положении C3 пиразольного кольца (по соседству с узловым атомом углерода C3a, а не с атомом азота). В SMILES Экстрактора (...nnc3c(-c4ccc(Cl)cc4)cnn23) заместитель присоединён к углероду рядом с узловым атомом c3, а между ним и атомами азота nn23 расположен незамещённый c (CH). В SMILES GT заместитель ошибочно сдвинут к атому азота."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,smiles / smiles_canonical,"Соединение 88j (2 строки: Escherichia coli ATCC 25922, Staphylococcus aureus ATCC 9144)","4-Винилфенильный заместитель (стирольный терминальный алкен):
+
+• 88j (C31H27N5):
+  smiles_canonical: C=Cc1ccc(C2CC(c3ccc(NCn4cnc5ccccc54)cc3)=NN2c2ccccc2)cc1
+  smiles: C=CC1=CC=C(C=C1)C1CC(=NN1C1=CC=CC=C1)C1=CC=C(NCN2C=NC3=C2C=CC=C3)C=C1","Стирильный линкер (двойная связь вне кольца):
+
+• 88j (C31H27N5):
+  smiles_canonical: C(=CC1CC(c2ccc(NCn3cnc4ccccc43)cc2)=NN1c1ccccc1)c1ccccc1
+  smiles: C(=C\C1CC(c2ccc(NCn3cnc4ccccc43)cc2)=NN1c1ccccc1)/c1ccccc1",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка в GT. По Scheme 24 (стр. 18) заместитель R — стирил (-CH=CHC₆H₅), как у экстрактора, а не 4-винилфенил. | Анализ: GT: не прав. Экстрактор: прав.
+
+На Scheme 24 (стр. 18) заместитель R привязан непосредственно к положению 5 пиразолинового цикла и для 88j определён как R = CH=CHC₆H₅ (стирил). В GT вместо стирила построен 4-винилфенил (добавлено лишнее фенильное кольцо, изменившее брутто-формулу на C₃₁H₂₇N₅ вместо правильной C₂₅H₂₃N₅; в описании расхождения брутто-формула Экстрактора указана с опечаткой — у SMILES Экстрактора формула C₂₅H₂₃N₅)."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,smiles / smiles_canonical,"Соединения 98c, 98d (S. aureus, 2 строки)",3-пиридил с морфолинометилом: ...-c3ccc(CN4CCOCC4)nc3...,2-пиридил (другая позиция N в пиридине): ...-c3ccc(CN4CCOCC4)cn3...,extractor_error,Ошибка экстрактора (GT прав),"Итог: Ошибка экстрактора: смещена позиция азота в пиридиновом кольце (2-пиридил вместо 3-пиридила); верен GT (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: не прав.
+
+При сборке фрагментов из Table_11 (точка крепления [*:1] относительно N пиридина) смещена позиция атома азота в пиридиновом кольце (2-пиридил вместо 3-пиридила)."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,value,smiles / smiles_canonical,"Соединение 98e (S. aureus, 1 строка)","Циклогексеноновый фрагмент с морфолинометилом:
+
+• 98e:
+  smiles_canonical: CCNC(=O)Nc1nc2cc(C3=CC(C)=C(CN4CCOCC4)C(=O)C3)c(F)c(-n3cc(C)cn3)c2[nH]1
+  smiles: CCNC(=O)NC1=NC2=CC(C3=CC(C)=C(CN4CCOCC4)C(=O)C3)=C(F)C(N3C=C(C)C=N3)=C2N1","Циклогексадиенон с пиридинилметилом:
+
+• 98e:
+  smiles_canonical: CCNC(=O)Nc1nc2cc(C3=CC(=O)C(Cc4ccccn4)C(C)=C3)c(F)c(-n3cc(C)cn3)c2[nH]1
+  smiles: CC1=CC(c2cc3nc(NC(=O)NCC)[nH]c3c(-n3cc(C)cn3)c2F)=CC(=O)C1Cc1ccccn1",gt_error,Ошибка GT (экстрактор прав),"Итог: Открытый вопрос (нужна сверка с PDF): ревьюер считает, что экстрактор прав, а расхождение вызвано неясной отрисовкой в статье (если принять трактовку Argon, то некорректны все 98a–98i).
+
+Перепроверка по PDF (Table 11, стр. 20): в статье для 98e буквально нарисован 3-метил-5-оксо-6-(пиридин-2-илметил)циклогекса-1,3-диен-1-ил, что 1-в-1 совпадает со SMILES экстрактора (...C3=CC(=O)C(Cc4ccccn4)C(C)=C3). Запись GT (циклогексенон с морфолинометилом) не соответствует рисунку в PDF. Для 98a, 98b, 98f–98i в Table 11 нарисованы обычные пиридины (GT и экстрактор совпадают), для 98c–98d — 6-(морфолинометил)пиридин-3-ил (GT прав, ошибка экстрактора в позиции N — см. строку 18), поэтому гипотеза Argon о некорректности всей серии 98a–98i не подтверждается. | Анализ: GT: не прав. Экстрактор: не прав.
+
+Оба варианта неверны из-за дефекта отрисовки 6-(морфолинометил)пиридин-3-ила в Table 11 (стр. 20) самой статьи."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,format,smiles / smiles_canonical,"Соединения 83a, 83b (S. aureus, 2 строки)",Таутомер пиразолона с NH (Cc1cc(=O)n...[nH]1),Альтернативный таутомер пиразолона (CC1=NN...C(=O)C1; для 83b также таутомер нитробензимидазола),both_valid,Оба правы / допустимо,"Итог: Симметрия / прототропная таутомерия 1H/3H-бензимидазола; оба варианта химически эквивалентны (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны.
+
+Для 83a (R = H) бензимидазольное кольцо симметрично, оба таутомера идентичны; для 83b (R = NO₂) 1H- и 3H-таутомеры быстро взаимопревращаются в растворе. На Scheme 22 (стр. 17) NH изображён сверху (ближе к заместителю R). Формально не является химической ошибкой ни одной из сторон."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,format,target_units,84 строки (все остальные соединения кроме 98a–98i),µg mL-1',µg mL⁻¹' (надстрочный индекс),both_valid,Оба правы / допустимо,"Итог: Эквивалентная запись единиц измерения ('µg mL-1' vs 'µg mL⁻¹') (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны.
+
+Эквивалентная запись единиц измерения ('µg mL-1' vs 'µg mL⁻¹'); серия 98a–98i теперь полностью совпадает с GT ('µg/mL')."
+benzimidazole_antibiotics,iter_1,train,antibiotics10081002,format,bacteria,37 строк (сокращённые vs полные биномиальные названия),"E. coli' (15 строк), 'S. aureus' (22 строки)","Escherichia coli' (15 строк), 'Staphylococcus aureus' (22 строки)",both_valid,Оба правы / допустимо,"Итог: Допустимое разночтение: промпт разрешает как сокращённые, так и полные названия (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны.
+
+Промпт разрешает оба варианта («Record full names, abbreviations, or any related taxonomic identifiers»)."
+benzimidazole_antibiotics,iter_1,train,antibiotics12071220,inclusion,row,"4 соединения: 69b, 95, 96, 97 (S. aureus, 4 строки)","Присутствуют 4 строки для S. aureus: 69b (2 µg mL-1), 95 (18, ед. '800 µg mL-1'), 96 (19, ед. '800 µg mL-1'), 97 (17, ед. '800 µg mL-1')",Отсутствуют,both_wrong,Оба не правы,"Итог: Смешанный случай: по 69b прав GT (пропуск экстрактора, MIC = 2 µg mL⁻¹), по 95–97 прав экстрактор (в Table 8 указаны зоны ингибирования в мм, а не MIC) (предварительно, без ручной правки). | Анализ: По 69b — GT: прав. Экстрактор: не прав. По 95, 96, 97 — GT: не прав. Экстрактор: прав.
+
+69b: На стр. 16 явно указана MIC = 2 µg mL⁻¹ против S. aureus для 68g и 69b.
+
+95, 96, 97: В Таблице 8 (стр. 23) приведены диаметры зон ингибирования (18, 19, 17 мм при концентрации 800 µg mL⁻¹), а не MIC (в тексте не указан тип измерения MIC, а для стандарта Амоксициллина значение равно 33 — типичный диаметр зоны в мм)."
+benzimidazole_antibiotics,iter_1,train,antibiotics12071220,inclusion,row,"7 соединений: 2d, 3a, 3f, 19a, 37b, 105a, 105b (Escherichia coli, 7 строк)",Отсутствуют,"Извлечены 7 строк для Escherichia coli:
+• 2d (=3,125 µmol mL-1), 3a (=6,25 µmol mL-1), 3f (=6,25 µmol mL-1)
+• 19a (=4 µgmL⁻¹), 37b (=3,125 µgmL⁻¹)
+• 105a (=52 µg mL−1), 105b (=65 µg mL−1)",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: пропуск 7 строк для E. coli в GT (2d, 3a, 3f, 19a, 37b, 105a, 105b); все значения присутствуют в статье и подлежат добавлению в GT. | Анализ: GT: не прав. Экстрактор: прав (пропуск в GT).
+
+Все 7 значений явно присутствуют в статье:
+
+• 2d: стр. 4, против E. Coli (MIC = 3.125 µmol mL⁻¹).
+• 3a, 3f: стр. 4, против E. coli (MIC = 6.25 µmol mL⁻¹).
+• 19a: стр. 7, против ESBL-продуцирующей E. coli (MIC = 4 µg mL⁻¹ в тексте / 4 µmol mL⁻¹ на Схеме 5).
+• 37b: стр. 10, против E. coli (MIC = 3.125 µg mL⁻¹).
+• 105a, 105b: стр. 24, Таблица 9 и Схема 26, против E. coli (MIC = 52 и 65 µg mL⁻¹)."
+benzimidazole_antibiotics,iter_1,train,antibiotics12071220,value,smiles / smiles_canonical,"Серия 35b–35g (6 соединений × 2 бактерии = 12 строк: 35b, 35c, 35d, 35e, 35f, 35g)","Нитрогруппа в другом положении тетрагидроизохинолинового кольца:
+
+• 35b:
+  smiles_canonical: O=C(Cn1cc(Cn2cnc3ccccc32)nn1)N1CCc2ccc([N+](=O)[O-])cc21
+  smiles: O=C(N1C2=CC(=CC=C2CC1)N(=O)=O)CN3N=NC(=C3)CN4C=NC=5C=CC=CC54
+• 35c:
+  smiles_canonical: Cc1cc2ncn(Cc3cn(CC(=O)N4CCc5ccc([N+](=O)[O-])cc54)nn3)c2cc1C
+  smiles: O=C(N1C2=CC(=CC=C2CC1)N(=O)=O)CN3N=NC(=C3)CN4C=NC=5C=C(C(=CC54)C)C
+• 35d:
+  smiles_canonical: Cc1nc2ccccc2n1Cc1cn(CC(=O)N2CCc3ccc([N+](=O)[O-])cc32)nn1
+  smiles: O=C(N1C2=CC(=CC=C2CC1)N(=O)=O)CN3N=NC(=C3)CN4C=5C=CC=CC5N=C4C
+• 35e:
+  smiles_canonical: CSc1nc2ccccc2n1Cc1cn(CC(=O)N2CCc3ccc([N+](=O)[O-])cc32)nn1
+  smiles: O=C(N1C2=CC(=CC=C2CC1)N(=O)=O)CN3N=NC(=C3)CN4C(=NC=5C=CC=CC54)SC
+• 35f:
+  smiles_canonical: O=C(Cn1cc(Cn2c(-c3ccccc3)nc3ccccc32)nn1)N1CCc2ccc([N+](=O)[O-])cc21
+  smiles: O=C(CN1C=C(CN2C3=C(C=CC=C3)N=C2C2=CC=CC=C2)N=N1)N1CCC2=CC=C(C=C12)N(=O)=O
+• 35g:
+  smiles_canonical: O=C(Cn1cc(Cn2c(-c3ccccn3)nc3ccccc32)nn1)N1CCc2ccc([N+](=O)[O-])cc21
+  smiles: O=C(N1C2=CC(=CC=C2CC1)N(=O)=O)CN3N=NC(=C3)CN4C(=NC=5C=CC=CC54)C6=NC=CC=C6","Нитрогруппа сдвинута на соседнее положение тетрагидроизохинолинового кольца:
+
+• 35b:
+  smiles_canonical: O=C(Cn1cc(Cn2cnc3ccccc32)nn1)N1CCc2cc([N+](=O)[O-])ccc21
+  smiles: O=C(Cn1cc(Cn2cnc3ccccc32)nn1)N1CCc2cc([N+](=O)[O-])ccc21
+• 35c:
+  smiles_canonical: Cc1cc2ncn(Cc3cn(CC(=O)N4CCc5cc([N+](=O)[O-])ccc54)nn3)c2cc1C
+  smiles: Cc1cc2ncn(Cc3cn(CC(=O)N4CCc5cc([N+](=O)[O-])ccc54)nn3)c2cc1C
+• 35d:
+  smiles_canonical: Cc1nc2ccccc2n1Cc1cn(CC(=O)N2CCc3cc([N+](=O)[O-])ccc32)nn1
+  smiles: Cc1nc2ccccc2n1Cc1cn(CC(=O)N2CCc3cc([N+](=O)[O-])ccc32)nn1
+• 35e:
+  smiles_canonical: CSc1nc2ccccc2n1Cc1cn(CC(=O)N2CCc3cc([N+](=O)[O-])ccc32)nn1
+  smiles: CSc1nc2ccccc2n1Cc1cn(CC(=O)N2CCc3cc([N+](=O)[O-])ccc32)nn1
+• 35f:
+  smiles_canonical: O=C(Cn1cc(Cn2c(-c3ccccc3)nc3ccccc32)nn1)N1CCc2cc([N+](=O)[O-])ccc21
+  smiles: O=C(Cn1cc(Cn2c(-c3ccccc3)nc3ccccc32)nn1)N1CCc2cc([N+](=O)[O-])ccc21
+• 35g:
+  smiles_canonical: O=C(Cn1cc(Cn2c(-c3ccccn3)nc3ccccc32)nn1)N1CCc2cc([N+](=O)[O-])ccc21
+  smiles: O=C(Cn1cc(Cn2c(-c3ccccn3)nc3ccccc32)nn1)N1CCc2cc([N+](=O)[O-])ccc21",extractor_error,Ошибка экстрактора (GT прав),"Итог: Открытый вопрос (нужна сверка со Scheme 8, стр. 10): Argon считает, что ошиблись оба (индолиновый цикл записан как тетрагидроизохинолин), но ревьюер настаивает на правоте GT.
+
+Перепроверка по PDF (Scheme 8, стр. 10): вывод Argon о «шестичленном тетрагидроизохинолине» ошибочен — SMILES вида N1CCc2...cc21 у обоих (и в GT, и в экстракторе) задают 5-членный индолиновый цикл (5 атомов в кольце: N1–C–C–c2–c21). На Scheme 8 заместитель R4 = NO2 находится в положении 6 индолина (мета- к N1, пара- к CH2). Этому точно соответствует GT (N1CCc2ccc([N+](=O)[O-])cc21, 6-нитроиндолин), тогда как экстрактор сдвинул нитрогруппу в положение 5 (N1CCc2cc([N+](=O)[O-])ccc21, 5-нитроиндолин). | Анализ: GT: не прав. Экстрактор: не прав (но Экстрактор точнее по региоизомерии).
+
+На Схеме 8 (стр. 10) изображен индолиновый цикл (пятичленный пирролидиновый цикл, конденсированный с бензольным, что также указано в тексте: «indoline derivatives 35»), тогда как и GT, и Экстрактор записали в SMILES шестичленный тетрагидроизохинолиновый цикл (N1CCc2...). Однако положение нитрогруппы (R₄ = NO₂) на Схеме 8 находится в положении 6 индолина (мета- к углероду CH₂ и пара- к азоту N1). В записи Экстрактора (...N1CCc2cc([N+]([link removed])[O-])ccc21) сохранено именно это взаимное расположение (пара- к азоту), тогда как в GT нитрогруппа сдвинута в мета-положение к азоту."
+benzimidazole_antibiotics,iter_1,train,antibiotics12071220,value,smiles / smiles_canonical,"Соединения 88b, 88c (S. aureus, 2 строки)","Прямая связь N–C между бензимидазолом и триазолом (без CH2-линкера):
+
+• 88b (C16H13N5OS):
+  smiles_canonical: Cc1nc2ccccc2n1-c1nnc(S)n1-c1ccc(O)cc1
+  smiles: CC1N(C2N(C3C=CC(O)=CC=3)C(S)=NN=2)C2C(=CC=CC=2)N=1
+• 88c (C17H15N5OS):
+  smiles_canonical: COc1ccc(-n2c(S)nnc2-n2c(C)nc3ccccc32)cc1
+  smiles: CC1N(C2N(C3C=CC(OC)=CC=3)C(S)=NN=2)C2C(=CC=CC=2)N=1","Добавлен метиленовый мостик -CH2- между бензимидазолом и триазолом:
+
+• 88b (C17H15N5OS):
+  smiles_canonical: Cc1nc2ccccc2n1Cc1nnc(S)n1-c1ccc(O)cc1
+  smiles: Cc1nc2ccccc2n1Cc1nnc(S)n1-c1ccc(O)cc1
+• 88c (C18H17N5OS):
+  smiles_canonical: COc1ccc(-n2c(S)nnc2Cn2c(C)nc3ccccc32)cc1
+  smiles: COc1ccc(-n2c(S)nnc2Cn2c(C)nc3ccccc32)cc1",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка в GT. На Scheme 22 (стр. 21) между N1 бензимидазола и C5 триазола есть метиленовый мостик -CH₂-, как у экстрактора. | Анализ: GT: не прав. Экстрактор: прав (ошибка GT).
+
+На Схеме 22 (стр. 21) между атомом N1 бензимидазола и положением C5 триазольного кольца явно изображен метиленовый мостик -CH₂- (голубого цвета), происходящий из исходного ацетогидразида 87 (-CH₂CONHNH₂). В GT этот углерод ошибочно пропущен."
+benzimidazole_antibiotics,iter_1,train,antibiotics12071220,value,smiles / smiles_canonical,"Соединение 2k (S. aureus, 1 строка)",Диметиламиногруппа: CN(C)c1ccc(C=NNC(=O)Cn2cc(CSc3nc4ccccc4[nH]3)nn2)cc1 (C21H22N8OS),Изопропильная группа: CC(C)c1ccc(C=NNC(=O)Cn2cc(CSc3nc4ccccc4[nH]3)nn2)cc1 (C22H23N7OS),both_valid,Оба правы / допустимо,"Итог: Неоднозначность / опечатка в исходной статье (Scheme 1, стр. 5); оба варианта допустимы (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав (неоднозначность источника / опечатка автора обзора).
+
+На Схеме 1 (стр. 5) заявлен ряд из 12 соединений 2a–2l (буквы a, b, c, d, e, f, g, h, i, j, k, l), но в списке заместителей Ar перечислено всего 10 радикалов (C₆H₅, p-Br, p-Cl, m-Br, m-Cl, p-F, p-OH, p-CH₃, p-OCH₃, p-isopropyl, p-dimethylamino — итого 11, один пропущен автором статьи при верстке). Если сопоставлять список с начала по порядку, 11-му элементу (2k) соответствует p-dimethylamino (версия GT); если с конца (2l = диметиламино, 2k = изопропил) — версия Экстрактора. Без обращения к первоисточнику [118] однозначно установить структуру 2k по PDF нельзя."
+benzimidazole_antibiotics,iter_1,train,antibiotics12071220,value,smiles / smiles_canonical,"Соединение 37d (S. aureus, 1 строка)","Фенильный заместитель при триазоле:
+
+• 37d (C23H19N5O):
+  smiles_canonical: O=c1n(Cc2ccccc2)c2ccccc2n1Cc1cn(-c2ccccc2)nn1
+  smiles: C1C=CC2N(CC3C=CC=CC=3)C(N(CC3N=NN(C4C=CC=CC=4)C=3)C=2C=1)=O","Бензильный заместитель при триазоле:
+
+• 37d (C24H21N5O):
+  smiles_canonical: O=c1n(Cc2ccccc2)c2ccccc2n1Cc1cn(Cc2ccccc2)nn1
+  smiles: O=c1n(Cc2ccccc2)c2ccccc2n1Cc1cn(Cc2ccccc2)nn1",gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка в GT. На Scheme 9 (стр. 10) для 37d указаны бензильные радикалы (-CH₂Ph), как у экстрактора, а не фенил. | Анализ: GT: не прав. Экстрактор: прав (ошибка GT).
+
+На Схеме 9 (стр. 10) для 37d явно указано: R₁ = -CH₂Ph, R₂ = -CH₂Ph. При триазольном кольце находится бензильный радикал (-Cc2ccccc2), а не фенильный (-c2ccccc2), как в GT."
+benzimidazole_antibiotics,iter_1,train,antibiotics12071220,format,bacteria,"22 соединения (36 строк: 6a–6f, 35a–35g, 107a, 107b, 2k, 3b, 37b, 37d, 68g, 88b, 88c)","Сокращённые названия: 'S. aureus' (15 строк), 'E. coli' (9 строк), 'S.a.' (6 строк для 6a–6f), 'E.c.' (6 строк для 6a–6f)","Полные биномиальные названия: 'Staphylococcus aureus' (21 строка), 'Escherichia coli' (15 строк)",both_valid,Оба правы / допустимо,"Итог: Допустимое разночтение: промпт разрешает как сокращённые, так и полные названия (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав (разночтение, допустимы оба варианта).
+
+Инструкция промпта гласит: «Record full names, abbreviations, or any related taxonomic identifiers». Промпт явно разрешает как сохранение исходных сокращений из текста/таблиц (S. aureus, S.a., E. coli, E.c.), так и запись полных видовых названий (Staphylococcus aureus, Escherichia coli). Ошибкой экстрактора не является."
+benzimidazole_antibiotics,iter_1,train,j.molstruc.2021.130566,inclusion,row,"3 соединения: 20, 21, 39 (S. aureus, 3 строки)","Присутствуют 3 строки для S. aureus: 20 (=62,5 µg/mL), 21 (>1000 µg/mL), 39 (>1000 µg/mL)",Отсутствуют,gt_error,Ошибка GT (экстрактор прав),"Итог: Подтверждено: ошибка фильтрации в GT. Соединения 20, 21, 39 не являются бензимидазолами и должны быть исключены из GT. | Анализ: GT: не прав. Экстрактор: прав (ошибка в Ground Truth).
+
+Промпт требует извлекать данные исключительно для производных бензимидазола («extract information about ALL structures of benzimidazole antibiotics»). В статье исследуются три разных гетероциклических каркаса: бензотиазол, бензимидазол и индол.   Соединения 8–11, 13, 16–18 — производные бензимидазола (Scheme 3, 4).   Соединения 20 (1H-indol-5-yl), 21 (1H-indol-3-yl) и 39 (3-cyano-1H-indol-2-yl) — производные индола (Scheme 5, 6, 8; Fig. 2; разделы 4.2.15, 4.2.18, 4.2.26).
+Включение соединений 20, 21 и 39 в Ground Truth нарушает базовый фильтр по химическому классу. Экстрактор отфильтровал их корректно."
+benzimidazole_antibiotics,iter_1,train,j.molstruc.2021.130566,format,bacteria,"8 соединений: 8, 9, 10, 11, 13, 16, 17, 18 (S. aureus, 8 строк)",Сокращённое название: 'S. aureus' (8 строк),Полное биномиальное название: 'Staphylococcus aureus' (8 строк),both_valid,Оба правы / допустимо,"Итог: Допустимое разночтение: в шапке Table 1 сокращение S. aureus, в промпте полное название; оба варианта валидны (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав (допустимое разночтение, оба варианта валидны).
+
+В шапке Таблицы 1 указано сокращение S. aureus, но в тексте промпта задано: «Extract only measurements with Staphylococcus aureus and Escherichia coli... Record full names, abbreviations, or any related taxonomic identifiers». Кроме того, в разделе 4.3 и подписях к рисункам 3–10 фигурирует полное название Staphylococcus aureus. Поскольку промпт явно разрешает как полные названия, так и сокращения без жесткого требования копировать строку точь-в-точь из шапки таблицы, оба варианта соответствуют инструкции. Для устранения таких расхождений требуется нормализация на этапе постобработки или фиксация единого стандарта в промпте."
+benzimidazole_antibiotics,iter_1,train,ja.2017.70,format,bacteria,"11 соединений: 12–22 (S. aureus ATCC 6538P, 11 строк)",Сокращённое название рода: 'S. aureus ATCC 6538P' (11 строк),Полное биномиальное название: 'Staphylococcus aureus ATCC 6538P' (11 строк),both_valid,Оба правы / допустимо,"Итог: Допустимое разночтение: оба варианта (полное и сокращённое написание штамма) разрешены промптом (предварительно, без ручной правки). | Анализ: GT: прав. Экстрактор: прав. Оба варианта верны.
+
+В сноске к Table 1 штамм IV записан сокращённо (S. aureus ATCC 6538P) после полного написания рода в штамме III (Staphylococcus aureus ATCC 9144). Промпт явно разрешает оба формата («Record full names, abbreviations...»), поэтому раскрытие сокращения до полного биномиального названия не является ошибкой."
+benzimidazole_antibiotics,iter_2,train,j.bmcl.2018.03.046,inclusion,row,"[train] Не-бензимидазольные прекурсоры 1, 5a, 5b (18 строк; 17 без бензимидазольного ядра + row_159 с чужим SMILES)","Включены пуриновые прекурсоры 1 (N1=CN=C(C=2NC=NC12)N3CCOCC3), 5a (...N3CCCCC3), 5b (...N3CCCC3) по 6 штаммов (18 строк; в row_159 для 5b записан чужой бензимидазольный SMILES)",Отсутствуют (исключены по правилу базового промпта),gt_corrected,Принято (удалено 18 строк из GT),"Анализ: Удалить из GT все 18 строк (1, 5a, 5b, включая строку 159).
+
+• Проверка по PDF: по Scheme 1–2 (стр. 1623) и тексту (стр. 1622) соединения 1 (4-(9H-пурин-6-ил)морфолин), 5a (6-(пиперидин-1-ил)-9H-пурин) и 5b (6-(пирролидин-1-ил)-9H-пурин) — это 6-аминозамещённые 9H-пуриновые прекурсоры без бензимидазольного ядра (включены в Table 1 как контроли).
+• Соответствие базовому промпту: baseline_instruction.txt требует извлекать только структуры бензимидазольных антибиотиков. Ошибочный бензимидазольный SMILES в строке 159 для 5b не соответствует Scheme 2 и удаляется вместе с 5b."
+benzimidazole_antibiotics,iter_2,train,j.bmcl.2018.03.046,inclusion,row,"[train] Соединение 4d (MRSA, Methicillin-Resistant Staphylococcus aureus N315)","Отсутствует (у 4d в GT 5 из 6 штаммов: E. coli, E. coli ATCC25922, S. aureus, S. aureus ATCC25923, S. aureus ATCC29213)","compound_id = 4d, bacteria = MRSA N315, MIC = 512 µg/mL",gt_corrected,Принято (добавлена 1 строка 4d / MRSA N315),"Анализ: Добавить в GT 1 строку (подтверждённый пропуск).
+
+• Проверка по PDF: соединение 4d (пурин-бензимидазольный гибрид, Scheme 1, стр. 1623) — целевой бензимидазол. В Table 1 (стр. 1624) в столбце MRSA указано MIC = 512 µg/mL; в тексте (стр. 1622) и примечании к Table 1 штамм расшифрован как Methicillin-Resistant Staphylococcus aureus N315.
+• Итог для GT: добавить compound_id = 4d, SMILES как в остальных 5 строках 4d, target_type = MIC, target_relation = =, target_value = 512, target_units = µg/mL, bacteria = MRSA, Methicillin-Resistant Staphylococcus aureus N315."
+benzimidazole_antibiotics,iter_2,train,jccs.202000418J,inclusion,"Вся строка / target_type, target_value, target_units","[train] Все 3 строки файла: 6b (E. coli), 6d (E. coli), 6d (S. aureus)","6b (E. coli): target_type=MIC, value=9,07 ± 0,21 µg/mL
+6d (E. coli): target_type=MIC, value=13,93 ± 0,4 µg/mL
+6d (S. aureus): target_type=MIC, value=11,97 ± 0,15 µg/mL","6b: отсутствует (нет MIC в статье)
+6d (E. coli): MIC = 625 µg/mL
+6d (S. aureus): MIC = 312.5 µg/mL",gt_corrected,Принято (6b удалена; 6d: MIC 312.5 и 625 µg/mL; ref. [28] 75 µg/mL исключено),"Анализ: Текущая разметка GT (все 3 строки) ошибочна и подлежит замене.
+
+• Проверка по PDF: числа в Table 1 (стр. 1295) — диаметры зон ингибирования в мм (hole-plate diffusion, раздел 3.3, стр. 1298), а не MIC.
+• Реальные MIC (раздел 2.3, стр. 1294): измерены ТОЛЬКО для 6d (бензимидазол, SMILES: N#CC(=NNc1ccc(S(=O)(=O)Nc2ncccn2)cc1)c3nc4ccccc4[nH]3): S. aureus (RCMB 010010 / Table 1: RCMB 10010) = 312.5 µg/mL, E. coli (RCMB 010052) = 625 µg/mL. Для 6b MIC не измерялся — удалить.
+• Примечание: в тексте на стр. 1294 также цитируется литературное значение из ref. [28] для 6d против S. aureus (ATCC-6538-P) = 75 µg/mL (опционально, если политика включает цитируемые MIC)."
+benzimidazole_antibiotics,iter_2,val,j.ejmech.2016.01.052,format,"target_relation, target_value","[val] 11 строк E. coli JM109 (13d, 13h, 14h, 14n, 14p, 15c, 15d, 15e, 15k, 16a, 18b)","target_relation = '>' и значения без ± SD (13h = '> 0.5', 13d = '> 16', 18b = '> 8', ...)",target_relation = '=' (точные значения без '>'),gt_corrected,Принято (исправлены 11 строк E. coli JM109 + 14m MRSA N315),"Анализ: Исправить target_relation ('>' -> '=') и дописать ± SD по Table 1 для всех 11 строк E. coli JM109.
+
+• Проверка по PDF: в Table 1 ни для одного из 11 соединений нет знака '>' — все значения точные (mean ± SD).
+• Исправленные target_value (все с target_relation = '='): 13d = 16 ± 1.73; 13h = 0.5 ± 0.05; 14h = 256 ± 137.29; 14n = 128 ± 68.65; 14p = 128 ± 68.65; 15c = 512 ± 49.65; 15d = 128 ± 68.65; 15e = 32 ± 3.46; 15k = 256 ± 137.29; 16a = 32 ± 3.46; 18b = 8 ± 1.15."
+benzimidazole_antibiotics,iter_2,val,s41598-022-21435-6,format,bacteria,"[val] Все 7 строк (11f, 11g, 11h, 11i, 12h)",S. aureus Staphylococcus. aureus ATCC 25923' и 'E. coli Escherichia coli ATCC 25922',S. aureus ATCC 25923' / 'Staphylococcus aureus ATCC 25923' и 'E. coli ATCC 25922' / 'Escherichia coli ATCC 25922',gt_corrected,Принято (нормализовано bacteria в 7 строках),"Анализ: Нормализовать поле bacteria во всех 7 строках; исключение 7h подтверждено.
+
+• Проверка по PDF: артефакт GT возник из-за прямого копирования легенды Table 6 (стр. 9) вместе с ключом и опечаткой авторов («Staphylococcus.»). В основном тексте (стр. 8, 15–16) указаны корректные названия: Staphylococcus aureus ATCC 25923 и Escherichia coli ATCC 25922 — заменить в GT.
+• По 7h: по тексту (стр. 3) и Figure 3 (стр. 4) серии 7a–k / 8a–k — имидазолиевые соли без бензимидазольного ядра; исключение 7h из GT полностью соответствует baseline_instruction.txt."
+benzimidazole_antibiotics,iter_2,val,acsomega.2c06142,value,smiles,"[val] Соединение 5b (2 строки: E. coli, S. aureus)",C(C(C)C)NC1SC(C2C=CC(C3NC4C=C(C(=CC=4N=3)C)C)=CC=2)=NN=1 (изобутил),CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1 (этил),gt_corrected,Принято (SMILES 5b исправлен на N-этил),"Анализ: Ошибка GT (экстрактор прав): соединение 5b содержит N-этильный заместитель (C19H19N5S), а не N-изобутильный (C21H23N5S).
+
+• Проверка по PDF (с. 47018–47027): IUPAC-название (разд. 4.1.5, с. 47027) — N-Ethyl-5-(4-(5,6-dimethyl-1H-benzimidazol-2-yl)phenyl)-1,3,4-thiadiazole-2-amine; 1H ЯМР (1.22 t 3H, 3.37 q 2H) и 13C ЯМР (20.47, 25.14, 38.21) подтверждают этил; HRMS [M+H]+ выч. 350.1434, найд. 350.1432 (C19H19N5S); элементный анализ, раздел 2.4 и рис. 12–13 (MEP/HOMO-LUMO) однозначно подтверждают N-этил (изобутильного производного в статье нет).
+• Итоговый канонический SMILES для GT (5b): CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1"
+benzimidazole_antibiotics,iter_2,train,j.ejmech.2016.01.052,value,target_value,"[train] Соединение 15j (MRSA, Methicillin-Resistant Staphylococcus aureus N315)",0.25 ± 0.01,0.25 ± 0.02 (Table 1 PDF и ingested .md),gt_corrected,Принято (исправлено в GT: 0.25 ± 0.01 → 0.25 ± 0.02),"Анализ: Опечатка в GT: в оригинальной Table 1 (стр. 165, PDF стр. 6) и в ingested .md для 15j против MRSA указано 0.25 ± 0.02. Рекомендуется исправить в GT на 0.25 ± 0.02."
+benzimidazole_antibiotics,iter_2,train,j.ejmech.2016.01.052,format,target_value,[train] Соединение 17a (E. coli JM109),16 ± 1.73,16 ± (опечатка в оригинальном PDF — SD пропущено в таблице),gt_corrected,Принято (исправлено в GT: 16 ± 1.73 → 16; опечатка «16 ±» в PDF),"Анализ: Издательская опечатка в Table 1 (стр. 165, PDF стр. 6): буквально напечатано «16 ±» без числа после ±, а в GT дописано «16 ± 1.73» по аналогии с другими ячейками. Оставлять додуманное «16 ± 1.73» в train опасно (оптимизатор может выучить правило выдумывать SD). Рекомендуется поставить «16» (единственное реально указанное число без обрывка «±»)."
+benzimidazole_antibiotics,iter_2,train,j.ejmech.2016.01.052,format,bacteria,"[train] Все 48 строк штамма S. aureus (6a–b, 13a–j, 14a–p, 15a–n, 16a–b, 17a–b, 18a–b)","S. aureus, Staphylococcus aureus ATCC25923",Staphylococcus aureus ATCC25923 (или S. aureus ATCC25923),gt_corrected,Принято (нормализовано bacteria в 48 строках S. aureus → Staphylococcus aureus ATCC25923; MRSA без изменений),"Анализ: Артефакт копирования сноски b к Table 1 (дубль «S. aureus, » перед полным названием — аналогично уже исправленному случаю в s41598-022-21435-6; при этом для E. coli DH52 / E. coli JM109 такой дубль в GT не добавлялся). Рекомендуется нормализовать на «Staphylococcus aureus ATCC25923» (строки MRSA оставить без изменений для консистентности с j.bmcl.2018.03.046)."
+benzimidazole_antibiotics,iter_2,train,acs.jafc.1c02545,format,compound_id,[train] Несогласованность compound_id (9a vs 9c) при идентичном SMILES,"9a (1 строка: E. coli = 0.055 mM) и 9c (3 строки: MRSA N315, S. aureus, S. aureus ATCC 29213 = 0.218 mM) — с одинаковым SMILES","В Table 1 PDF (стр. 4) напечатано «9c», но на схеме синтеза (стр. 2) описана серия «9a–b» (N,N-диэтил- и N,N-диизопропиламиды)",gt_corrected,Принято (Вариант A: исправлено 9a -> 9c в строке E. coli для буквального соответствия Table 1),"Анализ: Возможная опечатка авторов в Table 1 (стр. 4): вместо «9a» напечатано «9c». Разметчик GT оставил «9a» для E. coli (0.055 mM) и «9c» для 3 штаммов S. aureus (0.218 mM), хотя SMILES у всех 4 строк идентичный (N,N-диэтилпроизводное). Нужно проверить по PDF, что считать эталоном (привести все 4 строки к 9a или оставить 9c как в Table 1)."
+benzimidazole_antibiotics,iter_2,val,j.ejmech.2020.112996,inclusion,row,[val] Соединение 8h (S. aureus ATCC 29213),Включена только строка из Table 1: MIC = 4 µg/mL,Извлечены обе строки: MIC = 4 µg/mL (Table 1) и MIC = 8 µg/mL (Table 4),gt_corrected,Принято (добавлена 1 строка: 8h / S. aureus ATCC 29213 / 8 µg/mL из Table 4; визуально подтверждено по стр. 6 PDF),"Анализ: Визуальная проверка по стр. 6 PDF (Table 4) подтвердила: в первой строке (MSSA S. aureus ATCC 29213) под столбцами 8b, 8c, 8h, 8i стоят значения 8, 8, 8, 4 µg/mL (парсинг .md был точным; в текстовом слое PDF порядок сбивался из-за переносов).
+• Table 1 (стр. 4), текст 2.2.1 и Table 3 (SI=12.5) относятся к первичному скринингу (8h = 4 µg/mL), а Table 4 — к отдельной повторной серии на панели MSSA/MRSA/VRSA (8h = 8 µg/mL).
+• Согласно baseline_instruction.txt, уникальные кортежи из двух разных экспериментов/таблиц подлежат включению."
+benzimidazole_antibiotics,iter_2,val,j.ejmech.2020.112996,inclusion,Вся строка (3 FP),"Включение / Дублирование серии (Класс B): [val] Повторная серия из Table 4 для 8b, 8c, 8i (MSSA S. aureus ATCC 29213)","Включены только строки из Table 1: 8b=8, 8c=8, 8i=4 µg/mL (из Table 4 добавлена только 8h=8, т.к. отличалась от Table 1: 4)","Извлечены повторно из Table 4 (3 лишние строки): 8b=8, 8c=8, 8i=4 µg/mL с bacteria = 'MSSA S. aureus ATCC 29213'",gt_kept,Принято (Вариант A: дедупликация; GT не менять — оставить 79 строк),"Итог: По гайдлайну извлекается каждый уникальный набор (ID, SMILES, MIC, Bacteria). Для 8b (8), 8c (8), 8i (4) значения против S. aureus ATCC 29213 в Table 4 совпадают с Table 1 (дубликаты), для 8h различаются (4 vs 8) и сохранены обе записи. 3 лишние строки у модели — ошибка дедупликации. | Анализ: Класс B (семантическое разночтение политики дедупликации повторных таблиц).
+
+• В Table 4 (стр. 6) в строке MSSA | S. aureus ATCC 29213 приведены повторные замеры для всех 4 соединений (8b=8, 8c=8, 8h=8, 8i=4). Для 8h число отличалось от Table 1 (4 -> 8), поэтому оно добавлено в GT; для 8b, 8c, 8i числа совпали с Table 1.
+• Экстрактор извлёк все 4 строки из Table 4, т.к. отнёс 'MSSA S. aureus ATCC 29213' к отдельной от 'S. aureus ATCC 29213' сущности.
+• Варианты решения: (B1) оставить GT=79 строк (дедуплицировать идентичные значения ATCC 29213 между таблицами); (B2) дополнить GT до 82 строк, если Table 4 считается отдельной серией (тогда +Judge Micro-F1 = 0.9995)."
+benzimidazole_antibiotics,iter_2,val,j.bmcl.2018.03.046,format,bacteria (144 строки),"Формат / Непоследовательность GT (Класс C): [val] Все 6 штаммов Table 1 (MRSA, S. aureus, S. aureus ATCC25923, S. aureus ATCC29213, E. coli, E. coli ATCC25922)","Раскрыта только сноска для MRSA ('MRSA, Methicillin-Resistant Staphylococcus aureus N315'); остальные 5 штаммов оставлены сокращёнными ('S. aureus', 'E. coli' и т.д.)","Раскрыты все 6 штаммов по сноске b ('Methicillin-Resistant Staphylococcus aureus N315', 'Staphylococcus aureus', 'Staphylococcus aureus ATCC25923', 'Staphylococcus aureus ATCC29213', 'Escherichia coli', 'Escherichia coli ATCC25922')",gt_corrected,Принято (нормализовать 144 строки GT к полным названиям из сноски b),"Итог: В GT выявлена непоследовательность: для 1-го столбца скопировано «MRSA, Methicillin-Resistant Staphylococcus aureus N315» (дублирующий ключ), а 5 остальных оставлены сокращёнными. Модель единообразно раскрыла все 6 штаммов. Унифицировать GT по сноске b: Methicillin-Resistant Staphylococcus aureus N315, Staphylococcus aureus, Staphylococcus aureus ATCC25923, Staphylococcus aureus ATCC29213, Escherichia coli, Escherichia coli ATCC25922. | Анализ: Класс C (непоследовательность стиля разметки GT; влияет только на Strict F1 = 0.8571, в +Judge = 1.0000).
+
+• В Table 1 дана единая сноска b (стр. 1624), расшифровывающая все 6 заголовков таблицы.
+• После правки B1 модель последовательно раскрыла по сноске все 6 штаммов, тогда как в GT сноска была применена только к MRSA.
+• Варианты решения: оставить GT как есть (полагаясь на +Judge = 1.0000) или унифицировать все 6 штаммов в GT до полных названий из сноски b (поднимет Strict Micro-F1 на val с 0.9056 до 0.9712)."
+benzimidazole_antibiotics,iter_2,val,j.ejmech.2020.112996,format,bacteria (49 строк),Формат / Непоследовательность GT (Класс C): [val] Штаммы Table 4 (48 строк MRSA/VRSA для 8b/8c/8h/8i + 1 строка MSSA для 8h),48 строк: 'Staphylococcus aureus MRSA NR 100' / 'Staphylococcus aureus VRSA VRS1' (добавлен префикс рода/вида); 1 строка 8h: 'S. aureus ATCC 29213' (без MSSA),48 строк: 'MRSA NR 100' / 'VRSA VRS1' (буквально из заголовков Table 4); 1 строка 8h: 'MSSA S. aureus ATCC 29213',gt_corrected,Принято (убрать префикс Staphylococcus aureus в 48 строках MRSA/VRSA GT; для 8h оставить S. aureus ATCC 29213),"Итог: В Table 4 слова Staphylococcus aureus нет; модель валидно извлекла «MRSA NR 100» / «VRSA VRS1» по гайдлайну. В GT выявлен плеоназм и непоследовательность («Staphylococcus aureus MRSA ...» рядом с «S. aureus ATCC 29213» без MSSA). Для 8h оставить «S. aureus ATCC 29213» для ключа дедупликации с Table 1 (вариант «MSSA S. aureus ATCC 29213» считать эквивалентным по Judge). | Анализ: Класс C (разночтение стиля заголовков; влияет только на Strict F1 = 0.8944, в +Judge = 1.0000 на выровненных строках).
+
+• В Table 4 колонки подписаны 'MRSA | NR 100', 'VRSA | VRS1' без слова Staphylococcus aureus, а строка 1 — 'MSSA | S. aureus ATCC 29213'.
+• В GT к 48 строкам MRSA/VRSA дописан видовой префикс, а у 8h фенотип MSSA отброшен.
+• Рекомендация: не менять промпт; разночтение корректно закрывается SemanticJudge."
+benzimidazole_antibiotics,iter_2,val,s41598-022-21435-6,format,bacteria (4 строки),"Формат / Опечатка в PDF (Класс D): [val] Строки S. aureus (11h, 12h, 11i, 11g) из Table 6",Staphylococcus aureus ATCC 25923,Staphylococcus. aureus ATCC 25923,gt_kept,Принято (GT корректен — Staphylococcus aureus ATCC 25923; правка не требуется),"Итог: В подписи к Table 6 (стр. 9) допущена типографская опечатка («Staphylococcus. aureus»), тогда как в основном тексте (стр. 8, 15–16) штамм написан корректно. Гайдлайн не требует воспроизводить опечатки PDF; расхождение в ответе модели — типографский шум PDF. | Анализ: Класс D (типографская опечатка в оригинальном PDF; влияет только на Strict F1 = 0.9184, в +Judge = 1.0000).
+
+• Проверка PDF (стр. 9): в подписи к Table 6 буквально напечатано с лишней точкой 'S. aureus Staphylococcus. aureus ATCC 25923'.
+• Модель дословно скопировала подпись из Table 6, а GT содержит правильное написание (как в разделе Methods).
+• Рекомендация: GT верен, править не нужно; шум снимается SemanticJudge."

@@ -1,0 +1,91 @@
+{
+  "experiment": "2026-07-01_nanozymes_re_vs_mipro_benchmark",
+  "date": "2026-07-01",
+  "semester": "2 (фев – июл 2026, итоги текстового PoC)",
+  "domain": "nanozymes",
+  "corpus": "ChemX: nanozymes",
+  "modality": "text",
+  "parser": "Gemini 3 Flash",
+  "config_snapshot": {
+    "optimization_config": "research/experiments/2026-07-01_nanozymes_re_vs_mipro_benchmark/config_snapshot/optimization.yaml",
+    "initial_schema": "research/experiments/2026-07-01_nanozymes_re_vs_mipro_benchmark/config_snapshot/initial_schema.yaml",
+    "baseline_manual_instruction": "research/experiments/2026-07-01_nanozymes_re_vs_mipro_benchmark/config_snapshot/baseline_manual_instruction.txt"
+  },
+  "results_artifacts": {
+    "generated_schema": "research/experiments/2026-07-01_nanozymes_re_vs_mipro_benchmark/result/generated_schema.yaml",
+    "generated_instruction": "research/experiments/2026-07-01_nanozymes_re_vs_mipro_benchmark/result/generated_instruction.txt",
+    "re_mipro_instruction": "research/experiments/2026-07-01_nanozymes_re_vs_mipro_benchmark/result/re_mipro_instruction.txt"
+  },
+  "models": {
+    "student": {
+      "model": "qwen/qwen3.5-27b",
+      "temperature": 0.0
+    },
+    "teacher": {
+      "model": "qwen/qwen3.5-397b-a17b",
+      "temperature": 1.0
+    }
+  },
+  "splits": {
+    "few_shot_pool": 9,
+    "val": 15
+  },
+  "comparison_groups": [
+    {
+      "group": "Baseline (nanoMINER)",
+      "mean_f1": 0.6329,
+      "median_f1": 0.6452
+    },
+    {
+      "group": "Baseline (Manual)",
+      "mean_f1": 0.6592,
+      "median_f1": 0.65
+    },
+    {
+      "group": "Reverse-engineered",
+      "mean_f1": 0.8804,
+      "median_f1": 0.9032
+    },
+    {
+      "group": "Reverse-engineered + MIPROv2",
+      "mean_f1": 0.8811,
+      "median_f1": 0.875
+    }
+  ],
+  "statistical_tests": {
+    "friedman": {
+      "chi2": 39.26,
+      "p_value": 1.53e-08,
+      "null_hypothesis_rejected": true
+    },
+    "wilcoxon_manual_vs_re": {
+      "p_value": 6e-05,
+      "p_holm": 0.00037,
+      "significant": true
+    },
+    "wilcoxon_re_vs_re_mipro": {
+      "p_value": 0.45994,
+      "p_holm": 0.55009,
+      "significant": false
+    }
+  },
+  "mipro_runs_in_git_history": {
+    "run_2026_06_20_commit_33db8e8": {
+      "validation_f1": 0.873661,
+      "num_candidates": 9,
+      "num_trials": 27,
+      "minibatch": false,
+      "max_labeled_demos": 1
+    },
+    "run_2026_06_21_commit_627f8cd": {
+      "default_score_pct": 82.3,
+      "trajectory_best_pct": [
+        85.62,
+        87.19,
+        87.3,
+        88.93
+      ],
+      "best_score_pct": 88.93
+    }
+  }
+}

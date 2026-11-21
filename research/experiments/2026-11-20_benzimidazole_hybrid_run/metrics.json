@@ -1,0 +1,68 @@
+{
+  "baseline": {
+    "prompt": "config/baseline_instruction.txt",
+    "schema": "config/schema.yaml",
+    "macro_f1": 0.9460199507970208,
+    "micro_f1": 0.9576272746741397,
+    "doc_scores": {
+      "acsomega.2c06142": {
+        "f1": 1.0,
+        "gts": 16,
+        "preds": 16
+      },
+      "j.bmcl.2018.03.046": {
+        "f1": 0.9761904761904762,
+        "gts": 144,
+        "preds": 144
+      },
+      "j.ejmech.2019.03.026": {
+        "f1": 0.9841269841269841,
+        "gts": 54,
+        "preds": 54
+      },
+      "j.ejmech.2020.112996": {
+        "f1": 0.9062784349408552,
+        "gts": 78,
+        "preds": 79
+      },
+      "rjc.2023.1638382": {
+        "f1": 0.9523809523809524,
+        "gts": 14,
+        "preds": 13
+      },
+      "s41598-022-21435-6": {
+        "f1": 0.8571428571428571,
+        "gts": 7,
+        "preds": 7
+      }
+    }
+  },
+  "semantic_optimization": {
+    "total_iterations": 2,
+    "best_iteration": 2,
+    "early_stopped": true,
+    "best_f1": 0.9825904273514212,
+    "f1_history": [
+      0.9634869922409857,
+      0.9825904273514212
+    ],
+    "train_doc_ids": [
+      "1570180811666140725185713",
+      "acs.jafc.1c02545",
+      "antibiotics12071220",
+      "j.ejmech.2016.01.052",
+      "ja.2017.70",
+      "jccs.202000418j"
+    ],
+    "val_doc_ids": [
+      "acsomega.2c06142",
+      "j.bmcl.2018.03.046",
+      "j.ejmech.2019.03.026",
+      "j.ejmech.2020.112996",
+      "rjc.2023.1638382",
+      "s41598-022-21435-6"
+    ],
+    "corrected_gt_file": "data/interim/semantic_optimization/ground_truth_corrected.csv",
+    "expert_rulings_count": 13
+  }
+}

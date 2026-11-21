@@ -1,0 +1,66 @@
+{
+  "experiment": "2026-03-15_pdf_parsers_comparison",
+  "date": "2026-03-15",
+  "semester": "2 (фев – июл 2026)",
+  "domain": "nanozymes",
+  "sample_size_articles": 40,
+  "gt_reviews": 50,
+  "selected_parser": "gemini-3-flash",
+  "parsers_evaluated": [
+    {
+      "name": "Docling",
+      "status": "rejected",
+      "main_issues": [
+        "encoding errors for special symbols (mu, alpha, subscripts)",
+        "table structure distortion requiring manual fixes"
+      ]
+    },
+    {
+      "name": "Uni-Parser",
+      "status": "rejected",
+      "main_issues": [
+        "Greek/arrow substitution with Latin characters",
+        "loss of subscript and reference formatting",
+        "formula fragmentation into multiple blocks",
+        "block order violations across page breaks"
+      ]
+    },
+    {
+      "name": "MinerU",
+      "status": "rejected_for_text_ingestion",
+      "main_issues": [
+        "loss of LaTeX markup in tables (H2O without subscripts)",
+        "symbol substitutions (( -> delta, ox -> 0x)",
+        "reference bracket loss",
+        "row alignment shifts in tables and block order errors"
+      ]
+    },
+    {
+      "name": "Marker (OCR)",
+      "status": "rejected",
+      "main_issues": [
+        "OCR character misreads in dense formulas (, -> 7)",
+        "subscript splitting in tables (K^app_m -> Km + empty Kapp)",
+        "two-column layout paragraph breaks",
+        "unraised reference numbers"
+      ]
+    },
+    {
+      "name": "Gemini 3.1 Flash Lite",
+      "status": "rejected",
+      "main_issues": [
+        "arbitrary omission of figure, scheme, and table captions when partially duplicated in text"
+      ]
+    },
+    {
+      "name": "Gemini 3 Flash",
+      "status": "selected",
+      "hallucination_cases": 2,
+      "articles_tested": 40,
+      "error_free_share": 0.95,
+      "main_issues": [
+        "2 cases of unit hallucination across 40 articles; no structural or LaTeX losses"
+      ]
+    }
+  ]
+}

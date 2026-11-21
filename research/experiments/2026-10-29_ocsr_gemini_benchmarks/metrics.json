@@ -1,0 +1,203 @@
+{
+  "experiment": "2026-10-29_ocsr_gemini_benchmarks",
+  "period": "2026-10-14..2026-10-29",
+  "domain": "benzimidazole_antibiotics",
+  "isolated_benchmark": {
+    "num_images": 30,
+    "configurations": [
+      {
+        "model": "gemini-3-flash-preview",
+        "thinking_level": "low",
+        "valid_share": 1.0,
+        "correct_share": 0.933333,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 356031,
+        "output_tokens": 1088
+      },
+      {
+        "model": "gemini-3-flash-preview",
+        "thinking_level": "minimal",
+        "valid_share": 1.0,
+        "correct_share": 0.9,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 0,
+        "output_tokens": 1105
+      },
+      {
+        "model": "gemini-3.6-flash",
+        "thinking_level": "low",
+        "valid_share": 0.966667,
+        "correct_share": 0.9,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 23904,
+        "output_tokens": 1193
+      },
+      {
+        "model": "gemini-3.6-flash",
+        "thinking_level": "medium",
+        "valid_share": 1.0,
+        "correct_share": 0.9,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 100896,
+        "output_tokens": 1179
+      },
+      {
+        "model": "gemini-3.8-flash",
+        "thinking_level": "medium",
+        "valid_share": 1.0,
+        "correct_share": 0.9,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 128410,
+        "output_tokens": 1092
+      },
+      {
+        "model": "gemini-3.8-flash",
+        "thinking_level": "high",
+        "valid_share": 1.0,
+        "correct_share": 0.9,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 584908,
+        "output_tokens": 1113
+      },
+      {
+        "model": "gemini-3.8-flash",
+        "thinking_level": "low",
+        "valid_share": 1.0,
+        "correct_share": 0.866667,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 66671,
+        "output_tokens": 1129
+      },
+      {
+        "model": "gemini-3.6-flash",
+        "thinking_level": "high",
+        "valid_share": 1.0,
+        "correct_share": 0.866667,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 180729,
+        "output_tokens": 1166
+      },
+      {
+        "model": "gemini-3.6-flash",
+        "thinking_level": "minimal",
+        "valid_share": 1.0,
+        "correct_share": 0.833333,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 0,
+        "output_tokens": 1181
+      },
+      {
+        "model": "gemini-3.5-flash-lite",
+        "thinking_level": "high",
+        "valid_share": 0.9,
+        "correct_share": 0.833333,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 197838,
+        "output_tokens": 1265
+      },
+      {
+        "model": "gemini-3-flash-preview",
+        "thinking_level": "medium",
+        "valid_share": 1.0,
+        "correct_share": 0.833333,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 480380,
+        "output_tokens": 1095
+      },
+      {
+        "model": "gemini-3.5-flash-lite",
+        "thinking_level": "minimal",
+        "valid_share": 0.966667,
+        "correct_share": 0.766667,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 0,
+        "output_tokens": 1407
+      },
+      {
+        "model": "gemini-3.1-flash-lite",
+        "thinking_level": null,
+        "valid_share": 0.966667,
+        "correct_share": 0.766667,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 0,
+        "output_tokens": 1239
+      },
+      {
+        "model": "gemini-3.5-flash-lite",
+        "thinking_level": "medium",
+        "valid_share": 1.0,
+        "correct_share": 0.766667,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 53937,
+        "output_tokens": 1280
+      },
+      {
+        "model": "gemini-3.5-flash-lite",
+        "thinking_level": "low",
+        "valid_share": 1.0,
+        "correct_share": 0.733333,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 0,
+        "output_tokens": 1369
+      },
+      {
+        "model": "gemini-3-flash-preview",
+        "thinking_level": "high",
+        "valid_share": 0.933333,
+        "correct_share": 0.733333,
+        "input_tokens": 34652,
+        "cached_tokens": 32552,
+        "thinking_tokens": 482990,
+        "output_tokens": 1076
+      }
+    ]
+  },
+  "specialized_ocsr_baselines": {
+    "benchmark": "30 isolated benzimidazole structures",
+    "models": {
+      "Glyph": 0.9667,
+      "COMO": 0.9333,
+      "DECIMER": 0.9
+    }
+  },
+  "error_analysis_isolated": {
+    "valid_mismatches_total": 69,
+    "inchi_or_tautomer_matches": 0,
+    "different_formula_pct": 75.4,
+    "constitutional_isomers_pct": 24.6,
+    "invalid_generations_total": 8,
+    "aliphatic_chain_errors_pct": 65.2,
+    "palmitoyl_3_molecules_share_pct": 58.0,
+    "full_models_chain_error_share_pct": 95.8
+  },
+  "complex_and_decomposition": {
+    "complex_images_evaluated": 15,
+    "raw_complex_figure2_exact": {
+      "correct": 0,
+      "total": 4
+    },
+    "isolated_crop_10a_exact": {
+      "correct": 4,
+      "total": 4
+    },
+    "isolated_sulfonamide_series_exact": {
+      "correct": 6,
+      "total": 6
+    }
+  }
+}

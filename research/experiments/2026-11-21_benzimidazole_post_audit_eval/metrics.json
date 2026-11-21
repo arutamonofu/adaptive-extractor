@@ -1,0 +1,176 @@
+{
+  "experiment": "2026-11-21_benzimidazole_post_audit_eval",
+  "date": "2026-11-21",
+  "parent_experiment": "2026-11-20_benzimidazole_hybrid_run",
+  "task": "benzimidazole_antibiotics",
+  "prompt": "research/experiments/2026-11-21_benzimidazole_post_audit_eval/result/generated_instruction.txt",
+  "schema": "research/experiments/2026-11-21_benzimidazole_post_audit_eval/result/generated_schema.yaml",
+  "ground_truth": {
+    "file": "data/raw/ground_truth/Benzimidazole antibiotics_corrected.csv",
+    "total_rows": 1769,
+    "val_rows": 314
+  },
+  "targeted_regeneration": {
+    "model": "qwen/qwen3.5-397b-a17b",
+    "provider": "Alibaba",
+    "calls_total": 4,
+    "latency_s": 290.97,
+    "prompt_tokens": 48507,
+    "completion_tokens": 17582,
+    "total_tokens": 66089,
+    "cached_tokens": 0,
+    "reasoning_tokens": 11214,
+    "cost_usd": 0.066089,
+    "provider_cost_usd": 0.059459,
+    "calls": [
+      {
+        "stage": "ColumnGeneralization(smiles)",
+        "latency_s": 94.38,
+        "prompt_tokens": 18555,
+        "completion_tokens": 5686,
+        "reasoning_tokens": 4694,
+        "cost_usd": 0.024241
+      },
+      {
+        "stage": "ColumnGeneralization(bacteria)",
+        "latency_s": 83.4,
+        "prompt_tokens": 14425,
+        "completion_tokens": 5048,
+        "reasoning_tokens": 4140,
+        "cost_usd": 0.019473
+      },
+      {
+        "stage": "PromptHarmonization",
+        "latency_s": 69.05,
+        "prompt_tokens": 4868,
+        "completion_tokens": 4208,
+        "reasoning_tokens": 788,
+        "cost_usd": 0.009076
+      },
+      {
+        "stage": "SchemaConstraintInference",
+        "latency_s": 44.14,
+        "prompt_tokens": 10659,
+        "completion_tokens": 2640,
+        "reasoning_tokens": 1592,
+        "cost_usd": 0.013299
+      }
+    ]
+  },
+  "val_evaluation": {
+    "model": "gemini-3.8-flash",
+    "val_doc_ids": [
+      "acsomega.2c06142",
+      "j.bmcl.2018.03.046",
+      "j.ejmech.2019.03.026",
+      "j.ejmech.2020.112996",
+      "rjc.2023.1638382",
+      "s41598-022-21435-6"
+    ],
+    "macro_f1": 0.995194,
+    "micro_f1": 0.994857,
+    "strict_macro_f1_at_run": 0.943286,
+    "strict_micro_f1_at_run": 0.905645,
+    "strict_macro_f1_after_gt_cleanup": 0.981293,
+    "strict_micro_f1_after_gt_cleanup": 0.992591,
+    "delta_vs_2026_11_20_iter2": {
+      "micro_f1": 0.012267,
+      "macro_f1": 0.010806
+    },
+    "delta_vs_baseline": {
+      "micro_f1": 0.03723,
+      "macro_f1": 0.049174
+    },
+    "doc_scores": {
+      "acsomega.2c06142": {
+        "f1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "gts": 16,
+        "preds": 16,
+        "strict_f1_at_run": 1.0,
+        "strict_f1_after_gt_cleanup": 1.0
+      },
+      "j.bmcl.2018.03.046": {
+        "f1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "gts": 144,
+        "preds": 144,
+        "strict_f1_at_run": 0.857143,
+        "strict_f1_after_gt_cleanup": 1.0
+      },
+      "j.ejmech.2019.03.026": {
+        "f1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "gts": 54,
+        "preds": 54,
+        "strict_f1_at_run": 1.0,
+        "strict_f1_after_gt_cleanup": 1.0
+      },
+      "j.ejmech.2020.112996": {
+        "f1": 0.981366,
+        "precision": 0.963415,
+        "recall": 1.0,
+        "gts": 79,
+        "preds": 82,
+        "strict_f1_at_run": 0.89441,
+        "strict_f1_after_gt_cleanup": 0.979592
+      },
+      "rjc.2023.1638382": {
+        "f1": 0.989796,
+        "precision": 0.989796,
+        "recall": 0.989796,
+        "gts": 14,
+        "preds": 14,
+        "strict_f1_at_run": 0.989796,
+        "strict_f1_after_gt_cleanup": 0.989796
+      },
+      "s41598-022-21435-6": {
+        "f1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "gts": 7,
+        "preds": 7,
+        "strict_f1_at_run": 0.918367,
+        "strict_f1_after_gt_cleanup": 0.918367
+      }
+    },
+    "column_accuracy": {
+      "compound_id": 0.9905,
+      "smiles": 0.9874,
+      "target_type": 0.9905,
+      "target_relation": 0.9905,
+      "target_value": 0.9905,
+      "target_units": 0.9905,
+      "bacteria": 0.9905
+    },
+    "resources": {
+      "calls_total": 26,
+      "agent_calls": 17,
+      "structured_output_calls": 6,
+      "judge_calls": 3,
+      "retries": 0,
+      "latency_s": 1001.99,
+      "input_tokens": 505510,
+      "cached_tokens": 145415,
+      "output_tokens": 134067,
+      "reasoning_tokens": 75073,
+      "agent_reasoning_tokens": 0,
+      "structured_output_reasoning_tokens": 73702,
+      "judge_reasoning_tokens": 1371,
+      "agent_json_draft_waste_s": 165.01,
+      "agent_json_draft_waste_tokens": 25279,
+      "delta_vs_2026_11_20_iter2_val": {
+        "latency_pct": -43.8,
+        "speedup": 1.78,
+        "input_tokens_pct": -25.2,
+        "output_tokens_pct": -45.5,
+        "reasoning_tokens_pct": -62.7,
+        "agent_reasoning_tokens_pct": -100.0,
+        "calls_pct": -16.1
+      }
+    }
+  }
+}

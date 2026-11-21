@@ -1,0 +1,108 @@
+{
+  "experiment": "2026-04-15_nanozymes_mipro_pilot",
+  "date": "2026-04-15",
+  "semester": "2 (фев – июл 2026)",
+  "domain": "nanozymes",
+  "corpus": "ChemX: nanozymes",
+  "modality": "text",
+  "parser": "gemini-3-flash-preview",
+  "config_snapshot": {
+    "system_config": "research/experiments/2026-04-15_nanozymes_mipro_pilot/config_snapshot/pilot.yaml",
+    "initial_instruction": "research/experiments/2026-04-15_nanozymes_mipro_pilot/config_snapshot/nanozymes_pilot.txt",
+    "result_instruction": "research/experiments/2026-04-15_nanozymes_mipro_pilot/result/optimized_instruction.txt"
+  },
+  "models": {
+    "student": {
+      "model": "qwen/qwen3.5-27b",
+      "provider": "OpenRouter",
+      "temperature": 0.0,
+      "top_p": 0.1
+    },
+    "teacher": {
+      "model": "qwen/qwen3.5-397b-a17b",
+      "provider": "OpenRouter",
+      "temperature": 1.0,
+      "top_p": 0.9
+    }
+  },
+  "miprov2_hyperparameters": {
+    "num_candidates": 8,
+    "num_trials": 25,
+    "max_bootstrapped_demos": 0,
+    "max_labeled_demos": 1,
+    "minibatch": true,
+    "minibatch_size": 4,
+    "random_seed": 42,
+    "train_split": 9,
+    "total_load_in_git_config": 10,
+    "val_examples_in_mlflow": 10,
+    "val_split_extended": 15,
+    "discrete_search_space_reported": 72
+  },
+  "mlflow_run": "optimization_20260415_032055",
+  "eval_full_curve": [
+    {
+      "step": 0,
+      "label": "Baseline",
+      "f1_pct": 78.1
+    },
+    {
+      "step": 1,
+      "label": "eval_full_1",
+      "f1_pct": 82.28
+    },
+    {
+      "step": 2,
+      "label": "Best (eval_full_2)",
+      "f1_pct": 84.92
+    },
+    {
+      "step": 3,
+      "label": "eval_full_3",
+      "f1_pct": 84.4
+    },
+    {
+      "step": 4,
+      "label": "eval_full_4",
+      "f1_pct": 83.74
+    },
+    {
+      "step": 5,
+      "label": "eval_full_5",
+      "f1_pct": 83.24
+    }
+  ],
+  "eval_minibatch_curve": [
+    84.37,
+    80.81,
+    75.2,
+    86.49,
+    94.43,
+    80.14,
+    72.1,
+    78.31,
+    82.52,
+    71.02,
+    88.36,
+    73.7,
+    92.36,
+    94.61,
+    85.26,
+    86.96,
+    83.81,
+    75.77,
+    80.39,
+    71.17,
+    82.29,
+    82.41,
+    98.9,
+    82.37,
+    83.24
+  ],
+  "summary_metrics": {
+    "baseline_f1": 0.781,
+    "best_eval_full_f1": 0.8492,
+    "gain_pp": 6.82,
+    "saved_agent_meta_f1": 0.810075
+  }
+}
