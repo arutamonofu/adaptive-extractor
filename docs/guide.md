@@ -136,6 +136,21 @@ ae-extract --agent data/processed/agents/agent_20261103_201253.json --split test
 | [`config/syntactic_optimization.yaml`](../config/syntactic_optimization.yaml) | Параметры DSPy MIPROv2 (`num_candidates`, `num_trials`, `max_bootstrapped_demos`, `max_labeled_demos`, `minibatch`, `random_seed`) и модели `llm.student` / `llm.teacher`. |
 | [`config/extraction.yaml`](../config/extraction.yaml) | Лимит шагов ReAct (`max_tool_iterations`), `agent_thinking_level` (`low`), пакетный вывод (`structured_output_batch_size`), `enable_sanity_checks` и рабочая модель. |
 
+### Рекомендуемый стек моделей по модулям
+
+Модель настраивается отдельно для каждого модуля (`provider: "gemini"`, `"api"` или `"ollama"`). Проверенный стек:
+
+| Модуль / стадия | Конфиг | Модель | Ключевые параметры |
+| :--- | :--- | :--- | :--- |
+| `parse_text`, `localize` | [`ingestion.yaml`](../config/ingestion.yaml) | `gemini-3.8-flash` | `thinking_level: "low"` |
+| `classify`, `decompose`, `parse_visuals` | [`ingestion.yaml`](../config/ingestion.yaml) | `gemini-3.8-flash` | `thinking_level: "medium"` |
+| `ae-extract`, `SemanticJudge` | [`extraction.yaml`](../config/extraction.yaml) | `gemini-3.8-flash` | `agent_thinking_level: "low"`, `thinking_level: "medium"` |
+| `ae-optimize-syntactic` (`student`) | [`syntactic_optimization.yaml`](../config/syntactic_optimization.yaml) | `gemini-3.8-flash` | `thinking_level: "medium"` |
+| `ae-optimize-semantic`, `teacher` | [`semantic_optimization.yaml`](../config/semantic_optimization.yaml), [`syntactic_optimization.yaml`](../config/syntactic_optimization.yaml) | `qwen/qwen3.5-397b-a17b` | OpenRouter, `reasoning`, `prompt_caching` |
+
+> [!IMPORTANT]
+> Не ставьте `thinking_level: "high"` и не используйте модели семейства `Lite` на этапах ингестии, OCSR и экстракции — это снижает точность (см. [методологию](methodology.md#51-критерии-выбора-моделей-teacher-и-student)). Для OpenRouter сохраняйте `require_parameter_support: true`.
+
 ---
 
 ## 4. Адаптация под новый домен и расширение

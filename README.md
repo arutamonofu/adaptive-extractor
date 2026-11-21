@@ -27,6 +27,8 @@ flowchart LR
 
 Требуется Python ≥ 3.12 и `uv`. Полная инструкция, настройка `.env` и патчи для DSPy описаны в [docs/guide.md](docs/guide.md).
 
+Рекомендуемый стек: `gemini-3.8-flash` для ингестии, экстракции и `Student`, `qwen/qwen3.5-397b-a17b` (OpenRouter) для семантической оптимизации и `Teacher` — подробнее по модулям в [docs/guide.md](docs/guide.md#рекомендуемый-стек-моделей-по-модулям).
+
 ```bash
 uv venv --python 3.12 && source .venv/bin/activate
 uv pip install -e ".[chemistry,development]"
