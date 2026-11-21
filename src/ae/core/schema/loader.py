@@ -1,0 +1,319 @@
+"""YAML loader for schema configurations.
+
+This module provides functions to load SchemaConfig from YAML manifest files,
+enabling declarative schema definitions without Python code changes.
+"""
+
+import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
+
+import yaml
+
+from ae.core.evaluation.entities import Record
+
+from .config import FieldSpec, RowConverterConfig, SchemaConfig, ExtractionBundle
+from .dynamic_models import create_all_models, create_row_converter
+from .signature import create_signature
+from .tools import serialize_tool_spec
+from .validators import serialize_validator_spec
+
+if TYPE_CHECKING:
+    pass
+
+logger = logging.getLogger(__name__)
+
+
+def _find_project_root(start_path: Path) -> Path:
+    """Find project root by looking for pyproject.toml.
+
+    Args:
+        start_path: Starting path to search from.
+
+    Returns:
+        Path to project root directory.
+    """
+    current = start_path.resolve()
+
+    while current != current.parent:
+        if (current / "pyproject.toml").exists():
+            return current
+        current = current.parent
+
+    # Fallback to start path if not found
+    return start_path.parent.parent.parent  # Fallback to reasonable default
+
+
+def _parse_field_spec(field_name: str, field_data: Dict[str, Any]) -> FieldSpec:
+    """Parse FieldSpec from YAML data.
+
+    Args:
+        field_name: Name of the field.
+        field_data: Dictionary with field specification.
+
+    Returns:
+        FieldSpec instance.
+
+    Raises:
+        ValueError: If field specification is invalid.
+    """
+    # Get type - can be string or Python type
+    type_spec = field_data.get("type", "str")
+
+    # Map string type names to Python types
+    type_mapping: Dict[str, Type] = {
+        "str": str,
+        "string": str,
+        "int": int,
+        "integer": int,
+        "float": float,
+        "number": float,
+        "bool": bool,
+        "boolean": bool,
+    }
+
+    if isinstance(type_spec, str):
+        type_spec = type_mapping.get(type_spec.lower(), str)
+
+    return FieldSpec(
+        type=type_spec,
+        description=field_data.get("description", ""),
+        required=field_data.get("required", True),
+        default=field_data.get("default", None),
+        choices=field_data.get("choices", None),
+        min_value=field_data.get("min_value", None),
+        max_value=field_data.get("max_value", None),
+        pattern=field_data.get("pattern", None),
+        format=field_data.get("format", None),
+        validators=field_data.get("validators", []) or [],
+    )
+
+
+def _parse_row_converter(
+    converter_data: Dict[str, Any],
+) -> RowConverterConfig:
+    """Parse RowConverterConfig from YAML data.
+
+    Args:
+        converter_data: Dictionary with row converter configuration.
+
+    Returns:
+        RowConverterConfig instance.
+    """
+    mapping = {}
+
+    if isinstance(converter_data, dict):
+        for field_name, columns in converter_data.items():
+            if isinstance(columns, list):
+                mapping[field_name] = columns
+            else:
+                mapping[field_name] = [columns]
+
+    return RowConverterConfig(mapping=mapping)
+
+
+def load_schema_from_yaml(
+    yaml_path: str | Path,
+    instruction_path: Optional[str | Path] = None,
+    base_class: Optional[Type[Record]] = None,
+) -> SchemaConfig:
+    """Load SchemaConfig from a YAML file.
+
+    Reads and parses a YAML manifest file into a SchemaConfig object.
+    Validates the configuration and resolves relative paths.
+
+    Args:
+        yaml_path: Path to the YAML manifest file.
+        instruction_path: Optional path to instruction/prompt text file.
+        base_class: Optional base class for record model (default: Record).
+
+    Returns:
+        SchemaConfig instance.
+
+    Raises:
+        FileNotFoundError: If YAML file not found.
+        yaml.YAMLError: If YAML parsing fails.
+        ValueError: If configuration is invalid.
+    """
+    yaml_path = Path(yaml_path)
+
+    if not yaml_path.exists():
+        raise FileNotFoundError(f"Schema YAML file not found: {yaml_path}")
+
+    logger.info(f"Loading schema configuration from {yaml_path}")
+
+    # Read and parse YAML
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        yaml_data = yaml.safe_load(f)
+
+    if not isinstance(yaml_data, dict):
+        raise ValueError(f"Invalid YAML format: expected dictionary, got {type(yaml_data)}")
+
+    # Parse fields
+    fields: Dict[str, FieldSpec] = {}
+    fields_data = yaml_data.get("fields", {})
+
+    for field_name, field_spec in fields_data.items():
+        fields[field_name] = _parse_field_spec(field_name, field_spec)
+
+    # Parse row converter
+    row_converter = RowConverterConfig()
+    if "row_converter" in yaml_data:
+        row_converter = _parse_row_converter(yaml_data["row_converter"])
+
+    raw_tools = yaml_data.get("tools") or []
+    if not isinstance(raw_tools, list):
+        raise ValueError("Invalid YAML format: 'tools' must be a list")
+
+    # Create SchemaConfig
+    config = SchemaConfig(
+        name=yaml_data["name"],
+        fields=fields,
+        compare_fields=yaml_data["compare_fields"],
+        float_tolerance=yaml_data["float_tolerance"],
+        row_converter=row_converter,
+        base_class=base_class,
+        instruction_file=str(instruction_path) if instruction_path else None,
+        tools=raw_tools,
+    )
+
+    logger.info(f"Loaded schema configuration: {config.name}")
+
+    return config
+
+
+def load_schema_with_models(
+    yaml_path: str | Path,
+    instruction_path: Optional[str | Path] = None,
+    base_class: Optional[Type[Record]] = None,
+) -> tuple[SchemaConfig, Type, Type]:
+    """Load SchemaConfig and generate models from YAML.
+
+    Convenience function that loads the configuration and creates
+    the record and output models.
+
+    Args:
+        yaml_path: Path to YAML manifest file.
+        instruction_path: Optional path to instruction/prompt text file.
+        base_class: Optional base class for record model.
+
+    Returns:
+        Tuple of (SchemaConfig, record_model, output_model).
+    """
+    config = load_schema_from_yaml(yaml_path, instruction_path=instruction_path, base_class=base_class)
+
+    record_model, output_model = create_all_models(config)
+
+    return config, record_model, output_model
+
+
+def load_schema_complete(
+    yaml_path: str | Path,
+    instruction_path: Optional[str | Path] = None,
+    base_class: Optional[Type[Record]] = None,
+) -> ExtractionBundle:
+    """Load complete schema setup from YAML.
+
+    Loads configuration, generates models, signature, and converter.
+    Returns a ExtractionBundle with all components needed for a task.
+
+    Args:
+        yaml_path: Path to YAML manifest file.
+        instruction_path: Optional path to instruction/prompt text file.
+        base_class: Optional base class for record model.
+
+    Returns:
+        ExtractionBundle containing schema config, models, signature, and converter.
+    """
+    config, record_model, output_model = load_schema_with_models(
+        yaml_path, instruction_path=instruction_path, base_class=base_class
+    )
+
+    signature = create_signature(config, record_model, output_model)
+    row_converter = create_row_converter(config, record_model)
+
+    return ExtractionBundle(
+        config=config,
+        record_model=record_model,
+        output_model=output_model,
+        signature=signature,
+        row_converter=row_converter,
+    )
+
+
+def save_schema_to_yaml(
+    config: SchemaConfig,
+    output_path: str | Path,
+) -> Path:
+    """Save SchemaConfig to a YAML file.
+
+    Serializes a SchemaConfig object to a YAML manifest file.
+
+    Args:
+        config: SchemaConfig to save.
+        output_path: Path for output YAML file.
+
+    Returns:
+        Path to saved file.
+    """
+    output_path = Path(output_path)
+
+    # Convert config to dictionary
+    yaml_data = {
+        "name": config.name,
+        "compare_fields": config.compare_fields,
+        "float_tolerance": config.float_tolerance,
+    }
+
+    # Add fields
+    fields_data = {}
+    for field_name, spec in config.fields.items():
+        field_dict = {
+            "type": spec.type.__name__ if hasattr(spec.type, "__name__") else str(spec.type),
+            "description": spec.description,
+            "required": spec.required,
+        }
+
+        if spec.default is not None:
+            field_dict["default"] = spec.default
+
+        if spec.choices:
+            field_dict["choices"] = spec.choices
+
+        if spec.min_value is not None:
+            field_dict["min_value"] = spec.min_value
+
+        if spec.max_value is not None:
+            field_dict["max_value"] = spec.max_value
+
+        if spec.pattern:
+            field_dict["pattern"] = spec.pattern
+
+        if spec.format:
+            field_dict["format"] = spec.format
+
+        if spec.validators:
+            field_dict["validators"] = [
+                serialize_validator_spec(v) for v in spec.validators
+            ]
+
+        fields_data[field_name] = field_dict
+
+    yaml_data["fields"] = fields_data
+
+    # Add row converter mapping
+    if config.row_converter.mapping:
+        yaml_data["row_converter"] = config.row_converter.mapping
+
+    # Add declarative extraction tools
+    if config.tools:
+        yaml_data["tools"] = [serialize_tool_spec(t) for t in config.tools]
+
+    # Write YAML
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        yaml.dump(yaml_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+    logger.info(f"Saved schema configuration to {output_path}")
+
+    return output_path

@@ -1,0 +1,35 @@
+# Core Configuration for Adaptive Extractor
+version: 1
+
+# Project-wide metadata and logging settings
+project:
+  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  log_level: "INFO"
+
+# Directory and file system paths relative to the project root
+paths:
+  schema_file: "config/schema.yaml"
+  baseline_prompt_file: "config/baseline_instruction.txt"
+  pdf_dir: "data/raw/pdf"
+  ground_truth_file: "data/raw/ground_truth/Benzimidazole antibiotics_corrected.csv"
+  splits_file: "data/raw/splits/Benzimidazole antibiotics.json"
+  ingestion_dir: "data/interim/ingestion"
+  generated_prompt_file: "data/interim/semantic_optimization/generated_instruction.txt"
+  agents_dir: "data/processed/agents"
+  extracted_dir: "data/processed/extracted"
+
+# Caching configurations for LLM responses
+cache:
+  # Maximum disk cache size in bytes (e.g. 30 GB)
+  disk_size_limit_bytes: 30000000000
+  # Maximum number of entries in memory cache
+  memory_max_entries: 1000000
+
+# Circuit breaker settings to protect against service outages
+circuit_breaker:
+  # Number of consecutive failures before tripping the circuit open
+  failure_threshold: 8
+  # Timeout in seconds to wait in open state before transitioning to half-open
+  reset_timeout: 30.0
+  # Maximum number of test calls permitted in half-open state
+  half_open_max_calls: 1

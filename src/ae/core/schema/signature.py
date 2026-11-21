@@ -1,0 +1,86 @@
+"""Dynamic DSPy signature generation for tasks.
+
+This module provides functions to dynamically generate DSPy signatures
+from TaskConfig, enabling flexible task definitions without hardcoded signatures.
+"""
+
+import logging
+from typing import TYPE_CHECKING, Optional, Type
+
+from pydantic import BaseModel
+
+from .config import SchemaConfig
+
+if TYPE_CHECKING:
+    import dspy
+
+logger = logging.getLogger(__name__)
+
+
+def create_signature(
+    schema_config: SchemaConfig,
+    record_model: Type[BaseModel],
+    output_model: Optional[Type[BaseModel]] = None,
+    instruction: Optional[str] = None,
+) -> "Type[dspy.Signature]":
+    """Dynamically create a DSPy signature from SchemaConfig.
+
+    This function generates a DSPy Signature class with input/output fields
+    based on the schema configuration and generated models.
+
+    Args:
+        schema_config: Schema configuration.
+        record_model: Generated record model class.
+        output_model: Generated output model class (optional, will be created if not provided).
+        instruction: Instruction text (optional, will use schema_config if not provided).
+
+    Returns:
+        Dynamically generated DSPy Signature class.
+
+    Raises:
+        ValueError: If no instruction is available.
+        FileNotFoundError: If instruction file not found.
+    """
+    import hashlib
+
+    import dspy
+
+    # Get instruction from config (no fallback - strict mode)
+    if instruction is None:
+        instruction = schema_config.get_instruction()
+
+    if not instruction or not instruction.strip():
+        raise ValueError("Instruction cannot be empty")
+
+    # Create output model if not provided
+    if output_model is None:
+        from .dynamic_models import create_output_model
+        output_model = create_output_model(schema_config, record_model)
+
+    compiled_docstring = instruction.strip()
+    prompt_hash = hashlib.md5(compiled_docstring.encode("utf-8")).hexdigest()[:8]
+    signature_name = f"DynamicExtractionSignature_{prompt_hash}"
+
+    class_attributes = {
+        "__doc__": compiled_docstring,
+        "document_text": dspy.InputField(
+            desc="Full text content of the scientific article or document."
+        ),
+        "extracted_data": dspy.OutputField(
+            desc=f"Extracted {schema_config.name} records as structured data."
+        ),
+        "__annotations__": {
+            "document_text": str,
+            "extracted_data": output_model
+        }
+    }
+
+    # Dynamically create the class inheriting from dspy.Signature
+    DynamicSignature = type(signature_name, (dspy.Signature,), class_attributes)
+    # Ensure __name__, __qualname__ and __module__ are set for DSPy's propose/utils.py
+    DynamicSignature.__qualname__ = signature_name
+    DynamicSignature.__module__ = __name__
+
+    logger.info(f"Created DSPy signature '{signature_name}' with hash '{prompt_hash}'")
+
+    return DynamicSignature

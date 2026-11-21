@@ -1,0 +1,10 @@
+{
+  "filename": "paper1.pdf",
+  "text_content": "Sample parsed content from paper1.pdf. This document contains information about Fe3O4 nanozymes with peroxidase activity.",
+  "metadata": {
+    "source_path": "/path/to/paper1.pdf",
+    "page_count": 10
+  },
+  "tables": [],
+  "images": []
+}
