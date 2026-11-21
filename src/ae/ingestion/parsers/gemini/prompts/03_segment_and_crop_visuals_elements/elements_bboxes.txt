@@ -1,0 +1,8 @@
+Locate the bounding box of each element inside visual `{visual_id}`:
+{elements_list}
+
+### Bounding Box Rules
+- **Coordinates**: `box_2d: [ymin, xmin, ymax, xmax]` normalized to `0..1000` relative to this cropped visual image.
+- **Tight coverage**: Enclose ONLY the target structure, chart, or sub-panel together with its immediate compound/panel label. Exclude neighboring structures, reaction arrows, and external text boxes.
+- **Disjoint regions (`extra_boxes_2d`)**: For a Markush element whose R-group definition list/structures are spatially separated from its core scaffold, put the core scaffold in `box_2d` and the separated R-group legend box(es) in `extra_boxes_2d`. Multiple Markush elements (e.g., a reactant series and a product series) may reference and include the same shared R-group legend box in their respective `extra_boxes_2d`.
+- **Absent**: If an element is not visible, set `found = false` and `box_2d = [0, 0, 0, 0]`.

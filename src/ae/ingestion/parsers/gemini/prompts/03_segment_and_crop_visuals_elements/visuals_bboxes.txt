@@ -1,0 +1,10 @@
+Locate each specified visual on Page {page_number}.
+
+Visuals to locate:
+{visuals_list}
+
+### Bounding Box Rules
+- **Coordinates**: `box_2d: [ymin, xmin, ymax, xmax]` normalized to `0..1000` (`0 <= ymin < ymax <= 1000`, `0 <= xmin < xmax <= 1000`).
+- **Full visual coverage**: Enclose the entire visual block on this page—all sub-panels, drawings, compound/panel labels, reaction arrows/conditions, axes, legends, and table headers, rows, and table footnotes.
+- **Exclude external text**: Exclude the main figure/table caption paragraph, surrounding article body text, page headers/footers, and neighboring visuals.
+- **Absent visual**: If a visual is not present on this page, set `found = false` and `box_2d = [0, 0, 0, 0]`.

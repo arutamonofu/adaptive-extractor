@@ -1,0 +1,8 @@
+The following SMILES extracted from the attached image(s) failed RDKit chemical validation:
+
+{invalid_items_list}
+
+Surrounding Context:
+{context}
+
+Re-examine the image(s) and return a valid, RDKit-parseable SMILES for each listed `label`. Ensure correct atomic valences, closed rings, and balanced parentheses.

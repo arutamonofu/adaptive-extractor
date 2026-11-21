@@ -1,0 +1,31 @@
+Determine whether the cropped visual (`{visual_id}`) is a single elementary extraction unit (`mode = "single"`) or must be decomposed into isolated sub-elements (`mode = "composite"`).
+
+Visual ID: {visual_id}
+Type Hint: {visual_type}
+Caption: {caption}
+Manifest Sketch: {description}
+Surrounding Article Context:
+{local_context}
+
+### Core Principle: Cognitive Elementarity
+Downstream parsers can accurately decode **at most ONE elementary visual structure per call**. Segmentation exists to isolate each complex visual object into its own focused crop while preserving the surrounding relational context (reaction arrows, conditions, yields, bioactivity callout boxes, table grids, panel labels) as text in `composition_template`.
+
+### 1. When to use `mode = "single"`
+Use **ONLY** when the entire crop contains **strictly one** elementary object of a single modality with no extra narrative/annotation blocks:
+- **`molecular_structure`**: Strictly **ONE** molecular scaffold — either a single isolated molecule OR a single Markush core scaffold with its R-group legend. (If the image shows >= 2 distinct molecules/scaffolds, any reaction arrow, or a grid of compounds, it is **NEVER** `single`).
+- **`chart`**: A single plot/spectrum sharing one coordinate system.
+- **`table`**: A table containing purely text and numbers (zero chemical structure drawings or embedded plots).
+Set `single_type` (`table`, `chart`, or `molecular_structure`), `composition_template = null`, and `elements = []`.
+
+### 2. When to use `mode = "composite"`
+Use whenever the image contains **more than one molecular scaffold**, multiple distinct plots, mixed modalities, or surrounding relational/annotation text:
+- **Any reaction scheme or multi-structure figure (>= 2 scaffolds)**: Transcribe all reaction arrows, reagents, conditions, yields, textual substituent definitions (e.g. `2a: Ar = Ph`), and any callout/bioactivity text boxes (e.g. `MIC = ...`, `IC50 = ...`, even if positioned inside or next to an R-group legend) verbatim into `composition_template` with clear compound attribution. Place an `<element id="..." />` tag at the position of each distinct reactant, intermediate, or product scaffold (downstream Stage 04 element parsing extracts strictly chemical graphs and SMILES).
+- **Tables with embedded drawings/plots**: Write the full table in `composition_template` (preserving all text/numeric cells, units, and footnotes verbatim) and place `<element id="..." />` inside cells containing chemical structures or mini-charts.
+  - Use standard Markdown pipe table format **only** for simple tables with a single flat header row and no merged cells.
+  - Use HTML `<table>...</table>` (with `<thead>`, `<tbody>`, and explicit `rowspan`/`colspan` attributes) whenever the table has **multi-level/grouped headers** (e.g., a spanning category or unit header above sub-columns) or **merged cells**; never drop upper spanning header rows or units.
+- **Multi-panel / mixed visuals**: Write the panel structure and shared narrative in `composition_template` with `<element id="..." />` for each sub-panel.
+
+### 3. Element Definition Rules (`elements`)
+- **One scaffold per `molecular_structure` element**: Each distinct molecule or Markush core ($R^1, R^2$) is a separate element. Keep a Markush core and its substituent definitions ($R$-group list/structures) together as **one** element. If a single $R$-group legend is shared across multiple Markush scaffolds on the scheme (e.g., reactants `5a–5f` and products `6a–6f` sharing substituents `a–f`), explicitly mention that shared legend in the `description` of **each** corresponding element so both the scaffold and the shared legend are localized for each element.
+- **Neutral visual localization cues in `description`**: For each `<element id="..." />` in `composition_template`, provide a matching item in `elements` with `element_id`, `type`, `page_index` (0-based crop image index), visible `label` (e.g., `"4"`, `"5a–5f"`, `"(a)"`), and a **spatial/visual localization description** (e.g., `"Chemical structure in column C5 of row 98b"` or `"Product scaffold labeled 35a–35g on the right"`). Do **not** guess unverified specific ring/IUPAC substituent names from the zoomed-out overview image.
+- **Preserve variable & position callouts**: In `composition_template`, transcribe any visible variable/position annotations printed next to structures (e.g. `(C5)`, `F (C6)`, `R (C7)`, `R1`, `Ar`).

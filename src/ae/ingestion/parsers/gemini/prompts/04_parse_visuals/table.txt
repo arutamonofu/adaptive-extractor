@@ -1,0 +1,12 @@
+Transcribe the attached table image(s) into a complete, structured table in `content`.
+
+Caption: {caption}
+Context: {description}
+Surrounding Article Context:
+{context}
+
+### Extraction Rules
+- **Completeness**: Extract all headers, subheaders, rows, and cells verbatim, preserving exact numbers, signs, uncertainty intervals (±), and units.
+- **Table format**: Use standard Markdown pipe table format for regular grids; use HTML `<table>...</table>` (with `rowspan`/`colspan`) whenever needed to faithfully represent complex multi-level headers, spanning unit/category headers above sub-columns, or merged cells—never drop upper spanning headers.
+- **Footnotes & conditions**: Append all table footnotes (`a`, `b`, `*`, experimental conditions, abbreviations) immediately below the table inside `content`.
+- **Visual truth**: Read cell values strictly from the image(s); use the caption/context only to disambiguate headers or abbreviations.

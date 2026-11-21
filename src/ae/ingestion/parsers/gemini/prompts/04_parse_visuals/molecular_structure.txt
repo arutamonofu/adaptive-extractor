@@ -1,0 +1,27 @@
+Extract the chemical structure(s) or expanded Markush series from the attached image(s).
+
+Caption: {caption}
+Target Scope: {description}
+Surrounding Context:
+{context}
+
+### Guidelines:
+1. **Target Entities (`entities`)**:
+   - For each target compound, output a distinct entity with its visible `label` (e.g. "1", "2a", "5f") and full valid `smiles`.
+   - Do NOT output bare substituent fragments (e.g., standalone "a", "b", "c" from an R-group legend) as separate entities—only output complete assembled molecules.
+
+2. **Visual Truth & Context Disambiguation**:
+   - Determine ring sizes (explicitly count vertices on each ring, e.g., 5-membered vs 6-membered), heteroatom counts and positions, bond orders, and wedge/dash stereocenters directly from the attached high-resolution image(s). Never trust unverified chemical names in `Target Scope` if they conflict with the image.
+   - Use `Surrounding Context` (article prose, table column/row headers, and scheme definitions) to disambiguate chemical classes (e.g., named ring scaffolds), substituent attachments, or named stereoisomers (`(R)`/`(S)`) when consistent with the drawing.
+
+3. **Valid SMILES & Variable/Attachment Binding (`attachment_points`)**:
+   - Generate a syntactically valid SMILES parsable by RDKit for every compound.
+   - SMILES must contain only valid chemical atoms, bonds, and correct valences (balanced brackets and closed ring numbers).
+   - Fully expand common abbreviations (e.g., Me, Et, Ph, Boc, Ac) into explicit atoms.
+   - For unexpanded general scaffolds or open-bond substituent fragments where variable group definitions are not present on the image, use RDKit dummy atoms with atom map numbers for attachment points: `[*:1]`, `[*:2]`, etc. Never use raw text characters or unbracketed `*`.
+   - **Mandatory `attachment_points` binding**: Whenever `smiles` contains one or more dummy atoms (`[*:1]`, `[*:2]`, ...), populate `attachment_points` with one entry per dummy atom mapping `placeholder` (e.g. `"[*:1]"`) to `variable` — the exact variable symbol and/or position label visible on the image or table header (e.g., `"R"`, `"R1"`, `"R (C7)"`, `"Ar"`, `"C5 attachment"`).
+   - Stereochemistry (`@`/`@@`, `/`/`\`) may be included when clear, but prioritize overall SMILES validity over exact chiral tags.
+
+4. **Series & Markush expansion**:
+   - For a core scaffold with variable groups ($R, R^1, R^2$, Ar, X, etc.), substitute each defined R-group fragment from the legend into the core scaffold to assemble the complete valid SMILES for each enumerated compound.
+   - Ensure every member in the enumerated range (e.g., all entries from `2a` through `2l`) is extracted completely without skipping.

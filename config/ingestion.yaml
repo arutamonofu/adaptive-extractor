@@ -1,0 +1,119 @@
+# Document Ingestion Configuration
+# Fully explicit configuration for document transcription, visual localization, cropping, and extraction.
+
+ingestion:
+  # ---------------------------------------------------------------------------
+  # 1. Execution & Concurrency Management
+  # ---------------------------------------------------------------------------
+  execution:
+    overwrite: false              # Overwrite already ingested document files (rerun from transcribe)
+    from_stage: null              # Resume pipeline from specific stage (null or stage name)
+    save_llm_history: false       # Save debug visual/overlay dumps in data/interim/ingestion/{doc}/debug
+
+    concurrency:
+      max_documents: 2            # Maximum number of PDF documents processed concurrently
+      max_requests_per_document: 8 # Maximum concurrent API requests within a single document
+
+  # ---------------------------------------------------------------------------
+  # 2. API Client & Network Transport
+  # ---------------------------------------------------------------------------
+  api_client:
+    timeout: 300                  # API request timeout in seconds
+    max_retries: 5                # Maximum retries on network errors or HTTP 429 rate limits
+    retry_delay: 2.0              # Base retry delay in seconds for exponential backoff
+
+  # ---------------------------------------------------------------------------
+  # 3. Pipeline Stages
+  # ---------------------------------------------------------------------------
+  stages:
+    # Stage 1: Document text parsing and visual placeholder insertion
+    parse_text:
+      model:
+        provider: "gemini"
+        model: "gemini-3.8-flash"
+        temperature: 0.0
+        max_output_tokens: 65536
+        media_resolution: "high"
+        thinking_level: "low"
+        thinking_budget: null
+
+    # Stage 2: Visual placeholder classification and manifest generation (02_manifest.json)
+    classify:
+      model:
+        provider: "gemini"
+        model: "gemini-3.8-flash"
+        temperature: 0.0
+        max_output_tokens: 65536
+        media_resolution: "high"
+        thinking_level: "medium"
+        thinking_budget: null
+
+    # Stage 3 (T1): Visual block bounding box localization on page images
+    localize:
+      page_dpi: 150               # Page rendering DPI for visual localization input
+      model:
+        provider: "gemini"
+        model: "gemini-3.8-flash"
+        temperature: 0.0
+        max_output_tokens: 65536
+        media_resolution: "high"
+        thinking_level: "low"
+        thinking_budget: null
+
+    # Stage 4 (T2 / T5): High-DPI vector cropping from PDF (PyMuPDF, no LLM)
+    crop:
+      padding_ratio: 0.02         # Padding ratio (2%) around bbox to prevent clipping labels
+      base_dpi: 300               # Base DPI for vector cropping
+      upscale:
+        enabled: true             # Enable adaptive DPI upscaling for small figures
+        min_long_side_px: 2000    # Target minimum long-edge dimension in pixels
+        max_dpi: 1200             # Maximum DPI threshold for upscaled crops
+
+    # Stage 5 (T3): Decomposition of composite figures into elementary sub-panels
+    decompose:
+      model:
+        provider: "gemini"
+        model: "gemini-3.8-flash"
+        temperature: 0.0
+        max_output_tokens: 65536
+        media_resolution: "high"
+        thinking_level: "medium"
+        thinking_budget: null
+
+    # Stage 6 (T6): Modality-specific visual parsing
+    parse_visuals:
+      # 6.1. Tables (Markdown/HTML conversion)
+      table:
+        model:
+          provider: "gemini"
+          model: "gemini-3.8-flash"
+          temperature: 0.0
+          max_output_tokens: 65536
+          media_resolution: "high"
+          thinking_level: "medium"
+          thinking_budget: null
+
+      # 6.2. Charts & plots (data series digitization)
+      chart:
+        model:
+          provider: "gemini"
+          model: "gemini-3.8-flash"
+          temperature: 0.0
+          max_output_tokens: 65536
+          media_resolution: "high"
+          thinking_level: "medium"
+          thinking_budget: null
+
+      # 6.3. Chemical structures, reactions, and Markush series
+      molecule:
+        model:
+          provider: "gemini"
+          model: "gemini-3.8-flash"
+          temperature: 0.0
+          max_output_tokens: 65536
+          media_resolution: "high"
+          thinking_level: "medium"
+          thinking_budget: null
+        validation:
+          validate_rdkit: true    # Syntax and valence validation of SMILES via RDKit
+          max_retries: 1          # Maximum self-correction retry cycles with error feedback

@@ -1,0 +1,20 @@
+Convert the PDF into raw Markdown (no outer ``` code fences), transcribing all scientific text verbatim and replacing every tabular or graphical data block with a `<visual>` placeholder.
+
+### Text & Page Flow
+- **Read order & continuity**: Follow natural reading order across columns; merge line-break hyphens and rejoin sentences split by floating visuals.
+- **Formatting**: Preserve inline styling (**bold**, *italics*, sub/superscripts). Use plain text/Unicode for units, ranges, and standard symbols (µ, °C, ±, ≤, →); reserve LaTeX ($...$, $$...$$) strictly for mathematical equations.
+- **Filtering**: Omit page headers/footers, page/line numbers, watermarks, publisher ornaments, bibliography/reference lists, and administrative boilerplate (funding, acknowledgments, author contributions, competing interests). Keep all scientific content regardless of position (including methods, appendices, or supplementary sections located after references). If an entire page has no transcribable content, output `<!-- omitted -->`.
+- **Boundary continuity**: Transcribe text strictly within the physical page boundaries. If the page starts or ends mid-sentence or mid-word, transcribe verbatim as printed; do NOT attempt to complete, guess, hallucinate, or artificially terminate the sentence. Do NOT insert artificial closing tags or fences for environments, equations, or tables that continue onto adjacent pages.
+
+### `<visual>` Placeholders
+- Replace every table, figure, scheme, plot, or standalone structure/diagram (including continued multi-page fragments) with a `<visual>` tag on the page where it physically appears, placed between paragraphs without breaking a sentence:
+  - With caption:
+    <visual id="<ID>">
+    Verbatim caption text
+    </visual>
+  - Without caption:
+    <visual id="<ID>" />
+- **Omit interior content**: Do not transcribe anything inside the visual boundary (table cells, table footnotes, internal labels, annotations, or axes).
+- **`<ID>` format** (only `[A-Za-z0-9_.-]`):
+  - Captioned: exact designation from the caption with spaces/punctuation replaced by `_` (e.g., `Figure 3` -> `Figure_3`, `Table S1` -> `Table_S1`, `Fig. 2a` -> `Fig._2a`; never abbreviate or rename).
+  - Uncaptioned: `Unlabeled_p{page}_{k}` (1-based page number `{page}`, 1-based index `{k}` on that page) or `Unlabeled_{k}`.
