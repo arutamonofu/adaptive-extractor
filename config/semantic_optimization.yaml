@@ -1,0 +1,64 @@
+# Semantic Prompt Optimization Configuration
+# Autonomous configuration for semantic rule discovery, consolidation, negative analysis, and generalization.
+
+semantic_optimization:
+  # ---------------------------------------------------------------------------
+  # 1. Execution & Pipeline Control
+  # ---------------------------------------------------------------------------
+  execution:
+    use_split: "train"            # Dataset split for rule discovery
+    val_split: "val"              # Dataset split for validation F1 evaluation
+    f1_threshold: 0.98            # Validation F1 threshold for early stopping
+    initial_docs: 2               # Number of documents processed in iteration 1
+    step_size: 4                  # Number of documents added per subsequent iteration
+    row_batch_size: 5             # Number of GT rows grouped per column analysis LLM call
+    max_rows_per_doc: 20          # Max representative GT rows analyzed per document (0 disables sampling)
+    harmonize_prompt: true        # Run final cross-column LLM prompt harmonization
+    enable_semantic_judge: true   # Enable LLM Semantic Judge during validation and residual alignment
+    residual_enabled: true        # Enable Hybrid Anchor (iter 1) + Residual (iter >= 2) mode
+    residual_fallback_threshold: 0.35 # Fallback to full analysis if doc F1 < threshold or Recall < threshold
+    residual_skip_f1: 0.98        # Zero-Delta Fast-Forward threshold when no actionable discrepancies remain
+    residual_max_examples_per_sig: 3 # Max representative rows analyzed per column mismatch signature
+    residual_max_fn_rows: 8       # Max representative FN rows analyzed per document
+    residual_max_fp_rows: 10      # Max representative FP rows passed to NegativeRowAnalysis
+    max_tool_iterations: 5        # Max visual unpacking tool iterations in ReAct nodes
+    artifacts_dir: "data/interim/semantic_optimization"
+    resume: false                 # Resume from cached intermediate artifacts
+    interactive: true             # Interactive human-in-the-loop conflict resolution
+    corrected_gt_file: "data/interim/semantic_optimization/ground_truth_corrected.csv"
+    enable_cache: true            # Enable LLM response caching for semantic optimization steps
+    save_llm_history: true        # Save LLM interaction history in research/experiments/_runtime/logs/llm/semantic_optimization
+
+  # ---------------------------------------------------------------------------
+  # 2. API Client & Network Transport
+  # ---------------------------------------------------------------------------
+  api_client:
+    timeout: 300                  # Request timeout in seconds
+    max_retries: 5                # Maximum retries on failure
+    rate_limit_delay: 10.0        # Wait delay in seconds between consecutive requests
+
+  # ---------------------------------------------------------------------------
+  # 3. Semantic Optimization Reasoning & Analysis Model Configuration
+  # ---------------------------------------------------------------------------
+  model:
+    provider: "api"               # Provider: "gemini", "api" (OpenRouter/OpenAI), or "ollama"
+    model: "qwen/qwen3.5-397b-a17b"
+    temperature: 1.0
+    top_p: 0.9
+    api:
+      max_tokens: 32768
+      base_url: "https://openrouter.ai/api/v1"
+      reasoning:
+        enabled: true
+      openrouter_cache: true
+      prompt_caching: true
+      provider:
+        require_parameter_support: true
+        allow_fallbacks: false
+        priority_order:
+          - alibaba
+          - streamlake
+          - chutes/fp8
+          - deepinfra/fp8
+          - morph
+          - parasail/fp8

@@ -1,0 +1,89 @@
+# Syntactic Prompt Optimization Configuration (DSPy MIPROv2)
+# Autonomous configuration for syntactic prompt optimization, student trial execution, and teacher bootstrapping.
+
+syntactic_optimization:
+  # Total number of dataset examples to load for training/testing
+  total_load: 15
+  # Number of examples allocated to the training split
+  train_split: 9
+  # Number of prompt candidate instructions to generate per trial
+  num_candidates: 9
+  # Total number of optimization trial steps (rounds) to run
+  num_trials: 27
+
+  # DSPy Few-Shot Settings:
+  # Max bootstrapped/generated demonstrations (use 0 for zero-shot focus)
+  max_bootstrapped_demos: 0
+  # Max hand-labeled demonstrations to include in the prompt
+  max_labeled_demos: 1
+
+  # Evaluation Settings:
+  # Use mini-batching during validation/evaluation steps
+  minibatch: false
+  minibatch_size: 4
+  # Batch size for viewing data details in progress logs
+  view_data_batch_size: 1
+  # Threshold criteria value of target metric to trigger early stopping
+  metric_threshold: 1.0
+
+  # Candidate Generation Settings:
+  # Initial generation temperature for proposing prompt revisions
+  init_temperature: 1.0
+  # Random seed for reproducibility
+  random_seed: 42
+  # Enable LLM response caching during optimization
+  enable_cache: true
+  # Enable verbose progress logs for optimization steps
+  verbose: true
+  # Maximum allowed internal failures before aborting the run
+  max_errors: 3
+
+  # History Tracking Settings:
+  # Save full LLM prompt/response histories for each trial run
+  save_llm_history: true
+  # Enable LLM Semantic Judge during optimization evaluation
+  enable_semantic_judge: true
+
+  # MIPROv2 Student & Teacher Language Models
+  llm:
+    # Student model: used for executing trials and semantic evaluation
+    student:
+      provider: "gemini"
+      model: "gemini-3.8-flash"
+      temperature: 0.0
+      top_p: 0.95
+      enable_cache: true
+      timeout: 600
+      rate_limit_delay: 2.0
+      max_retries: 5
+      gemini:
+        max_output_tokens: 65536
+        thinking_level: "medium"
+
+    # Teacher model: high-capacity model used for proposal and demonstration generation
+    teacher:
+      provider: "api"
+      model: "qwen/qwen3.5-397b-a17b"
+      temperature: 1.0
+      top_p: 0.9
+      enable_cache: true
+      timeout: 300
+      rate_limit_delay: 10.0
+      max_retries: 5
+      api:
+        max_tokens: 8192
+        base_url: "https://openrouter.ai/api/v1"
+        reasoning:
+          enabled: true
+        openrouter_cache: true
+        prompt_caching: true
+        provider:
+          require_parameter_support: true
+          allow_fallbacks: false
+          priority_order:
+            - alibaba
+            - streamlake
+            - chutes/fp8
+            - deepinfra/fp8
+            - morph
+            - parasail/fp8
