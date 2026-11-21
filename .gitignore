@@ -1,0 +1,80 @@
+# --- Python ---
+__pycache__/
+*.so
+*.egg-info/
+
+# --- Build ---
+dist/
+build/
+.eggs/
+
+# --- Test ---
+.coverage
+coverage.xml
+htmlcov/
+pytestdebug.log
+
+# --- Caches ---
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Environments ---
+.venv/
+venv/
+env/
+.conda/
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+.cursor/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Data (datasets, raw, interim, processed) ---
+data/datasets/**
+!data/datasets/.gitkeep
+data/raw/pdf/**
+!data/raw/pdf/.gitkeep
+data/raw/ground_truth/**
+!data/raw/ground_truth/.gitkeep
+data/raw/splits/**
+!data/raw/splits/.gitkeep
+data/interim/semantic_optimization/**
+!data/interim/semantic_optimization/.gitkeep
+data/interim/ingestion/**
+!data/interim/ingestion/.gitkeep
+data/processed/agents/**
+!data/processed/agents/.gitkeep
+data/processed/extracted/**
+!data/processed/extracted/.gitkeep
+
+# --- Research (runtime buffer, heavy run artifacts & local PDF literature) ---
+research/experiments/_runtime/**
+!research/experiments/_runtime/.gitkeep
+research/experiments/*/logs/
+research/experiments/*/raw/
+mlruns/
+
+research/references/**
+!research/references/.gitkeep
+
+# --- Secrets ---
+.env
+!.env.example
+*.pem
+*.key
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- GitKeep (always track) ---
+!.gitkeep
