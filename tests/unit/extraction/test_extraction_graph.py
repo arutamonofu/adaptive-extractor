@@ -924,7 +924,7 @@ def test_extraction_graph_budget_feedback_and_domain_independence(tmp_path):
     )
     sys_msg = prep["messages"][0].content
     assert "TOOL ITERATION BUDGET: You have at most 2 tool-calling iteration(s)" in sys_msg
-    assert "2 unparsed visual stub(s)/element(s) present" in sys_msg
+    assert "unparsed visual stub(s)/element(s) present" not in sys_msg
     assert "products 6a-6f" not in sys_msg
     assert "kinetics" not in sys_msg
 
@@ -1696,3 +1696,320 @@ def test_local_record_repair_patches_only_failed_index_and_falls_back_above_thre
     )
     assert mock_structured.invoke.call_count == 2
     assert [r.smiles for r in res2["extracted_data"].records] == ["C", "CC", "CCC", "CCCC", "CCCCC"]
+
+
+def test_finalize_evidence_static_binding_and_no_dynamic_counter(tmp_path):
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.outputs import ChatGeneration, ChatResult
+
+    class ToolChoiceChatModel(BaseChatModel):
+        bind_calls: list[dict] = []
+
+        @property
+        def _llm_type(self) -> str:
+            return "chat-google-generative-ai"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
+
+        def bind_tools(self, tools, *, tool_choice=None, **kwargs):
+            self.bind_calls.append({"tool_names": [t.name for t in tools], "tool_choice": tool_choice})
+            bound = MagicMock()
+            bound.invoke.return_value = AIMessage(
+                content="",
+                tool_calls=[{"name": "finalize_evidence", "args": {"confirm": True}, "id": "fc_1"}],
+            )
+            return bound
+
+        def with_structured_output(self, schema, **kwargs):
+            mock_s = MagicMock()
+            mock_s.invoke.return_value = DummyOutput(summary="Done")
+            return mock_s
+
+    llm = ToolChoiceChatModel()
+    graph = ExtractionGraph(
+        llm=llm,
+        output_model=DummyOutput,
+        ingestion_dir=tmp_path,
+        tools=["assemble_markush_smiles"],
+    )
+
+    doc_text = '<!-- document_id: doc_static -->\n\n<visual id="T1">\n> table\n</visual>'
+    prep = graph._prepare_input({"doc_id": "doc_static", "document_text": doc_text, "system_instruction": "Base"})
+    sys_msg = prep["messages"][0].content
+    assert "unparsed visual stub(s)/element(s) present" not in sys_msg
+    assert "finalize_evidence" in sys_msg
+    assert "TOOL `assemble_markush_smiles`:" in sys_msg
+
+    res = graph.run(document_text=doc_text, doc_id="doc_static", system_instruction="Base")
+    assert res["extracted_data"].summary == "Done"
+    assert len(llm.bind_calls) == 1
+    assert llm.bind_calls[0]["tool_choice"] == "any"
+    assert llm.bind_calls[0]["tool_names"] == [
+        "parse_visuals",
+        "assemble_markush_smiles",
+        "finalize_evidence",
+    ]
+
+
+def test_crane_excludes_pattern_from_json_schema_but_keeps_in_summary(tmp_path):
+    from ae.core.schema import FieldSpec, SchemaConfig, create_all_models
+    from ae.core.schema.dynamic_models import extract_schema_field_constraints
+
+    cfg = SchemaConfig(
+        name="crane_test",
+        fields={
+            "code": FieldSpec(type=str, description="Compound code", pattern=r"^[A-Za-z0-9_-]+$"),
+        },
+        compare_fields=["code"],
+    )
+    _, out_model = create_all_models(cfg)
+    json_schema = out_model.model_json_schema()
+    assert '"pattern"' not in json.dumps(json_schema)
+
+    constraints = extract_schema_field_constraints(out_model)
+    assert constraints["code"]["pattern"] == r"^[A-Za-z0-9_-]+$"
+
+    graph = ExtractionGraph(llm=MagicMock(), output_model=out_model, ingestion_dir=tmp_path)
+    assert "pattern: '^[A-Za-z0-9_-]+$'" in graph._format_schema_summary()
+
+
+def test_retry_temperature_raised_only_on_retry_and_repair(tmp_path):
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from ae.core.schema import FieldSpec, SchemaConfig, create_all_models
+
+    cfg = SchemaConfig(
+        name="temp_retry_test",
+        fields={
+            "compound_id": FieldSpec(type=str, required=True),
+            "smiles": FieldSpec(type=str, required=True, validators=["smiles"]),
+        },
+        compare_fields=["compound_id", "smiles"],
+    )
+    rec_model, out_model = create_all_models(cfg)
+    temps_seen: list[float] = []
+
+    class FakeStructuredRunnable:
+        def __init__(self, temp=0.0):
+            self.temp = temp
+
+        def bind(self, **kwargs):
+            return FakeStructuredRunnable(temp=kwargs.get("temperature", self.temp))
+
+        def invoke(self, _messages):
+            temps_seen.append(self.temp)
+            if len(temps_seen) == 1:
+                # 1st attempt: invalid placeholder SMILES -> triggers local repair
+                return out_model(
+                    records=[
+                        rec_model(compound_id="1a", smiles="c1ccc([*:1])cc1"),
+                        rec_model(compound_id="1b", smiles="CC"),
+                        rec_model(compound_id="1c", smiles="CCC"),
+                        rec_model(compound_id="1d", smiles="CCCC"),
+                    ]
+                )
+            # Repair call
+            from pydantic import BaseModel as _BM
+            return type("_Repair", (_BM,), {})()
+
+    class TempChatModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-temp"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
+
+        def with_structured_output(self, schema, **kwargs):
+            if "PatchOutput" in schema.__name__:
+                class RepairRunnable:
+                    def __init__(self, temp=0.0):
+                        self.temp = temp
+
+                    def bind(self, **kw):
+                        return RepairRunnable(temp=kw.get("temperature", self.temp))
+
+                    def invoke(self, _msgs):
+                        temps_seen.append(self.temp)
+                        return schema(repairs=[{"index": 0, "record": {"compound_id": "1a", "smiles": "C"}}])
+
+                return RepairRunnable()
+            return FakeStructuredRunnable()
+
+    graph = ExtractionGraph(
+        llm=TempChatModel(),
+        output_model=out_model,
+        ingestion_dir=tmp_path,
+        use_streaming=False,
+        retry_delay=0.0,
+    )
+    res = graph.run(
+        document_text="<!-- document_id: doc_t -->\n\nCompounds 1a 1b 1c 1d.",
+        doc_id="doc_t",
+    )
+    assert temps_seen == [0.0, 0.7]
+    assert [r.smiles for r in res["extracted_data"].records] == ["C", "CC", "CCC", "CCCC"]
+
+
+def test_canonical_dedup_in_single_shot_preserves_distinct_strains(tmp_path):
+    from ae.core.schema import FieldSpec, SchemaConfig, create_all_models
+
+    cfg = SchemaConfig(
+        name="dedup_test",
+        fields={
+            "compound_id": FieldSpec(type=str, required=True),
+            "smiles": FieldSpec(type=str, required=True),
+            "target_value": FieldSpec(type=str, required=True),
+            "target_units": FieldSpec(type=str, required=True),
+            "bacteria": FieldSpec(type=str, required=True),
+        },
+        compare_fields=["compound_id", "smiles", "target_value", "target_units", "bacteria"],
+    )
+    rec_model, out_model = create_all_models(cfg)
+
+    mock_llm = MagicMock()
+    mock_structured = MagicMock()
+    mock_structured.invoke.return_value = out_model(
+        records=[
+            rec_model(
+                compound_id="8b",
+                smiles="Cc1ccccc1",
+                target_value="8",
+                target_units="µg/mL",
+                bacteria="S. aureus ATCC 29213",
+            ),
+            # Canonical duplicate (different SMILES order, 8.0, ug/mL) -> should be removed
+            rec_model(
+                compound_id="8b",
+                smiles="c1ccc(C)cc1",
+                target_value="8.0",
+                target_units="ug/mL",
+                bacteria="S. aureus ATCC 29213",
+            ),
+            # Different strain with same MIC -> must NOT be merged!
+            rec_model(
+                compound_id="8b",
+                smiles="Cc1ccccc1",
+                target_value="8",
+                target_units="µg/mL",
+                bacteria="S. aureus ATCC 43300",
+            ),
+        ]
+    )
+    mock_llm.with_structured_output.return_value = mock_structured
+
+    graph = ExtractionGraph(
+        llm=mock_llm,
+        output_model=out_model,
+        ingestion_dir=tmp_path,
+        enable_record_dedup=True,
+    )
+    res = graph.run(
+        document_text="<!-- document_id: doc_dedup -->\n\n8b Cc1ccccc1 8 µg/mL S. aureus ATCC 29213 ATCC 43300.",
+        doc_id="doc_dedup",
+    )
+    recs = res["extracted_data"].records
+    assert len(recs) == 2
+    assert [r.bacteria for r in recs] == ["S. aureus ATCC 29213", "S. aureus ATCC 43300"]
+
+
+def test_resolve_iupac_to_smiles_tool_and_missing_java(monkeypatch):
+    from ae.core.schema.domain_tools.chemistry import resolve_iupac_batch
+    from ae.core.schema.tools import DEFAULT_TOOL_REGISTRY
+
+    provider = DEFAULT_TOOL_REGISTRY.resolve("resolve_iupac_to_smiles")
+    assert provider.auto_remind is False
+
+    monkeypatch.setattr("ae.core.schema.domain_tools.chemistry.shutil.which", lambda _cmd: None)
+    res_no_java = resolve_iupac_batch(["ethanol"])
+    assert res_no_java["resolved"] == []
+    assert "Java runtime" in res_no_java["errors"][0]["error"]
+
+    monkeypatch.setattr("ae.core.schema.domain_tools.chemistry.shutil.which", lambda _cmd: "/usr/bin/java")
+    import sys
+    import types
+
+    fake_py2opsin = types.SimpleNamespace(py2opsin=lambda names, **_kw: ["CCO" for _ in names])
+    monkeypatch.setitem(sys.modules, "py2opsin", fake_py2opsin)
+    res_ok = resolve_iupac_batch(["ethanol"])
+    assert res_ok == {"resolved": [{"iupac_name": "ethanol", "smiles": "CCO"}], "errors": []}
+
+
+def test_finalize_evidence_skips_domain_reminder_and_propagates_structured_hint(tmp_path):
+    from ae.core.schema.tools import RegisteredToolProvider, register_extraction_tool, unregister_extraction_tool
+
+    tool_name = "test_hinted_markush_tool"
+    register_extraction_tool(
+        tool_name,
+        RegisteredToolProvider(
+            name=tool_name,
+            build_tool=lambda **_: _make_dummy_tool(tool_name),
+            is_applicable=lambda txt: "[*:1]" in txt,
+            policy_hint="Agent policy hint.",
+            auto_remind=True,
+            structured_output_hint="STRUCTURED CROSS-CHECK HINT",
+        ),
+    )
+    try:
+        mock_llm = MagicMock()
+        mock_bound = MagicMock()
+        mock_bound.invoke.return_value = AIMessage(
+            content="",
+            tool_calls=[{"name": "finalize_evidence", "args": {"confirm": True}, "id": "fe_1"}],
+        )
+        mock_llm.bind_tools.return_value = mock_bound
+        mock_structured = MagicMock()
+        mock_structured.invoke.return_value = DummyOutput(summary="OK")
+        mock_llm.with_structured_output.return_value = mock_structured
+
+        graph = ExtractionGraph(
+            llm=mock_llm,
+            output_model=DummyOutput,
+            ingestion_dir=tmp_path,
+            tools=[tool_name],
+        )
+        res = graph.run(
+            document_text="<!-- document_id: doc_fe -->\n\nScaffold [*:1] and final SMILES.",
+            doc_id="doc_fe",
+        )
+        assert res["extracted_data"].summary == "OK"
+        # Agent called only once: finalize_evidence exited immediately without domain_reminder loop
+        assert mock_bound.invoke.call_count == 1
+        structured_msgs = mock_structured.invoke.call_args[0][0]
+        assert "STRUCTURED CROSS-CHECK HINT" in structured_msgs[0].content
+    finally:
+        unregister_extraction_tool(tool_name)
+
+
+def _make_dummy_tool(name: str):
+    from langchain_core.tools import tool
+
+    @tool(name)
+    def _dummy(x: str = "ok") -> str:
+        """Dummy tool."""
+        return x
+
+    return _dummy
+
+
+def test_canonical_dedup_strips_phenotype_only_with_collection_id():
+    from ae.extraction.graph import _record_dedup_key
+
+    base = {
+        "compound_id": "8b",
+        "smiles": "Cc1ccccc1",
+        "target_value": "8",
+        "target_units": "µg/mL",
+        "bacteria": "S. aureus ATCC 29213",
+    }
+    same_mssa = {**base, "bacteria": "MSSA S. aureus ATCC 29213"}
+    same_pipe = {**base, "bacteria": "MSSA | S. aureus ATCC 29213"}
+    diff_atcc = {**base, "bacteria": "MRSA S. aureus ATCC 43300"}
+    no_coll_mrsa = {**base, "bacteria": "MRSA N315"}
+    no_coll_mssa = {**base, "bacteria": "MSSA N315"}
+
+    assert _record_dedup_key(base) == _record_dedup_key(same_mssa)
+    assert _record_dedup_key(base) == _record_dedup_key(same_pipe)
+    assert _record_dedup_key(base) != _record_dedup_key(diff_atcc)
+    assert _record_dedup_key(no_coll_mrsa) != _record_dedup_key(no_coll_mssa)

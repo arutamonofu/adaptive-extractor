@@ -237,6 +237,7 @@ def validate_output_field_validators(
                     current_val,
                     field_name=field_name,
                     required=is_required,
+                    record=rec,
                 )
                 if res.valid:
                     if res.value != current_val:

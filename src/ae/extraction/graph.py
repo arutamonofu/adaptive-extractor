@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import http.client
 import inspect
 import json
@@ -27,6 +28,7 @@ from pydantic_core import PydanticUndefined
 
 from ae.core.config.settings import Settings
 from ae.core.llm.circuit_breaker import CircuitBreakerError
+from ae.core.llm.provider import model_supports_sampling_params
 from ae.core.llm.history_logger import (
     ExtractionHistoryCallbackHandler,
     LLMHistoryRecorder,
@@ -188,18 +190,111 @@ def _tool_output_has_error(output: str) -> bool:
     return bool(parsed.get("error") or parsed.get("errors"))
 
 
-def _normalize_for_dedup(value: Any) -> Any:
-    if isinstance(value, str):
-        return value.strip()
+_DASH_TRANS = str.maketrans({"−": "-", "–": "-", "—": "-", "\u03bc": "\u00b5"})
+_WS_RE = re.compile(r"\s+")
+_FLOAT_STR_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$")
+_COLLECTION_ID_RE = re.compile(
+    r"\b(ATCC|MTCC|NCTC|DSM|CMCC|CGMCC|NBRC|JCM|NCIM|CIP|LMG|CCM|KCTC|BCRC)\s*[-#]?\s*[A-Za-z0-9]+\b",
+    re.IGNORECASE,
+)
+_PHENOTYPE_TAG_RE = re.compile(
+    r"\b(MSSA|MRSA|VRE|VRSA|ESBL|MDR|XDR|PRSP|CRKP|CRPA|CRAB)\b",
+    re.IGNORECASE,
+)
+
+
+@functools.lru_cache(maxsize=4096)
+def _canonicalize_smiles_for_dedup(raw_smiles: str) -> str:
+    """Canonicalize SMILES to InChIKey (via chembl_structure_pipeline + RDKit) for dedup."""
+    cleaned = raw_smiles.strip()
+    if not cleaned:
+        return ""
+    try:
+        from rdkit import Chem, rdBase
+
+        rdBase.DisableLog("rdApp.error")
+        rdBase.DisableLog("rdApp.warning")
+    except ImportError:
+        return cleaned
+
+    mol = Chem.MolFromSmiles(cleaned)
+    if mol is None:
+        return cleaned
+
+    try:
+        from chembl_structure_pipeline import standardizer
+
+        mol = standardizer.standardize_mol(mol)
+    except Exception:
+        pass
+
+    try:
+        inchi_key = Chem.MolToInchiKey(mol)
+        if inchi_key:
+            return inchi_key
+    except Exception:
+        pass
+
+    try:
+        return Chem.MolToSmiles(mol, isomericSmiles=True)
+    except Exception:
+        return cleaned
+
+
+def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
+    """Normalize field values canonically for deduplication without fuzzy string matching."""
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else value
+    if not isinstance(value, str):
+        return value
+
+    cleaned = _WS_RE.sub(" ", value.translate(_DASH_TRANS)).strip()
+    if not cleaned:
+        return ""
+
+    key_l = key.lower()
+    if "smiles" in key_l:
+        return _canonicalize_smiles_for_dedup(cleaned)
+
+    if "unit" in key_l:
+        cleaned = re.sub(r"\bug\b", "\u00b5g", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\buM\b", "\u00b5M", cleaned)
+        try:
+            import pint
+
+            ureg = pint.UnitRegistry()
+            qty = ureg.Quantity(1.0, cleaned)
+            return f"{qty.to_base_units().units}"
+        except Exception:
+            return cleaned
+
+    if any(tok in key_l for tok in ("bacteria", "strain", "organism")):
+        if _COLLECTION_ID_RE.search(cleaned):
+            stripped = _PHENOTYPE_TAG_RE.sub("", cleaned)
+            stripped = re.sub(r"[\(\)\[\]\|,;/]+", " ", stripped)
+            return _WS_RE.sub(" ", stripped).strip().lower()
+        return cleaned
+
+    if _FLOAT_STR_RE.match(cleaned):
+        try:
+            num = float(cleaned)
+            return str(int(num)) if num.is_integer() else f"{num:g}"
+        except (ValueError, OverflowError):
+            pass
+
+    return cleaned
+
+
+def _normalize_for_dedup(value: Any, *, field_key: str = "") -> Any:
     if isinstance(value, list):
-        return [_normalize_for_dedup(v) for v in value]
+        return [_normalize_for_dedup(v, field_key=field_key) for v in value]
     if isinstance(value, dict):
-        return {k: _normalize_for_dedup(v) for k, v in value.items()}
-    return value
+        return {k: _normalize_for_dedup(v, field_key=str(k)) for k, v in value.items()}
+    return _normalize_scalar_for_dedup(field_key, value)
 
 
 def _record_dedup_key(record: Any) -> str:
-    """Build a canonical, case-preserving deduplication key for an extracted record."""
+    """Build a canonical deduplication key for an extracted record."""
     if isinstance(record, BaseModel):
         data = record.model_dump(mode="json")
     elif isinstance(record, dict):
@@ -211,6 +306,30 @@ def _record_dedup_key(record: Any) -> str:
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
+    )
+
+
+def _make_finalize_evidence_tool() -> Any:
+    """Build the terminal tool allowing the agent to exit tool-routing without text drafts."""
+    from langchain_core.tools import StructuredTool
+
+    class _FinalizeEvidenceInput(BaseModel):
+        confirm: bool = Field(
+            default=True,
+            description="Set to true when all required visual and domain tools have been called.",
+        )
+
+    def _finalize(confirm: bool = True) -> str:
+        return "Evidence gathering finalized."
+
+    return StructuredTool.from_function(
+        func=_finalize,
+        name="finalize_evidence",
+        description=(
+            "Call this tool when all needed visual parsing and domain tools have completed "
+            "and you are ready to proceed to structured extraction."
+        ),
+        args_schema=_FinalizeEvidenceInput,
     )
 
 
@@ -360,8 +479,13 @@ class ExtractionGraph:
         enable_field_validators: bool = True,
         agent_thinking_level: Optional[str] = "low",
         tools: Optional[Sequence[Union[str, Dict[str, Any], ExtractionToolSpec]]] = None,
+        enable_record_dedup: bool = True,
+        agent_llm: Optional[BaseChatModel] = None,
+        repair_llm: Optional[BaseChatModel] = None,
     ) -> None:
         self.llm = llm
+        self.agent_llm = agent_llm
+        self.repair_llm = repair_llm
         self.output_model = output_model
         self.service = service
         self.max_tool_iterations = max_tool_iterations
@@ -376,6 +500,7 @@ class ExtractionGraph:
         self.enable_sanity_checks = bool(enable_sanity_checks)
         self.enable_field_validators = bool(enable_field_validators)
         self.agent_thinking_level = agent_thinking_level
+        self.enable_record_dedup = bool(enable_record_dedup)
         self._sanity_config = SanityCheckConfig(
             enabled=self.enable_sanity_checks,
             check_field_validators=self.enable_field_validators,
@@ -656,16 +781,14 @@ class ExtractionGraph:
         sys_inst = state.get("system_instruction", "")
         schema_summary = self._format_schema_summary()
         schema_part = f"\n\n{schema_summary}" if schema_summary else ""
-        unparsed_count = len(extract_unparsed_visual_ids(raw_text))
-        active_domain_tools = self._active_domain_tools(raw_text)
-        domain_tools_policy = self._format_domain_tools_policy(active_domain_tools)
+        domain_tools_policy = self._format_domain_tools_policy(self._domain_tool_providers)
         domain_part = f"\n\n{domain_tools_policy}" if domain_tools_policy else ""
 
         sys_prompt = (
             f"{sys_inst}{schema_part}\n\n"
             "VISUAL PARSING POLICY:\n"
             f"TOOL ITERATION BUDGET: You have at most {self.max_tool_iterations} tool-calling iteration(s) "
-            f"for this document (currently {unparsed_count} unparsed visual stub(s)/element(s) present).\n"
+            "for this document.\n"
             "1. Priority Cascade & Budget-Aware Batching:\n"
             "   - If required target data resides in unparsed manifest stubs (`<visual id=\"...\" ...>`), call `parse_visuals`.\n"
             "   - Complementary batching: Request MULTIPLE visual IDs in one call when they contain complementary parts of the target data (e.g., definitions/entities in one visual and measurements/attributes in another).\n"
@@ -674,9 +797,9 @@ class ExtractionGraph:
             "   - Scoped vs full parsing: You may provide `target_hint` (e.g. 'section A items', 'panel c metrics') for complex multi-part figures to selectively parse matching sub-elements. If a partial result is insufficient, you may later request specific `<element id=\"...\">[Unparsed: ...]</element>` stubs OR re-call `parse_visuals` on the root visual ID WITHOUT `target_hint` for a full parse.\n"
             "   - Failure recovery: If a visual parsing call fails, you may retry it once within your remaining budget.\n"
             "2. Manifest Plausibility Gate (No Blind Hunting & No Premature Null):\n"
-            "   - Do NOT return `READY` if target data is missing from text, but there are unparsed visuals whose manifest metadata (`> description` or caption) indicates relevant entity IDs, metrics, categories, or column names.\n"
-            "   - Do NOT call `parse_visuals` blindly if missing fields are absent from text AND none of the remaining unparsed visual manifest stubs describe such data. In that case, missing fields should remain null — reply `READY`.\n"
-            f"3. Output Constraint: This is a tool-routing step ONLY — do NOT mentally extract, transcribe, or draft table/record data. Inspect only what tools or visuals are needed, do NOT write explanations or intermediate drafts, and when no (more) tool calls are needed, reply ONLY with `READY`.{domain_part}"
+            "   - Do NOT call `finalize_evidence` if target data is missing from text, but there are unparsed visuals whose manifest metadata (`> description` or caption) indicates relevant entity IDs, metrics, categories, or column names.\n"
+            "   - Do NOT call `parse_visuals` blindly if missing fields are absent from text AND none of the remaining unparsed visual manifest stubs describe such data. In that case, missing fields should remain null — call `finalize_evidence`.\n"
+            f"3. Output Constraint: This is a tool-routing step ONLY — do NOT mentally extract, transcribe, or draft table/record data, and do NOT write prose explanations. When no (more) tool calls are needed, call `finalize_evidence`.{domain_part}"
         ).strip()
 
         human_prompt = f"Document `{doc_id}`:\n\n{raw_text}"
@@ -774,8 +897,57 @@ class ExtractionGraph:
         assert last_exc is not None
         raise last_exc
 
+    def _apply_retry_temperature(
+        self,
+        runnable: Any,
+        is_retry: bool,
+        base_llm: Optional[Any] = None,
+    ) -> Any:
+        """Raise temperature to 0.7 only on retry/repair for real chat models that support it."""
+        target_llm = base_llm if base_llm is not None else self.llm
+        model_id = getattr(target_llm, "model", None) or getattr(target_llm, "model_name", None)
+        if (
+            is_retry
+            and isinstance(target_llm, BaseChatModel)
+            and not isinstance(target_llm, NonCallableMock)
+            and model_supports_sampling_params(model_id)
+            and hasattr(runnable, "bind")
+        ):
+            try:
+                return runnable.bind(temperature=0.7)
+            except Exception:
+                return runnable
+        return runnable
+
+    def _deduplicate_output(self, result: Any) -> Any:
+        """Apply canonical record deduplication across all structured_output_node modes."""
+        if not self.enable_record_dedup or result is None:
+            return result
+        records = getattr(result, "records", None)
+        if not isinstance(records, list) or len(records) <= 1:
+            return result
+
+        deduped: list[Any] = []
+        seen_keys: set[str] = set()
+        for rec in records:
+            key = _record_dedup_key(rec)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                deduped.append(rec)
+
+        if len(deduped) == len(records):
+            return result
+
+        logger.info(
+            f"Canonical post-deduplication removed {len(records) - len(deduped)} "
+            f"duplicate record(s) ({len(records)} -> {len(deduped)})"
+        )
+        if isinstance(result, BaseModel):
+            return result.model_copy(update={"records": deduped})
+        return self.output_model(records=deduped)
+
     def _agent_node(self, state: ExtractionState) -> dict[str, Any]:
-        """Invoke LLM with bound visual parsing and applicable schema domain tools."""
+        """Invoke LLM with statically bound visual, domain, and terminal tools."""
         update_extraction_log_context(
             doc_id=state["doc_id"],
             node="agent_node",
@@ -783,18 +955,9 @@ class ExtractionGraph:
             batch_idx=None,
         )
         doc_text = state.get("document_text", "")
-        active_domain = self._active_domain_tools(doc_text)
-        need_visual_tool = (
-            has_unparsed_visuals(doc_text)
-            or bool(state.get("partial_visuals"))
-            or not self._domain_tool_providers
-            or not active_domain
-        )
-        tools_to_bind: list[Any] = []
-        if need_visual_tool:
-            service = self._resolve_service()
-            tools_to_bind.append(make_visual_parsing_tool(state["doc_id"], service))
-        for provider in active_domain:
+        service = self._resolve_service()
+        tools_to_bind: list[Any] = [make_visual_parsing_tool(state["doc_id"], service)]
+        for provider in self._domain_tool_providers:
             tools_to_bind.append(
                 self._build_domain_tool_instance(
                     provider,
@@ -802,20 +965,45 @@ class ExtractionGraph:
                     doc_text=doc_text,
                 )
             )
+        tools_to_bind.append(_make_finalize_evidence_tool())
+
+        target_agent_llm = self.agent_llm if self.agent_llm is not None else self.llm
         bind_kwargs: dict[str, Any] = {}
+        is_real_chat_model = (
+            isinstance(target_agent_llm, BaseChatModel)
+            and not isinstance(target_agent_llm, NonCallableMock)
+        )
         if (
             self.agent_thinking_level is not None
-            and isinstance(self.llm, BaseChatModel)
-            and not isinstance(self.llm, NonCallableMock)
-            and hasattr(self.llm, "thinking_level")
+            and is_real_chat_model
+            and hasattr(target_agent_llm, "thinking_level")
         ):
             bind_kwargs["thinking_level"] = self.agent_thinking_level
-        model_with_tools = self.llm.bind_tools(tools_to_bind, **bind_kwargs)
+        if is_real_chat_model:
+            try:
+                sig = inspect.signature(target_agent_llm.bind_tools)
+                if "tool_choice" in sig.parameters:
+                    llm_type = str(getattr(target_agent_llm, "_llm_type", "") or "").lower()
+                    bind_kwargs["tool_choice"] = "required" if "openai" in llm_type else "any"
+            except (ValueError, TypeError):
+                pass
+        model_with_tools = target_agent_llm.bind_tools(tools_to_bind, **bind_kwargs)
+
+        is_retry = False
+
+        def _call_agent() -> Any:
+            target = self._apply_retry_temperature(model_with_tools, is_retry, base_llm=target_agent_llm)
+            return target.invoke(state["messages"])
+
+        def _on_agent_retry(_attempt: int, _exc: Exception) -> None:
+            nonlocal is_retry
+            is_retry = True
 
         call_start = time.perf_counter()
         response = self._invoke_with_retry(
             f"agent_node[{state['doc_id']}]",
-            lambda: model_with_tools.invoke(state["messages"]),
+            _call_agent,
+            on_retry=_on_agent_retry,
         )
         if self.history_recorder is not None and not get_extraction_log_context().get("callback_invoked"):
             self._record_history_event(
@@ -929,6 +1117,8 @@ class ExtractionGraph:
         has_new_calls = False
         for tc in tool_calls:
             tc_name = tc.get("name")
+            if tc_name == "finalize_evidence":
+                continue
             args = tc.get("args", {}) or {}
             if tc_name == "parse_visuals":
                 v_ids = args.get("visual_ids", []) or []
@@ -950,9 +1140,14 @@ class ExtractionGraph:
         if has_new_calls:
             return "tools"
 
+        if any(tc.get("name") == "finalize_evidence" for tc in tool_calls):
+            return "structured_output"
+
         if not state.get("domain_reminder_sent", False):
             doc_text = state.get("document_text", "")
-            active_names = {p.name for p in self._active_domain_tools(doc_text)}
+            active_names = {
+                p.name for p in self._active_domain_tools(doc_text) if getattr(p, "auto_remind", True)
+            }
             called_names = set(state.get("non_visual_tools_called_since_doc_change", []))
             if active_names - called_names:
                 return "tools"
@@ -1041,6 +1236,8 @@ class ExtractionGraph:
                     executed_batches.append((eligible_ids, norm_hint, res))
                     if skipped_ids:
                         res = f"[Skipped already-completed/exhausted visuals: {skipped_ids}]\n\n{res}"
+            elif tool_name == "finalize_evidence":
+                res = "Evidence gathering finalized."
             elif tool_name in domain_tools_by_name:
                 sig = self._tool_call_signature(tool_name, tool_args)
                 if sig in executed_sigs_set:
@@ -1150,7 +1347,9 @@ class ExtractionGraph:
                 if policy_txt:
                     newly_active_hint = f"\n\n{policy_txt}"
         elif not ran_non_visual and not executed_batches and not sent_reminder:
-            curr_active = self._active_domain_tools(updated_doc_text)
+            curr_active = [
+                p for p in self._active_domain_tools(updated_doc_text) if getattr(p, "auto_remind", True)
+            ]
             pending_providers = [p for p in curr_active if p.name not in set(non_visual_called)]
             if pending_providers:
                 pending_names = ", ".join(p.name for p in pending_providers)
@@ -1227,7 +1426,9 @@ class ExtractionGraph:
         )
         if eligible:
             return "agent"
-        active_names = {p.name for p in self._active_domain_tools(doc_text)}
+        active_names = {
+            p.name for p in self._active_domain_tools(doc_text) if getattr(p, "auto_remind", True)
+        }
         called_names = set(state.get("non_visual_tools_called_since_doc_change", []))
         if active_names - called_names:
             return "agent"
@@ -1244,10 +1445,15 @@ class ExtractionGraph:
         doc_text = state.get("document_text", "")
         sys_inst = state.get("system_instruction", "").strip()
         schema_summary = self._format_schema_summary()
-        if sys_inst and schema_summary:
-            full_sys_inst = f"{sys_inst}\n\n{schema_summary}"
-        else:
-            full_sys_inst = sys_inst or schema_summary
+        structured_hints: list[str] = []
+        seen_hints: set[str] = set()
+        for provider in self._domain_tool_providers:
+            hint = str(getattr(provider, "structured_output_hint", "") or "").strip()
+            if hint and hint not in seen_hints:
+                seen_hints.add(hint)
+                structured_hints.append(hint)
+        parts = [p for p in (sys_inst, schema_summary, *structured_hints) if p]
+        full_sys_inst = "\n\n".join(parts)
 
         tool_results_section = self._format_tool_results_section(state)
         tool_results_part = f"\n\n{tool_results_section}" if tool_results_section else ""
@@ -1389,7 +1595,12 @@ class ExtractionGraph:
         )
 
         repair_messages = self._build_structured_messages(state, repair_instruction)
-        repair_model = self.llm.with_structured_output(patched_output_model)
+        target_repair_llm = self.repair_llm if self.repair_llm is not None else self.llm
+        repair_model = self._apply_retry_temperature(
+            target_repair_llm.with_structured_output(patched_output_model),
+            True,
+            base_llm=target_repair_llm,
+        )
         repair_res = self._call_structured_model(repair_model, repair_messages)
 
         patched_records = list(records)
@@ -1457,6 +1668,7 @@ class ExtractionGraph:
             )
             last_batch_messages: list[BaseMessage] = []
             retry_feedback: Optional[str] = None
+            is_batch_retry = False
 
             def _run_batch() -> Any:
                 nonlocal last_batch_messages
@@ -1492,11 +1704,13 @@ class ExtractionGraph:
                 if retry_feedback:
                     instruction = f"{instruction}{retry_feedback}"
                 last_batch_messages = self._build_structured_messages(state, instruction)
-                raw_res = self._call_structured_model(structured_model, last_batch_messages)
+                target_model = self._apply_retry_temperature(structured_model, is_batch_retry)
+                raw_res = self._call_structured_model(target_model, last_batch_messages)
                 return self._validate_or_repair_structured_result(raw_res, state)
 
             def _on_batch_retry(attempt: int, exc: Exception) -> None:
-                nonlocal current_batch_size, retry_feedback
+                nonlocal current_batch_size, retry_feedback, is_batch_retry
+                is_batch_retry = True
                 if isinstance(exc, StructuredOutputSanityError):
                     retry_feedback = self._format_sanity_retry_feedback(exc)
                 if _is_parse_or_truncation_error(exc) and current_batch_size > 5:
@@ -1585,6 +1799,7 @@ class ExtractionGraph:
                 try:
                     parsed = self.output_model.model_validate_json(last_content.strip())
                     parsed = self._validate_structured_result(parsed, state)
+                    parsed = self._deduplicate_output(parsed)
                     return {
                         "extracted_data": parsed,
                         "rationale": "",
@@ -1606,16 +1821,19 @@ class ExtractionGraph:
                 )
                 retry_feedback: Optional[str] = None
                 last_messages: list[BaseMessage] = []
+                is_single_retry = False
 
                 def _run_single() -> Any:
                     nonlocal last_messages
                     inst = f"{base_instruction}{retry_feedback}" if retry_feedback else base_instruction
                     last_messages = self._build_structured_messages(state, inst)
-                    raw_res = self._call_structured_model(structured_model, last_messages)
+                    target_model = self._apply_retry_temperature(structured_model, is_single_retry)
+                    raw_res = self._call_structured_model(target_model, last_messages)
                     return self._validate_or_repair_structured_result(raw_res, state)
 
                 def _on_single_retry(_attempt: int, exc: Exception) -> None:
-                    nonlocal retry_feedback
+                    nonlocal retry_feedback, is_single_retry
+                    is_single_retry = True
                     if isinstance(exc, StructuredOutputSanityError):
                         retry_feedback = self._format_sanity_retry_feedback(exc)
 
@@ -1636,6 +1854,7 @@ class ExtractionGraph:
                         latency_s=round(time.perf_counter() - call_start, 4),
                     )
 
+            res = self._deduplicate_output(res)
             return {
                 "extracted_data": res,
                 "rationale": "",
