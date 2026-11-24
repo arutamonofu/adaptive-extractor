@@ -16,7 +16,7 @@
 | `scripts/` | Tracked | Вспомогательные утилиты, работа с CSV и патчи DSPy. |
 | `docs/` | Tracked | Документация проекта: `architecture.md`, `guide.md`, `methodology.md`, `journal.md`, `literature.md`. |
 | `research/` | Git + Local | Исследовательский блок: центр экспериментов и GT-аудитов (`experiments/`), ноутбуки (`notebooks/`) и PDF-библиотека (`references/`, локально). Тяжёлые логи (`_runtime/`, `logs/`, `raw/`) исключены в `.gitignore`. |
-| `data/` | Gitignored | Корпуса по доменам (`datasets/<domain>/`) и рабочие файлы пайплайна (`raw/`, `interim/`, `processed/`). |
+| `data/` | Gitignored | Корпуса по доменам (`datasets/<domain>/`) и рабочие/экспериментальные данные (`raw/`, `interim/`, `processed/`, `experiments/`). |
 
 > [!IMPORTANT]
 > **Правило чистого корня:** в корне репозитория запрещено создавать временные CSV, `temp/`, `backups/`, лог-файлы и дампы БД. Повседневные логи и MLflow пишутся в буфер `research/experiments/_runtime/`, а оформленные эксперименты — в `research/experiments/YYYY-MM-DD_<slug>/`.
@@ -33,8 +33,9 @@ research/experiments/
 ├── gt_audits/                     # [Git] Унифицированные аудиты расхождений GT (README.md, <domain>.csv)
 ├── _runtime/                      # [Gitignored] Буфер текущих запусков: logs/llm/ и mlflow.db
 └── YYYY-MM-DD_<slug>/             # Карточка завершённого эксперимента
-    ├── report.md                  # [Git] Протокол, гипотеза, таблицы метрик, выводы
+    ├── report.md                  # [Git] Краткий отчёт: что проверяли, результаты, выводы
     ├── metrics.json               # [Git] Сводные машиночитаемые метрики
+    ├── tracks/                    # [Git, опц.] Исходные metrics.json подтреков (для многотрековых серий)
     ├── config_snapshot/           # [Git] Точные копии конфигов и сплитов прогона
     ├── result/                    # [Git] Итоговые generated_instruction.txt и generated_schema.yaml
     ├── logs/                      # [Gitignored] Полные JSON/JSONL логи LLM этого прогона
@@ -106,6 +107,7 @@ research/experiments/
 | :--- | :--- | :--- | :--- |
 | **Teacher LLM** *(анализ и синтез правил)* | Контрастивный анализ GT, дедукция правил и генерация инструкций | Глубина рассуждений (GPQA Diamond, CritPt), понимание кода и схем (SciCode, LiveCodeBench), длинный контекст (AA-LCR), низкие галлюцинации (AA-Omniscience), планирование (GDPval-AA) | `qwen/qwen3.5-397b-a17b` (OpenRouter) |
 | **Student LLM** *(массовое извлечение и VLM)* | Выполнение инструкций, вызов тулов, JSON-вывод, OCSR | Следование инструкциям (IFBench), длинный контекст (AA-LCR), фактологическая надёжность (AA-Omniscience), работа с инструментами (τ²-Bench Telecom), базовое reasoning (HLE) | `gemini-3.8-flash` (Google Gemini API) |
+| **SemanticJudge** *(семантическая сверка)* | Разрешение спорных пар в `RecordMatcher` | Скорость, согласие с эталоном (`κ ≥ 0.90`), 0% ложноположительных с валидаторами | `gemini-3.8-flash` (в коде) / `google/gemma-4-31b-it` (валидирован в `EXP-03`) |
 
 Для мультимодальной экстракции структур (OCSR) выбор уровня `thinking_level` (`low`/`medium`, запрет `high` и отказ от семейства `Lite`) обоснован эмпирически в отчёте [`2026-10-29_ocsr_gemini_benchmarks`](../research/experiments/2026-10-29_ocsr_gemini_benchmarks/report.md).
 

@@ -1,6 +1,6 @@
 # Журнал эволюции проекта и архитектурные решения (ADR)
 
-Документ фиксирует исследовательскую рамку проекта (`CCQH` и критерии зрелости `PoC → MVP → Product`), хронологию развития **Adaptive Extractor** (сентябрь 2025 – ноябрь 2026), статус предметных доменов и ключевые архитектурные решения (`ADR-001..005`). Сводный реестр прогонов собран в [`research/experiments/README.md`](../research/experiments/README.md), аудиты разметки — в [`gt_audits/`](../research/experiments/gt_audits/README.md), а литературный обзор — в [`docs/literature.md`](literature.md).
+Документ фиксирует исследовательскую рамку проекта (`CCQH` и критерии зрелости `PoC → MVP → Product`), хронологию развития **Adaptive Extractor** (сентябрь 2025 – ноябрь 2026), статус предметных доменов и ключевые архитектурные решения (`ADR-001..010`). Сводный реестр прогонов собран в [`research/experiments/README.md`](../research/experiments/README.md), аудиты разметки — в [`gt_audits/`](../research/experiments/gt_audits/README.md), а литературный обзор — в [`docs/literature.md`](literature.md).
 
 ---
 
@@ -14,7 +14,7 @@
 | Стадия | Цель стадии | Критерии приёмки | Текущий статус |
 | :--- | :--- | :--- | :--- |
 | **`PoC`** | Доказать базовый принцип (ядро + автоматическая настройка достигают уровня ручных промптов) на одном сценарии | `PoC-C1` проверяемость гипотезы; `PoC-C2` существенность адаптации; `PoC-C3` реализуемость; `PoC-C4` валидное сравнение с бейзлайном; `PoC-C5` воспроизводимость; `PoC-C6` переход к MVP | **Закрыт** *(текст, `nanozymes`: Mean F1 = 0.8804 vs 0.6592, p = 0.00037)* |
-| **`MVP`** | Минимальная мультимодальная версия для повторяемого применения с интерфейсами, диагностикой, кэшем и учётом цены | `MVP-C1` повторяемость в классе задач; `MVP-C2` контролируемая стоимость; `MVP-C3` стабильность качества; `MVP-C4` устойчивость контрактов; `MVP-C5` накопление знаний; `MVP-C6` готовность к Product | **Активен** *(`benzimidazole_antibiotics`: val Micro-F1 = 0.9949)* |
+| **`MVP`** | Минимальная мультимодальная версия для повторяемого применения с интерфейсами, диагностикой, кэшем и учётом цены | `MVP-C1` повторяемость в классе задач; `MVP-C2` контролируемая стоимость; `MVP-C3` стабильность качества; `MVP-C4` устойчивость контрактов; `MVP-C5` накопление знаний; `MVP-C6` готовность к Product | **Активен** *(`benzimidazole_antibiotics`: val Micro-F1 = 0.9973 после программы `EXP-01..05`)* |
 | **`Product`** | Полноценный перенос на новые домены, схемы и модальности без ручной пересборки ядра | `P-C1` качество/полнота; `P-C2` переносимость; `P-C3` расширяемость по модальностям; `P-C4` устойчивость; `P-C5` эффективность по цене/latency; `P-C6` эксплуатация; `P-C7` переиспользование артефактов | **Запланировано** *(след. шаг: перенос на `chelate_metal_complexes`)* |
 
 ---
@@ -24,7 +24,7 @@
 ```mermaid
 flowchart LR
     S1["1-й семестр (сен 2025 – янв 2026)<br/>AutoEvoExtractor: текстовый прототип<br/>Docling + DSPy MIPROv2"] --> S2["2-й семестр (фев – июл 2026)<br/>Adaptive Extractor: Reverse Engineering<br/>Текстовый PoC (F1 = 0.8804) + смена домена"]
-    S2 --> S3["3-й семестр (сен – ноя 2026)<br/>OCSR, отложенный парсер на Gemini<br/>Мультимодальный MVP (val F1 = 0.9949)"]
+    S2 --> S3["3-й семестр (сен – ноя 2026)<br/>OCSR, отложенный парсер на Gemini<br/>Мультимодальный MVP (val Micro-F1 = 0.9973)"]
 ```
 
 ### 1-й семестр (сен 2025 – янв 2026): `AutoEvoExtractor` и текстовый прототип
@@ -54,6 +54,12 @@ flowchart LR
   - Экстракция переведена на ReAct-граф `ExtractionGraph` с кэшем `04_parse_visuals/`.
   - Семантическая оптимизация получила гибридный режим `Anchor + Residual` (ускорение в ~5.2×), HITL-триаж и уточнение схемы; `DSPy MIPROv2` переведён в опциональный этап, а химия изолирована в плагинах.
   - Аудит GT по антибиотикам (70 кейсов в [`gt_audits/benzimidazole_antibiotics.csv`](../research/experiments/gt_audits/benzimidazole_antibiotics.csv)) и устранение дефектов Блоков 1–6 после прогона [`2026-11-20`](../research/experiments/2026-11-20_benzimidazole_hybrid_run/report.md) (Micro-F1 = 0.9826) довели контрольный прогон [`2026-11-21`](../research/experiments/2026-11-21_benzimidazole_post_audit_eval/report.md) на `val` до **Micro-F1 = 0.9949** и **Macro-F1 = 0.9952** при ускорении валидации в 1.78× (29.7 → 16.7 мин).
+- **Программа оптимизации `EXP-01..05` (22–24 ноября):** серия из 5 экспериментов на очищенных сплитах (`train` 6/405, `val` 6/314; [реестр](../research/experiments/README.md)):
+  - `EXP-01` — ускорение ингестии (inline PDF, слияние T3+T4, Silent-Error Guard) и OCSR-оракул с prose-gate → [ADR-006](#adr-006-оптимизация-ингестии-и-детерминированный-ocsr-оракул-2026-11-22-принято), [ADR-010](#adr-010-oracle-guided-самокоррекция-ocsr-prose-hints-gate-и-детерминированный-override-2026-11-24-принято); часть `EXP-01A` заблокирована `HTTP 402`.
+  - `EXP-02` — `ExtractionGraph` без текстовых черновиков в ReAct-узле: val **Micro-F1 = 0.9964 ± 0.0008** (`n=3`, исходно 0.9973), время −15..31%, cache hit 44–54% → [ADR-007](#adr-007-tool-routing-без-черновиков-и-каноническая-дедупликация-в-extractiongraph-2026-11-22-принято).
+  - `EXP-03` — двухметрический `RecordMatcher` (Strict+Semantic), валидаторы `pint`/`simpleeval`, POT-разметка и судья `gemma-4-31b-it` (κ = 0.9748, 21.2 с) → [ADR-008](#adr-008-двухметрическая-оценка-strictsemantic-с-детерминированными-валидаторами-и-судьёй-gemma-4-31b-it-2026-11-22-принято).
+  - `EXP-04` — защитные механизмы семантической оптимизации (Pareto Auto-Rollback, `min_enum_doc_support`): val Semantic Micro-F1 = 0.9968 (при просадке `strict bacteria = 0.5159`) → [ADR-009](#adr-009-защищённая-семантическая-оптимизация-semopt-guarded-2026-11-22-принято).
+  - `EXP-05` — поузловой подбор моделей (треки 5.1–5.6): точечные замены подтверждены для вспомогательных узлов (`glm-5.3-flash`), но в `config/*.yaml` **не применены** (тяжёлые стадии остаются на Gemini, `deepseek` провалил matched-effort пробу на `RJC`, e2e-связка просела) → [`2026-11-22_exp05_model_routing`](../research/experiments/2026-11-22_exp05_model_routing/report.md).
 
 ---
 
@@ -62,7 +68,7 @@ flowchart LR
 | Домен | Стадия и статус | Ключевые итоги | Следующий шаг |
 | :--- | :--- | :--- | :--- |
 | `nanozymes` | **Текстовый PoC — Закрыт** *(2 сем.)* | `Reverse-engineered` Mean F1 = 0.8804 (`p_Holm = 0.00037` vs 0.6592); 239 кейсов аудита | Архивный бенчмарк, новых запусков не планируется |
-| `benzimidazole_antibiotics` | **Мультимодальный MVP — Активен** *(3 сем.)* | На `val`: **Micro-F1 = 0.9949**; 70 кейсов аудита GT | Ограничить JSON-черновики в `agent_node` и закрыть `test` (6 док / 287 строк) |
+| `benzimidazole_antibiotics` | **Мультимодальный MVP — Активен** *(3 сем.)* | На `val`: **Micro-F1 = 0.9949** (контрольный прогон) → **0.9964 ± 0.0008** (`EXP-02 Arm B v2`, `n=3`); 70 кейсов аудита GT | Закрыть `test` (6 док / 287 строк); решение по маршрутизации |
 | `chelate_metal_complexes` | **В бэклоге** *(подготовлен)* | Корпус в `data/datasets/chelate_metal_complexes/` (907 строк GT, 21 PDF) | Перенос после закрытия `test` по антибиотикам (этап Product) |
 
 ---
@@ -105,3 +111,28 @@ flowchart LR
 - **Контекст:** разрастание корневых папок, логов и разрозненных отчётов осложняло навигацию по проекту.
 - **Решение:** свести корень репозитория к **7 директориям** (`config`, `data`, `docs`, `research`, `scripts`, `src`, `tests`), объединив `experiments/` (с `gt_audits/` и `_runtime/`), `notebooks/` и `references/literature/` под `research/` с умным `.gitignore`, централизовать конфиги в `pyproject.toml` и закрепить стандарты в [`docs/methodology.md`](methodology.md).
 - **Последствия:** чистый корень, связность отчётов со снапшотами конфигов и строгая изоляция тяжёлых логов от Git.
+
+### ADR-006. Оптимизация ингестии и детерминированный OCSR-оракул (2026-11-22, Принято)
+- **Контекст:** Stage 1–2 делали лишние HTTP-запросы (Files API upload/delete и раздельные `T3`/`T4`), а в `parse_visuals` терялись заглушки и не проверялось согласие SMILES с прозой ([`EXP-01`](../research/experiments/2026-11-22_exp01_ingestion_and_ocsr/report.md)).
+- **Решение:** inline PDF в [`client.py`](../src/ae/ingestion/parsers/gemini/client.py), слияние `T3+T4`, `Silent-Error Guard` и `adaptive_table_thinking` в [`config/ingestion.yaml`](../config/ingestion.yaml); детерминированный оракул [`ocsr_oracle.py`](../src/ae/ingestion/parsers/gemini/stages/ocsr_oracle.py) (`py2opsin` + формула + ChEMBL), а также опции `use_batch_api` и `parse_text` на `"low"` (по умолчанию выключены).
+- **Последствия:** HTTP-вызовы `parse_text` сокращены на 62%, 0 сирот `Unlabeled_*`, `parse_text` оставлен на `"high"`; `Batch API` и `T3+T4` не домерены из-за `402`.
+
+### ADR-007. Tool-routing без черновиков и каноническая дедупликация в `ExtractionGraph` (2026-11-22, Принято)
+- **Контекст:** ReAct-узел `agent_node` тратил ~25 тыс. токенов на черновики таблиц, а кросс-табличные дубли отсекались не полностью ([`EXP-02`](../research/experiments/2026-11-22_exp02_extraction_graph_efficiency/report.md)).
+- **Решение:** запретить черновики в промпте `agent_node`, добавить терминальный тул `finalize_evidence`, статическую привязку тулов, каноническую пост-дедупликацию `_record_dedup_key` (InChIKey + нормализация скаляров) и тул `resolve_iupac_to_smiles` (`py2opsin`) в [`graph.py`](../src/ae/extraction/graph.py).
+- **Последствия:** `agent_draft_tokens = 0`, cache hit 28.8% → 44–54%, val **Micro-F1 = 0.9964 ± 0.0008** (`n=3`, `SD` снизился в 2.1×).
+
+### ADR-008. Двухметрическая оценка Strict+Semantic с детерминированными валидаторами и судьёй `gemma-4-31b-it` (2026-11-22, Принято)
+- **Контекст:** единый семантический F1 скрывал строгие расхождения, венгерское выравнивание давало ложные пары, а судья `gemini-3.8-flash` был медленным (104.7 с) и совпадал с Student ([`EXP-03`](../research/experiments/2026-11-22_exp03_evaluation_and_validators/report.md)).
+- **Решение:** одновременный расчёт `strict_f1` и `semantic_f1` в [`matcher.py`](../src/ae/core/evaluation/matcher.py), пиннинг кэша по `(judge_model_id, schema_constraints_hash)`, пост-хок разметка `POT`/`RapidFuzz` и плагины [`quantity_validators.py`](../src/ae/core/schema/quantity_validators.py) (`pint`, `numeric_quantity`, `simpleeval`). Для `SemanticJudge` валидирован `google/gemma-4-31b-it` (OpenRouter; переключение из `gemini-3.8-flash` в конфигах отложено).
+- **Последствия:** κ по 80-парному эталону `0.9247` → **`0.9748`** (+валидаторы) при ускорении в **4.9×** (`104.7 → 21.2 с`); `pint` закрыл 100% юнит-кейсов.
+
+### ADR-009. Защищённая семантическая оптимизация (`SemOpt-Guarded`) (2026-11-22, Принято)
+- **Контекст:** итерации `SemanticOptimizationGraph` могли ухудшать отдельные колонки и закрывать `enum` по малому числу документов ([`EXP-04`](../research/experiments/2026-11-22_exp04_semantic_opt_hardening/report.md)).
+- **Решение:** в [`graph.py`](../src/ae/semantic_optimization/graph.py) добавлен Per-Column Pareto Auto-Rollback (`pareto_regression_threshold = 0.01`), порог `min_enum_doc_support = 4` и фильтрация `CASE_PATCH`-инструкций из правил строк.
+- **Последствия:** Semantic Micro-F1 на `val` = **0.9968** без регрессий колонок по semantic-метрике; при этом в живом прогоне просел `strict_per_field_f1.bacteria` (`0.5159`), а часть защит не имела триггеров.
+
+### ADR-010. Oracle-guided самокоррекция OCSR: prose-hints, gate и детерминированный override (2026-11-24, Принято)
+- **Контекст:** при расхождении SMILES с прозой корректор получал только текстовую заметку и подменял неверный изомер третьим неверным ([`EXP-01`](../research/experiments/2026-11-22_exp01_ingestion_and_ocsr/report.md)).
+- **Решение:** в [`ocsr_oracle.py`](../src/ae/ingestion/parsers/gemini/stages/ocsr_oracle.py) и [`rdkit_validation.py`](../src/ae/ingestion/parsers/gemini/stages/rdkit_validation.py) добавлены структурированные ожидания прозы: prose-hints в промпт, `substructure_violations` gate (отклонение кандидатов, нарушающих мотивы прозы) и last-resort override по полному IUPAC-хедеру.
+- **Последствия:** исключена тихая подмена верных и спорных структур худшими кандидатами (подтверждено на `RJC #15` и юнит-тестах).

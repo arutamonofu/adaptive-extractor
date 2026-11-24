@@ -13,6 +13,10 @@
 
 ## 1. Окружение и патчи DSPy
 
+### Зависимости
+
+Установка ядра `pip install -e .` подтягивает в том числе `pint`, `pot`, `rapidfuzz` и `simpleeval` (двухметрический matcher и валидаторы количеств, ADR-008). Для химического домена обязателен extra `pip install -e ".[chemistry]"`: `rdkit`, `py2opsin` (IUPAC→SMILES в доменном туле и OCSR-оракуле) и `chembl-structure-pipeline` (проверки структур и InChIKey-канонизация для дедупликации).
+
 ### Переменные окружения (`.env`)
 
 Скопируйте [`.env.example`](../.env.example) в `.env` и заполните ключи используемых провайдеров:
@@ -69,7 +73,7 @@ python scripts/patch_dspy_none_type.py
 
 | Команда | Скрипт-обёртка | Основные флаги | Назначение |
 | :--- | :--- | :--- | :--- |
-| `ae-ingest` | `scripts/ingest.py` | `--config`, `--overwrite`, `--from-stage`, `--split`, `--document-ids`, `--dry-run`, `[paths ...]` | Оцифровка PDF в Markdown с манифестами иллюстраций. |
+| `ae-ingest` | `scripts/ingest.py` | `--config`, `--overwrite`, `--from-stage`, `--output-dir`, `--split`, `--document-ids`, `--dry-run`, `[paths ...]` | Оцифровка PDF в Markdown с манифестами иллюстраций; `--output-dir` переопределяет `paths.ingestion_dir` (изоляция экспериментальных прогонов). |
 | `ae-optimize-semantic run` | — | `--config`, `--steps`, `--resume`, `--non-interactive`, `--dry-run` | Выведение правил домена и ограничений схемы с опциональным HITL. |
 | `ae-optimize-semantic status` | — | `--config` | Статус артефактов всех фаз семантической оптимизации. |
 | `ae-optimize-syntactic` *(опц.)* | `scripts/optimize.py` | `--config`, `--run-name`, `--no-mlflow`, `--dry-run` | Тюнинг инструкций и `few-shot` (DSPy MIPROv2), сохранение агента. |
@@ -131,10 +135,10 @@ ae-extract --agent data/processed/agents/agent_20261103_201253.json --split test
 | [`config/core.yaml`](../config/core.yaml) | Основные пути (`paths.*` — PDF, GT, `splits.json`, папка ингеста, промпты, агенты, выходы), лимиты дискового и RAM-кэша (`cache`), настройки `circuit_breaker`. |
 | [`config/schema.yaml`](../config/schema.yaml) | Описание целевой таблицы: `name`, `fields` (тип, описание, `required`, `choices`, диапазоны, `validators`), `compare_fields`, `float_tolerance`, доменные `tools`. |
 | [`config/baseline_instruction.txt`](../config/baseline_instruction.txt) | Базовая системная инструкция задачи (до оптимизации). |
-| [`config/ingestion.yaml`](../config/ingestion.yaml) | Настройки `GeminiParser`: параллелизм (`max_documents`, `max_requests_per_document`), `thinking_level` по стадиям, векторный кроп (`crop`), RDKit-валидация SMILES (`molecule.validation`). |
-| [`config/semantic_optimization.yaml`](../config/semantic_optimization.yaml) | Параметры `Anchor + Residual` (`initial_docs`, `step_size`, `f1_threshold`, `residual_enabled`, пороги `residual_skip_f1` и `residual_fallback_threshold`), `interactive` (HITL), `infer_schema_constraints`, `enable_semantic_judge` и модель Teacher. |
+| [`config/ingestion.yaml`](../config/ingestion.yaml) | Настройки `GeminiParser`: параллелизм (`max_documents`, `max_requests_per_document`), флаги быстрого прохода `execution.*` (`use_inline_pdf`, `merge_t3_t4`, `use_batch_api`, `silent_error_guard`, `adaptive_table_thinking`), `thinking_level` и `max_output_tokens` по стадиям, векторный кроп (`crop`, `padding_ratio: 0.05`), валидация SMILES и OCSR-оракул (`molecule.validation`: `validate_rdkit`, `enable_ocsr_oracle`, `max_retries`). |
+| [`config/semantic_optimization.yaml`](../config/semantic_optimization.yaml) | Параметры `Anchor + Residual` (`initial_docs`, `step_size`, `f1_threshold`, `residual_enabled`, пороги `residual_skip_f1` и `residual_fallback_threshold`), `interactive` (HITL), `enable_semantic_judge` и модель Teacher; защитные поля (`infer_schema_constraints`, `min_enum_doc_support: 4`, `pareto_regression_threshold: 0.01`) задаются дефолтами Pydantic и при необходимости переопределяются в YAML. |
 | [`config/syntactic_optimization.yaml`](../config/syntactic_optimization.yaml) | Параметры DSPy MIPROv2 (`num_candidates`, `num_trials`, `max_bootstrapped_demos`, `max_labeled_demos`, `minibatch`, `random_seed`) и модели `llm.student` / `llm.teacher`. |
-| [`config/extraction.yaml`](../config/extraction.yaml) | Лимит шагов ReAct (`max_tool_iterations`), `agent_thinking_level` (`low`), пакетный вывод (`structured_output_batch_size`), `enable_sanity_checks` и рабочая модель. |
+| [`config/extraction.yaml`](../config/extraction.yaml) | Лимит шагов ReAct (`max_tool_iterations`), `agent_thinking_level` (`low`), пакетный вывод (`structured_output_batch_size`) и рабочая модель (`enable_sanity_checks: true` задаётся дефолтом Pydantic). |
 
 ### Рекомендуемый стек моделей по модулям
 
@@ -150,6 +154,9 @@ ae-extract --agent data/processed/agents/agent_20261103_201253.json --split test
 
 > [!IMPORTANT]
 > Не ставьте `thinking_level: "high"` и не используйте модели семейства `Lite` на этапах ингестии, OCSR и экстракции — это снижает точность (см. [методологию](methodology.md#51-критерии-выбора-моделей-teacher-и-student)). Для OpenRouter сохраняйте `require_parameter_support: true`.
+
+> [!NOTE]
+> В `EXP-05` (2026-11-22) собрана [маршрутная таблица моделей](../research/experiments/2026-11-22_exp05_model_routing/report.md), но в `config/*.yaml` она **не применена**: подтверждённых замен Gemini на стадиях text/table/OCSR/localize нет, а `deepseek-v4.1-flash` уступил `gemini-3.8-flash` на matched-effort пробе `RJC` и в e2e-связке. Приведённый выше стек остаётся боевым.
 
 ---
 
