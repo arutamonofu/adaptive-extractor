@@ -186,6 +186,10 @@ class ApiConfig(BaseModel):
         default=None,
         description="Enable native prompt caching for models that support it"
     )
+    prompt_cache_options: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional OpenRouter prompt_cache_options (e.g. {'mode': 'explicit'})"
+    )
     session_id: Optional[str] = Field(
         default=None,
         description="Optional OpenRouter session ID for sticky routing"

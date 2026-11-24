@@ -442,8 +442,21 @@ class TestSemanticJudgeAuditImprovements:
         ]
         pairs = matcher.align_pairs(preds, gts)
         paired_by_pred = {p.id: g.id for p, g in pairs if p is not None and g is not None}
-        assert paired_by_pred["A1"] == "A1"
-        assert paired_by_pred["B2"] == "Z9"
+        assert paired_by_pred == {"A1": "A1"}
+        # Unrelated B2 (FP) and Z9 (FN) with 0 similarity are split by the default cutoff
+        assert any(p is not None and p.id == "B2" and g is None for p, g in pairs)
+        assert any(p is None and g is not None and g.id == "Z9" for p, g in pairs)
+
+        # Explicitly disabling cutoff (min_alignment_score=0.0) retains forced pairing
+        matcher_nocut = RecordMatcher(
+            fields_to_compare=["id", "value", "note1", "note2", "note3"],
+            float_tolerance=0.05,
+            min_alignment_score=0.0,
+        )
+        pairs_nocut = matcher_nocut.align_pairs(preds, gts)
+        paired_nocut = {p.id: g.id for p, g in pairs_nocut if p is not None and g is not None}
+        assert paired_nocut["A1"] == "A1"
+        assert paired_nocut["B2"] == "Z9"
 
     def test_field_validators_canonical_equivalence_and_deterministic_reject(self):
         """SMILES validator canonicalization resolves equivalent forms and rejects mismatches with 0 judge calls."""
@@ -574,3 +587,228 @@ class TestSemanticJudgeAuditImprovements:
             assert res_diff["pair_results"][0]["status"] == "field_mismatch"
             assert res_diff["pair_results"][0]["mismatched_fields"]["smiles"]["reason"] == "stereo_diff"
             assert len(calls) == 0
+
+
+@pytest.mark.unit
+class TestExp03DualMetricsCutoffAndPotDiagnostics:
+    """Tests for EXP-03 dual strict/semantic F1, soft matches, cache pinning, cutoff, and POT."""
+
+    def test_dual_strict_and_semantic_f1_soft_matches_and_judge_reasoning(self):
+        """One evaluation pass yields strict_f1, semantic_f1, soft_matched_fields, and judge_reasoning."""
+        pytest.importorskip("rdkit")
+        pytest.importorskip("pint")
+        from ae.core.schema.validators import FieldValidatorSpec
+
+        class ReasonLLM:
+            model = "judge-model-v1"
+
+            def __call__(self, messages, **kwargs):
+                return [
+                    '{"bacteria": {"reasoning": "Punctuation artifact in genus name", "match": "YES"}}'
+                ]
+
+        matcher = RecordMatcher(
+            fields_to_compare=["compound_id", "smiles", "target_units", "bacteria"],
+            float_tolerance=0.05,
+            student_llm=ReasonLLM(),
+            enable_semantic_judge=True,
+            field_validators={
+                "smiles": [FieldValidatorSpec(name="smiles", on_error="warn")],
+                "target_units": [FieldValidatorSpec(name="unit", on_error="warn")],
+            },
+        )
+
+        preds = [
+            SimpleNamespace(
+                compound_id="1a",
+                smiles="CC=CC",
+                target_units="µg mL-1",
+                bacteria="Staphylococcus. aureus",
+            )
+        ]
+        gts = [
+            SimpleNamespace(
+                compound_id="1a",
+                smiles="C/C=C/C",
+                target_units="µg/mL",
+                bacteria="Staphylococcus aureus",
+            )
+        ]
+
+        rep = matcher.get_detailed_report(preds, gts, task_name="antibiotics")
+        # 3 deterministic matches (compound_id, smiles via ignore_unassigned_stereo, target_units via pint)
+        # + 1 bacteria mismatch (FP=1, FN=1) -> strict precision=3/4, recall=3/4, f1=0.75
+        assert rep["strict_f1"] == pytest.approx(0.75)
+        assert rep["semantic_f1"] == pytest.approx(1.0)
+        assert rep["f1"] == pytest.approx(1.0)
+        assert rep["soft_matched_fields_count"] == 3
+
+        pair = rep["pair_results"][0]
+        assert pair["strict_matched_fields"] == ["compound_id", "smiles", "target_units"]
+        assert set(pair["soft_matched_fields"]) == {"smiles", "target_units", "bacteria"}
+        assert pair["soft_match_details"]["smiles"]["reason"] == "ignore_unassigned_stereo"
+        assert pair["soft_match_details"]["target_units"]["reason"] == "pint_unit_equivalence"
+        assert pair["judge_reasoning"]["bacteria"] == "Punctuation artifact in genus name"
+        assert len(rep["judge_reasonings"]) == 1
+
+    def test_cache_key_pinned_to_judge_model_and_schema_constraints_hash(self):
+        """Cache key includes (judge_model_id, schema_constraints_hash) preventing cross-config collisions."""
+        class ModelA:
+            model = "model-a"
+
+            def __call__(self, messages, **kwargs):
+                return ['{"bacteria": {"reasoning": "a", "match": "YES"}}']
+
+        class ModelB:
+            model = "model-b"
+
+            def __call__(self, messages, **kwargs):
+                return ['{"bacteria": {"reasoning": "b", "match": "NO"}}']
+
+        m1 = RecordMatcher(
+            fields_to_compare=["bacteria"],
+            float_tolerance=0.05,
+            student_llm=ModelA(),
+            field_constraints={"bacteria": {"choices": ["S. aureus", "E. coli"]}},
+        )
+        m2 = RecordMatcher(
+            fields_to_compare=["bacteria"],
+            float_tolerance=0.05,
+            student_llm=ModelB(),
+            field_constraints={"bacteria": {"choices": ["S. aureus", "E. coli"]}},
+        )
+        m3 = RecordMatcher(
+            fields_to_compare=["bacteria"],
+            float_tolerance=0.05,
+            student_llm=ModelA(),
+            field_constraints={"bacteria": {"choices": ["S. aureus", "MRSA"]}},
+        )
+
+        k1 = m1._make_discrepancy_cache_key("t", {"bacteria": "S. aureus"}, {"bacteria": "S.a."}, ["bacteria"])
+        k2 = m2._make_discrepancy_cache_key("t", {"bacteria": "S. aureus"}, {"bacteria": "S.a."}, ["bacteria"])
+        k3 = m3._make_discrepancy_cache_key("t", {"bacteria": "S. aureus"}, {"bacteria": "S.a."}, ["bacteria"])
+        assert k1[0] == "model-a"
+        assert k2[0] == "model-b"
+        assert k1 != k2
+        assert k1[1] != k3[1]
+        assert k1 != k3
+
+    def test_hungarian_cutoff_splits_unrelated_fp_fn_sharing_constant_columns(self):
+        """Records sharing only constant columns (MIC, =, µg/mL) are not glued into field_mismatch."""
+        matcher = RecordMatcher(
+            fields_to_compare=[
+                "compound_id",
+                "target_type",
+                "target_relation",
+                "target_value",
+                "target_units",
+                "bacteria",
+            ],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+        preds = [
+            SimpleNamespace(
+                compound_id="1a",
+                target_type="MIC",
+                target_relation="=",
+                target_value="8",
+                target_units="µg/mL",
+                bacteria="S. aureus",
+            ),
+            SimpleNamespace(
+                compound_id="1b",
+                target_type="MIC",
+                target_relation="=",
+                target_value="16",
+                target_units="µg/mL",
+                bacteria="E. coli",
+            ),
+            SimpleNamespace(
+                compound_id="Penicillin",
+                target_type="MIC",
+                target_relation="=",
+                target_value="0.5",
+                target_units="µg/mL",
+                bacteria="B. subtilis",
+            ),
+        ]
+        gts = [
+            SimpleNamespace(
+                compound_id="1a",
+                target_type="MIC",
+                target_relation="=",
+                target_value="8",
+                target_units="µg/mL",
+                bacteria="S. aureus",
+            ),
+            SimpleNamespace(
+                compound_id="1b",
+                target_type="MIC",
+                target_relation="=",
+                target_value="16",
+                target_units="µg/mL",
+                bacteria="E. coli",
+            ),
+            SimpleNamespace(
+                compound_id="9z",
+                target_type="MIC",
+                target_relation="=",
+                target_value="128",
+                target_units="µg/mL",
+                bacteria="P. aeruginosa",
+            ),
+        ]
+        res = matcher.evaluate_pairs(preds, gts, task_name="antibiotics")
+        statuses = [r["status"] for r in res["pair_results"]]
+        assert statuses.count("tp") == 2
+        assert statuses.count("field_mismatch") == 0
+        assert statuses.count("fp") == 1
+        assert statuses.count("fn") == 1
+
+    def test_pot_rapidfuzz_posthoc_tags_duplicate_merge_and_split(self):
+        """POT unbalanced OT + RapidFuzz detects duplicate_of_tp, row_merge, and row_split."""
+        matcher = RecordMatcher(
+            fields_to_compare=["compound_id", "target_value", "bacteria"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+
+        # 1. duplicate_of_tp
+        preds_dup = [
+            SimpleNamespace(compound_id="8b", target_value="8", bacteria="S. aureus ATCC 29213"),
+            SimpleNamespace(compound_id="8b", target_value="8", bacteria="MSSA S. aureus ATCC 29213"),
+        ]
+        gts_dup = [
+            SimpleNamespace(compound_id="8b", target_value="8", bacteria="S. aureus ATCC 29213"),
+        ]
+        res_dup = matcher.evaluate_pairs(preds_dup, gts_dup)
+        assert len(res_dup["diagnostics"]["duplicate_of_tp"]) == 1
+        assert res_dup["diagnostics"]["duplicate_of_tp"][0]["pred_index"] == 1
+        assert res_dup["pair_results"][1]["diagnostic_tag"] == "duplicate_of_tp"
+
+        # 2. row_merge (1 pred merges 2 GT rows)
+        preds_merge = [
+            SimpleNamespace(compound_id="1a", target_value="8", bacteria="S. aureus, E. coli"),
+        ]
+        gts_merge = [
+            SimpleNamespace(compound_id="1a", target_value="8", bacteria="S. aureus"),
+            SimpleNamespace(compound_id="1a", target_value="8", bacteria="E. coli"),
+        ]
+        res_merge = matcher.evaluate_pairs(preds_merge, gts_merge)
+        assert len(res_merge["diagnostics"]["row_merge"]) == 1
+        assert set(res_merge["diagnostics"]["row_merge"][0]["gt_indices"]) == {0, 1}
+        assert any(r.get("diagnostic_tag") == "row_merge" for r in res_merge["pair_results"])
+
+        # 3. row_split (2 preds split 1 GT row)
+        preds_split = [
+            SimpleNamespace(compound_id="1a", target_value="8", bacteria="S. aureus"),
+            SimpleNamespace(compound_id="1a", target_value="8", bacteria="E. coli"),
+        ]
+        gts_split = [
+            SimpleNamespace(compound_id="1a", target_value="8", bacteria="S. aureus, E. coli"),
+        ]
+        res_split = matcher.evaluate_pairs(preds_split, gts_split)
+        assert len(res_split["diagnostics"]["row_split"]) == 1
+        assert set(res_split["diagnostics"]["row_split"][0]["pred_indices"]) == {0, 1}
+        assert any(r.get("diagnostic_tag") == "row_split" for r in res_split["pair_results"])

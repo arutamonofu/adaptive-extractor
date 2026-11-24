@@ -24,6 +24,13 @@ from .validators import (
 )
 
 
+@dataclass(frozen=True)
+class FieldPatternSpec:
+    """Metadata-only regex pattern (excluded from JSON Schema to prevent CRANE decoder issues)."""
+
+    pattern: str
+
+
 @dataclass
 class FieldSpec:
     """Specification for a single experiment field.
@@ -115,9 +122,6 @@ class FieldSpec:
         if self.max_value is not None:
             field_kwargs["le"] = self.max_value
 
-        if self.pattern:
-            field_kwargs["pattern"] = self.pattern
-
         return PydanticField(**field_kwargs)
 
 
@@ -171,6 +175,9 @@ class SchemaConfig:
     base_class: Optional[Type[BaseModel]] = None
     judge_field_descriptions: Optional[Dict[str, str]] = None
     tools: List[Union[str, Dict[str, Any], ExtractionToolSpec]] = field(default_factory=list)
+    compute_validators: List[Union[str, Dict[str, Any], FieldValidatorSpec]] = field(
+        default_factory=list
+    )
 
     def __init__(
         self,
@@ -184,6 +191,7 @@ class SchemaConfig:
         judge_field_descriptions: Optional[Dict[str, str]] = None,
         experiment_fields: Optional[Dict[str, FieldSpec]] = None,
         tools: Optional[List[Union[str, Dict[str, Any], ExtractionToolSpec]]] = None,
+        compute_validators: Optional[List[Union[str, Dict[str, Any], FieldValidatorSpec]]] = None,
     ):
         self.name = name
         self.fields = fields if fields is not None else (experiment_fields or {})
@@ -194,6 +202,11 @@ class SchemaConfig:
         self.base_class = base_class
         self.judge_field_descriptions = judge_field_descriptions
         self.tools = list(tools) if tools is not None else []
+        self.compute_validators = (
+            [normalize_validator_spec(v) for v in compute_validators]
+            if compute_validators is not None
+            else []
+        )
         self.__post_init__()
 
     @property
@@ -334,6 +347,11 @@ class SchemaConfig:
         if self.tools:
             canonical_constraints["__tools__"] = [
                 normalize_tool_spec(t).to_canonical_dict() for t in self.tools
+            ]
+        if self.compute_validators:
+            canonical_constraints["__compute_validators__"] = [
+                normalize_validator_spec(v).to_canonical_dict()
+                for v in self.compute_validators
             ]
 
         canonical_json = json.dumps(canonical_constraints, sort_keys=True)
@@ -486,6 +504,16 @@ class SchemaConfig:
                 continue
             for t_err in validate_tool_config(t_spec):
                 errors.append(f"Extraction tool: {t_err}")
+
+        # Validate record-level compute validators
+        for raw_cv in self.compute_validators:
+            try:
+                cv_spec = normalize_validator_spec(raw_cv)
+            except Exception as exc:
+                errors.append(f"Invalid compute validator spec: {exc}")
+                continue
+            for cv_err in validate_validator_config(cv_spec):
+                errors.append(f"Compute validator: {cv_err}")
 
         return errors
 

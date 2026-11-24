@@ -53,6 +53,8 @@ class RegisteredToolProvider:
     build_tool: Callable[..., Any]
     is_applicable: Callable[[str], bool] = lambda _doc_text: True
     policy_hint: str = ""
+    auto_remind: bool = True
+    structured_output_hint: str = ""
 
 
 def normalize_tool_spec(
@@ -125,6 +127,9 @@ def serialize_tool_spec(
 _LAZY_BUILTIN_TOOL_PROVIDERS: Dict[str, str] = {
     "assemble_markush_smiles": (
         "ae.core.schema.domain_tools.chemistry:get_markush_assembly_tool_provider"
+    ),
+    "resolve_iupac_to_smiles": (
+        "ae.core.schema.domain_tools.chemistry:get_iupac_to_smiles_tool_provider"
     ),
 }
 

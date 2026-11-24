@@ -50,6 +50,26 @@ class ExecutionConfig(BaseModel):
         default_factory=ExecutionConcurrencyConfig,
         description="Concurrency settings for document and request parallelism",
     )
+    use_inline_pdf: bool = Field(
+        default=True,
+        description="Send 1-page PDF chunks inline via Part.from_bytes instead of Files API upload/delete",
+    )
+    merge_t3_t4: bool = Field(
+        default=True,
+        description="Merge composite decomposition (T3) and element localization (T4) into one VLM call with fallback",
+    )
+    use_batch_api: bool = Field(
+        default=False,
+        description="Use Gemini Batch API for parse_text and classify stages",
+    )
+    silent_error_guard: bool = Field(
+        default=True,
+        description="Detect silent empty/degenerate outputs and retry once at temperature=0.5",
+    )
+    adaptive_table_thinking: bool = Field(
+        default=True,
+        description="Use thinking_level='low' for single-page tables while keeping configured level for multi-page tables",
+    )
 
 
 class ApiClientConfig(BaseModel):
@@ -181,7 +201,7 @@ class CropUpscaleConfig(BaseModel):
 class CropConfig(BaseModel):
     """Crop stage configuration (PyMuPDF high-DPI cropping and upscaling)."""
 
-    padding_ratio: float = Field(default=0.02)
+    padding_ratio: float = Field(default=0.05)
     base_dpi: int = Field(default=300)
     upscale: CropUpscaleConfig = Field(default_factory=CropUpscaleConfig)
 
@@ -214,13 +234,17 @@ class ChartExtractStageConfig(_StageWithModelConfig):
 
 
 class MoleculeValidationConfig(BaseModel):
-    """Configuration for RDKit molecular validation."""
+    """Configuration for RDKit molecular validation and semantic OCSR oracle."""
 
     validate_rdkit: bool = Field(default=True, description="Validate SMILES via RDKit")
+    enable_ocsr_oracle: bool = Field(
+        default=True,
+        description="Run deterministic cross-modal OCSR oracle (Formula/HRMS, py2opsin IUPAC, ChEMBL)",
+    )
     max_retries: int = Field(
         default=1,
         ge=0,
-        description="Maximum self-correction retries when RDKit validation fails",
+        description="Maximum self-correction retries when RDKit or oracle validation fails",
     )
 
 
@@ -296,6 +320,11 @@ class GeminiParserConfig(BaseModel):
     max_retries: int = Field(default=5)
     retry_delay: float = Field(default=2.0)
     timeout: int = Field(default=300)
+    use_inline_pdf: bool = Field(default=True)
+    merge_t3_t4: bool = Field(default=True)
+    use_batch_api: bool = Field(default=False)
+    silent_error_guard: bool = Field(default=True)
+    adaptive_table_thinking: bool = Field(default=True)
     defaults: GeminiDefaultsConfig = Field(default_factory=GeminiDefaultsConfig)
     stages: Optional[Any] = None
     crop: CropConfig = Field(default_factory=CropConfig)
@@ -362,6 +391,26 @@ class _GeminiLegacyAdapter:
     @property
     def stages(self) -> IngestionStagesConfig:
         return self._config.stages
+
+    @property
+    def use_inline_pdf(self) -> bool:
+        return self._config.execution.use_inline_pdf
+
+    @property
+    def merge_t3_t4(self) -> bool:
+        return self._config.execution.merge_t3_t4
+
+    @property
+    def use_batch_api(self) -> bool:
+        return self._config.execution.use_batch_api
+
+    @property
+    def silent_error_guard(self) -> bool:
+        return self._config.execution.silent_error_guard
+
+    @property
+    def adaptive_table_thinking(self) -> bool:
+        return self._config.execution.adaptive_table_thinking
 
     def get_stage_config(
         self, stage_name: str, sub_stage: Optional[str] = None
@@ -819,6 +868,17 @@ class SemanticOptimizationExecutionConfig(BaseModel):
         default=True,
         description="Infer and persist refined schema constraints (choices, defaults, descriptions) during generalization",
     )
+    min_enum_doc_support: int = Field(
+        default=4,
+        ge=1,
+        description="Minimum active training documents required before closing a field as an enum",
+    )
+    pareto_regression_threshold: float = Field(
+        default=0.01,
+        ge=0.0,
+        le=1.0,
+        description="Per-column F1 drop threshold triggering Pareto Auto-Rollback",
+    )
     enable_semantic_judge: bool = Field(
         default=True,
         description="Enable LLM Semantic Judge during validation and residual alignment",
@@ -929,6 +989,8 @@ class SemanticOptimizationConfig(BaseModel):
                 "max_rows_per_doc": data.get("max_rows_per_doc", 20),
                 "harmonize_prompt": data.get("harmonize_prompt", True),
                 "infer_schema_constraints": data.get("infer_schema_constraints", True),
+                "min_enum_doc_support": data.get("min_enum_doc_support", 4),
+                "pareto_regression_threshold": data.get("pareto_regression_threshold", 0.01),
                 "enable_semantic_judge": data.get("enable_semantic_judge", True),
                 "residual_enabled": data.get("residual_enabled", True),
                 "residual_fallback_threshold": data.get("residual_fallback_threshold", 0.35),
@@ -986,6 +1048,14 @@ class SemanticOptimizationConfig(BaseModel):
     @property
     def infer_schema_constraints(self) -> bool:
         return self.execution.infer_schema_constraints
+
+    @property
+    def min_enum_doc_support(self) -> int:
+        return self.execution.min_enum_doc_support
+
+    @property
+    def pareto_regression_threshold(self) -> float:
+        return self.execution.pareto_regression_threshold
 
     @property
     def enable_semantic_judge(self) -> bool:

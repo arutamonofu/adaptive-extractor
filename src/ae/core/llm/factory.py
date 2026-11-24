@@ -9,6 +9,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from ae.core.config.llm_settings import LLMInstanceConfig
+from ae.core.llm.provider import model_supports_sampling_params
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,8 @@ def create_chat_model(
         extra_body: dict[str, Any] = {}
         if config.api.reasoning is not None:
             extra_body["reasoning"] = config.api.reasoning
+        if getattr(config.api, "prompt_cache_options", None) is not None:
+            extra_body["prompt_cache_options"] = config.api.prompt_cache_options
         if config.api.session_id is not None:
             extra_body["session_id"] = config.api.session_id
         if config.api.provider is not None:
@@ -95,12 +98,14 @@ def create_chat_model(
             "model": config.model,
             "api_key": api_key_str,
             "base_url": base_url,
-            "temperature": config.temperature,
-            "top_p": config.top_p,
             "max_tokens": config.api.max_tokens,
             "max_retries": effective_max_retries,
             "default_headers": headers,
+            "stream_usage": True,
         }
+        if model_supports_sampling_params(config.model):
+            chat_kwargs["temperature"] = config.temperature
+            chat_kwargs["top_p"] = config.top_p
         if config.timeout:
             chat_kwargs["timeout"] = float(config.timeout)
         if extra_body:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from typing import Any, Optional, Tuple
 
 from ae.core.schema.validators import FieldValidationResult
@@ -92,6 +93,32 @@ def _canonicalize_mol_to_smiles(
     return str(Chem.MolToSmiles(canon_mol, isomericSmiles=isomeric))
 
 
+@functools.lru_cache(maxsize=8192)
+def _canonicalize_smiles_cached(
+    clean_smiles: str,
+    allow_dummy_atoms: bool,
+    allow_fragments: bool,
+    canonicalize_tautomers: bool,
+    isomeric: bool,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Parse and canonicalize a SMILES string with LRU caching."""
+    mol, error = _parse_smiles_mol(
+        clean_smiles,
+        allow_dummy_atoms=allow_dummy_atoms,
+        allow_fragments=allow_fragments,
+    )
+    if mol is None:
+        return None, error
+    return (
+        _canonicalize_mol_to_smiles(
+            mol,
+            canonicalize_tautomers=canonicalize_tautomers,
+            isomeric=isomeric,
+        ),
+        None,
+    )
+
+
 def validate_smiles(
     value: Any,
     *,
@@ -139,22 +166,17 @@ def validate_smiles(
     if not required and allow_null_sentinels and clean_smiles.lower() in _DEFAULT_NULL_SENTINELS:
         return FieldValidationResult(valid=True, value=value)
 
-    mol, error = _parse_smiles_mol(
+    canon, error = _canonicalize_smiles_cached(
         clean_smiles,
-        allow_dummy_atoms=allow_dummy_atoms,
-        allow_fragments=allow_fragments,
+        allow_dummy_atoms,
+        allow_fragments,
+        canonicalize_tautomers if canonicalize else False,
+        isomeric,
     )
-    if mol is None:
+    if canon is None:
         return FieldValidationResult(valid=False, value=value, error=error)
 
-    if canonicalize:
-        final_val = _canonicalize_mol_to_smiles(
-            mol,
-            canonicalize_tautomers=canonicalize_tautomers,
-            isomeric=isomeric,
-        )
-    else:
-        final_val = value
+    final_val = canon if canonicalize else value
     return FieldValidationResult(valid=True, value=final_val)
 
 
@@ -170,40 +192,42 @@ def compare_smiles_values(
     **_: Any,
 ) -> Tuple[Optional[bool], Optional[str]]:
     """Compare two SMILES values with configurable stereochemistry handling."""
-    mol_a, err_a = _parse_smiles_mol(
-        val_a, allow_dummy_atoms=allow_dummy_atoms, allow_fragments=allow_fragments
-    )
-    mol_b, err_b = _parse_smiles_mol(
-        val_b, allow_dummy_atoms=allow_dummy_atoms, allow_fragments=allow_fragments
-    )
-    if mol_a is None or mol_b is None or err_a is not None or err_b is not None:
+    if not isinstance(val_a, str) or not isinstance(val_b, str):
+        return False, "invalid_smiles"
+    clean_a = val_a.strip()
+    clean_b = val_b.strip()
+    if not clean_a or not clean_b:
         return False, "invalid_smiles"
 
     if not isomeric:
-        flat_a = _canonicalize_mol_to_smiles(
-            mol_a, canonicalize_tautomers=canonicalize_tautomers, isomeric=False
+        flat_a, err_a = _canonicalize_smiles_cached(
+            clean_a, allow_dummy_atoms, allow_fragments, canonicalize_tautomers, False
         )
-        flat_b = _canonicalize_mol_to_smiles(
-            mol_b, canonicalize_tautomers=canonicalize_tautomers, isomeric=False
+        flat_b, err_b = _canonicalize_smiles_cached(
+            clean_b, allow_dummy_atoms, allow_fragments, canonicalize_tautomers, False
         )
+        if flat_a is None or flat_b is None or err_a is not None or err_b is not None:
+            return False, "invalid_smiles"
         if flat_a == flat_b:
             return True, None
         return False, "topology_mismatch"
 
-    iso_a = _canonicalize_mol_to_smiles(
-        mol_a, canonicalize_tautomers=canonicalize_tautomers, isomeric=True
+    iso_a, err_a = _canonicalize_smiles_cached(
+        clean_a, allow_dummy_atoms, allow_fragments, canonicalize_tautomers, True
     )
-    iso_b = _canonicalize_mol_to_smiles(
-        mol_b, canonicalize_tautomers=canonicalize_tautomers, isomeric=True
+    iso_b, err_b = _canonicalize_smiles_cached(
+        clean_b, allow_dummy_atoms, allow_fragments, canonicalize_tautomers, True
     )
+    if iso_a is None or iso_b is None or err_a is not None or err_b is not None:
+        return False, "invalid_smiles"
     if iso_a == iso_b:
         return True, None
 
-    flat_a = _canonicalize_mol_to_smiles(
-        mol_a, canonicalize_tautomers=canonicalize_tautomers, isomeric=False
+    flat_a, _ = _canonicalize_smiles_cached(
+        clean_a, allow_dummy_atoms, allow_fragments, canonicalize_tautomers, False
     )
-    flat_b = _canonicalize_mol_to_smiles(
-        mol_b, canonicalize_tautomers=canonicalize_tautomers, isomeric=False
+    flat_b, _ = _canonicalize_smiles_cached(
+        clean_b, allow_dummy_atoms, allow_fragments, canonicalize_tautomers, False
     )
     if flat_a != flat_b:
         return False, "topology_mismatch"

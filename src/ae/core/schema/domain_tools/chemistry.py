@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
+import shutil
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, field_validator
@@ -325,6 +329,17 @@ def build_markush_assembly_tool(**_: Any) -> Any:
     )
 
 
+_CHEMISTRY_STRUCTURED_HINT = (
+    "CHEMICAL STRUCTURE CROSS-CHECK (VLM vs PROSE/IUPAC):\n"
+    "- Always cross-check substituent positions, positional isomers (e.g. 2-chloro-6-fluorophenyl vs "
+    "5-chloro-2-fluorophenyl, 6-methylpyridin-3-yl vs 2-methylpyridin-4-yl), and scaffolds parsed in "
+    "`<visual>` tables/registries against explicit IUPAC names and compound descriptions in the document "
+    "text/experimental section and computed tool results.\n"
+    "- If a `<visual>` SMILES contradicts unambiguous chemical nomenclature in the prose or computed "
+    "`resolve_iupac_to_smiles` output, the prose IUPAC nomenclature / computed SMILES takes precedence."
+)
+
+
 def get_markush_assembly_tool_provider() -> RegisteredToolProvider:
     """Return the RegisteredToolProvider descriptor for Markush SMILES assembly."""
     return RegisteredToolProvider(
@@ -332,4 +347,149 @@ def get_markush_assembly_tool_provider() -> RegisteredToolProvider:
         build_tool=build_markush_assembly_tool,
         is_applicable=is_markush_applicable,
         policy_hint=_MARKUSH_POLICY_HINT,
+        structured_output_hint=_CHEMISTRY_STRUCTURED_HINT,
+    )
+
+
+_IUPAC_POLICY_HINT = (
+    "TOOL `resolve_iupac_to_smiles`:\n"
+    "- Use this tool when a compound is described by an explicit IUPAC chemical name in prose or the "
+    "experimental section without a ready SMILES, OR when prose specifies explicit substituent locants "
+    "(e.g., `2-chloro-6-fluorophenyl`, `3-chloro-2-fluorophenyl`, `6-methylpyridin-3-yl`) so you can "
+    "verify/override `<visual>` OCSR SMILES against positional isomer errors.\n"
+    "- Batch all needed IUPAC names into a single `resolve_iupac_to_smiles` call.\n"
+    "- Calling `resolve_iupac_to_smiles` does NOT replace `assemble_markush_smiles`: if the document "
+    "also contains target R-group series with `[*:n]` Markush scaffolds, still call `assemble_markush_smiles`."
+)
+
+
+class ResolveIupacBatchInput(BaseModel):
+    """Arguments schema for resolve_iupac_to_smiles tool."""
+
+    iupac_names: List[str] = Field(
+        description="List of IUPAC chemical names to convert into canonical SMILES strings via OPSIN"
+    )
+
+    @field_validator("iupac_names", mode="before")
+    @classmethod
+    def _coerce_names_list(cls, v: Any) -> Any:
+        parsed = _parse_json_like_arg(v)
+        if isinstance(parsed, str):
+            return [parsed]
+        return parsed
+
+
+def resolve_iupac_batch(iupac_names: List[str]) -> Dict[str, Any]:
+    """Convert a batch of IUPAC chemical names to canonical SMILES using py2opsin."""
+    cleaned_names = [str(n).strip() for n in (iupac_names or []) if str(n).strip()]
+    if not cleaned_names:
+        return {"resolved": [], "errors": [{"iupac_name": "", "error": "No IUPAC names provided."}]}
+
+    if not shutil.which("java"):
+        return {
+            "resolved": [],
+            "errors": [
+                {
+                    "iupac_name": name,
+                    "error": "Java runtime ('java') not found in PATH; py2opsin requires Java.",
+                }
+                for name in cleaned_names
+            ],
+        }
+
+    try:
+        from py2opsin import py2opsin
+    except ImportError as exc:
+        return {
+            "resolved": [],
+            "errors": [
+                {
+                    "iupac_name": name,
+                    "error": f"py2opsin is required for IUPAC resolution: {exc}",
+                }
+                for name in cleaned_names
+            ],
+        }
+
+    tmp_fpath = str(Path(tempfile.gettempdir()) / f"ae_py2opsin_{os.getpid()}.txt")
+    try:
+        raw_results = py2opsin(cleaned_names, tmp_fpath=tmp_fpath)
+    except TypeError:
+        raw_results = py2opsin(cleaned_names)
+    except Exception as exc:
+        return {
+            "resolved": [],
+            "errors": [
+                {"iupac_name": name, "error": f"OPSIN conversion failed: {exc}"}
+                for name in cleaned_names
+            ],
+        }
+    finally:
+        try:
+            Path(tmp_fpath).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    if isinstance(raw_results, str):
+        raw_list: List[Optional[str]] = [raw_results]
+    elif isinstance(raw_results, (list, tuple)):
+        raw_list = list(raw_results)
+    else:
+        raw_list = [None] * len(cleaned_names)
+
+    try:
+        from rdkit import Chem, rdBase
+
+        rdBase.DisableLog("rdApp.error")
+        rdBase.DisableLog("rdApp.warning")
+    except ImportError:
+        Chem = None  # type: ignore[assignment]
+
+    resolved: List[Dict[str, str]] = []
+    errors: List[Dict[str, str]] = []
+    for idx, name in enumerate(cleaned_names):
+        raw_smi = raw_list[idx] if idx < len(raw_list) else None
+        smi = str(raw_smi).strip() if raw_smi else ""
+        if not smi:
+            errors.append({"iupac_name": name, "error": "OPSIN could not parse IUPAC name"})
+            continue
+        if Chem is not None:
+            mol = Chem.MolFromSmiles(smi)
+            if mol is None:
+                errors.append({"iupac_name": name, "error": f"Invalid SMILES from OPSIN: {smi!r}"})
+                continue
+            smi = Chem.MolToSmiles(mol, isomericSmiles=True)
+        resolved.append({"iupac_name": name, "smiles": smi})
+
+    return {"resolved": resolved, "errors": errors}
+
+
+def build_iupac_to_smiles_tool(**_: Any) -> Any:
+    """Build the LangChain StructuredTool for IUPAC-to-SMILES resolution via py2opsin."""
+    from langchain_core.tools import StructuredTool
+
+    def _run_resolve(iupac_names: List[str]) -> str:
+        res = resolve_iupac_batch(iupac_names=iupac_names)
+        return json.dumps(res, ensure_ascii=False, indent=2)
+
+    return StructuredTool.from_function(
+        func=_run_resolve,
+        name="resolve_iupac_to_smiles",
+        description=(
+            "Convert a batch of IUPAC chemical names into canonical SMILES strings using local OPSIN "
+            "(py2opsin) + RDKit. Useful when SMILES is missing or when cross-checking prose IUPAC names."
+        ),
+        args_schema=ResolveIupacBatchInput,
+    )
+
+
+def get_iupac_to_smiles_tool_provider() -> RegisteredToolProvider:
+    """Return the RegisteredToolProvider descriptor for IUPAC-to-SMILES resolution."""
+    return RegisteredToolProvider(
+        name="resolve_iupac_to_smiles",
+        build_tool=build_iupac_to_smiles_tool,
+        is_applicable=lambda doc_text: bool(doc_text and doc_text.strip()),
+        policy_hint=_IUPAC_POLICY_HINT,
+        auto_remind=False,
+        structured_output_hint=_CHEMISTRY_STRUCTURED_HINT,
     )

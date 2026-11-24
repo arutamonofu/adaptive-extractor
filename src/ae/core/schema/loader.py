@@ -165,6 +165,10 @@ def load_schema_from_yaml(
     if not isinstance(raw_tools, list):
         raise ValueError("Invalid YAML format: 'tools' must be a list")
 
+    raw_compute_validators = yaml_data.get("compute_validators") or []
+    if not isinstance(raw_compute_validators, list):
+        raise ValueError("Invalid YAML format: 'compute_validators' must be a list")
+
     # Create SchemaConfig
     config = SchemaConfig(
         name=yaml_data["name"],
@@ -175,6 +179,7 @@ def load_schema_from_yaml(
         base_class=base_class,
         instruction_file=str(instruction_path) if instruction_path else None,
         tools=raw_tools,
+        compute_validators=raw_compute_validators,
     )
 
     logger.info(f"Loaded schema configuration: {config.name}")
@@ -308,6 +313,11 @@ def save_schema_to_yaml(
     # Add declarative extraction tools
     if config.tools:
         yaml_data["tools"] = [serialize_tool_spec(t) for t in config.tools]
+
+    if config.compute_validators:
+        yaml_data["compute_validators"] = [
+            serialize_validator_spec(v) for v in config.compute_validators
+        ]
 
     # Write YAML
     output_path.parent.mkdir(parents=True, exist_ok=True)

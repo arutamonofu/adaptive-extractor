@@ -3,6 +3,7 @@
 import ast
 import difflib
 import functools
+import hashlib
 import json
 import logging
 import math
@@ -145,6 +146,13 @@ def _extract_field_verdict(raw: Any) -> str:
     return "YES" if str(raw).strip().upper() in ("YES", "TRUE") else "NO"
 
 
+def _extract_field_reasoning(raw: Any) -> str:
+    """Extract concise judge reasoning text from a raw field verdict object."""
+    if isinstance(raw, dict):
+        return str(raw.get("reasoning") or "").strip()
+    return ""
+
+
 _RE_STRICT_CLEAN = re.compile(r"\s+")
 _DASH_MAP = str.maketrans({"−": "-", "–": "-", "—": "-"})
 
@@ -178,6 +186,7 @@ class RecordMatcher:
         field_constraints: Optional[Dict[str, Dict[str, Any]]] = None,
         field_validators: Optional[Dict[str, List[Any]]] = None,
         max_judge_batch_size: int = 15,
+        min_alignment_score: float = 0.25,
     ):
         """Initialize the RecordMatcher.
 
@@ -188,8 +197,9 @@ class RecordMatcher:
             field_descriptions: Dictionary of field descriptions (optional).
             enable_semantic_judge: Flag to enable/disable semantic judge (default: True).
             field_constraints: Optional schema field constraints (choices, pattern, min/max).
-            field_validators: Optional declarative validators per field (used for canonical equivalence).
+            field_validators: Optional declarative validators per field (canonical equivalence).
             max_judge_batch_size: Max aligned pairs to evaluate in a single batched LLM call.
+            min_alignment_score: Minimum similarity score in [0.0, 1.0] to keep a Hungarian pair.
 
         Raises:
             ValueError: If fields_to_compare is empty or float_tolerance is invalid.
@@ -198,6 +208,8 @@ class RecordMatcher:
             raise ValueError("fields_to_compare cannot be empty")
         if not 0 <= float_tolerance <= 1:
             raise ValueError("float_tolerance must be between 0 and 1")
+        if not 0.0 <= min_alignment_score <= 1.0:
+            raise ValueError("min_alignment_score must be between 0 and 1")
 
         self.fields = fields_to_compare
         self.tolerance = float_tolerance
@@ -215,14 +227,41 @@ class RecordMatcher:
                         normalize_validator_spec(s) for s in specs
                     ]
         self.max_judge_batch_size = max(1, int(max_judge_batch_size))
+        self.min_alignment_score = float(min_alignment_score)
+        self._schema_constraints_hash = self._compute_schema_constraints_hash()
         self._verdict_cache: Dict[Tuple[Any, ...], Dict[str, str]] = {}
+        self._reasoning_cache: Dict[Tuple[Any, ...], Dict[str, str]] = {}
         self._validator_compare_cache: Dict[
             Tuple[str, str, str], Tuple[Optional[bool], Optional[str]]
         ] = {}
 
+    def _compute_schema_constraints_hash(self) -> str:
+        """Compute deterministic hash of fields, constraints, descriptions, and validators."""
+        payload = {
+            "fields": list(self.fields),
+            "field_constraints": self.field_constraints,
+            "field_descriptions": self.field_descriptions,
+            "field_validators": {
+                fname: [spec.to_canonical_dict() for spec in specs]
+                for fname, specs in sorted(self.field_validators.items())
+            },
+        }
+        canonical = json.dumps(payload, sort_keys=True, default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+    def _get_judge_model_id(self) -> str:
+        """Return stable identifier for the configured SemanticJudge LLM."""
+        if self.student_llm is None:
+            return "none"
+        model_id = getattr(self.student_llm, "model", None)
+        if model_id:
+            return str(model_id)
+        return type(self.student_llm).__name__
+
     def clear_cache(self) -> None:
-        """Clear the in-memory semantic judge verdict and validator comparison caches."""
+        """Clear the in-memory semantic judge verdict, reasoning, and validator caches."""
         self._verdict_cache.clear()
+        self._reasoning_cache.clear()
         self._validator_compare_cache.clear()
 
     def _is_na(self, val: Any) -> bool:
@@ -428,10 +467,55 @@ class RecordMatcher:
 
         return difflib.SequenceMatcher(None, lp, lg).ratio() * 0.35
 
+    def _classify_soft_validator_reason(
+        self, field_name: str, val_p: Any, val_g: Any
+    ) -> Tuple[str, str]:
+        """Classify the validator mechanism and reason for a non-exact field match."""
+        specs = self.field_validators.get(field_name, ())
+        for spec in specs:
+            if spec.name == "smiles":
+                from ae.core.schema.domain_validators.chemistry import (
+                    _STEREO_TOKENS,
+                    _canonicalize_smiles_cached,
+                )
+
+                clean_p = str(val_p).strip()
+                clean_g = str(val_g).strip()
+                canon_taut = bool(spec.params.get("canonicalize_tautomers", True))
+                isomeric = bool(spec.params.get("isomeric", True))
+                allow_dummy = bool(spec.params.get("allow_dummy_atoms", False))
+                allow_frags = bool(spec.params.get("allow_fragments", True))
+                if isomeric and bool(spec.params.get("ignore_unassigned_stereo", True)):
+                    iso_p, _ = _canonicalize_smiles_cached(
+                        clean_p, allow_dummy, allow_frags, canon_taut, True
+                    )
+                    iso_g, _ = _canonicalize_smiles_cached(
+                        clean_g, allow_dummy, allow_frags, canon_taut, True
+                    )
+                    if iso_p and iso_g and iso_p != iso_g:
+                        has_p = any(t in iso_p for t in _STEREO_TOKENS)
+                        has_g = any(t in iso_g for t in _STEREO_TOKENS)
+                        if not has_p or not has_g:
+                            return "validator:smiles", "ignore_unassigned_stereo"
+                return "validator:smiles", "canonical_equivalence"
+            if spec.name == "unit":
+                return "validator:unit", "pint_unit_equivalence"
+            if spec.name == "numeric_quantity":
+                return "validator:numeric_quantity", "numeric_quantity_equivalence"
+            return f"validator:{spec.name}", "canonical_equivalence"
+        return "validator", "canonical_equivalence"
+
     def align_pairs_with_indices(
-        self, preds: List[ExperimentEntity], gts: List[ExperimentEntity]
+        self,
+        preds: List[ExperimentEntity],
+        gts: List[ExperimentEntity],
+        min_alignment_score: Optional[float] = None,
     ) -> List[Tuple[Optional[int], Optional[int]]]:
-        """Align prediction indices to ground truth indices via Hungarian algorithm."""
+        """Align prediction indices to ground truth indices via Hungarian algorithm.
+
+        Applies a discriminative column-weighted cutoff threshold so unrelated FP and FN
+        records that only share constant columns are split instead of forced into pairs.
+        """
         import numpy as np
         from scipy.optimize import linear_sum_assignment
 
@@ -442,27 +526,72 @@ class RecordMatcher:
         if not gts:
             return [(i, None) for i in range(len(preds))]
 
-        cost_matrix = np.zeros((len(preds), len(gts)))
+        threshold = (
+            self.min_alignment_score
+            if min_alignment_score is None
+            else float(min_alignment_score)
+        )
+
+        # Compute discriminative column weights from GT distribution to avoid gluing
+        # unrelated FP/FN records on constant columns (e.g., target_type='MIC').
+        weights: Dict[str, float] = {}
+        if len(gts) >= 2:
+            for field in self.fields:
+                vals = [
+                    self._normalize_text(getattr(g, field, None))
+                    for g in gts
+                    if not self._is_na(getattr(g, field, None))
+                ]
+                non_null = len(vals)
+                nunique = len(set(vals))
+                if non_null >= 2 and nunique > 1:
+                    weights[field] = (nunique - 1) / (non_null - 1)
+                else:
+                    weights[field] = 0.0
+        total_disc_weight = sum(weights.values())
+
+        n_preds, n_gts = len(preds), len(gts)
+        cost_matrix = np.zeros((n_preds, n_gts))
+        disc_score_matrix = np.zeros((n_preds, n_gts)) if total_disc_weight > 0.0 else None
+        n_fields = len(self.fields)
+
         for i, p in enumerate(preds):
             for j, g in enumerate(gts):
-                similarity = sum(
-                    self._field_alignment_similarity(
+                sim_sum = 0.0
+                disc_sum = 0.0
+                for field in self.fields:
+                    f_sim = self._field_alignment_similarity(
                         getattr(p, field, None), getattr(g, field, None), field_name=field
                     )
-                    for field in self.fields
-                )
-                score = similarity / len(self.fields) if self.fields else 0.0
+                    sim_sum += f_sim
+                    if disc_score_matrix is not None:
+                        disc_sum += weights[field] * f_sim
+                score = sim_sum / n_fields if n_fields else 0.0
                 cost_matrix[i, j] = 1.0 - score
+                if disc_score_matrix is not None:
+                    disc_score_matrix[i, j] = disc_sum / total_disc_weight
 
         row_inds, col_inds = linear_sum_assignment(cost_matrix)
-        matched_pred_indices = set(row_inds)
-        matched_gt_indices = set(col_inds)
+        matched_pred_indices: set[int] = set()
+        matched_gt_indices: set[int] = set()
+        indexed_pairs: List[Tuple[Optional[int], Optional[int]]] = []
 
-        indexed_pairs: List[Tuple[Optional[int], Optional[int]]] = [
-            (int(r), int(c)) for r, c in zip(row_inds, col_inds)
-        ]
-        indexed_pairs.extend((i, None) for i in range(len(preds)) if i not in matched_pred_indices)
-        indexed_pairs.extend((None, j) for j in range(len(gts)) if j not in matched_gt_indices)
+        for r_raw, c_raw in zip(row_inds, col_inds):
+            r, c = int(r_raw), int(c_raw)
+            if threshold > 0.0:
+                pair_score = (
+                    float(disc_score_matrix[r, c])
+                    if disc_score_matrix is not None
+                    else float(1.0 - cost_matrix[r, c])
+                )
+                if pair_score < threshold:
+                    continue
+            matched_pred_indices.add(r)
+            matched_gt_indices.add(c)
+            indexed_pairs.append((r, c))
+
+        indexed_pairs.extend((i, None) for i in range(n_preds) if i not in matched_pred_indices)
+        indexed_pairs.extend((None, j) for j in range(n_gts) if j not in matched_gt_indices)
         return indexed_pairs
 
     def align_pairs(
@@ -667,8 +796,10 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         pred_json: Dict[str, Any],
         eval_fields: List[str],
     ) -> Tuple[Any, ...]:
-        """Build hashable cache key for semantic judge discrepancy evaluation."""
+        """Build hashable cache key pinned to (judge_model_id, schema_constraints_hash)."""
         return (
+            self._get_judge_model_id(),
+            self._schema_constraints_hash,
             task_name or "unknown",
             tuple(
                 (f, self._normalize_text(gt_json.get(f)), self._normalize_text(pred_json.get(f)))
@@ -745,7 +876,12 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 f: _extract_field_verdict(parsed.get(f))
                 for f in eval_fields
             }
+            evaluated_reasonings = {
+                f: _extract_field_reasoning(parsed.get(f))
+                for f in eval_fields
+            }
             self._verdict_cache[cache_key] = dict(evaluated_verdicts)
+            self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
             verdicts.update(evaluated_verdicts)
             return verdicts
 
@@ -809,7 +945,12 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                         f: _extract_field_verdict(pair_verdicts.get(f))
                         for f in eval_fields
                     }
+                    evaluated_reasonings = {
+                        f: _extract_field_reasoning(pair_verdicts.get(f))
+                        for f in eval_fields
+                    }
                     self._verdict_cache[cache_key] = dict(evaluated)
+                    self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
                     batch_results[cache_key] = evaluated
             except Exception as e:
                 logger.warning(f"[SemanticJudge] Batch call failed: {e}")
@@ -905,11 +1046,16 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         batch_verdicts: Optional[Dict[Tuple[Any, ...], Dict[str, str]]] = None,
         field_equivalence_fn: Optional[Callable[[str, Any, Any], bool]] = None,
         pair_detail: Optional[Dict[str, Any]] = None,
+        strict_field_correct: Optional[Dict[str, int]] = None,
     ) -> tuple:
         """Process aligned pair (both pred and gold exist)."""
         tp, fp, fn = 0, 0, 0
-        strict_matches = []
-        discrepancies = []
+        strict_tp, strict_fp, strict_fn = 0, 0, 0
+        strict_matches: List[str] = []
+        soft_matched_fields: List[str] = []
+        soft_match_details: Dict[str, Dict[str, Any]] = {}
+        judge_reasoning: Dict[str, str] = {}
+        discrepancies: List[str] = []
 
         for f in self.fields:
             val_p = getattr(pred, f, None)
@@ -926,20 +1072,51 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 discrepancies.append(f)  # Missing value (Pure FN)
             elif g_na and not p_na:
                 discrepancies.append(f)  # Hallucinated value (Pure FP)
-            elif self._is_field_match(
+            elif self._is_match(val_p, val_g):
+                strict_matches.append(f)
+            elif f in self.field_validators and self._compare_via_validators(f, val_p, val_g)[0] is True:
+                strict_matches.append(f)
+                soft_matched_fields.append(f)
+                method, soft_reason = self._classify_soft_validator_reason(f, val_p, val_g)
+                soft_match_details[f] = {
+                    "method": method,
+                    "reason": soft_reason,
+                    "pred": val_p,
+                    "gold": val_g,
+                }
+            elif field_equivalence_fn is not None and self._is_field_match(
                 f, val_p, val_g, field_equivalence_fn=field_equivalence_fn
             ):
                 strict_matches.append(f)
+                soft_matched_fields.append(f)
+                soft_match_details[f] = {
+                    "method": "equivalence_fn",
+                    "reason": "custom_equivalence",
+                    "pred": val_p,
+                    "gold": val_g,
+                }
             else:
                 discrepancies.append(f)  # Value mismatch (FP + FN candidate)
 
-        # Count strict matches as TP
+        # Count deterministic matches as TP for both strict and semantic metrics
         tp += len(strict_matches)
+        strict_tp += len(strict_matches)
         for f in strict_matches:
             field_correct[f] += 1
+            if strict_field_correct is not None:
+                strict_field_correct[f] += 1
 
         matched_fields = list(strict_matches)
         mismatched_fields: Dict[str, Dict[str, Any]] = {}
+
+        # Strict penalties for all discrepancies (independent of semantic judge)
+        for field_name in discrepancies:
+            val_p = getattr(pred, field_name, None)
+            val_g = getattr(gold, field_name, None)
+            s_tp_add, s_fp_add, s_fn_add = self._apply_strict_penalty(val_p, val_g)
+            strict_tp += s_tp_add
+            strict_fp += s_fp_add
+            strict_fn += s_fn_add
 
         # Handle discrepancies
         if discrepancies and self.enable_semantic_judge:
@@ -951,6 +1128,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             )
 
             verdicts: Dict[str, str] = {f: "NO" for f in deterministic_no}
+            cached_reasonings: Dict[str, str] = {}
             if eval_fields:
                 resolved_task = task_name or "unknown"
                 cache_key = self._make_discrepancy_cache_key(
@@ -966,6 +1144,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                         discrepancies=eval_fields,
                     )
                 verdicts.update(judge_verdicts)
+                cached_reasonings = dict(self._reasoning_cache.get(cache_key, {}))
 
             # Log comparison table
             self._log_comparison_table(pred, gold, strict_matches, discrepancies, verdicts)
@@ -980,12 +1159,23 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 fp += fp_add
                 fn += fn_add
 
+                val_p = getattr(pred, field_name, None)
+                val_g = getattr(gold, field_name, None)
+                r_text = cached_reasonings.get(field_name, "")
+                if r_text:
+                    judge_reasoning[field_name] = r_text
+
                 if verdict == "YES":
                     field_correct[field_name] += 1
                     matched_fields.append(field_name)
+                    soft_matched_fields.append(field_name)
+                    soft_match_details[field_name] = {
+                        "method": "semantic_judge",
+                        "reason": r_text or "semantic_equivalence",
+                        "pred": val_p,
+                        "gold": val_g,
+                    }
                 elif pair_detail is not None:
-                    val_p = getattr(pred, field_name, None)
-                    val_g = getattr(gold, field_name, None)
                     reason = (
                         "missing_pred"
                         if (self._is_na(val_p) and not self._is_na(val_g))
@@ -997,11 +1187,14 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                     )
                     if reason == "value_mismatch" and validator_reasons.get(field_name) == "stereo_diff":
                         reason = "stereo_diff"
-                    mismatched_fields[field_name] = {
+                    entry: Dict[str, Any] = {
                         "pred": val_p,
                         "gold": val_g,
                         "reason": reason,
                     }
+                    if r_text:
+                        entry["reasoning"] = r_text
+                    mismatched_fields[field_name] = entry
         else:
             # No discrepancies or judge disabled - apply strict penalties
             for field_name in discrepancies:
@@ -1040,7 +1233,12 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
 
         if pair_detail is not None:
             pair_detail["matched_fields"] = matched_fields
+            pair_detail["strict_matched_fields"] = strict_matches
+            pair_detail["soft_matched_fields"] = soft_matched_fields
+            pair_detail["soft_match_details"] = soft_match_details
             pair_detail["mismatched_fields"] = mismatched_fields
+            pair_detail["judge_reasoning"] = judge_reasoning
+            pair_detail["strict_counts"] = (strict_tp, strict_fp, strict_fn)
 
         return tp, fp, fn, field_correct, field_total
 
@@ -1072,17 +1270,198 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             return 0, 1, 0  # Pure Hallucination
         return 0, 1, 1  # Value mismatch
 
+    def _annotate_structural_errors(
+        self,
+        preds: List[ExperimentEntity],
+        gts: List[ExperimentEntity],
+        pair_results: List[Dict[str, Any]],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Use POT unbalanced OT and RapidFuzz to tag duplicate_of_tp, row_merge, and row_split."""
+        diagnostics: Dict[str, List[Dict[str, Any]]] = {
+            "duplicate_of_tp": [],
+            "row_merge": [],
+            "row_split": [],
+        }
+        if not preds or not gts:
+            return diagnostics
+
+        fp_entries = [
+            r for r in pair_results if r["status"] == "fp" and r.get("pred_index") is not None
+        ]
+        fn_entries = [
+            r for r in pair_results if r["status"] == "fn" and r.get("gt_index") is not None
+        ]
+        if not fp_entries and not fn_entries:
+            return diagnostics
+
+        import numpy as np
+        import ot
+        from rapidfuzz import fuzz
+
+        n_preds, n_gts = len(preds), len(gts)
+        n_fields = len(self.fields)
+        sim_matrix = np.zeros((n_preds, n_gts))
+
+        for i, p in enumerate(preds):
+            for j, g in enumerate(gts):
+                sim_sum = 0.0
+                for field in self.fields:
+                    vp = getattr(p, field, None)
+                    vg = getattr(g, field, None)
+                    p_na, g_na = self._is_na(vp), self._is_na(vg)
+                    if p_na and g_na:
+                        sim_sum += 0.1
+                    elif p_na or g_na:
+                        sim_sum += 0.0
+                    elif self._is_field_match(field, vp, vg):
+                        sim_sum += 1.0
+                    else:
+                        sp, sg = str(vp).strip(), str(vg).strip()
+                        fuzz_score = 0.5 * (
+                            fuzz.token_set_ratio(sp, sg) + fuzz.ratio(sp, sg)
+                        )
+                        sim_sum += fuzz_score / 100.0
+                sim_matrix[i, j] = sim_sum / n_fields if n_fields else 0.0
+
+        cost_matrix = 1.0 - sim_matrix
+        try:
+            transport = ot.unbalanced.sinkhorn_knopp_unbalanced(
+                np.ones(n_preds),
+                np.ones(n_gts),
+                cost_matrix,
+                reg=0.05,
+                reg_m=0.5,
+            )
+            if not np.all(np.isfinite(transport)):
+                return diagnostics
+        except Exception as exc:
+            logger.debug(f"POT unbalanced OT skipped due to solver error: {exc}")
+            return diagnostics
+
+        row_sums = transport.sum(axis=1, keepdims=True)
+        col_sums = transport.sum(axis=0, keepdims=True)
+        gt_pair_by_idx = {
+            r["gt_index"]: r for r in pair_results if r.get("gt_index") is not None
+        }
+        pred_pair_by_idx = {
+            r["pred_index"]: r for r in pair_results if r.get("pred_index") is not None
+        }
+        fp_indices = {int(r["pred_index"]) for r in fp_entries}
+        fn_indices = {int(r["gt_index"]) for r in fn_entries}
+        tagged_dup_preds: set[int] = set()
+
+        # 1. duplicate_of_tp: FP pred couples strongly to a GT already matched as TP
+        for pi in sorted(fp_indices):
+            j_best = int(np.argmax(transport[pi]))
+            t_val = float(transport[pi, j_best])
+            row_share = t_val / max(float(row_sums[pi, 0]), 1e-12)
+            s_val = float(sim_matrix[pi, j_best])
+            gt_entry = gt_pair_by_idx.get(j_best)
+            if (
+                gt_entry is not None
+                and gt_entry.get("status") == "tp"
+                and s_val >= 0.80
+                and (t_val >= 0.15 or row_share >= 0.35)
+            ):
+                tagged_dup_preds.add(pi)
+                pred_entry = pred_pair_by_idx[pi]
+                pred_entry["diagnostic_tag"] = "duplicate_of_tp"
+                pred_entry["diagnostic_related_gt_indices"] = [j_best]
+                pred_entry["diagnostic_score"] = round(s_val, 4)
+                diagnostics["duplicate_of_tp"].append(
+                    {
+                        "pred_index": pi,
+                        "gt_index": j_best,
+                        "matched_pred_index": gt_entry.get("pred_index"),
+                        "similarity": round(s_val, 4),
+                        "transport_mass": round(t_val, 4),
+                    }
+                )
+
+        # 2. row_merge: single pred couples strongly to >= 2 GTs (at least one FN)
+        for pi in range(n_preds):
+            if pi in tagged_dup_preds:
+                continue
+            r_sum = max(float(row_sums[pi, 0]), 1e-12)
+            coupled_gts = [
+                j
+                for j in range(n_gts)
+                if sim_matrix[pi, j] >= 0.65
+                and (transport[pi, j] >= 0.12 or (transport[pi, j] / r_sum) >= 0.20)
+            ]
+            merged_fns = [j for j in coupled_gts if j in fn_indices]
+            if len(coupled_gts) >= 2 and merged_fns:
+                for gj in merged_fns:
+                    fn_entry = gt_pair_by_idx[gj]
+                    if not fn_entry.get("diagnostic_tag"):
+                        fn_entry["diagnostic_tag"] = "row_merge"
+                        fn_entry["diagnostic_related_pred_indices"] = [pi]
+                        fn_entry["diagnostic_score"] = round(float(sim_matrix[pi, gj]), 4)
+                pred_entry = pred_pair_by_idx.get(pi)
+                if pred_entry is not None and not pred_entry.get("diagnostic_tag"):
+                    pred_entry["diagnostic_tag"] = "row_merge"
+                    pred_entry["diagnostic_related_gt_indices"] = list(coupled_gts)
+                diagnostics["row_merge"].append(
+                    {
+                        "pred_index": pi,
+                        "gt_indices": coupled_gts,
+                        "fn_gt_indices": merged_fns,
+                        "similarities": {j: round(float(sim_matrix[pi, j]), 4) for j in coupled_gts},
+                    }
+                )
+
+        # 3. row_split: >= 2 non-duplicate preds couple strongly to 1 GT (at least one FP)
+        for gj in range(n_gts):
+            gt_entry = gt_pair_by_idx.get(gj)
+            if gt_entry is not None and gt_entry.get("status") == "tp":
+                continue
+            c_sum = max(float(col_sums[0, gj]), 1e-12)
+            coupled_preds = [
+                i
+                for i in range(n_preds)
+                if i not in tagged_dup_preds
+                and sim_matrix[i, gj] >= 0.65
+                and (transport[i, gj] >= 0.12 or (transport[i, gj] / c_sum) >= 0.20)
+            ]
+            split_fps = [i for i in coupled_preds if i in fp_indices]
+            if len(coupled_preds) >= 2 and split_fps:
+                for pi in split_fps:
+                    fp_entry = pred_pair_by_idx[pi]
+                    if not fp_entry.get("diagnostic_tag"):
+                        fp_entry["diagnostic_tag"] = "row_split"
+                        fp_entry["diagnostic_related_gt_indices"] = [gj]
+                        fp_entry["diagnostic_score"] = round(float(sim_matrix[pi, gj]), 4)
+                if gt_entry is not None and not gt_entry.get("diagnostic_tag"):
+                    gt_entry["diagnostic_tag"] = "row_split"
+                    gt_entry["diagnostic_related_pred_indices"] = list(coupled_preds)
+                diagnostics["row_split"].append(
+                    {
+                        "gt_index": gj,
+                        "pred_indices": coupled_preds,
+                        "fp_pred_indices": split_fps,
+                        "similarities": {i: round(float(sim_matrix[i, gj]), 4) for i in coupled_preds},
+                    }
+                )
+
+        return diagnostics
+
     def _evaluate_pairs_core(
         self,
         pair_items: List[Tuple[Optional[int], Optional[int], Optional[Any], Optional[Any]]],
         task_name: Optional[str] = None,
         field_equivalence_fn: Optional[Callable[[str, Any, Any], bool]] = None,
         collect_pair_results: bool = False,
+        preds: Optional[List[ExperimentEntity]] = None,
+        gts: Optional[List[ExperimentEntity]] = None,
     ) -> Dict[str, Any]:
-        """Shared evaluation engine for `_compute_stats` and `evaluate_pairs`."""
+        """Shared evaluation engine for `_compute_stats`, `evaluate_pairs`, and `get_detailed_report`."""
         tp, fp, fn = 0, 0, 0
+        strict_tp, strict_fp, strict_fn = 0, 0, 0
         field_correct = {f: 0 for f in self.fields}
+        strict_field_correct = {f: 0 for f in self.fields}
         field_total = {f: 0 for f in self.fields}
+        soft_matched_fields_count = 0
+        judge_reasonings: List[Dict[str, Any]] = []
 
         batch_verdicts: Optional[Dict[Tuple[Any, ...], Dict[str, str]]] = None
         if (
@@ -1132,6 +1511,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                     gold, field_correct, field_total
                 )
                 fn += fn_inc
+                strict_fn += fn_inc
                 if collect_pair_results:
                     pair_results.append(
                         {
@@ -1141,7 +1521,10 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                             "pred": None,
                             "gold": gold,
                             "matched_fields": [],
+                            "soft_matched_fields": [],
                             "mismatched_fields": {},
+                            "judge_reasoning": {},
+                            "diagnostic_tag": None,
                         }
                     )
                 continue
@@ -1151,6 +1534,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                     pred, field_correct, field_total
                 )
                 fp += fp_inc
+                strict_fp += fp_inc
                 if collect_pair_results:
                     pair_results.append(
                         {
@@ -1160,7 +1544,10 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                             "pred": pred,
                             "gold": None,
                             "matched_fields": [],
+                            "soft_matched_fields": [],
                             "mismatched_fields": {},
+                            "judge_reasoning": {},
+                            "diagnostic_tag": None,
                         }
                     )
                 continue
@@ -1168,7 +1555,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             if pred is None and gold is None:
                 continue
 
-            detail: Optional[Dict[str, Any]] = {} if collect_pair_results else None
+            detail: Dict[str, Any] = {}
             tp_inc, fp_inc, fn_inc, field_correct, field_total = self._process_aligned_pair(
                 pred,
                 gold,
@@ -1178,12 +1565,29 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 batch_verdicts=batch_verdicts,
                 field_equivalence_fn=field_equivalence_fn,
                 pair_detail=detail,
+                strict_field_correct=strict_field_correct,
             )
             tp += tp_inc
             fp += fp_inc
             fn += fn_inc
+            s_tp_inc, s_fp_inc, s_fn_inc = detail.get("strict_counts", (tp_inc, fp_inc, fn_inc))
+            strict_tp += s_tp_inc
+            strict_fp += s_fp_inc
+            strict_fn += s_fn_inc
 
-            if collect_pair_results and detail is not None:
+            soft_fields = detail.get("soft_matched_fields", [])
+            soft_matched_fields_count += len(soft_fields)
+            pair_reasoning = detail.get("judge_reasoning", {})
+            if pair_reasoning:
+                judge_reasonings.append(
+                    {
+                        "pred_index": pred_idx,
+                        "gt_index": gt_idx,
+                        "reasoning": pair_reasoning,
+                    }
+                )
+
+            if collect_pair_results:
                 mismatched = detail.get("mismatched_fields", {})
                 pair_results.append(
                     {
@@ -1193,16 +1597,41 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                         "pred": pred,
                         "gold": gold,
                         "matched_fields": detail.get("matched_fields", []),
+                        "strict_matched_fields": detail.get("strict_matched_fields", []),
+                        "soft_matched_fields": soft_fields,
+                        "soft_match_details": detail.get("soft_match_details", {}),
                         "mismatched_fields": mismatched,
+                        "judge_reasoning": pair_reasoning,
+                        "diagnostic_tag": None,
                     }
                 )
+
+        diagnostics: Dict[str, List[Dict[str, Any]]] = {
+            "duplicate_of_tp": [],
+            "row_merge": [],
+            "row_split": [],
+        }
+        if collect_pair_results and preds is not None and gts is not None:
+            diagnostics = self._annotate_structural_errors(preds, gts, pair_results)
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
+        strict_precision = strict_tp / (strict_tp + strict_fp) if (strict_tp + strict_fp) > 0 else 0.0
+        strict_recall = strict_tp / (strict_tp + strict_fn) if (strict_tp + strict_fn) > 0 else 0.0
+        strict_f1 = (
+            2 * strict_precision * strict_recall / (strict_precision + strict_recall)
+            if (strict_precision + strict_recall) > 0
+            else 0.0
+        )
+
         field_scores = {
             f: (field_correct[f] / field_total[f]) if field_total[f] > 0 else 1.0
+            for f in self.fields
+        }
+        strict_field_scores = {
+            f: (strict_field_correct[f] / field_total[f]) if field_total[f] > 0 else 1.0
             for f in self.fields
         }
 
@@ -1211,6 +1640,17 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             "recall": recall,
             "f1": f1,
             "field_scores": field_scores,
+            "semantic_precision": precision,
+            "semantic_recall": recall,
+            "semantic_f1": f1,
+            "semantic_field_scores": dict(field_scores),
+            "strict_precision": strict_precision,
+            "strict_recall": strict_recall,
+            "strict_f1": strict_f1,
+            "strict_field_scores": strict_field_scores,
+            "soft_matched_fields_count": soft_matched_fields_count,
+            "judge_reasonings": judge_reasonings,
+            "diagnostics": diagnostics,
         }
         if collect_pair_results:
             result["pair_results"] = pair_results
@@ -1228,7 +1668,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             task_name: Optional task name for semantic judge context.
 
         Returns:
-            Dict with precision, recall, f1 scores and field_scores.
+            Dict with precision, recall, f1 scores, strict metrics, and field_scores.
         """
         pair_items = [(None, None, pred, gold) for pred, gold in pairs]
         return self._evaluate_pairs_core(
@@ -1258,6 +1698,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             task_name=task_name,
             field_equivalence_fn=field_equivalence_fn,
             collect_pair_results=True,
+            preds=preds,
+            gts=gts,
         )
         result["counts"] = {"preds": len(preds), "gts": len(gts)}
         return result
@@ -1287,7 +1729,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         gts: List[ExperimentEntity],
         task_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get detailed evaluation report.
+        """Get detailed evaluation report with strict/semantic metrics and diagnostics.
 
         Args:
             preds: List of predicted experiment entities.
@@ -1297,15 +1739,42 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         Returns:
             Dict with detailed evaluation metrics.
         """
-        pairs = self.align_pairs(preds, gts)
-        stats = self._compute_stats(pairs, task_name)
+        indexed = self.align_pairs_with_indices(preds, gts)
+        pair_items = [
+            (
+                pi,
+                gi,
+                preds[pi] if pi is not None else None,
+                gts[gi] if gi is not None else None,
+            )
+            for pi, gi in indexed
+        ]
+        stats = self._evaluate_pairs_core(
+            pair_items,
+            task_name=task_name,
+            collect_pair_results=True,
+            preds=preds,
+            gts=gts,
+        )
 
         return {
             "f1": stats["f1"],
             "precision": stats["precision"],
             "recall": stats["recall"],
             "fields": stats["field_scores"],
-            "counts": {"preds": len(preds), "gts": len(gts)}
+            "semantic_f1": stats["semantic_f1"],
+            "semantic_precision": stats["semantic_precision"],
+            "semantic_recall": stats["semantic_recall"],
+            "semantic_fields": stats["semantic_field_scores"],
+            "strict_f1": stats["strict_f1"],
+            "strict_precision": stats["strict_precision"],
+            "strict_recall": stats["strict_recall"],
+            "strict_fields": stats["strict_field_scores"],
+            "soft_matched_fields_count": stats["soft_matched_fields_count"],
+            "judge_reasonings": stats["judge_reasonings"],
+            "diagnostics": stats["diagnostics"],
+            "pair_results": stats["pair_results"],
+            "counts": {"preds": len(preds), "gts": len(gts)},
         }
 
 

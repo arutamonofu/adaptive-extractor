@@ -293,6 +293,10 @@ def _resolve_dotted_callable(callable_path: str) -> ValidatorCallable:
 # Optional domain-specific validators loaded lazily only when referenced by a schema.
 _LAZY_BUILTIN_PROVIDERS: Dict[str, str] = {
     "smiles": "ae.core.schema.domain_validators.chemistry:validate_smiles",
+    "unit": "ae.core.schema.quantity_validators:validate_unit",
+    "numeric_quantity": "ae.core.schema.quantity_validators:validate_numeric_quantity",
+    "compute_validators": "ae.core.schema.quantity_validators:validate_compute_expression",
+    "compute": "ae.core.schema.quantity_validators:validate_compute_expression",
 }
 
 
@@ -388,6 +392,23 @@ class FieldValidatorRegistry:
             elif min_len is not None and max_len is not None and int(min_len) > int(max_len):
                 errors.append("validator 'length': min_length cannot exceed max_length")
 
+        if spec.name == "numeric_quantity":
+            min_v = spec.params.get("min_value")
+            max_v = spec.params.get("max_value")
+            if min_v is not None and max_v is not None and float(min_v) > float(max_v):
+                errors.append("validator 'numeric_quantity': min_value cannot exceed max_value")
+
+        if spec.name in ("compute_validators", "compute"):
+            expr = spec.params.get("expression") or spec.params.get("expr")
+            if not expr or not isinstance(expr, str):
+                errors.append(f"validator {spec.name!r} requires a string 'expression'")
+            else:
+                from ae.core.schema.quantity_validators import validate_compute_syntax
+
+                syntax_err = validate_compute_syntax(expr)
+                if syntax_err:
+                    errors.append(f"validator {spec.name!r}: {syntax_err}")
+
         return errors
 
 
@@ -439,6 +460,7 @@ def validate_field_value(
     field_name: str = "",
     required: bool = True,
     registry: Optional[FieldValidatorRegistry] = None,
+    record: Optional[Any] = None,
 ) -> FieldValidationResult:
     """Execute ``spec`` on ``value`` with consistent optional/sentinel handling."""
     if value is None:
@@ -457,6 +479,8 @@ def validate_field_value(
     kwargs.setdefault("required", required)
     if field_name:
         kwargs.setdefault("field_name", field_name)
+    if record is not None:
+        kwargs.setdefault("record", record)
 
     try:
         raw_res = fn(value, **kwargs)

@@ -15,7 +15,7 @@ from pydantic.functional_validators import BeforeValidator
 
 from ae.core.evaluation.entities import Record
 
-from .config import FieldSpec, SchemaConfig
+from .config import FieldPatternSpec, FieldSpec, SchemaConfig
 from .tools import ExtractionToolSpec, normalize_tool_spec
 from .validators import FieldValidatorSpec
 
@@ -160,10 +160,12 @@ def create_record_model(
             else:
                 metadata_items.append(StringCoerce)
 
-        # Attach declarative field validators as Pydantic metadata (does not alter JSON schema)
+        # Attach declarative field validators and pattern metadata (excluded from JSON Schema)
         effective_validators = spec.get_effective_validators()
         if effective_validators:
             metadata_items.extend(effective_validators)
+        if spec.pattern:
+            metadata_items.append(FieldPatternSpec(pattern=spec.pattern))
 
         if metadata_items:
             field_type = Annotated[(field_type, *metadata_items)]  # type: ignore[assignment]
@@ -471,6 +473,9 @@ def extract_schema_field_constraints(output_model: Type[BaseModel]) -> Dict[str,
         val_names = [m.name for m in field_meta if isinstance(m, FieldValidatorSpec)]
         if val_names:
             info["validators"] = val_names
+        for m in field_meta:
+            if isinstance(m, FieldPatternSpec) and "pattern" not in info:
+                info["pattern"] = m.pattern
 
         constraints[name] = info
 

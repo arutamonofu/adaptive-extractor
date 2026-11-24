@@ -714,14 +714,52 @@ def apply_prompt_caching(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     return new_messages
 
 
+def model_supports_sampling_params(model_id: Optional[str]) -> bool:
+    """Return False for reasoning-only model slugs that reject temperature/top_p on OpenRouter."""
+    if not model_id or not isinstance(model_id, str):
+        return True
+    slug = model_id.strip().lower()
+    if slug.startswith("openai/"):
+        tail = slug.split("/", 1)[1]
+        if tail.startswith(("gpt-5", "gpt-6", "o1", "o3", "o4")):
+            return False
+    if slug.startswith("anthropic/"):
+        tail = slug.split("/", 1)[1]
+        if any(tok in tail for tok in ("-5", "fable-5")):
+            return False
+    return True
+
+
 MODEL_PRICING = {
     "anthropic/claude-3-5-sonnet": {"input": 3.0, "output": 15.0, "cache_read": 0.3},
     "anthropic/claude-3.5-sonnet": {"input": 3.0, "output": 15.0, "cache_read": 0.3},
     "anthropic/claude-3-sonnet": {"input": 3.0, "output": 15.0, "cache_read": 0.3},
+    "anthropic/claude-sonnet-4.6": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75},
+    "anthropic/claude-sonnet-5.5": {"input": 2.0, "output": 10.0, "cache_read": 0.1, "cache_write": 2.5},
+    "anthropic/claude-haiku-5.5": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.125},
     "google/gemini-2.5-pro": {"input": 1.25, "output": 5.0, "cache_read": 0.125},
     "google/gemini-2.5-flash": {"input": 0.075, "output": 0.3, "cache_read": 0.0075},
+    "gemini-3.8-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.075},
+    "google/gemini-3.8-flash": {"input": 0.825, "output": 4.125, "cache_read": 0.0825},
+    "gemini-3.7-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.075},
+    "google/gemini-3.7-flash": {"input": 0.75, "output": 3.75, "cache_read": 0.075},
+    "gemini-4-hydrogen": {"input": 1.5, "output": 7.5, "cache_read": 0.075},
+    "google/gemini-4-hydrogen": {"input": 1.5, "output": 7.5, "cache_read": 0.075},
+    "gemini-4-neon": {"input": 3.0, "output": 15.0, "cache_read": 0.15},
+    "google/gemini-4-neon": {"input": 3.0, "output": 15.0, "cache_read": 0.15},
+    "google/gemma-4-31b-it": {"input": 0.2, "output": 0.4, "cache_read": 0.2},
     "meta-llama/llama-3-70b-instruct": {"input": 0.59, "output": 0.79, "cache_read": 0.059},
     "deepseek/deepseek-chat": {"input": 0.14, "output": 0.28, "cache_read": 0.014},
+    "deepseek/deepseek-v4.1-flash": {"input": 0.0498, "output": 0.1992, "cache_read": 0.000996},
+    "deepseek/deepseek-v4-pro": {"input": 0.9, "output": 1.5, "cache_read": 0.2},
+    "openai/gpt-6-luna": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.125},
+    "openai/gpt-6.1-terra": {"input": 1.0, "output": 5.0, "cache_read": 0.05, "cache_write": 1.25},
+    "openai/gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cache_read": 0.1, "cache_write": 2.5},
+    "qwen/qwen3.8-flash": {"input": 0.15, "output": 0.47, "cache_read": 0.016},
+    "qwen/qwen3-vl-235b-a22b-instruct": {"input": 0.21, "output": 1.9, "cache_read": 0.1},
+    "qwen/qwen3.5-397b-a17b": {"input": 0.45, "output": 3.0, "cache_read": 0.22},
+    "z-ai/glm-5.3-flash": {"input": 0.15, "output": 0.5, "cache_read": 0.03},
+    "inclusionai/ling-3.0-flash-vl": {"input": 0.06, "output": 0.18, "cache_read": 0.012},
 }
 
 
@@ -746,6 +784,7 @@ class OpenRouterLM(BaseHTTPProvider):
         self.reasoning = api_cfg.reasoning
         self.openrouter_cache = getattr(api_cfg, "openrouter_cache", None)
         self.prompt_caching = getattr(api_cfg, "prompt_caching", None)
+        self.prompt_cache_options = getattr(api_cfg, "prompt_cache_options", None)
         import uuid
         self.session_id = getattr(api_cfg, "session_id", None) or f"ae-{uuid.uuid4().hex[:12]}"
         self.provider_preferences = getattr(api_cfg, "provider", None)
@@ -767,6 +806,7 @@ class OpenRouterLM(BaseHTTPProvider):
 
         # Pop caching parameters so they are not sent to standard OpenRouter API
         prompt_caching = kwargs.pop("prompt_caching", self.prompt_caching)
+        prompt_cache_options = kwargs.pop("prompt_cache_options", self.prompt_cache_options)
         openrouter_cache = kwargs.pop("openrouter_cache", self.openrouter_cache)
         session_id = kwargs.pop("session_id", self.session_id)
         provider = kwargs.pop("provider", self.provider_preferences)
@@ -774,13 +814,17 @@ class OpenRouterLM(BaseHTTPProvider):
         if prompt_caching:
             messages = apply_prompt_caching(messages)
 
-        payload = {
+        payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
-            "top_p": kwargs.get("top_p", self.top_p),
         }
+        if model_supports_sampling_params(self.model):
+            payload["temperature"] = temperature
+            payload["top_p"] = kwargs.get("top_p", self.top_p)
+
+        if prompt_cache_options is not None:
+            payload["prompt_cache_options"] = prompt_cache_options
 
         reasoning = kwargs.get("reasoning", self.reasoning)
         if reasoning is not None:

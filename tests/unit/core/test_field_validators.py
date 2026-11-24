@@ -362,3 +362,153 @@ fields:
             assert compare_field_values_via_validator(spec, 123, "abc") == (False, "invalid_value")
         finally:
             unregister_field_validator("upper_canon_test")
+
+
+@pytest.mark.unit
+class TestUnitNumericQuantityAndComputeValidators:
+    def test_unit_validator_pint_equivalence_and_rejection(self):
+        pytest.importorskip("pint")
+        from ae.core.schema.validators import (
+            compare_field_values_via_validator,
+            has_field_validator,
+            supports_value_comparison,
+        )
+
+        assert has_field_validator("unit") is True
+        spec = FieldValidatorSpec(name="unit")
+        assert supports_value_comparison(spec) is True
+
+        for u in ("µg/mL", "µg mL-1", "ug mL^-1", "µg·mL⁻¹", "µM", "uM", "mg/L"):
+            assert validate_field_value(spec, u, field_name="target_units").valid is True
+
+        assert validate_field_value(spec, "not_a_unit_xyz", field_name="target_units").valid is False
+        assert validate_field_value(spec, "123", field_name="target_units").valid is False
+
+        assert compare_field_values_via_validator(spec, "µg mL-1", "µg/mL") == (True, None)
+        assert compare_field_values_via_validator(spec, "ug/mL", "µg/mL") == (True, None)
+        assert compare_field_values_via_validator(spec, "uM", "µM") == (True, None)
+        assert compare_field_values_via_validator(spec, "mg/L", "µg/mL") == (True, None)
+        # Incompatible dimensionality -> deterministic False
+        assert compare_field_values_via_validator(spec, "µM", "µg/mL") == (
+            False,
+            "incompatible_units",
+        )
+        # Compatible dimensionality with scale diff -> None (defer to coupled judge)
+        assert compare_field_values_via_validator(spec, "mM", "µM") == (None, None)
+
+        dim_spec = FieldValidatorSpec(name="unit", params={"expected_unit": "µg/mL"})
+        assert validate_field_value(dim_spec, "mg/L", field_name="target_units").valid is True
+        assert validate_field_value(dim_spec, "µM", field_name="target_units").valid is False
+
+    def test_numeric_quantity_decimal_comma_std_interval_and_inequalities(self):
+        from ae.core.schema.validators import (
+            compare_field_values_via_validator,
+            has_field_validator,
+            supports_value_comparison,
+        )
+
+        assert has_field_validator("numeric_quantity") is True
+        spec = FieldValidatorSpec(name="numeric_quantity")
+        assert supports_value_comparison(spec) is True
+
+        for val in ("19,1", "12.5 ± 0.4", "10–25", "> 128", "< 0.5", "≥ 64"):
+            assert validate_field_value(spec, val, field_name="target_value").valid is True
+
+        assert validate_field_value(spec, "10–5", field_name="target_value").valid is False
+        assert validate_field_value(spec, "N/A", field_name="target_value", required=True).valid is False
+
+        assert compare_field_values_via_validator(spec, "19,1", "19.1") == (True, None)
+        assert compare_field_values_via_validator(spec, "12,50 ± 0,40", "12.5 ± 0.4") == (True, None)
+        assert compare_field_values_via_validator(spec, "10–25", "10-25") == (True, None)
+        # Inequality must NOT equal bare number
+        assert compare_field_values_via_validator(spec, "> 128", "128") == (
+            False,
+            "relation_mismatch",
+        )
+        assert compare_field_values_via_validator(spec, "> 128", ">128") == (True, None)
+
+    def test_compute_validators_simpleeval_invariants_and_security(self, tmp_path):
+        pytest.importorskip("simpleeval")
+        from ae.core.schema.quantity_validators import validate_record_compute_validators
+        from ae.core.schema.validators import has_field_validator
+
+        assert has_field_validator("compute_validators") is True
+
+        # Cross-column invariant: pMIC = -log10(MIC_M)
+        specs = [
+            {
+                "name": "compute_validators",
+                "expression": "abs(pMIC - (-log10(MIC * 1e-6))) < 0.05",
+                "message": "pMIC inconsistent with MIC (µM)",
+            },
+            {
+                "name": "compute_validators",
+                "expression": "MIC > 0 and MIC <= 10000",
+            },
+        ]
+        good_rec = {"MIC": "10", "pMIC": "5.0"}
+        bad_rec = {"MIC": "10", "pMIC": "3.0"}
+        assert all(r.valid for r in validate_record_compute_validators(good_rec, specs))
+        bad_res = validate_record_compute_validators(bad_rec, specs)
+        assert bad_res[0].valid is False
+        assert "pMIC inconsistent" in (bad_res[0].error or "")
+        assert bad_res[1].valid is True
+
+        # Security: unsafe expressions must fail validation and never execute
+        for payload in (
+            "__import__('os').system('echo pwned')",
+            "().__class__.__bases__[0].__subclasses__()",
+            "open('/etc/passwd').read()",
+            "10 ** 100000",
+        ):
+            bad_spec = FieldValidatorSpec(
+                name="compute_validators",
+                params={"expression": payload},
+            )
+            res = validate_field_value(bad_spec, "10", field_name="target_value")
+            assert res.valid is False
+
+        # YAML roundtrip of compute_validators on SchemaConfig
+        yaml_content = """
+name: chem_compute
+compare_fields:
+  - target_value
+float_tolerance: 0.05
+fields:
+  target_value:
+    type: str
+    description: MIC value
+    validators:
+      - numeric_quantity
+  pMIC:
+    type: str
+    description: pMIC value
+    required: false
+compute_validators:
+  - name: compute_validators
+    expression: "abs(pMIC - (-log10(target_value * 1e-6))) < 0.05"
+"""
+        ypath = tmp_path / "compute_schema.yaml"
+        ypath.write_text(yaml_content, encoding="utf-8")
+        cfg = load_schema_from_yaml(ypath)
+        assert cfg.validate() == []
+        assert len(cfg.compute_validators) == 1
+
+    def test_tautomer_enumerator_toggle(self):
+        pytest.importorskip("rdkit")
+        from ae.core.schema.validators import compare_field_values_via_validator
+
+        # 2-hydroxypyridine vs 2-pyridone tautomers
+        enol = "Oc1ccccn1"
+        keto = "O=c1cccc[nH]1"
+        spec_taut_on = FieldValidatorSpec(
+            name="smiles", params={"canonicalize_tautomers": True}
+        )
+        spec_taut_off = FieldValidatorSpec(
+            name="smiles", params={"canonicalize_tautomers": False}
+        )
+        assert compare_field_values_via_validator(spec_taut_on, enol, keto) == (True, None)
+        assert compare_field_values_via_validator(spec_taut_off, enol, keto) == (
+            False,
+            "topology_mismatch",
+        )
