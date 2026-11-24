@@ -1,0 +1,740 @@
+{
+  "experiment": "2026-11-22_exp05_track53_ocsr_and_rescue",
+  "protocol_ref": "EXP-05 Track 5.3 (Tier 3A OCSR + Tier 3B Rescue)",
+  "date": "2026-11-22",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-22_exp01_ingestion_and_ocsr",
+  "domain": "benzimidazole_antibiotics",
+  "split": "30 isolated OCSR (2026-10-29) + 8 problematic train/val visuals",
+  "runs": [
+    {
+      "arm": "3a_canary_ling30_flash_vl",
+      "subtrack": "3A",
+      "provider": "api",
+      "model": "inclusionai/ling-3.0-flash-vl",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "scope": "canary",
+      "n_cases": 14,
+      "status": "completed",
+      "notes": "Canary 10 hard isolated + 4 val problematic on ultra-cheap Ling-3.0-Flash-VL.",
+      "quality": {
+        "exact_count": 6,
+        "exact_share": 0.428571,
+        "valid_count": 11,
+        "valid_share": 0.785714,
+        "isolated_exact": 6,
+        "isolated_total": 10,
+        "problematic_exact": 0,
+        "problematic_total": 4
+      },
+      "efficiency": {
+        "latency_total_s": 1871.178,
+        "latency_per_crop_s": 133.656,
+        "prompt_tokens": 32416,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 170220,
+        "reasoning_tokens": 169362,
+        "billable_output_tokens": 170221,
+        "cost_usd_total": 0.032585,
+        "cost_usd_per_crop": 0.002327,
+        "cost_2027_usd_per_crop": 0.002327
+      },
+      "items": [
+        {
+          "case_id": "iso_14",
+          "kind": "isolated_30",
+          "gt_canon": "O=CCCCC=Nc1nc2ccccc2n1C(=O)c1cc([N+](=O)[O-])cc([N+](=O)[O-])c1",
+          "pred_raw": "O=C(c1cc([N+](=O)[O-])cc([N+](=O)[O-])c1)n1c(/N=C/CCCC=O)nc2ccccc21",
+          "pred_canon": "O=CCCCC=Nc1nc2ccccc2n1C(=O)c1cc([N+](=O)[O-])cc([N+](=O)[O-])c1",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 136.372,
+          "error": null
+        },
+        {
+          "case_id": "iso_15",
+          "kind": "isolated_30",
+          "gt_canon": "CC(=O)n1c(N=CCCCC=O)nc2ccccc21",
+          "pred_raw": "CC(=O)n1c(N=CCCCCC=O)nc2ccccc12",
+          "pred_canon": "CC(=O)n1c(N=CCCCCC=O)nc2ccccc21",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 62.468,
+          "error": null
+        },
+        {
+          "case_id": "iso_19",
+          "kind": "isolated_30",
+          "gt_canon": "COc1cc(C=Nc2nc3ccccc3n2C(=O)c2cc([N+](=O)[O-])cc([N+](=O)[O-])c2)cc(OC)c1OC",
+          "pred_raw": "O=C(c1cc([N+](=O)[O-])cc([N+](=O)[O-])c1)n1c(/N=C/c2cc(OC)c(OC)c(OC)c2)nc2ccccc21",
+          "pred_canon": "COc1cc(C=Nc2nc3ccccc3n2C(=O)c2cc([N+](=O)[O-])cc([N+](=O)[O-])c2)cc(OC)c1OC",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 42.079,
+          "error": null
+        },
+        {
+          "case_id": "iso_20",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2cc(OC)c(OC)c(OC)c2)nc2ccccc21",
+          "pred_raw": "c1ccc2n(C(=O)CCCCCCCCCCCCCCCCC)c(/N=C/c3cc(OC)c(OC)c(OC)c3)n2c1",
+          "pred_canon": null,
+          "is_valid": false,
+          "is_exact": false,
+          "latency_s": 149.81,
+          "error": null
+        },
+        {
+          "case_id": "iso_22",
+          "kind": "isolated_30",
+          "gt_canon": "CN(C)c1ccc(C=CC=Nc2nc3ccccc3n2C(=O)c2cccc([N+](=O)[O-])c2)cc1",
+          "pred_raw": "O=C(c1cc([N+](=O)[O-])ccc1)n2c(/N=C/C=C/c3ccc(N(C)C)cc3)nc4ccccc42",
+          "pred_canon": "CN(C)c1ccc(C=CC=Nc2nc3ccccc3n2C(=O)c2cccc([N+](=O)[O-])c2)cc1",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 78.644,
+          "error": null
+        },
+        {
+          "case_id": "iso_25",
+          "kind": "isolated_30",
+          "gt_canon": "O=C(c1cccc([N+](=O)[O-])c1)n1c(N=Cc2ccc([N+](=O)[O-])cc2)nc2ccccc21",
+          "pred_raw": "O=C(c1cc([N+](=O)[O-])ccc1)n2c(N=Cc3ccc([N+](=O)[O-])cc3)nc4ccccc42",
+          "pred_canon": "O=C(c1cccc([N+](=O)[O-])c1)n1c(N=Cc2ccc([N+](=O)[O-])cc2)nc2ccccc21",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 77.325,
+          "error": null
+        },
+        {
+          "case_id": "iso_27",
+          "kind": "isolated_30",
+          "gt_canon": "COc1ccc(C=Nc2nc3ccccc3n2C(=O)c2cccc([N+](=O)[O-])c2)cc1OC",
+          "pred_raw": "c1ccc2n(C(=O)c3cccc([N+](=O)[O-])c3)c(/N=C/c4cc(OC)c(OC)cc4)nc2c1",
+          "pred_canon": "COc1ccc(C=Nc2nc3ccccc3n2C(=O)c2cccc([N+](=O)[O-])c2)cc1OC",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 81.394,
+          "error": null
+        },
+        {
+          "case_id": "iso_28",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc([N+](=O)[O-])cc2)nc2ccccc21",
+          "pred_raw": "c1ccc2nc(/N=C/c3ccc([N+](=O)[O-])cc3)n(C(=O)CCCCCCCCCCCCCCCCC)c2c1",
+          "pred_canon": "CCCCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc([N+](=O)[O-])cc2)nc2ccccc21",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 133.956,
+          "error": null
+        },
+        {
+          "case_id": "iso_29",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "pred_raw": "c1ccc2c(c1)nc(/N=C/c3ccc(N(C)C)cc3)n2C(=O)CCCCCCCCCCCCCCC",
+          "pred_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 124.3,
+          "error": null
+        },
+        {
+          "case_id": "iso_30",
+          "kind": "isolated_30",
+          "gt_canon": "CN(C)c1ccc(C=Nc2nc3ccccc3n2C(=O)c2ccc3ccccc3c2)cc1",
+          "pred_raw": "c1ccc2n(C(=O)c3ccc4ccccc4c3)c(/N=C/c5ccc(N(C)C)cc5)n2c1",
+          "pred_canon": null,
+          "is_valid": false,
+          "is_exact": false,
+          "latency_s": 85.507,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-7#15",
+          "kind": "problematic_8",
+          "gt_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21",
+          "pred_raw": "Clc1ccc(cc1)c2nc(-c3cc4c(cc3)n(C)c(n4)-c5c(Cl)cccc5F)no2",
+          "pred_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3noc(-c4ccc(Cl)cc4)n3)ccc21",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 183.511,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-10#24",
+          "kind": "problematic_8",
+          "gt_canon": "c1ccc(Cn2c(C3=NN(c4ccccc4)C(c4ccccc4)C3)nc3ccccc32)cc1",
+          "pred_raw": "c1ccc(cc1)N2N=C(c3nc4ccccc4n3Cc5ccccc5)C(=C)C2c6ccccc6",
+          "pred_canon": "C=C1C(c2nc3ccccc3n2Cc2ccccc2)=NN(c2ccccc2)C1c1ccccc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 216.676,
+          "error": null
+        },
+        {
+          "case_id": "j.ejmech.2019.03.026/Scheme_1#37",
+          "kind": "problematic_8",
+          "gt_canon": "Cc1ccc(-c2nn(-c3ccccc3)cc2-c2nc3ccccc3n2C(=O)c2ccncc2)cc1",
+          "pred_raw": "",
+          "pred_canon": null,
+          "is_valid": false,
+          "is_exact": false,
+          "latency_s": 395.074,
+          "error": "ValidationError: 1 validation error for MolecularParseResult\n  Invalid JSON: EOF while parsing a value at line 1 column 0 [type=json_invalid, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.14/v/json_invalid"
+        },
+        {
+          "case_id": "acsomega.2c06142/Figure_5#5b",
+          "kind": "problematic_8",
+          "gt_canon": "CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1",
+          "pred_raw": "Cc1cc2nc(c3ccc(cc3)-c4nnc(s4)N[*:1])[nH]c2cc1C",
+          "pred_canon": "Cc1cc2nc(-c3ccc(-c4nnc(N[*:1])s4)cc3)[nH]c2cc1C",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 104.03,
+          "error": null
+        }
+      ]
+    },
+    {
+      "arm": "3a_canary_qwen3_vl_235b",
+      "subtrack": "3A",
+      "provider": "api",
+      "model": "qwen/qwen3-vl-235b-a22b-instruct",
+      "thinking_level": null,
+      "reasoning": null,
+      "scope": "canary",
+      "n_cases": 14,
+      "status": "completed",
+      "notes": "Canary 10 hard isolated + 4 val problematic on Qwen3-VL-235B Instruct.",
+      "quality": {
+        "exact_count": 0,
+        "exact_share": 0.0,
+        "valid_count": 12,
+        "valid_share": 0.857143,
+        "isolated_exact": 0,
+        "isolated_total": 10,
+        "problematic_exact": 0,
+        "problematic_total": 4
+      },
+      "efficiency": {
+        "latency_total_s": 41.037,
+        "latency_per_crop_s": 2.931,
+        "prompt_tokens": 32053,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 1382,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 1382,
+        "cost_usd_total": 0.009357,
+        "cost_usd_per_crop": 0.000668,
+        "cost_2027_usd_per_crop": 0.000668
+      },
+      "items": [
+        {
+          "case_id": "iso_14",
+          "kind": "isolated_30",
+          "gt_canon": "O=CCCCC=Nc1nc2ccccc2n1C(=O)c1cc([N+](=O)[O-])cc([N+](=O)[O-])c1",
+          "pred_raw": "O=Cc1cc2nc3ccccc3n(C(=O)c3cc([N+](=O)[O-])cc([N+](=O)[O-])c3)c2cn1",
+          "pred_canon": null,
+          "is_valid": false,
+          "is_exact": false,
+          "latency_s": 2.802,
+          "error": null
+        },
+        {
+          "case_id": "iso_15",
+          "kind": "isolated_30",
+          "gt_canon": "CC(=O)n1c(N=CCCCC=O)nc2ccccc21",
+          "pred_raw": "O=C1N=C2C=CC=CC2N1C(=O)CCCCC(=O)O",
+          "pred_canon": "O=C(O)CCCCC(=O)N1C(=O)N=C2C=CC=CC21",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.036,
+          "error": null
+        },
+        {
+          "case_id": "iso_19",
+          "kind": "isolated_30",
+          "gt_canon": "COc1cc(C=Nc2nc3ccccc3n2C(=O)c2cc([N+](=O)[O-])cc([N+](=O)[O-])c2)cc(OC)c1OC",
+          "pred_raw": "O=C(c1cc([N+](=O)[O-])c([N+](=O)[O-])cc1)N1C2=C(C=CC=C2)N=C1N=Cc1cc(OC)c(OC)c(OC)c1",
+          "pred_canon": "COc1cc(C=Nc2nc3ccccc3n2C(=O)c2ccc([N+](=O)[O-])c([N+](=O)[O-])c2)cc(OC)c1OC",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.127,
+          "error": null
+        },
+        {
+          "case_id": "iso_20",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2cc(OC)c(OC)c(OC)c2)nc2ccccc21",
+          "pred_raw": "CCCCCCCCCCCCCCCCC(=O)N1C2=NC(=N1)c1ccccc12/N=C/c1cc(OC)c(OC)c(OC)c1",
+          "pred_canon": null,
+          "is_valid": false,
+          "is_exact": false,
+          "latency_s": 1.835,
+          "error": null
+        },
+        {
+          "case_id": "iso_22",
+          "kind": "isolated_30",
+          "gt_canon": "CN(C)c1ccc(C=CC=Nc2nc3ccccc3n2C(=O)c2cccc([N+](=O)[O-])c2)cc1",
+          "pred_raw": "O=C1C=C(C2=NN(c3ccccc3)C(=N2)/C=C/c2ccc(N(C)C)cc2)C=CC1=O",
+          "pred_canon": "CN(C)c1ccc(C=Cc2nc(C3=CC(=O)C(=O)C=C3)nn2-c2ccccc2)cc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 1.827,
+          "error": null
+        },
+        {
+          "case_id": "iso_25",
+          "kind": "isolated_30",
+          "gt_canon": "O=C(c1cccc([N+](=O)[O-])c1)n1c(N=Cc2ccc([N+](=O)[O-])cc2)nc2ccccc21",
+          "pred_raw": "O=C(c1ccc([N+](=O)[O-])cc1)N1C2=NC(=N/C(=C/*)c3ccc([N+](=O)[O-])cc3)N2C2=CC=CC=C12",
+          "pred_canon": "*C=C(N=C1N=C2N(C(=O)c3ccc([N+](=O)[O-])cc3)c3ccccc3N12)c1ccc([N+](=O)[O-])cc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 1.979,
+          "error": null
+        },
+        {
+          "case_id": "iso_27",
+          "kind": "isolated_30",
+          "gt_canon": "COc1ccc(C=Nc2nc3ccccc3n2C(=O)c2cccc([N+](=O)[O-])c2)cc1OC",
+          "pred_raw": "O=C(c1ccc([N+](=O)[O-])cc1)N1C2=NC(=N/C(=C/*)c3cc(OC)c(OC)cc3)C1C=CC=C2",
+          "pred_canon": "*C=C(N=C1N=C2C=CC=CC1N2C(=O)c1ccc([N+](=O)[O-])cc1)c1ccc(OC)c(OC)c1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 1.636,
+          "error": null
+        },
+        {
+          "case_id": "iso_28",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc([N+](=O)[O-])cc2)nc2ccccc21",
+          "pred_raw": "CCCCCCCCCCCCCCCCC(=O)N1C2=NC=C(C3=CC=C(C=C3)N(=O)=O)N=C2C2=CC=CC=C21",
+          "pred_canon": "CCCCCCCCCCCCCCCCC(=O)n1c2ccccc2c2nc(-c3ccc([N+](=O)[O-])cc3)cnc21",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.561,
+          "error": null
+        },
+        {
+          "case_id": "iso_29",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "pred_raw": "CCCCCCCCCCCCCCCCn1c(=O)c2ncn(Cc3ccc(N(C)C)cc3)c2n1-c1ccccc1",
+          "pred_canon": "CCCCCCCCCCCCCCCCn1c(=O)c2ncn(Cc3ccc(N(C)C)cc3)c2n1-c1ccccc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.253,
+          "error": null
+        },
+        {
+          "case_id": "iso_30",
+          "kind": "isolated_30",
+          "gt_canon": "CN(C)c1ccc(C=Nc2nc3ccccc3n2C(=O)c2ccc3ccccc3c2)cc1",
+          "pred_raw": "O=C(c1ccc2ccccc2c1)N1C2=NC=CC=C2N=C1N=Cc1ccc(N(C)C)cc1",
+          "pred_canon": "CN(C)c1ccc(C=Nc2nc3cccnc3n2C(=O)c2ccc3ccccc3c2)cc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 3.424,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-7#15",
+          "kind": "problematic_8",
+          "gt_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21",
+          "pred_raw": "Clc1ccc(-c2nc3c(nc2Nc2cc(Cl)cc(F)c2)C=CC=C3)cc1",
+          "pred_canon": "Fc1cc(Cl)cc(Nc2nc3ccccc3nc2-c2ccc(Cl)cc2)c1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.615,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-10#24",
+          "kind": "problematic_8",
+          "gt_canon": "c1ccc(Cn2c(C3=NN(c4ccccc4)C(c4ccccc4)C3)nc3ccccc32)cc1",
+          "pred_raw": "C1=C(C2=NC3=C(C=CC=C3)N2)N([C@H](C4=CC=CC=C4)[C@H](C5=CC=CC=C5)C=C)C(=C1)C=C",
+          "pred_canon": "C=Cc1ccc(-c2nc3ccccc3[nH]2)n1C(c1ccccc1)C(C=C)c1ccccc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 4.509,
+          "error": null
+        },
+        {
+          "case_id": "j.ejmech.2019.03.026/Scheme_1#37",
+          "kind": "problematic_8",
+          "gt_canon": "Cc1ccc(-c2nn(-c3ccccc3)cc2-c2nc3ccccc3n2C(=O)c2ccncc2)cc1",
+          "pred_raw": "O=C(c1ccnc(*)c1)N2C(=Nc3c2c(-c4ccc(*)cc4)nn3-c3ccccc3)c2ccccc2",
+          "pred_canon": "*c1ccc(-c2nn(-c3ccccc3)c3nc(-c4ccccc4)n(C(=O)c4ccnc(*)c4)c23)cc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 7.477,
+          "error": null
+        },
+        {
+          "case_id": "acsomega.2c06142/Figure_5#5b",
+          "kind": "problematic_8",
+          "gt_canon": "CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1",
+          "pred_raw": "Cc1cc2nc(-c3ccc(-c4nnc(N[*:1])s4)cc3)[nH]c2cc1C",
+          "pred_canon": "Cc1cc2nc(-c3ccc(-c4nnc(N[*:1])s4)cc3)[nH]c2cc1C",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.455,
+          "error": null
+        }
+      ]
+    },
+    {
+      "arm": "3a_exp01b_gemini38_medium_baseline",
+      "subtrack": "3A",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "medium",
+      "status": "completed",
+      "reused_from": "research/experiments/2026-11-22_exp01_ingestion_and_ocsr",
+      "isolated_30": {
+        "n_cases": 30,
+        "valid_count": 30,
+        "exact_count": 29,
+        "exact_share": 0.966667,
+        "c16_exact": 2,
+        "c16_total": 3,
+        "false_retries": 0
+      },
+      "problematic_8": {
+        "n_cases": 8,
+        "exact_count": 4
+      },
+      "efficiency": {
+        "prompt_tokens": 59009,
+        "cached_tokens": 396,
+        "cache_hit_rate": 0.006711,
+        "completion_tokens": 1576,
+        "reasoning_tokens": 89176,
+        "billable_output_tokens": 90752,
+        "cost_usd_total": 0.384309,
+        "cost_usd_per_crop_30": 0.01281,
+        "cost_2027_usd_per_crop_30": 0.025621
+      }
+    },
+    {
+      "arm": "3b_arm53a_gemini38_code_exec",
+      "subtrack": "3B",
+      "provider": "gemini_code_exec",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "medium",
+      "reasoning": null,
+      "scope": "rescue",
+      "n_cases": 6,
+      "status": "completed",
+      "notes": "Tier 3B Arm 5.3a: Gemini 3.8 Flash + ToolCodeExecution Python visual verification.",
+      "quality": {
+        "exact_count": 4,
+        "exact_share": 0.666667,
+        "valid_count": 5,
+        "valid_share": 0.833333,
+        "isolated_exact": 1,
+        "isolated_total": 1,
+        "problematic_exact": 3,
+        "problematic_total": 5
+      },
+      "efficiency": {
+        "latency_total_s": 492.271,
+        "latency_per_crop_s": 82.045,
+        "prompt_tokens": 47365,
+        "cached_tokens": 430445,
+        "cache_hit_rate": 9.087829,
+        "completion_tokens": 7994,
+        "reasoning_tokens": 34831,
+        "billable_output_tokens": 42825,
+        "cost_usd_total": 0.192877,
+        "cost_usd_per_crop": 0.032146,
+        "cost_2027_usd_per_crop": 0.064292
+      },
+      "items": [
+        {
+          "case_id": "iso_29",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "pred_raw": "CCCCCCCCCCCCCCCC(=O)n1c(nc2ccccc21)/N=C/c1ccc(N(C)C)cc1",
+          "pred_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 73.48,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-7#15",
+          "kind": "problematic_8",
+          "gt_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21",
+          "pred_raw": "Cn1c(c2c(Cl)cccc2F)nc3cc(-c4nc(-c5ccc(Cl)cc5)no4)ccc31",
+          "pred_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 80.28,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-10#24",
+          "kind": "problematic_8",
+          "gt_canon": "c1ccc(Cn2c(C3=NN(c4ccccc4)C(c4ccccc4)C3)nc3ccccc32)cc1",
+          "pred_raw": "c1ccc2c(c1)nc(C1=NN(c3ccccc3)[C@@H](c4ccccc4)C1)n2Cc5ccccc5",
+          "pred_canon": "c1ccc(Cn2c(C3=NN(c4ccccc4)C(c4ccccc4)C3)nc3ccccc32)cc1",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 128.672,
+          "error": null
+        },
+        {
+          "case_id": "j.ejmech.2019.03.026/Scheme_1#37",
+          "kind": "problematic_8",
+          "gt_canon": "Cc1ccc(-c2nn(-c3ccccc3)cc2-c2nc3ccccc3n2C(=O)c2ccncc2)cc1",
+          "pred_raw": "Cc1ccc(-c2c(-c3nc4ccccc4n3C(=O)c3ccncc3)cn(-c4ccccc4)n2)cc1",
+          "pred_canon": "Cc1ccc(-c2nn(-c3ccccc3)cc2-c2nc3ccccc3n2C(=O)c2ccncc2)cc1",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 117.391,
+          "error": null
+        },
+        {
+          "case_id": "acsomega.2c06142/Figure_5#5b",
+          "kind": "problematic_8",
+          "gt_canon": "CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1",
+          "pred_raw": "Cc1cc2[nH]c(-c3ccc(-c4nnc(N[*:1])s4)cc3)nc2cc1C",
+          "pred_canon": "Cc1cc2nc(-c3ccc(-c4nnc(N[*:1])s4)cc3)[nH]c2cc1C",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 91.703,
+          "error": null
+        },
+        {
+          "case_id": "acs.jafc.1c02545/Scheme_2#7a",
+          "kind": "problematic_8",
+          "gt_canon": "COc1cc(-c2nc3ccccc3n2Cc2ccccc2F)c2cc3[n+](cc2c1O)CCc1cc2c(cc1-3)OCO2.[Cl-]",
+          "pred_raw": "",
+          "pred_canon": null,
+          "is_valid": false,
+          "is_exact": false,
+          "latency_s": 0.665,
+          "error": "ClientError: 402 RESOURCE_EXHAUSTED. {'error': {'code': 402, 'message': 'Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay. ', 'status': 'RESOURCE_EXHAUSTED'}}"
+        }
+      ]
+    },
+    {
+      "arm": "3b_arm53b_glm53_flash",
+      "subtrack": "3B",
+      "provider": "api",
+      "model": "z-ai/glm-5.3-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "scope": "rescue",
+      "n_cases": 6,
+      "status": "completed",
+      "notes": "Tier 3B Arm 5.3b: Z-AI GLM-5.3-Flash (effort=low) via OpenRouter on 6 failed crops.",
+      "quality": {
+        "exact_count": 2,
+        "exact_share": 0.333333,
+        "valid_count": 5,
+        "valid_share": 0.833333,
+        "isolated_exact": 1,
+        "isolated_total": 1,
+        "problematic_exact": 1,
+        "problematic_total": 5
+      },
+      "efficiency": {
+        "latency_total_s": 253.74,
+        "latency_per_crop_s": 42.29,
+        "prompt_tokens": 31315,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 18456,
+        "reasoning_tokens": 17953,
+        "billable_output_tokens": 18456,
+        "cost_usd_total": 0.004711,
+        "cost_usd_per_crop": 0.000785,
+        "cost_2027_usd_per_crop": 0.000785
+      },
+      "items": [
+        {
+          "case_id": "iso_29",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "pred_raw": "CN(C)c1ccc(/C=N/c2nc3ccccc3n2C(=O)CCCCCCCCCCCCCCC)cc1",
+          "pred_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 2.011,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-7#15",
+          "kind": "problematic_8",
+          "gt_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21",
+          "pred_raw": "Cn1c(-c2c(Cl)cccc2F)nc2cc(C3=NOC(c4ccc(Cl)cc4)=N3)ccc21",
+          "pred_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3noc(-c4ccc(Cl)cc4)n3)ccc21",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.252,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-10#24",
+          "kind": "problematic_8",
+          "gt_canon": "c1ccc(Cn2c(C3=NN(c4ccccc4)C(c4ccccc4)C3)nc3ccccc32)cc1",
+          "pred_raw": "Cc1ccc(cc1)C1CC(=NN1c2ccccc2)c2nc3ccccc3n2Cc4ccccc4",
+          "pred_canon": "Cc1ccc(C2CC(c3nc4ccccc4n3Cc3ccccc3)=NN2c2ccccc2)cc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 5.942,
+          "error": null
+        },
+        {
+          "case_id": "j.ejmech.2019.03.026/Scheme_1#37",
+          "kind": "problematic_8",
+          "gt_canon": "Cc1ccc(-c2nn(-c3ccccc3)cc2-c2nc3ccccc3n2C(=O)c2ccncc2)cc1",
+          "pred_raw": "CC1=CC=C(C=C1)C1=NN(C=C1C1=NC2=CC=CC=C2N1C(=O)C1=CC=NC=C1)C1=CC=CC=C1",
+          "pred_canon": "Cc1ccc(-c2nn(-c3ccccc3)cc2-c2nc3ccccc3n2C(=O)c2ccncc2)cc1",
+          "is_valid": true,
+          "is_exact": true,
+          "latency_s": 4.001,
+          "error": null
+        },
+        {
+          "case_id": "acsomega.2c06142/Figure_5#5b",
+          "kind": "problematic_8",
+          "gt_canon": "CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1",
+          "pred_raw": "Cc1cc2[nH]c(-c3ccc(-c4nnc(N[*:1])s4)cc3)nc2cc1C",
+          "pred_canon": "Cc1cc2nc(-c3ccc(-c4nnc(N[*:1])s4)cc3)[nH]c2cc1C",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.665,
+          "error": null
+        },
+        {
+          "case_id": "acs.jafc.1c02545/Scheme_2#7a",
+          "kind": "problematic_8",
+          "gt_canon": "COc1cc(-c2nc3ccccc3n2Cc2ccccc2F)c2cc3[n+](cc2c1O)CCc1cc2c(cc1-3)OCO2.[Cl-]",
+          "pred_raw": "",
+          "pred_canon": null,
+          "is_valid": false,
+          "is_exact": false,
+          "latency_s": 236.84,
+          "error": "ValidationError: 1 validation error for MolecularParseResult\n  Invalid JSON: EOF while parsing a value at line 1 column 0 [type=json_invalid, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.14/v/json_invalid"
+        }
+      ]
+    },
+    {
+      "arm": "3b_arm53b_qwen3_vl_235b",
+      "subtrack": "3B",
+      "provider": "api",
+      "model": "qwen/qwen3-vl-235b-a22b-instruct",
+      "thinking_level": null,
+      "reasoning": null,
+      "scope": "rescue",
+      "n_cases": 6,
+      "status": "completed",
+      "notes": "Tier 3B Arm 5.3b: Qwen3-VL-235B Instruct on 6 failed crops.",
+      "quality": {
+        "exact_count": 0,
+        "exact_share": 0.0,
+        "valid_count": 6,
+        "valid_share": 1.0,
+        "isolated_exact": 0,
+        "isolated_total": 1,
+        "problematic_exact": 0,
+        "problematic_total": 5
+      },
+      "efficiency": {
+        "latency_total_s": 17.101,
+        "latency_per_crop_s": 2.85,
+        "prompt_tokens": 26339,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 663,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 663,
+        "cost_usd_total": 0.006791,
+        "cost_usd_per_crop": 0.001132,
+        "cost_2027_usd_per_crop": 0.001132
+      },
+      "items": [
+        {
+          "case_id": "iso_29",
+          "kind": "isolated_30",
+          "gt_canon": "CCCCCCCCCCCCCCCC(=O)n1c(N=Cc2ccc(N(C)C)cc2)nc2ccccc21",
+          "pred_raw": "CCCCCCCCCCCCCCCCn1c(=O)c2ncn(C3=CC=CC=C3)c2n1Cc1ccc(N(C)C)cc1",
+          "pred_canon": "CCCCCCCCCCCCCCCCn1c(=O)c2ncn(-c3ccccc3)c2n1Cc1ccc(N(C)C)cc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.015,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-7#15",
+          "kind": "problematic_8",
+          "gt_canon": "Cn1c(-c2c(F)cccc2Cl)nc2cc(-c3nc(-c4ccc(Cl)cc4)no3)ccc21",
+          "pred_raw": "Clc1ccc(-c2nc3c(nc2Nc2cc(Cl)cc(F)c2)C(=O)N=C3)cc1",
+          "pred_canon": "O=C1N=Cc2nc(-c3ccc(Cl)cc3)c(Nc3cc(F)cc(Cl)c3)nc21",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 1.945,
+          "error": null
+        },
+        {
+          "case_id": "RJC.2023.1638382/Fig.-10#24",
+          "kind": "problematic_8",
+          "gt_canon": "c1ccc(Cn2c(C3=NN(c4ccccc4)C(c4ccccc4)C3)nc3ccccc32)cc1",
+          "pred_raw": "C1=C[C@H](C2=NC3=C(C=CC=C3)N2)N[C@H]1C4=CC=CC=C4",
+          "pred_canon": "C1=CC(c2nc3ccccc3[nH]2)NC1c1ccccc1",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.255,
+          "error": null
+        },
+        {
+          "case_id": "j.ejmech.2019.03.026/Scheme_1#37",
+          "kind": "problematic_8",
+          "gt_canon": "Cc1ccc(-c2nn(-c3ccccc3)cc2-c2nc3ccccc3n2C(=O)c2ccncc2)cc1",
+          "pred_raw": "O=C(c1cncnc1)N1C2=C(C3=NN(C4=CC=CC=C4)C(=C3C2)C5=CC=C(C=C5)C1)C6=CC=CC=C6",
+          "pred_canon": "O=C(c1cncnc1)N1Cc2ccc(cc2)-c2c3c(nn2-c2ccccc2)C(c2ccccc2)=C1C3",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 5.427,
+          "error": null
+        },
+        {
+          "case_id": "acsomega.2c06142/Figure_5#5b",
+          "kind": "problematic_8",
+          "gt_canon": "CCNc1nnc(-c2ccc(-c3nc4cc(C)c(C)cc4[nH]3)cc2)s1",
+          "pred_raw": "Cc1cc2nc(-c3ccc(-c4nnc(N[*:1])s4)cc3)[nH]c2cc1C",
+          "pred_canon": "Cc1cc2nc(-c3ccc(-c4nnc(N[*:1])s4)cc3)[nH]c2cc1C",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 2.352,
+          "error": null
+        },
+        {
+          "case_id": "acs.jafc.1c02545/Scheme_2#7a",
+          "kind": "problematic_8",
+          "gt_canon": "COc1cc(-c2nc3ccccc3n2Cc2ccccc2F)c2cc3[n+](cc2c1O)CCc1cc2c(cc1-3)OCO2.[Cl-]",
+          "pred_raw": "Oc1c(OC)cc2c(c1)C1=C(C=C3C(=C1)OCO3)CC[N+]1=C2C=C(C2=NC3=CC=CC=C3N2CC4=CC(F)=C(C=C4)C)C=C1.[Cl-]",
+          "pred_canon": "COc1cc2c(cc1O)-c1cc3c(cc1CC[n+]1ccc(-c4nc5ccccc5n4Cc4ccc(C)c(F)c4)cc1-2)OCO3.[Cl-]",
+          "is_valid": true,
+          "is_exact": false,
+          "latency_s": 3.08,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

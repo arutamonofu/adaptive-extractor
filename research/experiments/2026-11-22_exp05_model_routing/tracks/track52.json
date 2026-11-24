@@ -1,0 +1,1208 @@
+{
+  "experiment": "2026-11-22_exp05_track52_table_ocr",
+  "protocol_ref": "EXP-05 Track 5.2 (Table OCR & Footnotes)",
+  "date": "2026-11-22",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-22_exp01_ingestion_and_ocsr",
+  "domain": "benzimidazole_antibiotics",
+  "split": "9 val tables + 1 train complex table (canary = 4 densest HTML tables)",
+  "runs": [
+    {
+      "arm": "gemini_37_flash_low",
+      "provider": "gemini",
+      "model": "gemini-3.7-flash",
+      "thinking_level": "low",
+      "reasoning": null,
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.992935,
+        "mean_numeric_f1": 0.998712,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 107.592,
+        "latency_per_table_s": 26.898,
+        "prompt_tokens": 10359,
+        "cached_tokens": 3164,
+        "cache_hit_rate": 0.305435,
+        "completion_tokens": 15981,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 15981,
+        "cost_usd_total": 0.065562,
+        "cost_usd_per_table": 0.016391,
+        "cost_2027_usd_per_table": 0.032781
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 23.709,
+          "usage": {
+            "prompt_tokens": 2590,
+            "cached_tokens": 790,
+            "cache_write_tokens": 0,
+            "completion_tokens": 3408,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 3408,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.973451,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 168,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 14.937,
+          "usage": {
+            "prompt_tokens": 2344,
+            "cached_tokens": 568,
+            "cache_write_tokens": 0,
+            "completion_tokens": 2047,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 2047,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 52.113,
+          "usage": {
+            "prompt_tokens": 2708,
+            "cached_tokens": 899,
+            "cache_write_tokens": 0,
+            "completion_tokens": 8136,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 8136,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 1.0,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.5,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 16.764,
+          "usage": {
+            "prompt_tokens": 2717,
+            "cached_tokens": 907,
+            "cache_write_tokens": 0,
+            "completion_tokens": 2390,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 2390,
+            "provider_cost": null
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "gemini_38_flash_low",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "low",
+      "reasoning": null,
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.992935,
+        "mean_numeric_f1": 0.998712,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 105.194,
+        "latency_per_table_s": 26.299,
+        "prompt_tokens": 10359,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 15336,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 15336,
+        "cost_usd_total": 0.065279,
+        "cost_usd_per_table": 0.01632,
+        "cost_2027_usd_per_table": 0.03264
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 23.26,
+          "usage": {
+            "prompt_tokens": 2590,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 3408,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 3408,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.973451,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 168,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 14.272,
+          "usage": {
+            "prompt_tokens": 2344,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 1844,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 1844,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 49.833,
+          "usage": {
+            "prompt_tokens": 2708,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 7602,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 7602,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 1.0,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.5,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 17.765,
+          "usage": {
+            "prompt_tokens": 2717,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 2482,
+            "reasoning_tokens": 0,
+            "billable_output_tokens": 2482,
+            "provider_cost": null
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "gemini_38_flash_medium_baseline",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "medium",
+      "reasoning": null,
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.999573,
+        "mean_numeric_f1": 0.998712,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 209.8,
+        "latency_per_table_s": 52.45,
+        "prompt_tokens": 10359,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 14118,
+        "reasoning_tokens": 16778,
+        "billable_output_tokens": 30896,
+        "cost_usd_total": 0.123629,
+        "cost_usd_per_table": 0.030907,
+        "cost_2027_usd_per_table": 0.061815
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 33.556,
+          "usage": {
+            "prompt_tokens": 2590,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 2153,
+            "reasoning_tokens": 2584,
+            "billable_output_tokens": 4737,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 1.0,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 171,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 54.812,
+          "usage": {
+            "prompt_tokens": 2344,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 1354,
+            "reasoning_tokens": 6127,
+            "billable_output_tokens": 7481,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 92.315,
+          "usage": {
+            "prompt_tokens": 2708,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 8180,
+            "reasoning_tokens": 6337,
+            "billable_output_tokens": 14517,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 1.0,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.5,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 29.057,
+          "usage": {
+            "prompt_tokens": 2717,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 2431,
+            "reasoning_tokens": 1730,
+            "billable_output_tokens": 4161,
+            "provider_cost": null
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "gemini_4_hydrogen_low",
+      "provider": "gemini",
+      "model": "gemini-4-hydrogen",
+      "thinking_level": "low",
+      "reasoning": null,
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.996745,
+        "mean_numeric_f1": 0.998712,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 84.146,
+        "latency_per_table_s": 21.037,
+        "prompt_tokens": 11827,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 11133,
+        "reasoning_tokens": 11549,
+        "billable_output_tokens": 22682,
+        "cost_usd_total": 0.187856,
+        "cost_usd_per_table": 0.046964,
+        "cost_2027_usd_per_table": 0.046964
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 17.273,
+          "usage": {
+            "prompt_tokens": 2949,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 2100,
+            "reasoning_tokens": 2308,
+            "billable_output_tokens": 4408,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.994152,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 171,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 12.78,
+          "usage": {
+            "prompt_tokens": 2708,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 1424,
+            "reasoning_tokens": 1641,
+            "billable_output_tokens": 3065,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 41.874,
+          "usage": {
+            "prompt_tokens": 3082,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 5999,
+            "reasoning_tokens": 6179,
+            "billable_output_tokens": 12178,
+            "provider_cost": null
+          },
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 0.994536,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.5,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 12.163,
+          "usage": {
+            "prompt_tokens": 3088,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "completion_tokens": 1610,
+            "reasoning_tokens": 1421,
+            "billable_output_tokens": 3031,
+            "provider_cost": null
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "glm_53_flash_check_full10",
+      "provider": "api",
+      "model": "z-ai/glm-5.3-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "n_tables": 10,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "s41598-022-21435-6/Table_6",
+        "j.ejmech.2020.112996/Table_1",
+        "j.ejmech.2020.112996/Table_2",
+        "j.ejmech.2020.112996/Table_3",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2020.112996/Table_5",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.803827,
+        "mean_numeric_f1": 0.864792,
+        "mean_footnote_recall": 0.714881,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 78.876,
+        "latency_per_table_s": 7.888,
+        "prompt_tokens": 51661,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 16329,
+        "reasoning_tokens": 860,
+        "billable_output_tokens": 16329,
+        "cost_usd_total": 0.005174,
+        "cost_usd_per_table": 0.000517,
+        "cost_2027_usd_per_table": 0.000517
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 0.997143,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 0.5,
+          "sup_recall": 0.75,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 18.269,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "s41598-022-21435-6/Table_6": {
+          "cell_f1": 1.0,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 25,
+          "ref_cells": 25,
+          "pred_nums": 27,
+          "ref_nums": 27,
+          "latency_s": 1.687,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_1": {
+          "cell_f1": 0.969697,
+          "numeric_f1": 0.973684,
+          "footnote_recall": 0.0,
+          "sup_recall": 1.0,
+          "pred_cells": 112,
+          "ref_cells": 119,
+          "pred_nums": 111,
+          "ref_nums": 117,
+          "latency_s": 2.657,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_2": {
+          "cell_f1": 0.674797,
+          "numeric_f1": 0.966292,
+          "footnote_recall": 0.166667,
+          "sup_recall": 1.0,
+          "pred_cells": 120,
+          "ref_cells": 126,
+          "pred_nums": 86,
+          "ref_nums": 92,
+          "latency_s": 3.925,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_3": {
+          "cell_f1": 0.94,
+          "numeric_f1": 0.978723,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 50,
+          "ref_cells": 50,
+          "pred_nums": 46,
+          "ref_nums": 48,
+          "latency_s": 1.699,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.994152,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 171,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 7.273,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_5": {
+          "cell_f1": 0.0,
+          "numeric_f1": 0.03125,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 0,
+          "ref_cells": 260,
+          "pred_nums": 4,
+          "ref_nums": 252,
+          "latency_s": 1.172,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 0.482143,
+          "sup_recall": 1.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 20.619,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_1": {
+          "cell_f1": 0.5,
+          "numeric_f1": 0.703125,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 100,
+          "ref_cells": 100,
+          "pred_nums": 83,
+          "ref_nums": 45,
+          "latency_s": 16.212,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 0.964187,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 180,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 5.248,
+          "mode": "json_schema",
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "glm_53_flash_check",
+      "provider": "api",
+      "model": "z-ai/glm-5.3-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.990095,
+        "mean_numeric_f1": 0.998712,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 54.148,
+        "latency_per_table_s": 13.537,
+        "prompt_tokens": 27756,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 13845,
+        "reasoning_tokens": 12,
+        "billable_output_tokens": 13845,
+        "cost_usd_total": 0.003713,
+        "cost_usd_per_table": 0.000928,
+        "cost_2027_usd_per_table": 0.000928
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.75,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 7.335,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.967552,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 168,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 5.509,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 24.66,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 0.994536,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.5,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 16.552,
+          "mode": "json_schema",
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "gpt_6_luna_low_full10",
+      "provider": "api",
+      "model": "openai/gpt-6-luna",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "n_tables": 10,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "s41598-022-21435-6/Table_6",
+        "j.ejmech.2020.112996/Table_1",
+        "j.ejmech.2020.112996/Table_2",
+        "j.ejmech.2020.112996/Table_3",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2020.112996/Table_5",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.897405,
+        "mean_numeric_f1": 0.972423,
+        "mean_footnote_recall": 0.752778,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 139.704,
+        "latency_per_table_s": 13.97,
+        "prompt_tokens": 50829,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 20241,
+        "reasoning_tokens": 3080,
+        "billable_output_tokens": 20241,
+        "cost_usd_total": 0.015203,
+        "cost_usd_per_table": 0.00152,
+        "cost_2027_usd_per_table": 0.00152
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 16.422,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "s41598-022-21435-6/Table_6": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.851064,
+          "footnote_recall": 0.361111,
+          "sup_recall": 1.0,
+          "pred_cells": 25,
+          "ref_cells": 25,
+          "pred_nums": 20,
+          "ref_nums": 27,
+          "latency_s": 7.542,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_1": {
+          "cell_f1": 0.705882,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 0.0,
+          "sup_recall": 1.0,
+          "pred_cells": 119,
+          "ref_cells": 119,
+          "pred_nums": 116,
+          "ref_nums": 117,
+          "latency_s": 8.639,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_2": {
+          "cell_f1": 0.968254,
+          "numeric_f1": 0.994536,
+          "footnote_recall": 0.166667,
+          "sup_recall": 1.0,
+          "pred_cells": 126,
+          "ref_cells": 126,
+          "pred_nums": 91,
+          "ref_nums": 92,
+          "latency_s": 6.021,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_3": {
+          "cell_f1": 0.58,
+          "numeric_f1": 0.978723,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 50,
+          "ref_cells": 50,
+          "pred_nums": 46,
+          "ref_nums": 48,
+          "latency_s": 3.042,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.997085,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 172,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 18.827,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_5": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.914851,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 260,
+          "ref_cells": 260,
+          "pred_nums": 253,
+          "ref_nums": 252,
+          "latency_s": 17.705,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.996558,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 581,
+          "ref_nums": 581,
+          "latency_s": 41.981,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_1": {
+          "cell_f1": 0.73,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 100,
+          "ref_cells": 100,
+          "pred_nums": 45,
+          "ref_nums": 45,
+          "latency_s": 5.464,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 0.994536,
+          "numeric_f1": 0.997085,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 171,
+          "ref_nums": 172,
+          "latency_s": 13.955,
+          "mode": "json_schema",
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "gpt_6_luna_low",
+      "provider": "api",
+      "model": "openai/gpt-6-luna",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.996317,
+        "mean_numeric_f1": 0.998712,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 86.228,
+        "latency_per_table_s": 21.557,
+        "prompt_tokens": 27284,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 13973,
+        "reasoning_tokens": 583,
+        "billable_output_tokens": 13973,
+        "cost_usd_total": 0.009715,
+        "cost_usd_per_table": 0.002429,
+        "cost_2027_usd_per_table": 0.002429
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 16.478,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.994152,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 171,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 15.332,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.996581,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 41.167,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 0.994536,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 13.165,
+          "mode": "json_schema",
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "ling_30_flash_vl",
+      "provider": "api",
+      "model": "inclusionai/ling-3.0-flash-vl",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.98862,
+        "mean_numeric_f1": 0.998712,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 232.88,
+        "latency_per_table_s": 58.22,
+        "prompt_tokens": 20508,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 37447,
+        "reasoning_tokens": 21824,
+        "billable_output_tokens": 37447,
+        "cost_usd_total": 0.007971,
+        "cost_usd_per_table": 0.001993,
+        "cost_2027_usd_per_table": 0.001993
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 56.661,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.961652,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 168,
+          "ref_cells": 171,
+          "pred_nums": 146,
+          "ref_nums": 146,
+          "latency_s": 48.727,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 93.682,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 0.994536,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.5,
+          "pred_cells": 183,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 33.724,
+          "mode": "json_schema",
+          "status": "success"
+        }
+      }
+    },
+    {
+      "arm": "qwen3_vl_235b",
+      "provider": "api",
+      "model": "qwen/qwen3-vl-235b-a22b-instruct",
+      "thinking_level": null,
+      "reasoning": null,
+      "n_tables": 4,
+      "cases": [
+        "j.bmcl.2018.03.046/Table_1",
+        "j.ejmech.2020.112996/Table_4",
+        "j.ejmech.2016.01.052/Table_1",
+        "j.ejmech.2019.03.026/Table_3"
+      ],
+      "status": "completed",
+      "errors": {},
+      "quality": {
+        "mean_cell_f1": 0.741997,
+        "mean_numeric_f1": 0.99524,
+        "mean_footnote_recall": 1.0,
+        "schema_valid_rate": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 313.201,
+        "latency_per_table_s": 78.3,
+        "prompt_tokens": 23292,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 18519,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 18519,
+        "cost_usd_total": 0.040077,
+        "cost_usd_per_table": 0.010019,
+        "cost_2027_usd_per_table": 0.010019
+      },
+      "per_table": {
+        "j.bmcl.2018.03.046/Table_1": {
+          "cell_f1": 1.0,
+          "numeric_f1": 0.995708,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 350,
+          "ref_cells": 350,
+          "pred_nums": 348,
+          "ref_nums": 351,
+          "latency_s": 61.406,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2020.112996/Table_4": {
+          "cell_f1": 0.0,
+          "numeric_f1": 0.986111,
+          "footnote_recall": 1.0,
+          "sup_recall": 1.0,
+          "pred_cells": 0,
+          "ref_cells": 171,
+          "pred_nums": 142,
+          "ref_nums": 146,
+          "latency_s": 18.91,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2016.01.052/Table_1": {
+          "cell_f1": 0.998291,
+          "numeric_f1": 0.99914,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.0,
+          "pred_cells": 585,
+          "ref_cells": 585,
+          "pred_nums": 582,
+          "ref_nums": 581,
+          "latency_s": 180.598,
+          "mode": "json_schema",
+          "status": "success"
+        },
+        "j.ejmech.2019.03.026/Table_3": {
+          "cell_f1": 0.969697,
+          "numeric_f1": 1.0,
+          "footnote_recall": 1.0,
+          "sup_recall": 0.5,
+          "pred_cells": 180,
+          "ref_cells": 183,
+          "pred_nums": 172,
+          "ref_nums": 172,
+          "latency_s": 52.203,
+          "mode": "json_schema",
+          "status": "success"
+        }
+      }
+    }
+  ]
+}

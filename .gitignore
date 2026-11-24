@@ -51,6 +51,8 @@ data/interim/semantic_optimization/**
 !data/interim/semantic_optimization/.gitkeep
 data/interim/ingestion/**
 !data/interim/ingestion/.gitkeep
+data/interim/exp*/
+data/experiments/
 data/processed/agents/**
 !data/processed/agents/.gitkeep
 data/processed/extracted/**
@@ -61,6 +63,7 @@ research/experiments/_runtime/**
 !research/experiments/_runtime/.gitkeep
 research/experiments/*/logs/
 research/experiments/*/raw/
+research/experiments/*/_archive_*/
 mlruns/
 
 research/references/**

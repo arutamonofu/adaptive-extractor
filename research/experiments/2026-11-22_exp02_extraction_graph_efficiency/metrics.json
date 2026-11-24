@@ -1,0 +1,417 @@
+{
+  "experiment": "2026-11-22_exp02_extraction_graph_efficiency",
+  "protocol_ref": "EXP-02",
+  "date": "2026-11-22",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-21_benzimidazole_post_audit_eval",
+  "domain": "benzimidazole_antibiotics",
+  "split": "val",
+  "n_docs": 6,
+  "n_gt_rows": 314,
+  "runs": [
+    {
+      "arm": "arm_0_baseline",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.994857,
+        "macro_f1_semantic": 0.995194,
+        "micro_f1_strict": 0.992591,
+        "macro_f1_strict": 0.981293,
+        "soft_matched_fields_count": 20,
+        "per_field_f1_semantic": {
+          "compound_id": 0.9905,
+          "smiles": 0.9874,
+          "target_type": 0.9905,
+          "target_relation": 0.9905,
+          "target_value": 0.9905,
+          "target_units": 0.9905,
+          "bacteria": 0.9905
+        },
+        "per_field_f1_strict": {},
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 1001.99,
+        "latency_per_doc_s": 167.0,
+        "calls_total": 26,
+        "retries_total": 0,
+        "prompt_tokens": 505510,
+        "cached_tokens": 145415,
+        "cache_hit_rate": 0.28766,
+        "completion_tokens": 134067,
+        "reasoning_tokens": 75073,
+        "agent_draft_tokens": 25279,
+        "judge_calls": 3,
+        "judge_tokens": 10585,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "../2026-11-21_benzimidazole_post_audit_eval/logs/",
+        "doc_scores": {
+          "acsomega.2c06142": 1.0,
+          "RJC.2023.1638382": 0.989796,
+          "j.bmcl.2018.03.046": 1.0,
+          "j.ejmech.2020.112996": 0.981366,
+          "s41598-022-21435-6": 1.0,
+          "j.ejmech.2019.03.026": 1.0
+        }
+      }
+    },
+    {
+      "arm": "arm_a",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.993037,
+        "macro_f1_semantic": 0.99343,
+        "micro_f1_strict": 0.990771,
+        "macro_f1_strict": 0.979529,
+        "precision_semantic": 0.983724,
+        "recall_semantic": 0.993123,
+        "soft_matched_fields_count": 0,
+        "per_field_f1_semantic": {
+          "compound_id": 0.995246,
+          "smiles": 0.979398,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.995246
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.995246,
+          "smiles": 0.979398,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.979398
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 744.905,
+        "latency_per_doc_s": 124.15,
+        "calls_total": 30,
+        "retries_total": 0,
+        "prompt_tokens": 627184,
+        "cached_tokens": 319158,
+        "cache_hit_rate": 0.508875,
+        "completion_tokens": 105919,
+        "reasoning_tokens": 65519,
+        "agent_draft_tokens": 0,
+        "judge_calls": 2,
+        "judge_tokens": 2718,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "logs/arm_a/",
+        "doc_scores": {
+          "acsomega.2c06142": 1.0,
+          "RJC.2023.1638382": 0.989796,
+          "j.bmcl.2018.03.046": 1.0,
+          "j.ejmech.2020.112996": 0.981366,
+          "s41598-022-21435-6": 1.0,
+          "j.ejmech.2019.03.026": 0.989418
+        }
+      }
+    },
+    {
+      "arm": "arm_b_v2_post_fix",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.99727,
+        "macro_f1_semantic": 0.997355,
+        "micro_f1_strict": 0.994996,
+        "macro_f1_strict": 0.983448,
+        "precision_semantic": 0.99727,
+        "recall_semantic": 0.99727,
+        "soft_matched_fields_count": 0,
+        "per_field_f1_semantic": {
+          "compound_id": 0.980892,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.980892,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.984076
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 691.952,
+        "latency_per_doc_s": 115.33,
+        "calls_total": 27,
+        "retries_total": 0,
+        "prompt_tokens": 538412,
+        "cached_tokens": 262674,
+        "cache_hit_rate": 0.487868,
+        "completion_tokens": 91349,
+        "reasoning_tokens": 57254,
+        "agent_draft_tokens": 0,
+        "judge_calls": 3,
+        "judge_tokens": 4786,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "logs/arm_b_v2/",
+        "doc_scores": {
+          "acsomega.2c06142": 1.0,
+          "RJC.2023.1638382": 1.0,
+          "j.bmcl.2018.03.046": 1.0,
+          "j.ejmech.2020.112996": 1.0,
+          "s41598-022-21435-6": 1.0,
+          "j.ejmech.2019.03.026": 0.984127
+        }
+      }
+    },
+    {
+      "arm": "arm_b_3rep_mean_pre_fix",
+      "seed_repeats": 3,
+      "quality": {
+        "micro_f1_semantic": 0.995864,
+        "micro_f1_semantic_sd": 0.001744,
+        "macro_f1_semantic": 0.99415,
+        "micro_f1_strict": 0.993746,
+        "macro_f1_strict": 0.980348,
+        "seed_variance_share": 0.6169
+      },
+      "efficiency": {
+        "latency_total_s": 701.47,
+        "latency_per_doc_s": 116.91,
+        "calls_total": 29.33,
+        "retries_total": 0,
+        "prompt_tokens": 627247,
+        "cached_tokens": 338441,
+        "cache_hit_rate": 0.539007,
+        "completion_tokens": 94296,
+        "reasoning_tokens": 58474,
+        "agent_draft_tokens": 0,
+        "judge_calls": 1.67,
+        "judge_tokens": 2271,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "logs/arm_b_rep*/",
+        "doc_scores": {
+          "acsomega.2c06142": 1.0,
+          "RJC.2023.1638382": 0.977324,
+          "j.bmcl.2018.03.046": 1.0,
+          "j.ejmech.2020.112996": 0.987577,
+          "s41598-022-21435-6": 1.0,
+          "j.ejmech.2019.03.026": 1.0
+        }
+      }
+    },
+    {
+      "arm": "arm_b_rep1",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.997877,
+        "macro_f1_semantic": 0.992063,
+        "micro_f1_strict": 0.996057,
+        "macro_f1_strict": 0.978458,
+        "precision_semantic": 0.998077,
+        "recall_semantic": 0.994898,
+        "soft_matched_fields_count": 0,
+        "per_field_f1_semantic": {
+          "compound_id": 0.998405,
+          "smiles": 0.995215,
+          "target_type": 0.998405,
+          "target_relation": 0.998405,
+          "target_value": 0.998405,
+          "target_units": 0.998405,
+          "bacteria": 0.998405
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.998405,
+          "smiles": 0.995215,
+          "target_type": 0.998405,
+          "target_relation": 0.998405,
+          "target_value": 0.998405,
+          "target_units": 0.998405,
+          "bacteria": 0.985646
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 776.146,
+        "latency_per_doc_s": 129.36,
+        "calls_total": 30,
+        "retries_total": 0,
+        "prompt_tokens": 659527,
+        "cached_tokens": 362726,
+        "cache_hit_rate": 0.549979,
+        "completion_tokens": 113336,
+        "reasoning_tokens": 73674,
+        "agent_draft_tokens": 0,
+        "judge_calls": 1,
+        "judge_tokens": 1368,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "logs/arm_b_rep1/",
+        "doc_scores": {
+          "acsomega.2c06142": 1.0,
+          "RJC.2023.1638382": 0.952381,
+          "j.bmcl.2018.03.046": 1.0,
+          "j.ejmech.2020.112996": 1.0,
+          "s41598-022-21435-6": 1.0,
+          "j.ejmech.2019.03.026": 1.0
+        }
+      }
+    },
+    {
+      "arm": "arm_b_rep2",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.994857,
+        "macro_f1_semantic": 0.995194,
+        "micro_f1_strict": 0.992591,
+        "macro_f1_strict": 0.981293,
+        "precision_semantic": 0.985527,
+        "recall_semantic": 0.994943,
+        "soft_matched_fields_count": 0,
+        "per_field_f1_semantic": {
+          "compound_id": 0.995246,
+          "smiles": 0.992076,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.995246
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.995246,
+          "smiles": 0.992076,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.979398
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 628.15,
+        "latency_per_doc_s": 104.69,
+        "calls_total": 30,
+        "retries_total": 0,
+        "prompt_tokens": 628888,
+        "cached_tokens": 344700,
+        "cache_hit_rate": 0.54811,
+        "completion_tokens": 82580,
+        "reasoning_tokens": 47403,
+        "agent_draft_tokens": 0,
+        "judge_calls": 2,
+        "judge_tokens": 2722,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "logs/arm_b_rep2/",
+        "doc_scores": {
+          "acsomega.2c06142": 1.0,
+          "RJC.2023.1638382": 0.989796,
+          "j.bmcl.2018.03.046": 1.0,
+          "j.ejmech.2020.112996": 0.981366,
+          "s41598-022-21435-6": 1.0,
+          "j.ejmech.2019.03.026": 1.0
+        }
+      }
+    },
+    {
+      "arm": "arm_b_rep3",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.994857,
+        "macro_f1_semantic": 0.995194,
+        "micro_f1_strict": 0.992591,
+        "macro_f1_strict": 0.981293,
+        "precision_semantic": 0.985527,
+        "recall_semantic": 0.994943,
+        "soft_matched_fields_count": 0,
+        "per_field_f1_semantic": {
+          "compound_id": 0.995246,
+          "smiles": 0.992076,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.995246
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.995246,
+          "smiles": 0.992076,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.979398
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 700.121,
+        "latency_per_doc_s": 116.69,
+        "calls_total": 28,
+        "retries_total": 0,
+        "prompt_tokens": 593325,
+        "cached_tokens": 307896,
+        "cache_hit_rate": 0.518933,
+        "completion_tokens": 86971,
+        "reasoning_tokens": 54345,
+        "agent_draft_tokens": 0,
+        "judge_calls": 2,
+        "judge_tokens": 2722,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "logs/arm_b_rep3/",
+        "doc_scores": {
+          "acsomega.2c06142": 1.0,
+          "RJC.2023.1638382": 0.989796,
+          "j.bmcl.2018.03.046": 1.0,
+          "j.ejmech.2020.112996": 0.981366,
+          "s41598-022-21435-6": 1.0,
+          "j.ejmech.2019.03.026": 1.0
+        }
+      }
+    }
+  ],
+  "statistical_tests": {
+    "test_name": "wilcoxon_signed_rank",
+    "comparison": "arm_b_v2_vs_arm_0",
+    "p_value": 0.75,
+    "p_holm": null,
+    "statistically_significant": false
+  },
+  "gate_decision": {
+    "passed": true,
+    "criteria_checks": {
+      "draft_tokens_zero": true,
+      "latency_arm_a_le_850s": true,
+      "latency_arm_b_le_860s": true,
+      "cache_hit_gt_28_8pct": true,
+      "arm_b_v2_micro_f1_ge_0_9970": true,
+      "zero_false_strain_merges": true,
+      "arm_b_3rep_sd_le_0_002": true
+    },
+    "notes": "All core Gate 2 thresholds met after forensic fixes: arm_b_v2 reached Micro-F1=0.997270 (RJC=1.0, 112996=1.0, bmcl=1.0, acsomega=1.0, s41598=1.0), latency=692.0s (-30.9%), draft_tokens=0, cache_hit=48.8%. GT-weighted 3-rep SD=0.001744 <= 0.002."
+  }
+}

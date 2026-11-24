@@ -1,0 +1,231 @@
+{
+  "experiment": "2026-11-22_exp05_model_routing_summary",
+  "protocol_ref": "EXP-05 Model Routing Table (Tracks 5.1-5.6 aggregation)",
+  "date": "2026-11-24",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-22_optimization_program",
+  "domain": "benzimidazole_antibiotics",
+  "split": "val 6/314 + canary; ingestion/ocr/ocsr stage splits per track",
+  "n_docs": 6,
+  "n_gt_rows": 314,
+  "runs": [
+    {
+      "node": "01_parse_text",
+      "evidence_status": "completed",
+      "note": "остаётся на gemini-3.8-flash (EXP-01A reused baseline): дешёвые руки искажают числа/символы (CER 0.05-0.19)",
+      "recommended_model": "gemini-3.8-flash",
+      "alternative_model": "openai/gpt-6-luna",
+      "quality": "mean_cer_vs_ref=0.0000",
+      "latency_total_s": null,
+      "usd_per_unit_2026": 0.00623,
+      "usd_per_unit_2027": 0.012459,
+      "source_link": "2026-11-22_exp05_track51_ingestion_stages/metrics.json#01_exp01a_gemini38_flash_low_baseline"
+    },
+    {
+      "node": "02_manifest/classify",
+      "evidence_status": "completed",
+      "note": "glm-5.3-flash recall 0.980, ~15x дешевле baseline-вывода Gemini",
+      "recommended_model": "z-ai/glm-5.3-flash",
+      "alternative_model": "gemini-3.8-flash",
+      "quality": "visual_recall=0.9804",
+      "latency_total_s": 75.09,
+      "usd_per_unit_2026": 0.000898,
+      "usd_per_unit_2027": 0.000898,
+      "source_link": "2026-11-22_exp05_track51_ingestion_stages/metrics.json#02_glm53_flash_low"
+    },
+    {
+      "node": "03_localize",
+      "evidence_status": "completed",
+      "note": "остаётся на gemini-3.8-flash: согласие с рамками Gemini низкое (mIoU<=0.57)",
+      "recommended_model": "gemini-3.8-flash (reference; baseline не перезапускался)",
+      "alternative_model": "z-ai/glm-5.3-flash",
+      "quality": null,
+      "latency_total_s": null,
+      "usd_per_unit_2026": null,
+      "usd_per_unit_2027": null,
+      "source_link": "2026-11-22_exp05_track51_ingestion_stages/metrics.json#03_glm53_flash_low"
+    },
+    {
+      "node": "05_decompose",
+      "evidence_status": "completed",
+      "note": "glm-5.3-flash mode acc 1.0, count sim 0.976, минимальная цена",
+      "recommended_model": "z-ai/glm-5.3-flash",
+      "alternative_model": "qwen/qwen3-vl-235b-a22b-instruct",
+      "quality": "mode_composite_accuracy=1.0000",
+      "latency_total_s": 46.418,
+      "usd_per_unit_2026": 0.00047,
+      "usd_per_unit_2027": 0.00047,
+      "source_link": "2026-11-22_exp05_track51_ingestion_stages/metrics.json#05_glm53_flash_low"
+    },
+    {
+      "node": "T3.5 hint",
+      "evidence_status": "completed",
+      "note": "glm-5.3-flash F1 1.0 (10/10), самый дешёвый",
+      "recommended_model": "z-ai/glm-5.3-flash",
+      "alternative_model": "google/gemma-4-31b-it",
+      "quality": "mean_set_f1=1.0000",
+      "latency_total_s": 10.262,
+      "usd_per_unit_2026": 2.1e-05,
+      "usd_per_unit_2027": 2.1e-05,
+      "source_link": "2026-11-22_exp05_track51_ingestion_stages/metrics.json#t35_glm53_flash_low"
+    },
+    {
+      "node": "parse_visuals.table",
+      "evidence_status": "completed",
+      "note": "остаётся на gemini-3.8-flash medium (baseline): дешёвые OpenRouter теряют сноски на широком наборе; low -47% цены (CellF1 -0.007) — кандидат, требует Full-10",
+      "recommended_model": "gemini-3.8-flash",
+      "alternative_model": "gemini-3.8-flash",
+      "quality": "mean_cell_f1=0.9996",
+      "latency_total_s": 209.8,
+      "usd_per_unit_2026": 0.030907,
+      "usd_per_unit_2027": 0.061815,
+      "source_link": "2026-11-22_exp05_track52_table_ocr/metrics.json#gemini_38_flash_medium_baseline"
+    },
+    {
+      "node": "parse_visuals.chart",
+      "evidence_status": "not run",
+      "note": "не запускалось в 5.3",
+      "recommended_model": null,
+      "alternative_model": null,
+      "quality": null,
+      "latency_total_s": null,
+      "usd_per_unit_2026": null,
+      "usd_per_unit_2027": null,
+      "source_link": "2026-11-22_exp05_track53_ocsr_and_rescue/metrics.json#2026-11-22_exp05_track53_ocsr_and_rescue"
+    },
+    {
+      "node": "parse_visuals.molecule",
+      "evidence_status": "not run",
+      "note": "OCSR-ярусы 5.3; chart/molecule отдельно не бенчмаркились",
+      "recommended_model": null,
+      "alternative_model": null,
+      "quality": null,
+      "latency_total_s": null,
+      "usd_per_unit_2026": null,
+      "usd_per_unit_2027": null,
+      "source_link": "2026-11-22_exp05_track53_ocsr_and_rescue/metrics.json#2026-11-22_exp05_track53_ocsr_and_rescue"
+    },
+    {
+      "node": "OCSR (Tier 3A)",
+      "evidence_status": "completed",
+      "note": "остаётся на gemini-3.8-flash medium (reused EXP-01B): дешёвые VLM отброшены по exact-доле",
+      "recommended_model": "gemini-3.8-flash",
+      "alternative_model": "qwen/qwen3-vl-235b-a22b-instruct",
+      "quality": "isolated_30 valid/exact=30/29 (reused EXP-01B)",
+      "latency_total_s": null,
+      "usd_per_unit_2026": null,
+      "usd_per_unit_2027": null,
+      "source_link": "2026-11-22_exp05_track53_ocsr_and_rescue/metrics.json#3a_exp01b_gemini38_medium_baseline"
+    },
+    {
+      "node": "rdkit rescue (Tier 3B)",
+      "evidence_status": "partial",
+      "note": "gemini-3.8-flash + ToolCodeExecution на провальных кропах ($0.0386/кроп и 98.3 с/кроп на n=5 выполненных; 6-й кроп 402)",
+      "recommended_model": "gemini-3.8-flash",
+      "alternative_model": "z-ai/glm-5.3-flash",
+      "quality": "valid_share=0.8333",
+      "latency_total_s": 492.271,
+      "usd_per_unit_2026": 0.032146,
+      "usd_per_unit_2027": 0.064292,
+      "source_link": "2026-11-22_exp05_track53_ocsr_and_rescue/metrics.json#3b_arm53a_gemini38_code_exec"
+    },
+    {
+      "node": "ReAct router",
+      "evidence_status": "completed",
+      "note": "deepseek-v4.1-flash (vr 0.944/dtr 0.833, ~8.6x дешевле baseline); baseline держит recall 1.000/1.000; downstream-e2e (glm+deepseek) 0.9774<0.9973",
+      "recommended_model": "deepseek/deepseek-v4.1-flash",
+      "alternative_model": "gemini-3.7-flash",
+      "quality": "mean_visual_recall=0.9444; mean_domain_tool_recall=0.8333",
+      "latency_total_s": 134.989,
+      "usd_per_unit_2026": 0.002841,
+      "usd_per_unit_2027": 0.002841,
+      "source_link": "2026-11-22_exp05_track54_agent_router/metrics.json#deepseek_v41_flash_low"
+    },
+    {
+      "node": "structured output (Tier 4B)",
+      "evidence_status": "completed",
+      "note": "deepseek-v4.1-flash low: Micro-F1 0.9934, 2.1x быстрее и 19.8x дешевле baseline ($0.0035/док)",
+      "recommended_model": "deepseek/deepseek-v4.1-flash",
+      "alternative_model": "qwen/qwen3.8-flash",
+      "quality": "micro_f1_semantic=0.9934; micro_f1_strict=0.9915",
+      "latency_total_s": 295.22,
+      "usd_per_unit_2026": 0.00352,
+      "usd_per_unit_2027": 0.00352,
+      "source_link": "2026-11-22_exp05_track55_structured_extraction/metrics.json#deepseek_v41_flash_low"
+    },
+    {
+      "node": "local record repair (Tier 4C)",
+      "evidence_status": "completed",
+      "note": "deepseek-v4.1-flash: 2/2 SMILES восстановлены, ~0.000923 USD/ремонт (tier4c_repair_benchmark)",
+      "recommended_model": "deepseek/deepseek-v4.1-flash",
+      "alternative_model": null,
+      "quality": "repaired 2/2, canonical SMILES 2/2",
+      "latency_total_s": 7.025,
+      "usd_per_unit_2026": 0.000923,
+      "usd_per_unit_2027": 0.000923,
+      "source_link": "2026-11-22_exp05_track55_structured_extraction/metrics.json#tier4c_repair_benchmark"
+    },
+    {
+      "node": "Tier 4A worker (semantic opt)",
+      "evidence_status": "completed",
+      "note": "deepseek-v4.1-flash 2/2 валидных anchor-дока (с max-tokens 32768); qwen38 error (ColumnAnalysis>32768); latency 797s",
+      "recommended_model": "deepseek/deepseek-v4.1-flash",
+      "alternative_model": null,
+      "quality": "n/a",
+      "latency_total_s": 797.588,
+      "usd_per_unit_2026": 0.06579,
+      "usd_per_unit_2027": 0.026275,
+      "source_link": "2026-11-22_exp05_track56_semantic_opt_tiers/metrics.json#4a_deepseek_v41_flash"
+    },
+    {
+      "node": "Tier 4B synthesis (semantic opt)",
+      "evidence_status": "partial",
+      "note": "4b_qwen38_flash_reasoning error (потолок вывода) + offline strict-F1 partial 0.8956 (4/6 доков); gemini/terra/hydrogen excluded; ниже порога 0.9949 — оставляем qwen3.5-397b baseline",
+      "recommended_model": "qwen/qwen3.5-397b-a17b",
+      "alternative_model": null,
+      "quality": "val_micro_f1_semantic=0.9968",
+      "latency_total_s": 9126.145,
+      "usd_per_unit_2026": null,
+      "usd_per_unit_2027": null,
+      "source_link": "2026-11-22_exp05_track56_semantic_opt_tiers/metrics.json#baseline_exp04_qwen397b"
+    },
+    {
+      "node": "SemanticJudge (fix.)",
+      "evidence_status": "fixed",
+      "note": "google/gemma-4-31b-it (EXP-03) — зафиксированная строка, вне рамок замены",
+      "recommended_model": null,
+      "alternative_model": null,
+      "quality": null,
+      "latency_total_s": null,
+      "usd_per_unit_2026": null,
+      "usd_per_unit_2027": null,
+      "source_link": null
+    }
+  ],
+  "baseline_gemini_usd_per_doc": {
+    "structured_output_tier4b": 0.069544,
+    "react_router": 0.024574
+  },
+  "recommended_routing_usd_per_doc_est": 0.006361,
+  "semantic_judge_model": "google/gemma-4-31b-it",
+  "track56_4b_offline_partial": {
+    "micro_f1_strict": 0.895577,
+    "docs_scored": 4,
+    "provenance": "system_instruction of the archived val-eval != candidate_prompt.txt; offline binding to a specific candidate version is not provable (EXP-05 plan, §0). Numbers are partial."
+  },
+  "gate_decision": {
+    "passed": false,
+    "criteria_checks": {
+      "cheap_replacement_all_modules": "partial",
+      "tier4b_structured_output_19x_cheaper": true,
+      "semantic_opt_tier4b_meets_0.9949": false,
+      "baseline_gemini_kept_on_text/visual_tasks": true
+    },
+    "notes": "Дешёвые OpenRouter-модели подтверждены для structured output (Tier 4B/4C) и ряда стадий ingestion (manifest/decompose/T3.5) и ReAct-router (частично). Text/table/visual/OCSR остаются на gemini-3.8-flash. Semantic-optimization Tier 4B — замена не подтверждена (потолок вывода)."
+  },
+  "statistical_tests": {
+    "test_name": null,
+    "p_value": null
+  }
+}

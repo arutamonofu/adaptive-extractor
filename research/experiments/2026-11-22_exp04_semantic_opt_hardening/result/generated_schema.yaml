@@ -1,0 +1,60 @@
+name: benzimidazole_antibiotics
+compare_fields:
+- compound_id
+- smiles
+- target_type
+- target_relation
+- target_value
+- target_units
+- bacteria
+float_tolerance: 0.05
+fields:
+  compound_id:
+    type: str
+    description: Study-specific alphanumeric identifier for benzimidazole antibiotic
+      compounds (e.g., 6a, 35d, 107a)
+    required: false
+  smiles:
+    type: str
+    description: SMILES notation representing the complete molecular structure of
+      benzimidazole antibiotic compounds, including stereochemistry and counterions
+    required: false
+    validators:
+    - smiles
+  target_type:
+    type: str
+    description: 'Type of antimicrobial potency measurement: MIC (Minimum Inhibitory
+      Concentration) or pMIC'
+    required: false
+    choices:
+    - MIC
+    - pMIC
+  target_relation:
+    type: str
+    description: Mathematical relation operator between compound and MIC value (=,
+      <, >, <=, >=)
+    required: false
+    default: '='
+    choices:
+    - '='
+    - <
+    - '>'
+    - <=
+    - '>='
+  target_value:
+    type: str
+    description: Numerical MIC value, potentially with standard deviation (e.g., 4
+      ± 0.58) or as arithmetic mean of ranges
+    required: false
+  target_units:
+    type: str
+    description: Concentration units for MIC measurements (e.g., µg/mL, mM, µmol mL-1)
+    required: false
+  bacteria:
+    type: str
+    description: Bacterial strain names for Staphylococcus aureus and Escherichia
+      coli species, preserving source format including abbreviations, strain codes,
+      and culture collection identifiers
+    required: false
+tools:
+- assemble_markush_smiles

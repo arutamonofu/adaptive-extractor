@@ -1,0 +1,190 @@
+{
+  "experiment": "2026-11-22_exp01_ingestion_and_ocsr",
+  "protocol_ref": "EXP-01",
+  "date": "2026-11-22",
+  "status": "blocked_api_credits_402",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-21_benzimidazole_post_audit_eval",
+  "domain": "benzimidazole_antibiotics",
+  "split": "train_and_val_subset",
+  "n_docs": 6,
+  "n_gt_rows": 401,
+  "exp01a_ingestion": {
+    "corpus_docs": [
+      "j.bmcl.2018.03.046",
+      "j.ejmech.2020.112996",
+      "RJC.2023.1638382",
+      "j.ejmech.2019.03.026",
+      "j.ejmech.2016.01.052",
+      "ja.2017.70"
+    ],
+    "total_pdf_pages": 76,
+    "arms": {
+      "Ing-Fast-Sync": {
+        "status": "completed_stage1_2",
+        "ingestion_dir": "data/interim/exp01a_fast_sync",
+        "wall_s_stage1_2": 330.944,
+        "parse_text_calls": 84,
+        "parse_text_http_calls_est": 84,
+        "files_api_upload_delete_calls": 0,
+        "silent_error_retries": 8,
+        "total_placeholders": 72,
+        "total_manifest_visuals": 58,
+        "unlabeled_orphans": 0,
+        "prompt_tokens_total": 174255,
+        "cached_tokens_total": 20569,
+        "candidates_tokens_total": 118731,
+        "reasoning_tokens_total": 11458,
+        "cost_usd_stage1_2": 0.60733,
+        "cost_usd_per_doc_stage1_2": 0.101222
+      },
+      "Ing-Baseline": {
+        "status": "partial_2_of_6_docs_blocked_402",
+        "ingestion_dir": "data/interim/exp01a_baseline",
+        "completed_docs": [
+          "j.bmcl.2018.03.046",
+          "j.ejmech.2020.112996"
+        ],
+        "paired_2doc_comparison": {
+          "j.bmcl.2018.03.046": {
+            "baseline_parse_text_http_est": 24,
+            "fast_sync_parse_text_http": 9,
+            "baseline_classify_prompt_tokens": 6860,
+            "fast_sync_classify_prompt_tokens": 4251,
+            "classify_prompt_token_delta_pct": -38.03
+          },
+          "j.ejmech.2020.112996": {
+            "baseline_parse_text_http_est": 33,
+            "fast_sync_parse_text_http": 13,
+            "baseline_classify_prompt_tokens": 7888,
+            "fast_sync_classify_prompt_tokens": 4744,
+            "classify_prompt_token_delta_pct": -39.86
+          }
+        }
+      },
+      "Ing-Medium-Prose": {
+        "status": "completed",
+        "n_pages": 10,
+        "distortions_count": 2,
+        "distorted_pages": [
+          "RJC.2023.1638382:p5",
+          "j.ejmech.2019.03.026:p1"
+        ],
+        "total_med_prompt_tokens": 11450,
+        "decision_keep_parse_text_high": true
+      },
+      "Ing-Batch": {
+        "status": "not_run_blocked_402"
+      }
+    },
+    "control_extraction": {
+      "status": "not_run_blocked_402"
+    }
+  },
+  "exp01b_ocsr": {
+    "isolated_30": {
+      "status": "completed",
+      "n_structures": 30,
+      "arms": [
+        {
+          "arm": "OCSR-Baseline",
+          "valid_share": 1.0,
+          "exact_count": 27,
+          "exact_share": 0.9,
+          "c16_exact": 1,
+          "c16_total": 3,
+          "avg_cpu_overhead_ms": 0.998,
+          "false_retries": 0,
+          "false_retry_rate": 0.0,
+          "usage": {
+            "calls": 30,
+            "prompt_tokens": 39534,
+            "cached_tokens": 11598,
+            "candidates_tokens": 1468,
+            "reasoning_tokens": 23650,
+            "total_tokens": 64652
+          }
+        },
+        {
+          "arm": "OCSR-GTR",
+          "valid_share": 1.0,
+          "exact_count": 27,
+          "exact_share": 0.9,
+          "c16_exact": 0,
+          "c16_total": 3,
+          "avg_cpu_overhead_ms": 1.014,
+          "false_retries": 0,
+          "false_retry_rate": 0.0,
+          "usage": {
+            "calls": 30,
+            "prompt_tokens": 42264,
+            "cached_tokens": 10034,
+            "candidates_tokens": 1456,
+            "reasoning_tokens": 25008,
+            "total_tokens": 68728
+          }
+        },
+        {
+          "arm": "OCSR-Oracle",
+          "valid_share": 1.0,
+          "exact_count": 29,
+          "exact_share": 0.966667,
+          "c16_exact": 2,
+          "c16_total": 3,
+          "avg_cpu_overhead_ms": 10.629,
+          "false_retries": 0,
+          "false_retry_rate": 0.0,
+          "usage": {
+            "calls": 30,
+            "prompt_tokens": 42264,
+            "cached_tokens": 7179,
+            "candidates_tokens": 1457,
+            "reasoning_tokens": 23947,
+            "total_tokens": 67668
+          }
+        }
+      ]
+    },
+    "problematic_8_visuals": {
+      "status": "completed",
+      "n_visuals": 8,
+      "rjc_cid15_oracle_status": "mismatch_flagged",
+      "rjc_cid15_legacy_bug_caught": true,
+      "ejmech_2019_scheme1_37_pyridin4yl_fixed": true,
+      "ja_2017_70_fig2_12_exact_match": true
+    },
+    "markush_single_example": {
+      "status": "completed",
+      "passed": true,
+      "provenance_status": "verified_exact",
+      "expected_inchikey": "DAJRSUVHNOQEIA-UHFFFAOYSA-N",
+      "predicted_inchikey": "DAJRSUVHNOQEIA-UHFFFAOYSA-N"
+    }
+  },
+  "runs": [],
+  "statistical_tests": {
+    "test_name": "wilcoxon_signed_rank",
+    "comparison": "ing_fast_sync_vs_baseline",
+    "p_value": null,
+    "p_holm": null,
+    "statistically_significant": null
+  },
+  "gate_decision": {
+    "passed": false,
+    "criteria_checks": {
+      "exp01b_30_accuracy_ge_0_9667": true,
+      "exp01b_cpu_lt_50ms": true,
+      "exp01b_false_retries_0pct": true,
+      "exp01b_rjc_cid15_flagged_or_fixed": true,
+      "exp01b_markush_verified_exact": true,
+      "exp01a_medium_prose_decision": true,
+      "exp01a_parse_text_inline_no_upload_delete": true,
+      "exp01a_unlabeled_orphans_0": true,
+      "exp01a_baseline_vs_fast_cost_minus_30pct": null,
+      "exp01a_batch_cost_minus_45pct": null,
+      "exp01a_t3_t4_vlm_reduction_ge_40pct": null,
+      "exp01a_control_extract_delta_f1_ge_0": null
+    },
+    "notes": "EXP-01B completed and passed all OCSR Gate 1 thresholds (29/30 = 0.9667, 10.63 ms CPU, 0% false retries, RJC cid=15 mismatch_flagged). EXP-01A completed Ing-Fast-Sync (all 6 PDFs, Stage 1-2), Ing-Medium-Prose (10 pages, 2/10 distorted -> keep high), and 2/6 Ing-Baseline PDFs before Gemini API prepayment credits depleted (HTTP 402 RESOURCE_EXHAUSTED). Full Gate 1 sign-off requires topping up AI Studio credits and resuming Ing-Baseline, Ing-Batch, and control ExtractionGraph."
+  }
+}

@@ -1,0 +1,2032 @@
+{
+  "experiment": "2026-11-22_exp05_track55_structured_extraction",
+  "protocol_ref": "EXP-05 Track 5.5 (Tier 4B + Tier 4C)",
+  "date": "2026-11-23",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-22_exp02_extraction_graph_efficiency",
+  "domain": "benzimidazole_antibiotics",
+  "split": "val (6 docs / 314 GT rows; canary = 2 hard docs / 223 GT rows)",
+  "n_docs": 6,
+  "n_gt_rows": 314,
+  "gate_criteria": {
+    "micro_f1_semantic_min": 0.9923,
+    "baseline_micro_f1_semantic": 0.99727,
+    "baseline_4b_cost_per_doc_2026": 0.069544,
+    "baseline_4a_4b_cost_per_doc_2026": 0.094118,
+    "target_4a_4b_cost_per_doc_max": 0.0474
+  },
+  "runs": [
+    {
+      "arm": "deepseek_v41_flash_low",
+      "provider": "api",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "prompt_cache_options": null,
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "n_gt_rows": 314,
+      "status": "completed",
+      "doc_errors": {},
+      "notes": "DeepSeek V4.1 Flash ($0.0498/$0.1992 per 1M) via OpenRouter.",
+      "quality": {
+        "micro_f1_semantic": 0.993351,
+        "macro_f1_semantic": 0.982702,
+        "micro_f1_strict": 0.991531,
+        "macro_f1_strict": 0.969097,
+        "precision_semantic": 0.996739,
+        "recall_semantic": 0.990446,
+        "soft_matched_fields_count": 306,
+        "per_field_f1_semantic": {
+          "bacteria": 0.996805,
+          "compound_id": 0.977636,
+          "smiles": 0.99361,
+          "target_relation": 0.996805,
+          "target_type": 0.996805,
+          "target_units": 0.996805,
+          "target_value": 0.996805
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.984026,
+          "compound_id": 0.977636,
+          "smiles": 0.99361,
+          "target_relation": 0.996805,
+          "target_type": 0.996805,
+          "target_units": 0.996805,
+          "target_value": 0.996805
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 295.22,
+        "latency_per_doc_s": 49.203,
+        "calls_total": 6,
+        "retries_total": 0,
+        "prompt_tokens": 130449,
+        "cached_tokens": 3328,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.025512,
+        "completion_tokens": 74231,
+        "reasoning_tokens": 39392,
+        "billable_output_tokens": 74231,
+        "agent_draft_tokens": 0,
+        "judge_calls": 2,
+        "judge_tokens": 3421,
+        "judge_cost_usd": 0.000457,
+        "cost_usd_total": 0.021121,
+        "cost_usd_per_doc": 0.00352,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.021121,
+        "cost_2027_usd_per_doc": 0.00352,
+        "combined_with_baseline_4a_per_doc_2026": 0.028094
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 16,
+          "gts": 16,
+          "soft_matched_fields_count": 14,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.912088,
+          "strict_f1": 0.912088,
+          "precision_semantic": 0.988095,
+          "recall_semantic": 0.846939,
+          "preds": 12,
+          "gts": 14,
+          "soft_matched_fields_count": 4,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.857143,
+            "smiles": 0.785714,
+            "target_type": 0.857143,
+            "target_relation": 0.857143,
+            "target_value": 0.857143,
+            "target_units": 0.857143,
+            "bacteria": 0.857143
+          },
+          "fields_strict": {
+            "compound_id": 0.857143,
+            "smiles": 0.785714,
+            "target_type": 0.857143,
+            "target_relation": 0.857143,
+            "target_value": 0.857143,
+            "target_units": 0.857143,
+            "bacteria": 0.857143
+          }
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 144,
+          "gts": 144,
+          "soft_matched_fields_count": 144,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 79,
+          "gts": 79,
+          "soft_matched_fields_count": 79,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.918367,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 7,
+          "gts": 7,
+          "soft_matched_fields_count": 11,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.428571
+          }
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 0.984127,
+          "strict_f1": 0.984127,
+          "precision_semantic": 0.984127,
+          "recall_semantic": 0.984127,
+          "preds": 54,
+          "gts": 54,
+          "soft_matched_fields_count": 54,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "deepseek_v41_flash_medium",
+      "provider": "api",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "medium"
+      },
+      "prompt_cache_options": null,
+      "docs_mode": "canary",
+      "docs_evaluated": [
+        "RJC.2023.1638382"
+      ],
+      "n_docs": 1,
+      "n_gt_rows": 14,
+      "status": "completed",
+      "doc_errors": {},
+      "notes": "Follow-up probe (2026-11-23): effort-matched control vs baseline medium; see PREREG_deepseek_medium_probe.md.",
+      "quality": {
+        "micro_f1_semantic": 0.912088,
+        "macro_f1_semantic": 0.912088,
+        "micro_f1_strict": 0.912088,
+        "macro_f1_strict": 0.912088,
+        "precision_semantic": 0.988095,
+        "recall_semantic": 0.846939,
+        "soft_matched_fields_count": 4,
+        "per_field_f1_semantic": {
+          "bacteria": 0.923077,
+          "compound_id": 0.923077,
+          "smiles": 0.846154,
+          "target_relation": 0.923077,
+          "target_type": 0.923077,
+          "target_units": 0.923077,
+          "target_value": 0.923077
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.923077,
+          "compound_id": 0.923077,
+          "smiles": 0.846154,
+          "target_relation": 0.923077,
+          "target_type": 0.923077,
+          "target_units": 0.923077,
+          "target_value": 0.923077
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 43.703,
+        "latency_per_doc_s": 43.703,
+        "calls_total": 1,
+        "retries_total": 0,
+        "prompt_tokens": 11006,
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 6352,
+        "reasoning_tokens": 5334,
+        "billable_output_tokens": 6352,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "judge_cost_usd": 0.0,
+        "cost_usd_total": 0.001813,
+        "cost_usd_per_doc": 0.001813,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.001813,
+        "cost_2027_usd_per_doc": 0.001813,
+        "combined_with_baseline_4a_per_doc_2026": 0.026387
+      },
+      "doc_scores": {
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.912088,
+          "strict_f1": 0.912088,
+          "precision_semantic": 0.988095,
+          "recall_semantic": 0.846939,
+          "preds": 12,
+          "gts": 14,
+          "soft_matched_fields_count": 4,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.857143,
+            "smiles": 0.785714,
+            "target_type": 0.857143,
+            "target_relation": 0.857143,
+            "target_value": 0.857143,
+            "target_units": 0.857143,
+            "bacteria": 0.857143
+          },
+          "fields_strict": {
+            "compound_id": 0.857143,
+            "smiles": 0.785714,
+            "target_type": 0.857143,
+            "target_relation": 0.857143,
+            "target_value": 0.857143,
+            "target_units": 0.857143,
+            "bacteria": 0.857143
+          }
+        }
+      }
+    },
+    {
+      "arm": "exp02_arm_b_v2_baseline",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "medium",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "n_gt_rows": 314,
+      "status": "completed",
+      "reused_from": "research/experiments/2026-11-22_exp02_extraction_graph_efficiency",
+      "exp02_reported_semantic_micro_f1": 0.99727,
+      "quality": {
+        "micro_f1_semantic": 0.99727,
+        "macro_f1_semantic": 0.997354,
+        "micro_f1_strict": 0.994995,
+        "macro_f1_strict": 0.983448,
+        "precision_semantic": 0.99727,
+        "recall_semantic": 0.99727,
+        "soft_matched_fields_count": 310,
+        "per_field_f1_semantic": {
+          "bacteria": 1.0,
+          "compound_id": 0.980892,
+          "smiles": 1.0,
+          "target_relation": 1.0,
+          "target_type": 1.0,
+          "target_units": 1.0,
+          "target_value": 1.0
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.984076,
+          "compound_id": 0.980892,
+          "smiles": 1.0,
+          "target_relation": 1.0,
+          "target_type": 1.0,
+          "target_units": 1.0,
+          "target_value": 1.0
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 627.902,
+        "latency_per_doc_s": 104.65,
+        "calls_total": 6,
+        "retries_total": 0,
+        "prompt_tokens": 135497,
+        "cached_tokens": 25145,
+        "cache_hit_rate": 0.185576,
+        "completion_tokens": 88697,
+        "reasoning_tokens": 56568,
+        "billable_output_tokens": 88697,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "cost_usd_total": 0.417264,
+        "cost_usd_per_doc": 0.069544,
+        "cost_2027_usd_total": 0.834527,
+        "cost_2027_usd_per_doc": 0.139088
+      },
+      "baseline_4a_reference": {
+        "latency_total_s": 60.821,
+        "cost_usd_total": 0.147442,
+        "cost_usd_per_doc": 0.024574,
+        "cost_2027_usd_total": 0.294883,
+        "cost_2027_usd_per_doc": 0.049147,
+        "combined_4a_4b_cost_per_doc_2026": 0.094118,
+        "combined_4a_4b_cost_per_doc_2027": 0.188235
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 16,
+          "gts": 16,
+          "soft_matched_fields_count": 14,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 14,
+          "gts": 14,
+          "soft_matched_fields_count": 7,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 144,
+          "gts": 144,
+          "soft_matched_fields_count": 144,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.998192,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 79,
+          "gts": 79,
+          "soft_matched_fields_count": 80,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.987342
+          }
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.918367,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 7,
+          "gts": 7,
+          "soft_matched_fields_count": 11,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.428571
+          }
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 0.984127,
+          "strict_f1": 0.984127,
+          "precision_semantic": 0.984127,
+          "recall_semantic": 0.984127,
+          "preds": 54,
+          "gts": 54,
+          "soft_matched_fields_count": 54,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "gemini_37_flash_low",
+      "provider": "gemini",
+      "model": "gemini-3.7-flash",
+      "thinking_level": "low",
+      "reasoning": null,
+      "prompt_cache_options": null,
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "n_gt_rows": 314,
+      "status": "completed",
+      "doc_errors": {},
+      "notes": "Gemini 3.7 Flash candidate with thinking_level=low.",
+      "quality": {
+        "micro_f1_semantic": 0.982626,
+        "macro_f1_semantic": 0.984388,
+        "micro_f1_strict": 0.904234,
+        "macro_f1_strict": 0.936383,
+        "precision_semantic": 0.985861,
+        "recall_semantic": 0.979527,
+        "soft_matched_fields_count": 474,
+        "per_field_f1_semantic": {
+          "bacteria": 0.920128,
+          "compound_id": 0.977636,
+          "smiles": 0.99361,
+          "target_relation": 0.996805,
+          "target_type": 0.996805,
+          "target_units": 0.996805,
+          "target_value": 0.996805
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.370607,
+          "compound_id": 0.977636,
+          "smiles": 0.99361,
+          "target_relation": 0.996805,
+          "target_type": 0.996805,
+          "target_units": 0.996805,
+          "target_value": 0.996805
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 278.498,
+        "latency_per_doc_s": 46.416,
+        "calls_total": 6,
+        "retries_total": 0,
+        "prompt_tokens": 135497,
+        "cached_tokens": 123649,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.912559,
+        "completion_tokens": 31392,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 31392,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "judge_cost_usd": 0.0,
+        "cost_usd_total": 0.13588,
+        "cost_usd_per_doc": 0.022647,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.271759,
+        "cost_2027_usd_per_doc": 0.045293,
+        "combined_with_baseline_4a_per_doc_2026": 0.047221
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 16,
+          "gts": 16,
+          "soft_matched_fields_count": 14,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.952381,
+          "strict_f1": 0.952381,
+          "precision_semantic": 0.989011,
+          "recall_semantic": 0.918367,
+          "preds": 13,
+          "gts": 14,
+          "soft_matched_fields_count": 5,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.928571,
+            "smiles": 0.857143,
+            "target_type": 0.928571,
+            "target_relation": 0.928571,
+            "target_value": 0.928571,
+            "target_units": 0.928571,
+            "bacteria": 0.928571
+          },
+          "fields_strict": {
+            "compound_id": 0.928571,
+            "smiles": 0.857143,
+            "target_type": 0.928571,
+            "target_relation": 0.928571,
+            "target_value": 0.928571,
+            "target_units": 0.928571,
+            "bacteria": 0.928571
+          }
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 0.97619,
+          "strict_f1": 0.857143,
+          "precision_semantic": 0.97619,
+          "recall_semantic": 0.97619,
+          "preds": 144,
+          "gts": 144,
+          "soft_matched_fields_count": 264,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.833333
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.0
+          }
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 0.993631,
+          "strict_f1": 0.906278,
+          "precision_semantic": 1.0,
+          "recall_semantic": 0.987342,
+          "preds": 78,
+          "gts": 79,
+          "soft_matched_fields_count": 126,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.987342,
+            "smiles": 0.987342,
+            "target_type": 0.987342,
+            "target_relation": 0.987342,
+            "target_value": 0.987342,
+            "target_units": 0.987342,
+            "bacteria": 0.987342
+          },
+          "fields_strict": {
+            "compound_id": 0.987342,
+            "smiles": 0.987342,
+            "target_type": 0.987342,
+            "target_relation": 0.987342,
+            "target_value": 0.987342,
+            "target_units": 0.987342,
+            "bacteria": 0.379747
+          }
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.918367,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 7,
+          "gts": 7,
+          "soft_matched_fields_count": 11,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.428571
+          }
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 0.984127,
+          "strict_f1": 0.984127,
+          "precision_semantic": 0.984127,
+          "recall_semantic": 0.984127,
+          "preds": 54,
+          "gts": 54,
+          "soft_matched_fields_count": 54,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "gemini_38_flash_low",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "low",
+      "reasoning": null,
+      "prompt_cache_options": null,
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "n_gt_rows": 314,
+      "status": "completed",
+      "doc_errors": {},
+      "notes": "Production baseline model with reduced thinking_level=low.",
+      "quality": {
+        "micro_f1_semantic": 0.995213,
+        "macro_f1_semantic": 0.994592,
+        "micro_f1_strict": 0.971416,
+        "macro_f1_strict": 0.966428,
+        "precision_semantic": 0.996815,
+        "recall_semantic": 0.993631,
+        "soft_matched_fields_count": 355,
+        "per_field_f1_semantic": {
+          "bacteria": 0.998405,
+          "compound_id": 0.979266,
+          "smiles": 0.995215,
+          "target_relation": 0.998405,
+          "target_type": 0.998405,
+          "target_units": 0.998405,
+          "target_value": 0.998405
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.832536,
+          "compound_id": 0.979266,
+          "smiles": 0.995215,
+          "target_relation": 0.998405,
+          "target_type": 0.998405,
+          "target_units": 0.998405,
+          "target_value": 0.998405
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 303.58,
+        "latency_per_doc_s": 50.597,
+        "calls_total": 6,
+        "retries_total": 0,
+        "prompt_tokens": 135497,
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 35191,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 35191,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "judge_cost_usd": 0.0,
+        "cost_usd_total": 0.233589,
+        "cost_usd_per_doc": 0.038932,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.467178,
+        "cost_2027_usd_per_doc": 0.077863,
+        "combined_with_baseline_4a_per_doc_2026": 0.063506
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 16,
+          "gts": 16,
+          "soft_matched_fields_count": 14,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.989796,
+          "strict_f1": 0.989796,
+          "precision_semantic": 0.989796,
+          "recall_semantic": 0.989796,
+          "preds": 14,
+          "gts": 14,
+          "soft_matched_fields_count": 6,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 0.928571,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 0.928571,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 144,
+          "gts": 144,
+          "soft_matched_fields_count": 144,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 0.993631,
+          "strict_f1": 0.906278,
+          "precision_semantic": 1.0,
+          "recall_semantic": 0.987342,
+          "preds": 78,
+          "gts": 79,
+          "soft_matched_fields_count": 126,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.987342,
+            "smiles": 0.987342,
+            "target_type": 0.987342,
+            "target_relation": 0.987342,
+            "target_value": 0.987342,
+            "target_units": 0.987342,
+            "bacteria": 0.987342
+          },
+          "fields_strict": {
+            "compound_id": 0.987342,
+            "smiles": 0.987342,
+            "target_type": 0.987342,
+            "target_relation": 0.987342,
+            "target_value": 0.987342,
+            "target_units": 0.987342,
+            "bacteria": 0.379747
+          }
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.918367,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 7,
+          "gts": 7,
+          "soft_matched_fields_count": 11,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.428571
+          }
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 0.984127,
+          "strict_f1": 0.984127,
+          "precision_semantic": 0.984127,
+          "recall_semantic": 0.984127,
+          "preds": 54,
+          "gts": 54,
+          "soft_matched_fields_count": 54,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "gemini_38_flash_medium",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "medium",
+      "reasoning": null,
+      "prompt_cache_options": null,
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "RJC.2023.1638382"
+      ],
+      "n_docs": 1,
+      "n_gt_rows": 14,
+      "status": "completed",
+      "doc_errors": {},
+      "notes": "Live control (2026-11-23): production baseline model+effort on this harness, replacing the EXP-02 replay.",
+      "quality": {
+        "micro_f1_semantic": 1.0,
+        "macro_f1_semantic": 1.0,
+        "micro_f1_strict": 1.0,
+        "macro_f1_strict": 1.0,
+        "precision_semantic": 1.0,
+        "recall_semantic": 1.0,
+        "soft_matched_fields_count": 7,
+        "per_field_f1_semantic": {
+          "bacteria": 1.0,
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_relation": 1.0,
+          "target_type": 1.0,
+          "target_units": 1.0,
+          "target_value": 1.0
+        },
+        "per_field_f1_strict": {
+          "bacteria": 1.0,
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_relation": 1.0,
+          "target_type": 1.0,
+          "target_units": 1.0,
+          "target_value": 1.0
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 153.353,
+        "latency_per_doc_s": 153.353,
+        "calls_total": 1,
+        "retries_total": 0,
+        "prompt_tokens": 10631,
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 21115,
+        "reasoning_tokens": 19437,
+        "billable_output_tokens": 21115,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "judge_cost_usd": 0.0,
+        "cost_usd_total": 0.087154,
+        "cost_usd_per_doc": 0.087154,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.174309,
+        "cost_2027_usd_per_doc": 0.174309,
+        "combined_with_baseline_4a_per_doc_2026": 0.111728
+      },
+      "doc_scores": {
+        "RJC.2023.1638382": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 14,
+          "gts": 14,
+          "soft_matched_fields_count": 7,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "gemini_38_flash_minimal",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "minimal",
+      "reasoning": null,
+      "prompt_cache_options": null,
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "n_gt_rows": 314,
+      "status": "failed",
+      "doc_errors": {
+        "acsomega.2c06142": "GoogleInvalidRequestError: Error calling model 'gemini-3.8-flash' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Thinking level MINIMAL is not supported for this model. Please retry with other thinking level.', 'status': 'INVALID_ARGUMENT'}}",
+        "RJC.2023.1638382": "GoogleInvalidRequestError: Error calling model 'gemini-3.8-flash' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Thinking level MINIMAL is not supported for this model. Please retry with other thinking level.', 'status': 'INVALID_ARGUMENT'}}",
+        "j.bmcl.2018.03.046": "GoogleInvalidRequestError: Error calling model 'gemini-3.8-flash' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Thinking level MINIMAL is not supported for this model. Please retry with other thinking level.', 'status': 'INVALID_ARGUMENT'}}",
+        "j.ejmech.2020.112996": "GoogleInvalidRequestError: Error calling model 'gemini-3.8-flash' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Thinking level MINIMAL is not supported for this model. Please retry with other thinking level.', 'status': 'INVALID_ARGUMENT'}}",
+        "s41598-022-21435-6": "GoogleInvalidRequestError: Error calling model 'gemini-3.8-flash' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Thinking level MINIMAL is not supported for this model. Please retry with other thinking level.', 'status': 'INVALID_ARGUMENT'}}",
+        "j.ejmech.2019.03.026": "GoogleInvalidRequestError: Error calling model 'gemini-3.8-flash' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Thinking level MINIMAL is not supported for this model. Please retry with other thinking level.', 'status': 'INVALID_ARGUMENT'}}"
+      },
+      "notes": "Gemini 3.8 Flash with thinking_level=minimal.",
+      "quality": {
+        "micro_f1_semantic": 0.0,
+        "macro_f1_semantic": 0.0,
+        "micro_f1_strict": 0.0,
+        "macro_f1_strict": 0.0,
+        "precision_semantic": 0.0,
+        "recall_semantic": 0.0,
+        "soft_matched_fields_count": 0,
+        "per_field_f1_semantic": {
+          "bacteria": 0.0,
+          "compound_id": 0.0,
+          "smiles": 0.0,
+          "target_relation": 0.0,
+          "target_type": 0.0,
+          "target_units": 0.0,
+          "target_value": 0.0
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.0,
+          "compound_id": 0.0,
+          "smiles": 0.0,
+          "target_relation": 0.0,
+          "target_type": 0.0,
+          "target_units": 0.0,
+          "target_value": 0.0
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 2.774,
+        "latency_per_doc_s": 0.462,
+        "calls_total": 0,
+        "retries_total": 6,
+        "prompt_tokens": 0,
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 0,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 0,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "judge_cost_usd": 0.0,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.0,
+        "cost_2027_usd_per_doc": 0.0,
+        "combined_with_baseline_4a_per_doc_2026": 0.024574
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 0.0,
+          "strict_f1": 0.0,
+          "precision_semantic": 0.0,
+          "recall_semantic": 0.0,
+          "preds": 0,
+          "gts": 16,
+          "soft_matched_fields_count": 0,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          },
+          "fields_strict": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          }
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.0,
+          "strict_f1": 0.0,
+          "precision_semantic": 0.0,
+          "recall_semantic": 0.0,
+          "preds": 0,
+          "gts": 14,
+          "soft_matched_fields_count": 0,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          },
+          "fields_strict": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          }
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 0.0,
+          "strict_f1": 0.0,
+          "precision_semantic": 0.0,
+          "recall_semantic": 0.0,
+          "preds": 0,
+          "gts": 144,
+          "soft_matched_fields_count": 0,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          },
+          "fields_strict": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          }
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 0.0,
+          "strict_f1": 0.0,
+          "precision_semantic": 0.0,
+          "recall_semantic": 0.0,
+          "preds": 0,
+          "gts": 79,
+          "soft_matched_fields_count": 0,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          },
+          "fields_strict": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          }
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 0.0,
+          "strict_f1": 0.0,
+          "precision_semantic": 0.0,
+          "recall_semantic": 0.0,
+          "preds": 0,
+          "gts": 7,
+          "soft_matched_fields_count": 0,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          },
+          "fields_strict": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          }
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 0.0,
+          "strict_f1": 0.0,
+          "precision_semantic": 0.0,
+          "recall_semantic": 0.0,
+          "preds": 0,
+          "gts": 54,
+          "soft_matched_fields_count": 0,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          },
+          "fields_strict": {
+            "compound_id": 0.0,
+            "smiles": 0.0,
+            "target_type": 0.0,
+            "target_relation": 0.0,
+            "target_value": 0.0,
+            "target_units": 0.0,
+            "bacteria": 0.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "gpt_6_luna_low",
+      "provider": "api",
+      "model": "openai/gpt-6-luna",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "prompt_cache_options": {
+        "mode": "explicit"
+      },
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "n_gt_rows": 314,
+      "status": "completed",
+      "doc_errors": {},
+      "notes": "OpenAI GPT-6 Luna ($0.10/$0.50 per 1M, explicit cache avoids write surcharge).",
+      "quality": {
+        "micro_f1_semantic": 0.718191,
+        "macro_f1_semantic": 0.882702,
+        "micro_f1_strict": 0.662686,
+        "macro_f1_strict": 0.807011,
+        "precision_semantic": 0.996739,
+        "recall_semantic": 0.646497,
+        "soft_matched_fields_count": 316,
+        "per_field_f1_semantic": {
+          "bacteria": 0.787645,
+          "compound_id": 0.764479,
+          "smiles": 0.783784,
+          "target_relation": 0.787645,
+          "target_type": 0.787645,
+          "target_units": 0.787645,
+          "target_value": 0.787645
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.316602,
+          "compound_id": 0.764479,
+          "smiles": 0.783784,
+          "target_relation": 0.787645,
+          "target_type": 0.787645,
+          "target_units": 0.787645,
+          "target_value": 0.787645
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 181.096,
+        "latency_per_doc_s": 30.183,
+        "calls_total": 6,
+        "retries_total": 0,
+        "prompt_tokens": 135634,
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 19146,
+        "reasoning_tokens": 1699,
+        "billable_output_tokens": 19146,
+        "agent_draft_tokens": 0,
+        "judge_calls": 3,
+        "judge_tokens": 11266,
+        "judge_cost_usd": 0.001646,
+        "cost_usd_total": 0.023136,
+        "cost_usd_per_doc": 0.003856,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.023136,
+        "cost_2027_usd_per_doc": 0.003856,
+        "combined_with_baseline_4a_per_doc_2026": 0.02843
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.857143,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 16,
+          "gts": 16,
+          "soft_matched_fields_count": 30,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.0
+          }
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.912088,
+          "strict_f1": 0.912088,
+          "precision_semantic": 0.988095,
+          "recall_semantic": 0.846939,
+          "preds": 12,
+          "gts": 14,
+          "soft_matched_fields_count": 4,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.857143,
+            "smiles": 0.785714,
+            "target_type": 0.857143,
+            "target_relation": 0.857143,
+            "target_value": 0.857143,
+            "target_units": 0.857143,
+            "bacteria": 0.857143
+          },
+          "fields_strict": {
+            "compound_id": 0.857143,
+            "smiles": 0.785714,
+            "target_type": 0.857143,
+            "target_relation": 0.857143,
+            "target_value": 0.857143,
+            "target_units": 0.857143,
+            "bacteria": 0.857143
+          }
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 0.4,
+          "strict_f1": 0.4,
+          "precision_semantic": 1.0,
+          "recall_semantic": 0.25,
+          "preds": 36,
+          "gts": 144,
+          "soft_matched_fields_count": 36,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.25,
+            "smiles": 0.25,
+            "target_type": 0.25,
+            "target_relation": 0.25,
+            "target_value": 0.25,
+            "target_units": 0.25,
+            "bacteria": 0.25
+          },
+          "fields_strict": {
+            "compound_id": 0.25,
+            "smiles": 0.25,
+            "target_type": 0.25,
+            "target_relation": 0.25,
+            "target_value": 0.25,
+            "target_units": 0.25,
+            "bacteria": 0.25
+          }
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.913201,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 79,
+          "gts": 79,
+          "soft_matched_fields_count": 127,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.392405
+          }
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.918367,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 7,
+          "gts": 7,
+          "soft_matched_fields_count": 11,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.428571
+          }
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 0.984127,
+          "strict_f1": 0.84127,
+          "precision_semantic": 0.984127,
+          "recall_semantic": 0.984127,
+          "preds": 54,
+          "gts": 54,
+          "soft_matched_fields_count": 108,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "qwen_38_flash_reasoning",
+      "provider": "api",
+      "model": "qwen/qwen3.8-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "enabled": true
+      },
+      "prompt_cache_options": null,
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "n_gt_rows": 314,
+      "status": "completed",
+      "doc_errors": {},
+      "notes": "Qwen 3.8 Flash ($0.15/$0.47 per 1M) with reasoning enabled.",
+      "quality": {
+        "micro_f1_semantic": 0.996815,
+        "macro_f1_semantic": 0.995654,
+        "micro_f1_strict": 0.971793,
+        "macro_f1_strict": 0.971543,
+        "precision_semantic": 0.996815,
+        "recall_semantic": 0.996815,
+        "soft_matched_fields_count": 359,
+        "per_field_f1_semantic": {
+          "bacteria": 1.0,
+          "compound_id": 0.980892,
+          "smiles": 0.996815,
+          "target_relation": 1.0,
+          "target_type": 1.0,
+          "target_units": 1.0,
+          "target_value": 1.0
+        },
+        "per_field_f1_strict": {
+          "bacteria": 0.824841,
+          "compound_id": 0.980892,
+          "smiles": 0.996815,
+          "target_relation": 1.0,
+          "target_type": 1.0,
+          "target_units": 1.0,
+          "target_value": 1.0
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 1512.863,
+        "latency_per_doc_s": 252.144,
+        "calls_total": 6,
+        "retries_total": 0,
+        "prompt_tokens": 145608,
+        "cached_tokens": 15360,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.105489,
+        "completion_tokens": 117553,
+        "reasoning_tokens": 82957,
+        "billable_output_tokens": 117553,
+        "agent_draft_tokens": 0,
+        "judge_calls": 1,
+        "judge_tokens": 1369,
+        "judge_cost_usd": 0.00018,
+        "cost_usd_total": 0.075033,
+        "cost_usd_per_doc": 0.012506,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.075033,
+        "cost_2027_usd_per_doc": 0.012506,
+        "combined_with_baseline_4a_per_doc_2026": 0.03708
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 16,
+          "gts": 16,
+          "soft_matched_fields_count": 14,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.989796,
+          "strict_f1": 0.989796,
+          "precision_semantic": 0.989796,
+          "recall_semantic": 0.989796,
+          "preds": 14,
+          "gts": 14,
+          "soft_matched_fields_count": 6,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 0.928571,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 0.928571,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 144,
+          "gts": 144,
+          "soft_matched_fields_count": 144,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.998192,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 79,
+          "gts": 79,
+          "soft_matched_fields_count": 80,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.987342
+          }
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 7,
+          "gts": 7,
+          "soft_matched_fields_count": 7,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          }
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 0.984127,
+          "strict_f1": 0.84127,
+          "precision_semantic": 0.984127,
+          "recall_semantic": 0.984127,
+          "preds": 54,
+          "gts": 54,
+          "soft_matched_fields_count": 108,
+          "duplicate_of_tp": 0,
+          "fields_semantic": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 1.0
+          },
+          "fields_strict": {
+            "compound_id": 0.888889,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.0
+          }
+        }
+      }
+    }
+  ],
+  "tier4c_repair_benchmark": [
+    {
+      "arm": "4c_deepseek_v41_flash",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "n_cases": 2,
+      "repaired_valid_count": 2,
+      "exact_canonical_smiles_restored": 2,
+      "latency_total_s": 7.025,
+      "cost_usd_total": 0.001845,
+      "cost_usd_per_repair": 0.000923,
+      "prompt_tokens": 37720,
+      "completion_tokens": 649,
+      "reasoning_tokens": 176,
+      "cases": [
+        {
+          "doc_id": "j.bmcl.2018.03.046",
+          "status": "repaired",
+          "orig_smiles": "c1ccc2c(c1)ncn2CCn1cnc2c(N3CCOCC3)ncnc21",
+          "repaired_smiles": "c1ccc2c(c1)ncn2CCn1cnc2c(N3CCOCC3)ncnc21",
+          "exact_smiles_match": true,
+          "error": null
+        },
+        {
+          "doc_id": "j.ejmech.2020.112996",
+          "status": "repaired",
+          "orig_smiles": "O=[N+]([O-])c1ccc2[nH]c(-c3ccc(Nc4nc(-c5ccccc5)nc5ccccc45)cc3)nc2c1",
+          "repaired_smiles": "O=[N+]([O-])c1ccc2[nH]c(-c3ccc(Nc4nc(-c5ccccc5)nc5ccccc45)cc3)nc2c1",
+          "exact_smiles_match": true,
+          "error": null
+        }
+      ]
+    },
+    {
+      "arm": "4c_gemini_38_flash_low",
+      "model": "gemini-3.8-flash",
+      "n_cases": 2,
+      "repaired_valid_count": 2,
+      "exact_canonical_smiles_restored": 2,
+      "latency_total_s": 6.535,
+      "cost_usd_total": 0.030054,
+      "cost_usd_per_repair": 0.015027,
+      "prompt_tokens": 38572,
+      "completion_tokens": 300,
+      "reasoning_tokens": 0,
+      "cases": [
+        {
+          "doc_id": "j.bmcl.2018.03.046",
+          "status": "repaired",
+          "orig_smiles": "c1ccc2c(c1)ncn2CCn1cnc2c(N3CCOCC3)ncnc21",
+          "repaired_smiles": "c1ccc2c(c1)ncn2CCn1cnc2c(N3CCOCC3)ncnc21",
+          "exact_smiles_match": true,
+          "error": null
+        },
+        {
+          "doc_id": "j.ejmech.2020.112996",
+          "status": "repaired",
+          "orig_smiles": "O=[N+]([O-])c1ccc2[nH]c(-c3ccc(Nc4nc(-c5ccccc5)nc5ccccc45)cc3)nc2c1",
+          "repaired_smiles": "O=[N+]([O-])c1ccc2[nH]c(-c3ccc(Nc4nc(-c5ccccc5)nc5ccccc45)cc3)nc2c1",
+          "exact_smiles_match": true,
+          "error": null
+        }
+      ]
+    },
+    {
+      "arm": "4c_gpt_6_luna_low",
+      "model": "openai/gpt-6-luna",
+      "n_cases": 2,
+      "repaired_valid_count": 2,
+      "exact_canonical_smiles_restored": 2,
+      "latency_total_s": 6.156,
+      "cost_usd_total": 0.004177,
+      "cost_usd_per_repair": 0.002089,
+      "prompt_tokens": 40331,
+      "completion_tokens": 288,
+      "reasoning_tokens": 77,
+      "cases": [
+        {
+          "doc_id": "j.bmcl.2018.03.046",
+          "status": "repaired",
+          "orig_smiles": "c1ccc2c(c1)ncn2CCn1cnc2c(N3CCOCC3)ncnc21",
+          "repaired_smiles": "c1ccc2c(c1)ncn2CCn1cnc2c(N3CCOCC3)ncnc21",
+          "exact_smiles_match": true,
+          "error": null
+        },
+        {
+          "doc_id": "j.ejmech.2020.112996",
+          "status": "repaired",
+          "orig_smiles": "O=[N+]([O-])c1ccc2[nH]c(-c3ccc(Nc4nc(-c5ccccc5)nc5ccccc45)cc3)nc2c1",
+          "repaired_smiles": "O=[N+]([O-])c1ccc2[nH]c(-c3ccc(Nc4nc(-c5ccccc5)nc5ccccc45)cc3)nc2c1",
+          "exact_smiles_match": true,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

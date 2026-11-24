@@ -1,0 +1,141 @@
+{
+  "experiment": "2026-11-22_exp05_track56_semantic_opt_tiers",
+  "protocol_ref": "EXP-05 Track 5.6 (Tier 4A + Tier 4B)",
+  "date": "2026-11-23",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-22_exp04_semantic_opt_hardening",
+  "domain": "benzimidazole_antibiotics",
+  "split": "2 train anchor docs (Tier 4A) + frozen iter_2 consolidation -> 6 val docs (Tier 4B)",
+  "runs": [
+    {
+      "arm": "4a_deepseek_v41_flash",
+      "phase": "tier4a",
+      "provider": "api",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "status": "completed",
+      "error": null,
+      "n_anchor_docs": 2,
+      "quality": {
+        "valid_doc_outputs": 2,
+        "extracted_row_rule_items": 0,
+        "ref_exp04_row_rule_items": 0
+      },
+      "efficiency": {
+        "latency_total_s": 797.588,
+        "calls_total": 10,
+        "latency_calls_s": 559.987,
+        "prompt_tokens": 613628,
+        "cached_tokens": 368384,
+        "cache_hit_rate": 0.600338,
+        "completion_tokens": 200652,
+        "reasoning_tokens": 103357,
+        "billable_output_tokens": 200652,
+        "cost_usd_total": 0.131579,
+        "cost_2027_usd_total": 0.05255
+      }
+    },
+    {
+      "arm": "4a_gpt6_luna_low",
+      "phase": "tier4a",
+      "provider": "api",
+      "model": "openai/gpt-6-luna",
+      "status": "completed",
+      "error": null,
+      "n_anchor_docs": 2,
+      "quality": {
+        "valid_doc_outputs": 2,
+        "extracted_row_rule_items": 0,
+        "ref_exp04_row_rule_items": 0
+      },
+      "efficiency": {
+        "latency_total_s": 1156.19,
+        "calls_total": 19,
+        "latency_calls_s": 1055.108,
+        "prompt_tokens": 1226506,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 153496,
+        "reasoning_tokens": 2444,
+        "billable_output_tokens": 153496,
+        "cost_usd_total": 0.197405,
+        "cost_2027_usd_total": 0.199399
+      }
+    },
+    {
+      "arm": "4a_qwen38_flash",
+      "phase": "tier4a",
+      "provider": "api",
+      "model": "qwen/qwen3.8-flash",
+      "status": "error",
+      "error": "AdapterParseError: The LM returned an empty or null response.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response: None \n\nExpected to find output fields in the LM response: [analysis] \n\n",
+      "n_anchor_docs": 2,
+      "quality": {
+        "valid_doc_outputs": 1,
+        "extracted_row_rule_items": 0,
+        "ref_exp04_row_rule_items": 0
+      },
+      "efficiency": {
+        "latency_total_s": 728.966,
+        "calls_total": 3,
+        "latency_calls_s": 605.327,
+        "prompt_tokens": 124279,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 82824,
+        "reasoning_tokens": 73124,
+        "billable_output_tokens": 82824,
+        "cost_usd_total": 0.056993,
+        "cost_2027_usd_total": 0.057569
+      }
+    },
+    {
+      "arm": "4b_qwen38_flash_reasoning",
+      "phase": "tier4b",
+      "provider": "api",
+      "model": "qwen/qwen3.8-flash",
+      "status": "error",
+      "error": "AdapterParseError: The LM returned an empty or null response.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response: None \n\nExpected to find output fields in the LM response: [generalization] \n\n",
+      "quality": {},
+      "efficiency": {
+        "synthesis_latency_total_s": 1783.447,
+        "calls_total": 10,
+        "latency_calls_s": 1779.149,
+        "prompt_tokens": 125394,
+        "cached_tokens": 50944,
+        "cache_hit_rate": 0.406271,
+        "completion_tokens": 138682,
+        "reasoning_tokens": 115843,
+        "billable_output_tokens": 138682,
+        "cost_usd_total": 0.076392,
+        "cost_2027_usd_total": 0.077163
+      },
+      "artifacts": {
+        "candidate_prompt": null,
+        "candidate_schema": null
+      }
+    },
+    {
+      "arm": "baseline_exp04_qwen397b",
+      "phase": "baseline",
+      "model": "qwen/qwen3.5-397b-a17b",
+      "status": "completed",
+      "reused_from": "research/experiments/2026-11-22_exp04_semantic_opt_hardening",
+      "quality": {
+        "val_micro_f1_semantic": 0.9968152866242038,
+        "val_macro_f1_semantic": 0.9761904761904762,
+        "val_micro_f1_strict": 0.9308462238398544
+      },
+      "efficiency": {
+        "latency_total_s": 9126.145,
+        "re_calls_total": 49,
+        "re_latency_s": 5138.202,
+        "prompt_tokens": 1996143,
+        "cached_tokens": 0,
+        "completion_tokens": 315622,
+        "reasoning_tokens": 179397,
+        "cost_usd_total": 0.0
+      }
+    }
+  ]
+}

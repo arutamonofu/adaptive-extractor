@@ -1,0 +1,1560 @@
+{
+  "experiment": "2026-11-22_exp05_track54_agent_router",
+  "protocol_ref": "EXP-05 Track 5.4 (Tier 4A + E2E Verification)",
+  "date": "2026-11-22",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-22_exp02_extraction_graph_efficiency",
+  "domain": "benzimidazole_antibiotics",
+  "split": "val (6 docs / 314 GT rows; canary = 2 hard docs)",
+  "n_docs": 6,
+  "n_gt_rows": 314,
+  "runs": [
+    {
+      "arm": "canary_gemini_4_hydrogen_low",
+      "provider": "gemini",
+      "model": "gemini-4-hydrogen",
+      "thinking_level": "low",
+      "reasoning": null,
+      "docs_mode": "canary",
+      "docs_evaluated": [
+        "j.ejmech.2019.03.026",
+        "j.ejmech.2020.112996"
+      ],
+      "n_docs": 2,
+      "status": "completed",
+      "errors": {},
+      "notes": "Canary 2 hard docs for Gemini 4 Hydrogen ($1.50/$7.50).",
+      "routing_quality": {
+        "mean_visual_recall": 0.7,
+        "mean_domain_tool_recall": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 31.088,
+        "latency_per_doc_s": 15.544,
+        "calls_total": 5,
+        "retries_total": 0,
+        "prompt_tokens": 125138,
+        "cached_tokens": 68963,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.551096,
+        "completion_tokens": 3450,
+        "reasoning_tokens": 1489,
+        "billable_output_tokens": 3450,
+        "agent_draft_tokens": 0,
+        "cost_usd_total": 0.11531,
+        "cost_usd_per_doc": 0.057655,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.11531,
+        "cost_2027_usd_per_doc": 0.057655
+      },
+      "doc_metrics": {
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Table_1",
+            "Table_4"
+          ],
+          "visual_recall": 0.4,
+          "ref_domain_tools": [],
+          "got_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        }
+      }
+    },
+    {
+      "arm": "canary_gemma_4_31b_it",
+      "provider": "api",
+      "model": "google/gemma-4-31b-it",
+      "thinking_level": null,
+      "reasoning": {
+        "enabled": false
+      },
+      "docs_mode": "canary",
+      "docs_evaluated": [
+        "j.ejmech.2019.03.026",
+        "j.ejmech.2020.112996"
+      ],
+      "n_docs": 2,
+      "status": "completed",
+      "errors": {},
+      "notes": "Canary 2 hard docs for Gemma-4-31B-IT ($0.20/$0.40, no reasoning).",
+      "routing_quality": {
+        "mean_visual_recall": 1.0,
+        "mean_domain_tool_recall": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 26.359,
+        "latency_per_doc_s": 13.18,
+        "calls_total": 10,
+        "retries_total": 0,
+        "prompt_tokens": 264906,
+        "cached_tokens": 208746,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.788,
+        "completion_tokens": 3496,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 3496,
+        "agent_draft_tokens": 0,
+        "cost_usd_total": 0.05438,
+        "cost_usd_per_doc": 0.02719,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.05438,
+        "cost_2027_usd_per_doc": 0.02719
+      },
+      "doc_metrics": {
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 5,
+          "finalize_called": false,
+          "tool_results_count": 3,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 4,
+          "finalize_called": false,
+          "tool_results_count": 3,
+          "error": null
+        }
+      }
+    },
+    {
+      "arm": "deepseek_v41_flash_low",
+      "provider": "api",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "status": "completed",
+      "errors": {},
+      "notes": "DeepSeek V4.1 Flash ($0.0498/$0.1992) tool router via OpenRouter.",
+      "routing_quality": {
+        "mean_visual_recall": 0.9444,
+        "mean_domain_tool_recall": 0.8333
+      },
+      "efficiency": {
+        "latency_total_s": 134.989,
+        "latency_per_doc_s": 22.498,
+        "calls_total": 14,
+        "retries_total": 0,
+        "prompt_tokens": 289877,
+        "cached_tokens": 43650,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.150581,
+        "completion_tokens": 23792,
+        "reasoning_tokens": 22170,
+        "billable_output_tokens": 23792,
+        "agent_draft_tokens": 8192,
+        "cost_usd_total": 0.017045,
+        "cost_usd_per_doc": 0.002841,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.017045,
+        "cost_2027_usd_per_doc": 0.002841
+      },
+      "doc_metrics": {
+        "acsomega.2c06142": {
+          "ref_visuals": [
+            "Table_2"
+          ],
+          "got_visuals": [
+            "Table_2"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 2,
+          "error": null
+        },
+        "RJC.2023.1638382": {
+          "ref_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "got_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.bmcl.2018.03.046": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "s41598-022-21435-6": {
+          "ref_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "got_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Table_1",
+            "Table_3"
+          ],
+          "visual_recall": 0.6667,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [],
+          "domain_tool_recall": 0.0,
+          "tool_iterations": 1,
+          "finalize_called": false,
+          "tool_results_count": 0,
+          "error": null
+        }
+      }
+    },
+    {
+      "arm": "exp02_arm_b_v2_4a_baseline",
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "thinking_level": "low",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "status": "completed",
+      "routing_quality": {
+        "mean_visual_recall": 1.0,
+        "mean_domain_tool_recall": 1.0,
+        "downstream_micro_f1_semantic": 0.99727
+      },
+      "efficiency": {
+        "latency_total_s": 60.821,
+        "latency_per_doc_s": 10.137,
+        "calls_total": 18,
+        "retries_total": 0,
+        "prompt_tokens": 398385,
+        "cached_tokens": 237529,
+        "cache_hit_rate": 0.59623,
+        "completion_tokens": 2396,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 2396,
+        "agent_draft_tokens": 0,
+        "cost_usd_total": 0.147442,
+        "cost_usd_per_doc": 0.024574,
+        "cost_2027_usd_total": 0.294883,
+        "cost_2027_usd_per_doc": 0.049147
+      },
+      "doc_metrics": {
+        "acsomega.2c06142": {
+          "ref_visuals": [
+            "Table_2"
+          ],
+          "got_visuals": [
+            "Table_2"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 4,
+          "finalize_called": true,
+          "tool_results_count": 2,
+          "error": null
+        },
+        "RJC.2023.1638382": {
+          "ref_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "got_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 3,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.bmcl.2018.03.046": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 3,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "s41598-022-21435-6": {
+          "ref_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "got_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 4,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        }
+      }
+    },
+    {
+      "arm": "gemini_37_flash_low",
+      "provider": "gemini",
+      "model": "gemini-3.7-flash",
+      "thinking_level": "low",
+      "reasoning": null,
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "status": "completed",
+      "errors": {},
+      "notes": "Gemini 3.7 Flash agent router (thinking_level=low) across all 6 val docs.",
+      "routing_quality": {
+        "mean_visual_recall": 0.9444,
+        "mean_domain_tool_recall": 1.0
+      },
+      "efficiency": {
+        "latency_total_s": 66.078,
+        "latency_per_doc_s": 11.013,
+        "calls_total": 18,
+        "retries_total": 0,
+        "prompt_tokens": 396973,
+        "cached_tokens": 237528,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.598348,
+        "completion_tokens": 2389,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 2389,
+        "agent_draft_tokens": 0,
+        "cost_usd_total": 0.146357,
+        "cost_usd_per_doc": 0.024393,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.292714,
+        "cost_2027_usd_per_doc": 0.048786
+      },
+      "doc_metrics": {
+        "acsomega.2c06142": {
+          "ref_visuals": [
+            "Table_2"
+          ],
+          "got_visuals": [
+            "Table_2"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 3,
+          "finalize_called": true,
+          "tool_results_count": 2,
+          "error": null
+        },
+        "RJC.2023.1638382": {
+          "ref_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "got_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.bmcl.2018.03.046": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "s41598-022-21435-6": {
+          "ref_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "got_visuals": [
+            "Figure_3",
+            "Table_6"
+          ],
+          "visual_recall": 0.6667,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 3,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        }
+      }
+    },
+    {
+      "arm": "gemma_4_31b_it_full",
+      "provider": "api",
+      "model": "google/gemma-4-31b-it",
+      "thinking_level": null,
+      "reasoning": {
+        "enabled": false
+      },
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "status": "completed",
+      "errors": {},
+      "notes": "Full 6-doc val run for Google Gemma-4-31B-IT via OpenRouter Friendli ($0.20/$0.40, no reasoning).",
+      "routing_quality": {
+        "mean_visual_recall": 0.8222,
+        "mean_domain_tool_recall": 0.9167
+      },
+      "efficiency": {
+        "latency_total_s": 82.733,
+        "latency_per_doc_s": 13.789,
+        "calls_total": 22,
+        "retries_total": 0,
+        "prompt_tokens": 517120,
+        "cached_tokens": 346756,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.670552,
+        "completion_tokens": 7303,
+        "reasoning_tokens": 0,
+        "billable_output_tokens": 7303,
+        "agent_draft_tokens": 0,
+        "cost_usd_total": 0.106345,
+        "cost_usd_per_doc": 0.017724,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.106345,
+        "cost_2027_usd_per_doc": 0.017724
+      },
+      "doc_metrics": {
+        "acsomega.2c06142": {
+          "ref_visuals": [
+            "Table_2"
+          ],
+          "got_visuals": [
+            "Table_2"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 0.5,
+          "tool_iterations": 2,
+          "finalize_called": false,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "RJC.2023.1638382": {
+          "ref_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "got_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-12",
+            "Fig.-13",
+            "Fig.-14",
+            "Fig.-15",
+            "Fig.-17",
+            "Fig.-2",
+            "Fig.-3",
+            "Fig.-4",
+            "Fig.-6",
+            "Fig.-7",
+            "Fig.-8",
+            "Fig.-9"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 3,
+          "finalize_called": true,
+          "tool_results_count": 3,
+          "error": null
+        },
+        "j.bmcl.2018.03.046": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": false,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Fig._2",
+            "Fig._3",
+            "Table_1",
+            "Table_4"
+          ],
+          "visual_recall": 0.6,
+          "ref_domain_tools": [],
+          "got_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 5,
+          "finalize_called": false,
+          "tool_results_count": 6,
+          "error": null
+        },
+        "s41598-022-21435-6": {
+          "ref_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "got_visuals": [
+            "Table_6"
+          ],
+          "visual_recall": 0.3333,
+          "ref_domain_tools": [],
+          "got_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": false,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 5,
+          "finalize_called": false,
+          "tool_results_count": 3,
+          "error": null
+        }
+      }
+    },
+    {
+      "arm": "glm_53_flash_low",
+      "provider": "api",
+      "model": "z-ai/glm-5.3-flash",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "status": "completed",
+      "errors": {},
+      "notes": "Z-AI GLM-5.3-Flash via OpenRouter ($0.042/$0.184, effort=low).",
+      "routing_quality": {
+        "mean_visual_recall": 0.9111,
+        "mean_domain_tool_recall": 0.75
+      },
+      "efficiency": {
+        "latency_total_s": 166.993,
+        "latency_per_doc_s": 27.832,
+        "calls_total": 15,
+        "retries_total": 0,
+        "prompt_tokens": 314545,
+        "cached_tokens": 55360,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.176,
+        "completion_tokens": 3949,
+        "reasoning_tokens": 3114,
+        "billable_output_tokens": 3949,
+        "agent_draft_tokens": 0,
+        "cost_usd_total": 0.013882,
+        "cost_usd_per_doc": 0.002314,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.013882,
+        "cost_2027_usd_per_doc": 0.002314
+      },
+      "doc_metrics": {
+        "acsomega.2c06142": {
+          "ref_visuals": [
+            "Table_2"
+          ],
+          "got_visuals": [
+            "Table_1",
+            "Table_2"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 0.5,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "RJC.2023.1638382": {
+          "ref_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "got_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.bmcl.2018.03.046": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Fig._3",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "visual_recall": 0.8,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "s41598-022-21435-6": {
+          "ref_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "got_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Table_1",
+            "Table_3",
+            "Table_4"
+          ],
+          "visual_recall": 0.6667,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [],
+          "domain_tool_recall": 0.0,
+          "tool_iterations": 2,
+          "finalize_called": false,
+          "tool_results_count": 0,
+          "error": null
+        }
+      }
+    },
+    {
+      "arm": "gpt_6_luna_low",
+      "provider": "api",
+      "model": "openai/gpt-6-luna",
+      "thinking_level": null,
+      "reasoning": {
+        "effort": "low"
+      },
+      "docs_mode": "full",
+      "docs_evaluated": [
+        "acsomega.2c06142",
+        "RJC.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "n_docs": 6,
+      "status": "completed",
+      "errors": {},
+      "notes": "GPT-6 Luna ($0.10/$0.50) with per-doc session_id for multi-turn cache hits.",
+      "routing_quality": {
+        "mean_visual_recall": 0.9111,
+        "mean_domain_tool_recall": 0.75
+      },
+      "efficiency": {
+        "latency_total_s": 33.535,
+        "latency_per_doc_s": 5.589,
+        "calls_total": 16,
+        "retries_total": 0,
+        "prompt_tokens": 355268,
+        "cached_tokens": 207462,
+        "cache_write_tokens": 145790,
+        "cache_hit_rate": 0.583959,
+        "completion_tokens": 1621,
+        "reasoning_tokens": 413,
+        "billable_output_tokens": 1621,
+        "agent_draft_tokens": 0,
+        "cost_usd_total": 0.02131,
+        "cost_usd_per_doc": 0.003552,
+        "provider_cost_usd_total": null,
+        "cost_2027_usd_total": 0.02131,
+        "cost_2027_usd_per_doc": 0.003552
+      },
+      "doc_metrics": {
+        "acsomega.2c06142": {
+          "ref_visuals": [
+            "Table_2"
+          ],
+          "got_visuals": [
+            "Figure_1",
+            "Figure_2",
+            "Table_2"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles",
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 0.5,
+          "tool_iterations": 3,
+          "finalize_called": true,
+          "tool_results_count": 2,
+          "error": null
+        },
+        "RJC.2023.1638382": {
+          "ref_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-17",
+            "Fig.-4",
+            "Fig.-7"
+          ],
+          "got_visuals": [
+            "Fig.-10",
+            "Fig.-11",
+            "Fig.-12",
+            "Fig.-13",
+            "Fig.-14",
+            "Fig.-15",
+            "Fig.-17",
+            "Fig.-2",
+            "Fig.-3",
+            "Fig.-4",
+            "Fig.-6",
+            "Fig.-7",
+            "Fig.-8",
+            "Fig.-9",
+            "Unlabeled_p4_1"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "got_domain_tools": [
+            "assemble_markush_smiles"
+          ],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 1,
+          "error": null
+        },
+        "j.bmcl.2018.03.046": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "got_visuals": [
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2020.112996": {
+          "ref_visuals": [
+            "Fig._2",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_4"
+          ],
+          "got_visuals": [
+            "Fig._3",
+            "Scheme_1",
+            "Scheme_2",
+            "Table_1",
+            "Table_2",
+            "Table_4"
+          ],
+          "visual_recall": 0.8,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "s41598-022-21435-6": {
+          "ref_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "got_visuals": [
+            "Figure_3",
+            "Figure_5",
+            "Table_6"
+          ],
+          "visual_recall": 1.0,
+          "ref_domain_tools": [],
+          "got_domain_tools": [],
+          "domain_tool_recall": 1.0,
+          "tool_iterations": 2,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        },
+        "j.ejmech.2019.03.026": {
+          "ref_visuals": [
+            "Scheme_1",
+            "Table_1",
+            "Table_3"
+          ],
+          "got_visuals": [
+            "Table_1",
+            "Table_3"
+          ],
+          "visual_recall": 0.6667,
+          "ref_domain_tools": [
+            "resolve_iupac_to_smiles"
+          ],
+          "got_domain_tools": [],
+          "domain_tool_recall": 0.0,
+          "tool_iterations": 1,
+          "finalize_called": true,
+          "tool_results_count": 0,
+          "error": null
+        }
+      }
+    }
+  ],
+  "e2e_verification": {
+    "arm": "e2e_verified_4a_4b",
+    "agent_model": "z-ai/glm-5.3-flash",
+    "extractor_model": "deepseek/deepseek-v4.1-flash",
+    "n_docs": 6,
+    "n_gt_rows": 314,
+    "status": "completed",
+    "quality": {
+      "micro_f1_semantic": 0.977413,
+      "macro_f1_semantic": 0.942436,
+      "micro_f1_strict": 0.955575,
+      "macro_f1_strict": 0.927969,
+      "precision_semantic": 0.972748,
+      "recall_semantic": 0.984076,
+      "soft_matched_fields_count": 336,
+      "per_field_f1_semantic": {
+        "bacteria": 0.980786,
+        "compound_id": 0.961858,
+        "smiles": 0.933754,
+        "target_relation": 0.980786,
+        "target_type": 0.980786,
+        "target_units": 0.980786,
+        "target_value": 0.980786
+      }
+    },
+    "efficiency": {
+      "latency_total_s": 527.617,
+      "latency_per_doc_s": 87.936,
+      "calls_total": 24,
+      "retries_total": 0,
+      "prompt_tokens": 532598,
+      "cached_tokens": 157952,
+      "cache_hit_rate": 0.296569,
+      "completion_tokens": 111988,
+      "reasoning_tokens": 67347,
+      "billable_output_tokens": 111988,
+      "agent_draft_tokens": 8192,
+      "cost_usd_total": 0.044818,
+      "cost_usd_per_doc": 0.00747,
+      "cost_2027_usd_total": 0.044818,
+      "cost_2027_usd_per_doc": 0.00747,
+      "breakdown_4a": {
+        "calls_total": 18,
+        "retries_total": 0,
+        "latency_calls_s": 106.6105,
+        "prompt_tokens": 402369,
+        "cached_tokens": 147968,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.367742,
+        "completion_tokens": 15767,
+        "reasoning_tokens": 4183,
+        "billable_output_tokens": 15767,
+        "agent_draft_tokens": 8192,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "cost_usd_total": 0.019653,
+        "provider_cost_usd_total": null
+      },
+      "breakdown_4b": {
+        "calls_total": 6,
+        "retries_total": 0,
+        "latency_calls_s": 323.7714,
+        "prompt_tokens": 130229,
+        "cached_tokens": 9984,
+        "cache_write_tokens": 0,
+        "cache_hit_rate": 0.076665,
+        "completion_tokens": 96221,
+        "reasoning_tokens": 63164,
+        "billable_output_tokens": 96221,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "cost_usd_total": 0.025165,
+        "provider_cost_usd_total": null
+      }
+    },
+    "doc_scores": {
+      "acsomega.2c06142": {
+        "semantic_f1": 1.0,
+        "strict_f1": 1.0,
+        "precision_semantic": 1.0,
+        "recall_semantic": 1.0,
+        "preds": 16,
+        "gts": 16,
+        "soft_matched_fields_count": 14,
+        "duplicate_of_tp": 0,
+        "fields_semantic": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        },
+        "fields_strict": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        }
+      },
+      "RJC.2023.1638382": {
+        "semantic_f1": 0.697479,
+        "strict_f1": 0.697479,
+        "precision_semantic": 0.592857,
+        "recall_semantic": 0.846939,
+        "preds": 20,
+        "gts": 14,
+        "soft_matched_fields_count": 4,
+        "duplicate_of_tp": 0,
+        "fields_semantic": {
+          "compound_id": 0.545455,
+          "smiles": 0.5,
+          "target_type": 0.545455,
+          "target_relation": 0.545455,
+          "target_value": 0.545455,
+          "target_units": 0.545455,
+          "bacteria": 0.545455
+        },
+        "fields_strict": {
+          "compound_id": 0.545455,
+          "smiles": 0.5,
+          "target_type": 0.545455,
+          "target_relation": 0.545455,
+          "target_value": 0.545455,
+          "target_units": 0.545455,
+          "bacteria": 0.545455
+        }
+      },
+      "j.bmcl.2018.03.046": {
+        "semantic_f1": 1.0,
+        "strict_f1": 1.0,
+        "precision_semantic": 1.0,
+        "recall_semantic": 1.0,
+        "preds": 144,
+        "gts": 144,
+        "soft_matched_fields_count": 144,
+        "duplicate_of_tp": 0,
+        "fields_semantic": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        },
+        "fields_strict": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        }
+      },
+      "j.ejmech.2020.112996": {
+        "semantic_f1": 0.9783,
+        "strict_f1": 0.891501,
+        "precision_semantic": 0.9783,
+        "recall_semantic": 0.9783,
+        "preds": 79,
+        "gts": 79,
+        "soft_matched_fields_count": 115,
+        "duplicate_of_tp": 0,
+        "fields_semantic": {
+          "compound_id": 1.0,
+          "smiles": 0.848101,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        },
+        "fields_strict": {
+          "compound_id": 1.0,
+          "smiles": 0.848101,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.392405
+        }
+      },
+      "s41598-022-21435-6": {
+        "semantic_f1": 1.0,
+        "strict_f1": 1.0,
+        "precision_semantic": 1.0,
+        "recall_semantic": 1.0,
+        "preds": 7,
+        "gts": 7,
+        "soft_matched_fields_count": 7,
+        "duplicate_of_tp": 0,
+        "fields_semantic": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        },
+        "fields_strict": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        }
+      },
+      "j.ejmech.2019.03.026": {
+        "semantic_f1": 0.978836,
+        "strict_f1": 0.978836,
+        "precision_semantic": 0.978836,
+        "recall_semantic": 0.978836,
+        "preds": 54,
+        "gts": 54,
+        "soft_matched_fields_count": 52,
+        "duplicate_of_tp": 0,
+        "fields_semantic": {
+          "compound_id": 0.888889,
+          "smiles": 0.962963,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        },
+        "fields_strict": {
+          "compound_id": 0.888889,
+          "smiles": 0.962963,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 1.0
+        }
+      }
+    }
+  }
+}

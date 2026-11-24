@@ -1,0 +1,3615 @@
+{
+  "experiment": "2026-11-22_exp03_evaluation_and_validators",
+  "protocol_ref": "EXP-03",
+  "date": "2026-11-22",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-21_benzimidazole_post_audit_eval",
+  "domain": "benzimidazole_antibiotics",
+  "split": "val+gt_audits_train_val+synthetic",
+  "n_docs": 6,
+  "n_gt_rows": 314,
+  "runs": [
+    {
+      "arm": "phase3a_replay_2026_11_21",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.994857,
+        "macro_f1_semantic": 0.995194,
+        "micro_f1_strict": 0.992591,
+        "macro_f1_strict": 0.981293,
+        "precision_semantic": 0.990341,
+        "recall_semantic": 0.999545,
+        "soft_matched_fields_count": 309,
+        "duplicate_of_tp_total": 3,
+        "per_field_f1_semantic": {
+          "compound_id": 0.995246,
+          "smiles": 0.992076,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.995246
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.995246,
+          "smiles": 0.992076,
+          "target_type": 0.995246,
+          "target_relation": 0.995246,
+          "target_value": 0.995246,
+          "target_units": 0.995246,
+          "bacteria": 0.979398
+        },
+        "seed_variance_share": null
+      },
+      "efficiency": {
+        "latency_total_s": 0.0,
+        "latency_per_doc_s": 0.0,
+        "calls_total": 0,
+        "retries_total": 0,
+        "prompt_tokens": 0,
+        "cached_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "completion_tokens": 0,
+        "reasoning_tokens": 0,
+        "agent_draft_tokens": 0,
+        "judge_calls": 0,
+        "judge_tokens": 0,
+        "cost_usd_total": 0.0,
+        "cost_usd_per_doc": 0.0
+      },
+      "artifacts": {
+        "logs_dir": "raw/phase3a_replay.json",
+        "doc_scores": {
+          "acsomega.2c06142": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 16,
+            "gts": 16,
+            "soft_matched_fields_count": 14,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "RJC.2023.1638382": {
+            "semantic_f1": 0.989796,
+            "strict_f1": 0.989796,
+            "precision_semantic": 0.989796,
+            "recall_semantic": 0.989796,
+            "preds": 14,
+            "gts": 14,
+            "soft_matched_fields_count": 6,
+            "mismatch_pairs": 1,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.bmcl.2018.03.046": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 144,
+            "gts": 144,
+            "soft_matched_fields_count": 144,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2020.112996": {
+            "semantic_f1": 0.981366,
+            "strict_f1": 0.979592,
+            "precision_semantic": 0.963415,
+            "recall_semantic": 1.0,
+            "preds": 82,
+            "gts": 79,
+            "soft_matched_fields_count": 80,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 3,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": [
+              {
+                "pred_index": 30,
+                "gt_index": 2,
+                "matched_pred_index": 3,
+                "similarity": 0.9921,
+                "transport_mass": 0.3885
+              },
+              {
+                "pred_index": 31,
+                "gt_index": 3,
+                "matched_pred_index": 5,
+                "similarity": 0.9921,
+                "transport_mass": 0.428
+              },
+              {
+                "pred_index": 33,
+                "gt_index": 1,
+                "matched_pred_index": 17,
+                "similarity": 0.9921,
+                "transport_mass": 0.4001
+              }
+            ]
+          },
+          "s41598-022-21435-6": {
+            "semantic_f1": 1.0,
+            "strict_f1": 0.918367,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 7,
+            "gts": 7,
+            "soft_matched_fields_count": 11,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2019.03.026": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 54,
+            "gts": 54,
+            "soft_matched_fields_count": 54,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          }
+        }
+      }
+    }
+  ],
+  "phase3a": {
+    "replay_2026_11_21": {
+      "micro_f1_semantic": 0.994857,
+      "macro_f1_semantic": 0.995194,
+      "micro_f1_strict": 0.992591,
+      "macro_f1_strict": 0.981293,
+      "preds_total": 317,
+      "gts_total": 314,
+      "soft_matched_fields_count": 309,
+      "mismatch_pairs_total": 1,
+      "duplicate_of_tp_total": 3,
+      "row_merge_total": 0,
+      "row_split_total": 0,
+      "per_field_f1_semantic": {
+        "compound_id": 0.995246,
+        "smiles": 0.992076,
+        "target_type": 0.995246,
+        "target_relation": 0.995246,
+        "target_value": 0.995246,
+        "target_units": 0.995246,
+        "bacteria": 0.995246
+      },
+      "per_field_f1_strict": {
+        "compound_id": 0.995246,
+        "smiles": 0.992076,
+        "target_type": 0.995246,
+        "target_relation": 0.995246,
+        "target_value": 0.995246,
+        "target_units": 0.995246,
+        "bacteria": 0.979398
+      },
+      "doc_scores": {
+        "acsomega.2c06142": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 16,
+          "gts": 16,
+          "soft_matched_fields_count": 14,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp": 0,
+          "row_merge": 0,
+          "row_split": 0,
+          "duplicate_details": []
+        },
+        "RJC.2023.1638382": {
+          "semantic_f1": 0.989796,
+          "strict_f1": 0.989796,
+          "precision_semantic": 0.989796,
+          "recall_semantic": 0.989796,
+          "preds": 14,
+          "gts": 14,
+          "soft_matched_fields_count": 6,
+          "mismatch_pairs": 1,
+          "duplicate_of_tp": 0,
+          "row_merge": 0,
+          "row_split": 0,
+          "duplicate_details": []
+        },
+        "j.bmcl.2018.03.046": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 144,
+          "gts": 144,
+          "soft_matched_fields_count": 144,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp": 0,
+          "row_merge": 0,
+          "row_split": 0,
+          "duplicate_details": []
+        },
+        "j.ejmech.2020.112996": {
+          "semantic_f1": 0.981366,
+          "strict_f1": 0.979592,
+          "precision_semantic": 0.963415,
+          "recall_semantic": 1.0,
+          "preds": 82,
+          "gts": 79,
+          "soft_matched_fields_count": 80,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp": 3,
+          "row_merge": 0,
+          "row_split": 0,
+          "duplicate_details": [
+            {
+              "pred_index": 30,
+              "gt_index": 2,
+              "matched_pred_index": 3,
+              "similarity": 0.9921,
+              "transport_mass": 0.3885
+            },
+            {
+              "pred_index": 31,
+              "gt_index": 3,
+              "matched_pred_index": 5,
+              "similarity": 0.9921,
+              "transport_mass": 0.428
+            },
+            {
+              "pred_index": 33,
+              "gt_index": 1,
+              "matched_pred_index": 17,
+              "similarity": 0.9921,
+              "transport_mass": 0.4001
+            }
+          ]
+        },
+        "s41598-022-21435-6": {
+          "semantic_f1": 1.0,
+          "strict_f1": 0.918367,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 7,
+          "gts": 7,
+          "soft_matched_fields_count": 11,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp": 0,
+          "row_merge": 0,
+          "row_split": 0,
+          "duplicate_details": []
+        },
+        "j.ejmech.2019.03.026": {
+          "semantic_f1": 1.0,
+          "strict_f1": 1.0,
+          "precision_semantic": 1.0,
+          "recall_semantic": 1.0,
+          "preds": 54,
+          "gts": 54,
+          "soft_matched_fields_count": 54,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp": 0,
+          "row_merge": 0,
+          "row_split": 0,
+          "duplicate_details": []
+        }
+      },
+      "judge_reasonings_sample": [
+        {
+          "doc_id": "j.ejmech.2020.112996",
+          "items": [
+            {
+              "pred_index": 32,
+              "gt_index": 78,
+              "reasoning": {
+                "bacteria": "ATCC 29213 is the standard MSSA strain; adding the phenotype preserves identical bacterial identity."
+              }
+            }
+          ]
+        },
+        {
+          "doc_id": "s41598-022-21435-6",
+          "items": [
+            {
+              "pred_index": 0,
+              "gt_index": 3,
+              "reasoning": {
+                "bacteria": "Minor punctuation artifact; refers unambiguously to the identical bacterial strain."
+              }
+            },
+            {
+              "pred_index": 1,
+              "gt_index": 4,
+              "reasoning": {
+                "bacteria": "Minor punctuation artifact; refers unambiguously to the identical bacterial strain."
+              }
+            },
+            {
+              "pred_index": 2,
+              "gt_index": 5,
+              "reasoning": {
+                "bacteria": "Minor punctuation artifact; refers unambiguously to the identical bacterial strain."
+              }
+            }
+          ]
+        }
+      ],
+      "replay_judge_calls": 2
+    },
+    "replay_2026_11_20": {
+      "iter_1_cutoff_0.25": {
+        "micro_f1_semantic": 0.963487,
+        "macro_f1_semantic": 0.95587,
+        "micro_f1_strict": 0.963487,
+        "macro_f1_strict": 0.95587,
+        "preds_total": 313,
+        "gts_total": 313,
+        "soft_matched_fields_count": 303,
+        "mismatch_pairs_total": 80,
+        "duplicate_of_tp_total": 0,
+        "row_merge_total": 0,
+        "row_split_total": 0,
+        "per_field_f1_semantic": {
+          "compound_id": 1.0,
+          "smiles": 0.996805,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.747604
+        },
+        "per_field_f1_strict": {
+          "compound_id": 1.0,
+          "smiles": 0.996805,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.747604
+        },
+        "doc_scores": {
+          "acsomega.2c06142": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 16,
+            "gts": 16,
+            "soft_matched_fields_count": 14,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "RJC.2023.1638382": {
+            "semantic_f1": 0.989796,
+            "strict_f1": 0.989796,
+            "precision_semantic": 0.989796,
+            "recall_semantic": 0.989796,
+            "preds": 14,
+            "gts": 14,
+            "soft_matched_fields_count": 6,
+            "mismatch_pairs": 1,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.bmcl.2018.03.046": {
+            "semantic_f1": 0.97619,
+            "strict_f1": 0.97619,
+            "precision_semantic": 0.97619,
+            "recall_semantic": 0.97619,
+            "preds": 144,
+            "gts": 144,
+            "soft_matched_fields_count": 144,
+            "mismatch_pairs": 24,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2020.112996": {
+            "semantic_f1": 0.912088,
+            "strict_f1": 0.912088,
+            "precision_semantic": 0.912088,
+            "recall_semantic": 0.912088,
+            "preds": 78,
+            "gts": 78,
+            "soft_matched_fields_count": 78,
+            "mismatch_pairs": 48,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "s41598-022-21435-6": {
+            "semantic_f1": 0.857143,
+            "strict_f1": 0.857143,
+            "precision_semantic": 0.857143,
+            "recall_semantic": 0.857143,
+            "preds": 7,
+            "gts": 7,
+            "soft_matched_fields_count": 7,
+            "mismatch_pairs": 7,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2019.03.026": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 54,
+            "gts": 54,
+            "soft_matched_fields_count": 54,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          }
+        },
+        "judge_reasonings_sample": []
+      },
+      "iter_1_legacy_cutoff_0.0": {
+        "micro_f1_semantic": 0.963487,
+        "macro_f1_semantic": 0.95587,
+        "micro_f1_strict": 0.963487,
+        "macro_f1_strict": 0.95587,
+        "preds_total": 313,
+        "gts_total": 313,
+        "soft_matched_fields_count": 303,
+        "mismatch_pairs_total": 80,
+        "duplicate_of_tp_total": 0,
+        "row_merge_total": 0,
+        "row_split_total": 0,
+        "per_field_f1_semantic": {
+          "compound_id": 1.0,
+          "smiles": 0.996805,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.747604
+        },
+        "per_field_f1_strict": {
+          "compound_id": 1.0,
+          "smiles": 0.996805,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.747604
+        },
+        "doc_scores": {
+          "acsomega.2c06142": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 16,
+            "gts": 16,
+            "soft_matched_fields_count": 14,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "RJC.2023.1638382": {
+            "semantic_f1": 0.989796,
+            "strict_f1": 0.989796,
+            "precision_semantic": 0.989796,
+            "recall_semantic": 0.989796,
+            "preds": 14,
+            "gts": 14,
+            "soft_matched_fields_count": 6,
+            "mismatch_pairs": 1,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.bmcl.2018.03.046": {
+            "semantic_f1": 0.97619,
+            "strict_f1": 0.97619,
+            "precision_semantic": 0.97619,
+            "recall_semantic": 0.97619,
+            "preds": 144,
+            "gts": 144,
+            "soft_matched_fields_count": 144,
+            "mismatch_pairs": 24,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2020.112996": {
+            "semantic_f1": 0.912088,
+            "strict_f1": 0.912088,
+            "precision_semantic": 0.912088,
+            "recall_semantic": 0.912088,
+            "preds": 78,
+            "gts": 78,
+            "soft_matched_fields_count": 78,
+            "mismatch_pairs": 48,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "s41598-022-21435-6": {
+            "semantic_f1": 0.857143,
+            "strict_f1": 0.857143,
+            "precision_semantic": 0.857143,
+            "recall_semantic": 0.857143,
+            "preds": 7,
+            "gts": 7,
+            "soft_matched_fields_count": 7,
+            "mismatch_pairs": 7,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2019.03.026": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 54,
+            "gts": 54,
+            "soft_matched_fields_count": 54,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          }
+        },
+        "judge_reasonings_sample": []
+      },
+      "iter_2_cutoff_0.25": {
+        "micro_f1_semantic": 0.960822,
+        "macro_f1_semantic": 0.969829,
+        "micro_f1_strict": 0.960822,
+        "macro_f1_strict": 0.969829,
+        "preds_total": 313,
+        "gts_total": 313,
+        "soft_matched_fields_count": 296,
+        "mismatch_pairs_total": 79,
+        "duplicate_of_tp_total": 0,
+        "row_merge_total": 2,
+        "row_split_total": 2,
+        "per_field_f1_semantic": {
+          "compound_id": 0.996805,
+          "smiles": 0.974441,
+          "target_type": 0.996805,
+          "target_relation": 0.996805,
+          "target_value": 0.996805,
+          "target_units": 0.996805,
+          "bacteria": 0.766773
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.996805,
+          "smiles": 0.974441,
+          "target_type": 0.996805,
+          "target_relation": 0.996805,
+          "target_value": 0.996805,
+          "target_units": 0.996805,
+          "bacteria": 0.766773
+        },
+        "doc_scores": {
+          "acsomega.2c06142": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 16,
+            "gts": 16,
+            "soft_matched_fields_count": 14,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "RJC.2023.1638382": {
+            "semantic_f1": 0.952381,
+            "strict_f1": 0.952381,
+            "precision_semantic": 0.989011,
+            "recall_semantic": 0.918367,
+            "preds": 13,
+            "gts": 14,
+            "soft_matched_fields_count": 5,
+            "mismatch_pairs": 1,
+            "duplicate_of_tp": 0,
+            "row_merge": 2,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.bmcl.2018.03.046": {
+            "semantic_f1": 0.97619,
+            "strict_f1": 0.97619,
+            "precision_semantic": 0.97619,
+            "recall_semantic": 0.97619,
+            "preds": 144,
+            "gts": 144,
+            "soft_matched_fields_count": 144,
+            "mismatch_pairs": 24,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2020.112996": {
+            "semantic_f1": 0.906278,
+            "strict_f1": 0.906278,
+            "precision_semantic": 0.900542,
+            "recall_semantic": 0.912088,
+            "preds": 79,
+            "gts": 78,
+            "soft_matched_fields_count": 78,
+            "mismatch_pairs": 48,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 2,
+            "duplicate_details": []
+          },
+          "s41598-022-21435-6": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 7,
+            "gts": 7,
+            "soft_matched_fields_count": 7,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2019.03.026": {
+            "semantic_f1": 0.984127,
+            "strict_f1": 0.984127,
+            "precision_semantic": 0.984127,
+            "recall_semantic": 0.984127,
+            "preds": 54,
+            "gts": 54,
+            "soft_matched_fields_count": 48,
+            "mismatch_pairs": 6,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          }
+        },
+        "judge_reasonings_sample": []
+      },
+      "iter_2_legacy_cutoff_0.0": {
+        "micro_f1_semantic": 0.960822,
+        "macro_f1_semantic": 0.969829,
+        "micro_f1_strict": 0.960822,
+        "macro_f1_strict": 0.969829,
+        "preds_total": 313,
+        "gts_total": 313,
+        "soft_matched_fields_count": 296,
+        "mismatch_pairs_total": 79,
+        "duplicate_of_tp_total": 0,
+        "row_merge_total": 2,
+        "row_split_total": 2,
+        "per_field_f1_semantic": {
+          "compound_id": 0.996805,
+          "smiles": 0.974441,
+          "target_type": 0.996805,
+          "target_relation": 0.996805,
+          "target_value": 0.996805,
+          "target_units": 0.996805,
+          "bacteria": 0.766773
+        },
+        "per_field_f1_strict": {
+          "compound_id": 0.996805,
+          "smiles": 0.974441,
+          "target_type": 0.996805,
+          "target_relation": 0.996805,
+          "target_value": 0.996805,
+          "target_units": 0.996805,
+          "bacteria": 0.766773
+        },
+        "doc_scores": {
+          "acsomega.2c06142": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 16,
+            "gts": 16,
+            "soft_matched_fields_count": 14,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "RJC.2023.1638382": {
+            "semantic_f1": 0.952381,
+            "strict_f1": 0.952381,
+            "precision_semantic": 0.989011,
+            "recall_semantic": 0.918367,
+            "preds": 13,
+            "gts": 14,
+            "soft_matched_fields_count": 5,
+            "mismatch_pairs": 1,
+            "duplicate_of_tp": 0,
+            "row_merge": 2,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.bmcl.2018.03.046": {
+            "semantic_f1": 0.97619,
+            "strict_f1": 0.97619,
+            "precision_semantic": 0.97619,
+            "recall_semantic": 0.97619,
+            "preds": 144,
+            "gts": 144,
+            "soft_matched_fields_count": 144,
+            "mismatch_pairs": 24,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2020.112996": {
+            "semantic_f1": 0.906278,
+            "strict_f1": 0.906278,
+            "precision_semantic": 0.900542,
+            "recall_semantic": 0.912088,
+            "preds": 79,
+            "gts": 78,
+            "soft_matched_fields_count": 78,
+            "mismatch_pairs": 48,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 2,
+            "duplicate_details": []
+          },
+          "s41598-022-21435-6": {
+            "semantic_f1": 1.0,
+            "strict_f1": 1.0,
+            "precision_semantic": 1.0,
+            "recall_semantic": 1.0,
+            "preds": 7,
+            "gts": 7,
+            "soft_matched_fields_count": 7,
+            "mismatch_pairs": 0,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          },
+          "j.ejmech.2019.03.026": {
+            "semantic_f1": 0.984127,
+            "strict_f1": 0.984127,
+            "precision_semantic": 0.984127,
+            "recall_semantic": 0.984127,
+            "preds": 54,
+            "gts": 54,
+            "soft_matched_fields_count": 48,
+            "mismatch_pairs": 6,
+            "duplicate_of_tp": 0,
+            "row_merge": 0,
+            "row_split": 0,
+            "duplicate_details": []
+          }
+        },
+        "judge_reasonings_sample": []
+      }
+    },
+    "synthetic_unit_pack": {
+      "pint_unit_pairs_total": 10,
+      "pint_unit_pairs_resolved_cpu": 10,
+      "pint_resolution_rate": 1.0,
+      "pint_judge_calls": 0,
+      "numeric_quantity_cases": {
+        "decimal_comma_19_1": true,
+        "std_notation_12_5": true,
+        "interval_10_25": true,
+        "inequality_gt_128_ne_128": true,
+        "inequality_gt_128_eq": true
+      },
+      "numeric_quantity_all_passed": true,
+      "smiles_cases": {
+        "ignore_unassigned_stereo_in_soft_matched": true,
+        "tautomer_on_matches": true,
+        "tautomer_off_distinguishes": true
+      },
+      "smiles_all_passed": true,
+      "pot_row_merge_detected": true,
+      "pot_row_split_detected": true,
+      "hungarian_cutoff_false_mismatches": 0,
+      "simpleeval_pmic_invariant_valid": true,
+      "simpleeval_pmic_violation_caught": true,
+      "simpleeval_security_all_blocked": true
+    }
+  },
+  "phase3b": {
+    "gemini-3.8-flash": {
+      "model": "gemini-3.8-flash",
+      "n_cases": 80,
+      "cohens_kappa": 0.949527,
+      "accuracy": 0.975,
+      "f1_yes": 0.972222,
+      "tp_yes": 35,
+      "fp_yes": 0,
+      "fn_no": 2,
+      "hard_negatives_total": 30,
+      "hard_negatives_false_yes": 0,
+      "hard_negatives_false_yes_rate": 0.0,
+      "integrated_with_validators": {
+        "cohens_kappa": 0.949527,
+        "accuracy": 0.975,
+        "hard_negatives_false_yes": 0,
+        "hard_negatives_false_yes_rate": 0.0,
+        "cases_routed_to_judge": 57
+      },
+      "parse_failures": 0,
+      "calls": 8,
+      "latency_s": 104.727,
+      "prompt_tokens": 28290,
+      "cached_tokens": 0,
+      "completion_tokens": 3981,
+      "reasoning_tokens": 8109,
+      "cost_usd": 0.011498,
+      "errors": [
+        {
+          "case_id": "audit_14_052_a",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Predicted omits the specific strain designation N315 present in Ground Truth.",
+          "note": "MRSA canonical abbr"
+        },
+        {
+          "case_id": "audit_63_052",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits part of the strain identifier text present in Ground Truth.",
+          "note": "duplicate genus prefix"
+        }
+      ],
+      "per_case": [
+        {
+          "case_id": "audit_05_RJC",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Equality operator '=' is not semantically equivalent to inequality '>='.",
+          "note": "inequality mutation"
+        },
+        {
+          "case_id": "audit_06_RJC",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "6.25 and 3.125 represent different numeric concentrations.",
+          "note": "different MIC value"
+        },
+        {
+          "case_id": "audit_09_RJC",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'E.coli' and 'E. coli' are typographical variants representing the same taxon.",
+          "note": "missing space after genus abbr"
+        },
+        {
+          "case_id": "audit_11_052",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Equality operator '=' is not equivalent to inequality '>'.",
+          "note": "inequality mutation > vs ="
+        },
+        {
+          "case_id": "audit_12_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Values 0.125 ± 0.01 and 1 convey different numerical magnitudes.",
+          "note": "magnitude mismatch"
+        },
+        {
+          "case_id": "audit_13_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Predicted omits the standard deviation measurement reported in Ground Truth.",
+          "note": "dropped ± SD"
+        },
+        {
+          "case_id": "audit_14_052_a",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Predicted omits the specific strain designation N315 present in Ground Truth.",
+          "note": "MRSA canonical abbr"
+        },
+        {
+          "case_id": "audit_14_052_b",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'S. aureus' is a standard abbreviation for 'Staphylococcus aureus'.",
+          "note": "genus abbreviation"
+        },
+        {
+          "case_id": "audit_18_996",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'E. coli' is the standard accepted abbreviation for 'Escherichia coli'.",
+          "note": "full vs abbr species"
+        },
+        {
+          "case_id": "audit_21_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ATCC 25926 and ATCC 25923 designate different bacterial culture strains.",
+          "note": "different ATCC strain"
+        },
+        {
+          "case_id": "audit_22_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Both refer to the exact same strain; GT contains redundant genus abbreviation.",
+          "note": "duplicated species prefix"
+        },
+        {
+          "case_id": "audit_23_026",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Standard abbreviation and full canonical species name are synonymous.",
+          "note": "genus abbr"
+        },
+        {
+          "case_id": "audit_25_713",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Standard abbreviation and full canonical species name are synonymous.",
+          "note": "missing space abbr"
+        },
+        {
+          "case_id": "audit_26_545",
+          "source": "gt_audits",
+          "field": "compound_id",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different compound identifiers indicate distinct chemical entities.",
+          "note": "different compound ID"
+        },
+        {
+          "case_id": "audit_27_545",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Mathematical relation operators contradict ('=' vs '>').",
+          "note": "relation mismatch"
+        },
+        {
+          "case_id": "audit_30_545",
+          "source": "gt_audits",
+          "field": "target_units",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "1 µmol/mL is mathematically identical to 1 mM.",
+          "note": "1 umol/mL == 1 mM"
+        },
+        {
+          "case_id": "audit_31_545",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "0.27 and 0.270 represent the exact same numeric value.",
+          "note": "trailing zero"
+        },
+        {
+          "case_id": "audit_34_1002",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Values represent different numerical quantities.",
+          "note": "different MIC number"
+        },
+        {
+          "case_id": "audit_43_1002",
+          "source": "gt_audits",
+          "field": "target_units",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Unicode superscript and standard ASCII format express the exact same unit.",
+          "note": "superscript unit"
+        },
+        {
+          "case_id": "audit_51_1220_a",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'S.a.' is a standard domain abbreviation for Staphylococcus aureus.",
+          "note": "short species abbr"
+        },
+        {
+          "case_id": "audit_51_1220_b",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E.c. is a standard abbreviation for Escherichia coli.",
+          "note": "short species abbr"
+        },
+        {
+          "case_id": "audit_54_70",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is a standard abbreviated form of Staphylococcus aureus.",
+          "note": "genus abbr with strain"
+        },
+        {
+          "case_id": "audit_58_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Pred omits the inequality operator and represents an exact value instead of bound.",
+          "note": "lost > operator"
+        },
+        {
+          "case_id": "audit_60_6142",
+          "source": "gt_audits",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different chemical structures; Pred has an ethylamino group instead of isobutylamino.",
+          "note": "isobutyl vs ethyl"
+        },
+        {
+          "case_id": "audit_61_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different numerical standard deviations convey different experimental precision.",
+          "note": "different std"
+        },
+        {
+          "case_id": "audit_62_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Pred omits the standard deviation notation present in Ground Truth.",
+          "note": "missing std"
+        },
+        {
+          "case_id": "audit_63_052",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits part of the strain identifier text present in Ground Truth.",
+          "note": "duplicate genus prefix"
+        },
+        {
+          "case_id": "audit_67_046",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Equivalent standard species abbreviation and whitespace formatting in ATCC strain number.",
+          "note": "spacing and abbr"
+        },
+        {
+          "case_id": "audit_68_996",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is the standard abbreviation denoting Methicillin-resistant Staphylococcus aureus.",
+          "note": "MRSA implies S. aureus"
+        },
+        {
+          "case_id": "audit_69_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Punctuation typo does not alter the unambiguous identity of the bacterial strain.",
+          "note": "period typo"
+        },
+        {
+          "case_id": "val21_pair_01",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is the standard abbreviation of Methicillin-Resistant Staphylococcus aureus; both name the same strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_02",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard taxonomic abbreviation for Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_03",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard taxonomic abbreviation for Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_04",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard taxonomic abbreviation for Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_05",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E. coli is the standard taxonomic abbreviation for Escherichia coli.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_06",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E. coli is the standard taxonomic abbreviation for Escherichia coli.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_07",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "ATCC 29213 is the standard reference MSSA strain; both denote the identical entity.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_08",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA stands for Methicillin-Resistant Staphylococcus aureus; both identify the same strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_09",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA stands for Methicillin-Resistant Staphylococcus aureus; both identify the same strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_10",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA stands for Methicillin-Resistant Staphylococcus aureus; both identify the same strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_11",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA unambiguously denotes Methicillin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_12",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA unambiguously denotes Methicillin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_13",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA unambiguously denotes Methicillin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_14",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA unambiguously denotes Methicillin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_15",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA unambiguously denotes Methicillin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_16",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA unambiguously denotes Methicillin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_17",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "VRSA unambiguously denotes Vancomycin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_18",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "VRSA unambiguously denotes Vancomycin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_19",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "VRSA unambiguously denotes Vancomycin-resistant Staphylococcus aureus, identifying the identical strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_20",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "The erroneous period is a minor typographical variation; both specify the identical bacterial strain.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "hn_01_sa_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MRSA denotes a specific methicillin-resistant phenotype, not generic S. aureus.",
+          "note": "resistance phenotype"
+        },
+        {
+          "case_id": "hn_02_staph_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MRSA N315 specifies a distinct resistant strain, not generic Staphylococcus aureus.",
+          "note": "strain + resistance"
+        },
+        {
+          "case_id": "hn_03_mssa_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MSSA ATCC 29213 and MRSA ATCC 43300 are completely different bacterial strains.",
+          "note": "MSSA vs MRSA"
+        },
+        {
+          "case_id": "hn_04_sa_vs_vrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "VRSA denotes a specific vancomycin-resistant phenotype, not generic S. aureus.",
+          "note": "vancomycin resistance"
+        },
+        {
+          "case_id": "hn_05_ecoli_vs_esbl",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ESBL E. coli specifies a distinct beta-lactamase phenotype, not generic E. coli.",
+          "note": "ESBL phenotype"
+        },
+        {
+          "case_id": "hn_06_sa_vs_serum",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Pred introduces an assay condition (human serum) not present in GT.",
+          "note": "media condition"
+        },
+        {
+          "case_id": "hn_07_atcc_25923_29213",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ATCC 25923 and ATCC 29213 are distinct bacterial strains.",
+          "note": "different ATCC code"
+        },
+        {
+          "case_id": "hn_08_atcc_25926_25923",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ATCC 25926 and ATCC 25923 are different bacterial strains.",
+          "note": "off-by-one ATCC code"
+        },
+        {
+          "case_id": "hn_09_ecoli_atcc_jm109",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ATCC 25922 and JM109 represent different strains of E. coli.",
+          "note": "different E. coli strain"
+        },
+        {
+          "case_id": "hn_10_mrsa_nr100_119",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "NR 100 and NR 119 are different strain identifiers.",
+          "note": "different NR isolate"
+        },
+        {
+          "case_id": "hn_11_vrsa_vrs1_vrs4",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "VRSA VRS1 and VRSA VRS4 are distinct bacterial strains.",
+          "note": "different VRS isolate"
+        },
+        {
+          "case_id": "hn_12_mtcc_3160_96",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MTCC 3160 and MTCC 96 designate different culture collection strains.",
+          "note": "different MTCC strain"
+        },
+        {
+          "case_id": "hn_13_species_sa_ec",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Staphylococcus aureus and Escherichia coli are completely different bacterial species.",
+          "note": "different species"
+        },
+        {
+          "case_id": "hn_14_species_sa_se",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Staphylococcus aureus and Staphylococcus epidermidis are different bacterial species.",
+          "note": "same genus diff species"
+        },
+        {
+          "case_id": "hn_15_gt_128_vs_128",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'> 128' denotes an open range above 128, differing from exact 128.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_16_lt_05_vs_05",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'< 0.5' denotes a range below 0.5, differing from exact 0.5.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_17_ge_64_vs_64",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'≥ 64' represents a range of at least 64, not exact 64.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_18_rel_gt_vs_eq",
+          "source": "hard_negative",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Mathematical relations '>' and '=' are contradictory.",
+          "note": "relation > vs ="
+        },
+        {
+          "case_id": "hn_19_rel_lt_vs_le",
+          "source": "hard_negative",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Strict inequality '<' differs mathematically from non-strict inequality '≤'.",
+          "note": "strict < vs <="
+        },
+        {
+          "case_id": "hn_20_unconverted_mM_uM",
+          "source": "hard_negative",
+          "field": "target_units",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "10 mM is 1000-fold greater than 10 µM; value was not converted.",
+          "note": "unconverted mM vs uM"
+        },
+        {
+          "case_id": "hn_21_mass_vs_molar",
+          "source": "hard_negative",
+          "field": "target_units",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "µg/mL represents mass concentration while µM represents molarity; they are not equivalent.",
+          "note": "mass vs molarity"
+        },
+        {
+          "case_id": "hn_22_wrong_scale_10x",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "0.5 mg/mL equals 500 µg/mL, which contradicts the predicted 50 µg/mL.",
+          "note": "10x conversion error"
+        },
+        {
+          "case_id": "hn_23_std_diff",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Reported standard deviations differ (0.01 vs 0.02), altering the quantitative value.",
+          "note": "different SD"
+        },
+        {
+          "case_id": "hn_24_range_vs_point",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Predicted value truncates the reported range of 10–25 to a single value.",
+          "note": "interval vs point"
+        },
+        {
+          "case_id": "hn_25_val_8_vs_16",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Values 8 and 16 are numerically contradictory.",
+          "note": "2-fold MIC diff"
+        },
+        {
+          "case_id": "hn_26_cid_8b_vs_8c",
+          "source": "hard_negative",
+          "field": "compound_id",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Compound identifiers '8b' and '8c' denote different compounds.",
+          "note": "different compound ID"
+        },
+        {
+          "case_id": "hn_27_type_mic_pmic",
+          "source": "hard_negative",
+          "field": "target_type",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MIC and pMIC represent fundamentally different scales of measurement.",
+          "note": "MIC vs pMIC"
+        },
+        {
+          "case_id": "hn_28_positional_isomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Structures represent different regioisomers (para- vs meta-chlorotoluene).",
+          "note": "para vs meta isomer"
+        },
+        {
+          "case_id": "hn_29_ez_isomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Structures represent different geometric isomers (trans vs cis).",
+          "note": "E vs Z stereoisomer"
+        },
+        {
+          "case_id": "hn_30_rs_enantiomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Structures represent opposing stereocenters/enantiomers.",
+          "note": "R vs S enantiomer"
+        }
+      ]
+    },
+    "google/gemma-4-31b-it": {
+      "model": "google/gemma-4-31b-it",
+      "n_cases": 80,
+      "cohens_kappa": 0.924718,
+      "accuracy": 0.9625,
+      "f1_yes": 0.96,
+      "tp_yes": 36,
+      "fp_yes": 2,
+      "fn_no": 1,
+      "hard_negatives_total": 30,
+      "hard_negatives_false_yes": 1,
+      "hard_negatives_false_yes_rate": 0.033333,
+      "integrated_with_validators": {
+        "cohens_kappa": 0.974811,
+        "accuracy": 0.9875,
+        "hard_negatives_false_yes": 0,
+        "hard_negatives_false_yes_rate": 0.0,
+        "cases_routed_to_judge": 57
+      },
+      "parse_failures": 0,
+      "calls": 8,
+      "latency_s": 21.242,
+      "prompt_tokens": 28426,
+      "cached_tokens": 5148,
+      "completion_tokens": 3491,
+      "reasoning_tokens": 0,
+      "cost_usd": 0.003989,
+      "errors": [
+        {
+          "case_id": "audit_13_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "YES",
+          "correct": false,
+          "reasoning": "0.5 is the central value of 0.5 ± 0.05; semantically equivalent.",
+          "note": "dropped ± SD"
+        },
+        {
+          "case_id": "audit_63_052",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "GT lists two entities (general and specific), Pred only the specific one.",
+          "note": "duplicate genus prefix"
+        },
+        {
+          "case_id": "hn_28_positional_isomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "YES",
+          "correct": false,
+          "reasoning": "SMILES represent the same molecule (para-chlorotoluene), just different numbering/ordering.",
+          "note": "para vs meta isomer"
+        }
+      ],
+      "per_case": [
+        {
+          "case_id": "audit_05_RJC",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Equality (=) and greater-than-or-equal-to (>=) are different mathematical relations.",
+          "note": "inequality mutation"
+        },
+        {
+          "case_id": "audit_06_RJC",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "6.25 and 3.125 are different numerical values.",
+          "note": "different MIC value"
+        },
+        {
+          "case_id": "audit_09_RJC",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E.coli and E. coli are identical bacterial identifiers with a minor spacing difference.",
+          "note": "missing space after genus abbr"
+        },
+        {
+          "case_id": "audit_11_052",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Equality (=) and greater-than (>) are different mathematical relations.",
+          "note": "inequality mutation > vs ="
+        },
+        {
+          "case_id": "audit_12_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "0.125 ± 0.01 and 1 are different numerical values.",
+          "note": "magnitude mismatch"
+        },
+        {
+          "case_id": "audit_13_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "YES",
+          "correct": false,
+          "reasoning": "0.5 is the central value of 0.5 ± 0.05; semantically equivalent.",
+          "note": "dropped ± SD"
+        },
+        {
+          "case_id": "audit_14_052_a",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is an abbreviation for the full name provided in GT.",
+          "note": "MRSA canonical abbr"
+        },
+        {
+          "case_id": "audit_14_052_b",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard abbreviation for Staphylococcus aureus.",
+          "note": "genus abbreviation"
+        },
+        {
+          "case_id": "audit_18_996",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E. coli is the standard abbreviation for Escherichia coli.",
+          "note": "full vs abbr species"
+        },
+        {
+          "case_id": "audit_21_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ATCC 25926 and ATCC 25923 are different bacterial strain identifiers.",
+          "note": "different ATCC strain"
+        },
+        {
+          "case_id": "audit_22_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Redundant naming in GT; both refer to the same strain.",
+          "note": "duplicated species prefix"
+        },
+        {
+          "case_id": "audit_23_026",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Abbreviated and full names for the same species are equivalent.",
+          "note": "genus abbr"
+        },
+        {
+          "case_id": "audit_25_713",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Abbreviated and full names for the same species are equivalent.",
+          "note": "missing space abbr"
+        },
+        {
+          "case_id": "audit_26_545",
+          "source": "gt_audits",
+          "field": "compound_id",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different compound identifiers (9c vs 9a) represent different entities.",
+          "note": "different compound ID"
+        },
+        {
+          "case_id": "audit_27_545",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Equality (=) and inequality (>) are different mathematical relations.",
+          "note": "relation mismatch"
+        },
+        {
+          "case_id": "audit_30_545",
+          "source": "gt_audits",
+          "field": "target_units",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "µmol/mL is mathematically equivalent to millimolar (mM).",
+          "note": "1 umol/mL == 1 mM"
+        },
+        {
+          "case_id": "audit_31_545",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "0.27 and 0.270 are numerically identical.",
+          "note": "trailing zero"
+        },
+        {
+          "case_id": "audit_34_1002",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "0.68 and 0.98 are different numerical values.",
+          "note": "different MIC number"
+        },
+        {
+          "case_id": "audit_43_1002",
+          "source": "gt_audits",
+          "field": "target_units",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Standard notation and superscript notation for the same unit.",
+          "note": "superscript unit"
+        },
+        {
+          "case_id": "audit_51_1220_a",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S.a. is a standard abbreviation for Staphylococcus aureus.",
+          "note": "short species abbr"
+        },
+        {
+          "case_id": "audit_51_1220_b",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E.c. is a standard abbreviation for Escherichia coli.",
+          "note": "short species abbr"
+        },
+        {
+          "case_id": "audit_54_70",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard abbreviation for Staphylococcus aureus.",
+          "note": "genus abbr with strain"
+        },
+        {
+          "case_id": "audit_58_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "GT indicates a threshold (> 0.5), Pred indicates equality (0.5). Factual contradiction.",
+          "note": "lost > operator"
+        },
+        {
+          "case_id": "audit_60_6142",
+          "source": "gt_audits",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "SMILES differ: GT has an isopropyl group CC(C), Pred has an ethyl group CCN. Different molecules.",
+          "note": "isobutyl vs ethyl"
+        },
+        {
+          "case_id": "audit_61_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Standard deviation values differ (0.01 vs 0.02). Factual contradiction.",
+          "note": "different std"
+        },
+        {
+          "case_id": "audit_62_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Pred omitted the standard deviation present in GT. Incomplete value.",
+          "note": "missing std"
+        },
+        {
+          "case_id": "audit_63_052",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "GT lists two entities (general and specific), Pred only the specific one.",
+          "note": "duplicate genus prefix"
+        },
+        {
+          "case_id": "audit_67_046",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is abbreviation for Staphylococcus aureus; ATCC 29213 is the same strain.",
+          "note": "spacing and abbr"
+        },
+        {
+          "case_id": "audit_68_996",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a specific type of Staphylococcus aureus; the identifiers are equivalent.",
+          "note": "MRSA implies S. aureus"
+        },
+        {
+          "case_id": "audit_69_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Typo in Pred ('Staphylococcus.') does not change the semantic identity of the bacteria.",
+          "note": "period typo"
+        },
+        {
+          "case_id": "val21_pair_01",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a synonym for Methicillin-Resistant Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_02",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard abbreviation for Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_03",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard abbreviation for Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_04",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is the standard abbreviation for Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_05",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E. coli is the standard abbreviation for Escherichia coli.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_06",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E. coli is the standard abbreviation for Escherichia coli.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_07",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MSSA is a specific phenotype of S. aureus; adds descriptive detail.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_08",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a synonym for Methicillin-Resistant Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_09",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a synonym for Methicillin-Resistant Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_10",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a synonym for Methicillin-Resistant Staphylococcus aureus.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_11",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_12",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_13",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_14",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_15",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_16",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "MRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_17",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "VRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_18",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "VRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_19",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "VRSA is a known phenotype of Staphylococcus aureus; terms are semantically equivalent.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_20",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "The period in 'Staphylococcus. aureus' is a minor typographical variation.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "hn_01_sa_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MRSA is a specific phenotype of S. aureus; not semantically identical.",
+          "note": "resistance phenotype"
+        },
+        {
+          "case_id": "hn_02_staph_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MRSA N315 is a specific strain; not identical to general S. aureus.",
+          "note": "strain + resistance"
+        },
+        {
+          "case_id": "hn_03_mssa_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different resistance phenotypes (MSSA vs MRSA) and different ATCC strain IDs.",
+          "note": "MSSA vs MRSA"
+        },
+        {
+          "case_id": "hn_04_sa_vs_vrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "VRSA is a specific phenotype of S. aureus; not semantically identical.",
+          "note": "vancomycin resistance"
+        },
+        {
+          "case_id": "hn_05_ecoli_vs_esbl",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ESBL E. coli is a specific phenotype; not identical to general E. coli.",
+          "note": "ESBL phenotype"
+        },
+        {
+          "case_id": "hn_06_sa_vs_serum",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Predicted includes medium additive (human serum), changing the factual condition.",
+          "note": "media condition"
+        },
+        {
+          "case_id": "hn_07_atcc_25923_29213",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different ATCC strain identifiers (25923 vs 29213).",
+          "note": "different ATCC code"
+        },
+        {
+          "case_id": "hn_08_atcc_25926_25923",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different ATCC strain identifiers (25926 vs 25923).",
+          "note": "off-by-one ATCC code"
+        },
+        {
+          "case_id": "hn_09_ecoli_atcc_jm109",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different E. coli strain identifiers (ATCC 25922 vs JM109).",
+          "note": "different E. coli strain"
+        },
+        {
+          "case_id": "hn_10_mrsa_nr100_119",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different MRSA strain identifiers (NR 100 vs NR 119).",
+          "note": "different NR isolate"
+        },
+        {
+          "case_id": "hn_11_vrsa_vrs1_vrs4",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "VRS1 and VRS4 are different bacterial strain identifiers.",
+          "note": "different VRS isolate"
+        },
+        {
+          "case_id": "hn_12_mtcc_3160_96",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MTCC 3160 and MTCC 96 are different bacterial strain identifiers.",
+          "note": "different MTCC strain"
+        },
+        {
+          "case_id": "hn_13_species_sa_ec",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "S. aureus and E. coli are different bacterial species.",
+          "note": "different species"
+        },
+        {
+          "case_id": "hn_14_species_sa_se",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "S. aureus and S. epidermidis are different bacterial species.",
+          "note": "same genus diff species"
+        },
+        {
+          "case_id": "hn_15_gt_128_vs_128",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'> 128' is a range/inequality, '128' is a discrete value.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_16_lt_05_vs_05",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'< 0.5' is a range/inequality, '0.5' is a discrete value.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_17_ge_64_vs_64",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'≥ 64' is a range/inequality, '64' is a discrete value.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_18_rel_gt_vs_eq",
+          "source": "hard_negative",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'>' (greater than) is not equivalent to '=' (equal to).",
+          "note": "relation > vs ="
+        },
+        {
+          "case_id": "hn_19_rel_lt_vs_le",
+          "source": "hard_negative",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'<' (less than) is not equivalent to '≤' (less than or equal).",
+          "note": "strict < vs <="
+        },
+        {
+          "case_id": "hn_20_unconverted_mM_uM",
+          "source": "hard_negative",
+          "field": "target_units",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "mM (millimolar) and µM (micromolar) are different magnitudes.",
+          "note": "unconverted mM vs uM"
+        },
+        {
+          "case_id": "hn_21_mass_vs_molar",
+          "source": "hard_negative",
+          "field": "target_units",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Mass concentration (µg/mL) is not equivalent to molar concentration (µM).",
+          "note": "mass vs molarity"
+        },
+        {
+          "case_id": "hn_22_wrong_scale_10x",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "0.5 mg/mL is mathematically equivalent to 500 µg/mL, not 50 µg/mL.",
+          "note": "10x conversion error"
+        },
+        {
+          "case_id": "hn_23_std_diff",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Standard deviation values differ (0.01 vs 0.02).",
+          "note": "different SD"
+        },
+        {
+          "case_id": "hn_24_range_vs_point",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "A range (10-25) is not equivalent to a single value (10).",
+          "note": "interval vs point"
+        },
+        {
+          "case_id": "hn_25_val_8_vs_16",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Numerical values 8 and 16 are different.",
+          "note": "2-fold MIC diff"
+        },
+        {
+          "case_id": "hn_26_cid_8b_vs_8c",
+          "source": "hard_negative",
+          "field": "compound_id",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Compound identifiers 8b and 8c refer to different entities.",
+          "note": "different compound ID"
+        },
+        {
+          "case_id": "hn_27_type_mic_pmic",
+          "source": "hard_negative",
+          "field": "target_type",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MIC and pMIC are different measurement scales (linear vs negative log).",
+          "note": "MIC vs pMIC"
+        },
+        {
+          "case_id": "hn_28_positional_isomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "YES",
+          "correct": false,
+          "reasoning": "SMILES represent the same molecule (para-chlorotoluene), just different numbering/ordering.",
+          "note": "para vs meta isomer"
+        },
+        {
+          "case_id": "hn_29_ez_isomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "GT is cis-but-2-ene, Pred is trans-but-2-ene. Different stereoisomers.",
+          "note": "E vs Z stereoisomer"
+        },
+        {
+          "case_id": "hn_30_rs_enantiomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "GT is (R)-butan-2-ol, Pred is (S)-butan-2-ol. Different enantiomers.",
+          "note": "R vs S enantiomer"
+        }
+      ]
+    },
+    "deepseek/deepseek-v3.2": {
+      "model": "deepseek/deepseek-v3.2",
+      "n_cases": 80,
+      "cohens_kappa": 0.504563,
+      "accuracy": 0.7625,
+      "f1_yes": 0.654545,
+      "tp_yes": 18,
+      "fp_yes": 0,
+      "fn_no": 19,
+      "hard_negatives_total": 30,
+      "hard_negatives_false_yes": 0,
+      "hard_negatives_false_yes_rate": 0.0,
+      "integrated_with_validators": {
+        "cohens_kappa": 0.531555,
+        "accuracy": 0.775,
+        "hard_negatives_false_yes": 0,
+        "hard_negatives_false_yes_rate": 0.0,
+        "cases_routed_to_judge": 57
+      },
+      "parse_failures": 0,
+      "calls": 8,
+      "latency_s": 89.275,
+      "prompt_tokens": 25929,
+      "cached_tokens": 5568,
+      "completion_tokens": 3337,
+      "reasoning_tokens": 0,
+      "cost_usd": 0.007213,
+      "errors": [
+        {
+          "case_id": "audit_30_545",
+          "source": "gt_audits",
+          "field": "target_units",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "µmol/mL and mM are different concentration units (not equivalent).",
+          "note": "1 umol/mL == 1 mM"
+        },
+        {
+          "case_id": "audit_63_052",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits 'S. aureus,' prefix. Incomplete bacterial strain identifier.",
+          "note": "duplicate genus prefix"
+        },
+        {
+          "case_id": "audit_68_996",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits 'Staphylococcus aureus' species. Incomplete bacterial identifier.",
+          "note": "MRSA implies S. aureus"
+        },
+        {
+          "case_id": "audit_69_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Staphylococcus. aureus contains extra period. Format violation.",
+          "note": "period typo"
+        },
+        {
+          "case_id": "val21_pair_01",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'MRSA,' prefix but retains same strain. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_07",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred adds 'MSSA' phenotype not in GT. Extra information.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_08",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'Staphylococcus aureus' species name. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_09",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'Staphylococcus aureus' species name. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_10",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'Staphylococcus aureus' species name. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_11",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_12",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_13",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_14",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_15",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_16",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_17",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_18",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_19",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_20",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Extra period in 'Staphylococcus.' is a formatting error.",
+          "note": "2026-11-21 val audited YES"
+        }
+      ],
+      "per_case": [
+        {
+          "case_id": "audit_05_RJC",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "GT equality (=) vs Pred inequality (>=) are different mathematical relations.",
+          "note": "inequality mutation"
+        },
+        {
+          "case_id": "audit_06_RJC",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "6.25 ≠ 3.125. Different numerical values.",
+          "note": "different MIC value"
+        },
+        {
+          "case_id": "audit_09_RJC",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E.coli and E. coli are standard synonyms for Escherichia coli.",
+          "note": "missing space after genus abbr"
+        },
+        {
+          "case_id": "audit_11_052",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "GT equality (=) vs Pred inequality (>) are different mathematical relations.",
+          "note": "inequality mutation > vs ="
+        },
+        {
+          "case_id": "audit_12_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "0.125 ± 0.01 ≠ 1. Different values and Pred omits uncertainty.",
+          "note": "magnitude mismatch"
+        },
+        {
+          "case_id": "audit_13_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Pred omits the ± 0.05 uncertainty present in GT.",
+          "note": "dropped ± SD"
+        },
+        {
+          "case_id": "audit_14_052_a",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "Pred 'MRSA' is an abbreviation for GT's full description.",
+          "note": "MRSA canonical abbr"
+        },
+        {
+          "case_id": "audit_14_052_b",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is standard abbreviation for Staphylococcus aureus.",
+          "note": "genus abbreviation"
+        },
+        {
+          "case_id": "audit_18_996",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E. coli is standard abbreviation for Escherichia coli.",
+          "note": "full vs abbr species"
+        },
+        {
+          "case_id": "audit_21_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ATCC 25926 ≠ ATCC 25923. Different strain identifiers.",
+          "note": "different ATCC strain"
+        },
+        {
+          "case_id": "audit_22_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "GT includes redundant 'E. coli' prefix. Pred is canonical form.",
+          "note": "duplicated species prefix"
+        },
+        {
+          "case_id": "audit_23_026",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'E. coli' is standard abbreviation for 'Escherichia coli'.",
+          "note": "genus abbr"
+        },
+        {
+          "case_id": "audit_25_713",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'S.aureus' is standard abbreviation for 'Staphylococcus aureus'.",
+          "note": "missing space abbr"
+        },
+        {
+          "case_id": "audit_26_545",
+          "source": "gt_audits",
+          "field": "compound_id",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'9c' and '9a' are different compound identifiers.",
+          "note": "different compound ID"
+        },
+        {
+          "case_id": "audit_27_545",
+          "source": "gt_audits",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "'=' (equality) and '>' (greater than) are different mathematical relations.",
+          "note": "relation mismatch"
+        },
+        {
+          "case_id": "audit_30_545",
+          "source": "gt_audits",
+          "field": "target_units",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "µmol/mL and mM are different concentration units (not equivalent).",
+          "note": "1 umol/mL == 1 mM"
+        },
+        {
+          "case_id": "audit_31_545",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "0.27 and 0.270 are numerically equivalent (same precision).",
+          "note": "trailing zero"
+        },
+        {
+          "case_id": "audit_34_1002",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "0.68 and 0.98 are different numerical values.",
+          "note": "different MIC number"
+        },
+        {
+          "case_id": "audit_43_1002",
+          "source": "gt_audits",
+          "field": "target_units",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'µg mL-1' and 'µg mL⁻¹' are equivalent unit notations.",
+          "note": "superscript unit"
+        },
+        {
+          "case_id": "audit_51_1220_a",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'S.a.' is ambiguous abbreviation for 'Staphylococcus aureus'.",
+          "note": "short species abbr"
+        },
+        {
+          "case_id": "audit_51_1220_b",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "E.c. is standard abbreviation for Escherichia coli.",
+          "note": "short species abbr"
+        },
+        {
+          "case_id": "audit_54_70",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is standard abbreviation for Staphylococcus aureus.",
+          "note": "genus abbr with strain"
+        },
+        {
+          "case_id": "audit_58_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "GT: >0.5 (inequality), Pred: 0.5 (equality). Different relation.",
+          "note": "lost > operator"
+        },
+        {
+          "case_id": "audit_60_6142",
+          "source": "gt_audits",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "SMILES strings differ: GT has CC(C)C, Pred has CC. Different molecular structure.",
+          "note": "isobutyl vs ethyl"
+        },
+        {
+          "case_id": "audit_61_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Standard deviation differs: 0.01 vs 0.02. Different precision.",
+          "note": "different std"
+        },
+        {
+          "case_id": "audit_62_052",
+          "source": "gt_audits",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "GT includes standard deviation (±1.73), Pred omits it. Different precision.",
+          "note": "missing std"
+        },
+        {
+          "case_id": "audit_63_052",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits 'S. aureus,' prefix. Incomplete bacterial strain identifier.",
+          "note": "duplicate genus prefix"
+        },
+        {
+          "case_id": "audit_67_046",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "S. aureus is standard abbreviation for Staphylococcus aureus.",
+          "note": "spacing and abbr"
+        },
+        {
+          "case_id": "audit_68_996",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits 'Staphylococcus aureus' species. Incomplete bacterial identifier.",
+          "note": "MRSA implies S. aureus"
+        },
+        {
+          "case_id": "audit_69_s415",
+          "source": "gt_audits",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Staphylococcus. aureus contains extra period. Format violation.",
+          "note": "period typo"
+        },
+        {
+          "case_id": "val21_pair_01",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'MRSA,' prefix but retains same strain. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_02",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'S. aureus' is standard abbreviation for 'Staphylococcus aureus'.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_03",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'S. aureus' is standard abbreviation for 'Staphylococcus aureus'.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_04",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'S. aureus' is standard abbreviation for 'Staphylococcus aureus'.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_05",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'E. coli' is standard abbreviation for 'Escherichia coli'.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_06",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "YES",
+          "correct": true,
+          "reasoning": "'E. coli' is standard abbreviation for 'Escherichia coli'.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_07",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred adds 'MSSA' phenotype not in GT. Extra information.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_08",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'Staphylococcus aureus' species name. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_09",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'Staphylococcus aureus' species name. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_10",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred drops 'Staphylococcus aureus' species name. Incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_11",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_12",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_13",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_14",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_15",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_16",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_17",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_18",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_19",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Pred omits species name 'Staphylococcus aureus', incomplete.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "val21_pair_20",
+          "source": "2026-11-21_judge",
+          "field": "bacteria",
+          "gold": "YES",
+          "pred": "NO",
+          "correct": false,
+          "reasoning": "Extra period in 'Staphylococcus.' is a formatting error.",
+          "note": "2026-11-21 val audited YES"
+        },
+        {
+          "case_id": "hn_01_sa_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MRSA is a resistance phenotype subset of S. aureus, not equivalent.",
+          "note": "resistance phenotype"
+        },
+        {
+          "case_id": "hn_02_staph_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MRSA N315 is a specific strain, not equivalent to generic Staphylococcus aureus.",
+          "note": "strain + resistance"
+        },
+        {
+          "case_id": "hn_03_mssa_vs_mrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different strain designations (ATCC 29213 vs 43300) and phenotypes (MSSA vs MRSA).",
+          "note": "MSSA vs MRSA"
+        },
+        {
+          "case_id": "hn_04_sa_vs_vrsa",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "VRSA is a specific resistance phenotype, not equivalent to generic S. aureus.",
+          "note": "vancomycin resistance"
+        },
+        {
+          "case_id": "hn_05_ecoli_vs_esbl",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "ESBL E. coli is a resistance phenotype subset, not equivalent to generic E. coli.",
+          "note": "ESBL phenotype"
+        },
+        {
+          "case_id": "hn_06_sa_vs_serum",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Pred adds serum condition, changing the experimental context.",
+          "note": "media condition"
+        },
+        {
+          "case_id": "hn_07_atcc_25923_29213",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different ATCC strain numbers (25923 vs 29213) are distinct strains.",
+          "note": "different ATCC code"
+        },
+        {
+          "case_id": "hn_08_atcc_25926_25923",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different ATCC strain numbers (25926 vs 25923) are distinct strains.",
+          "note": "off-by-one ATCC code"
+        },
+        {
+          "case_id": "hn_09_ecoli_atcc_jm109",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different strain designations (ATCC 25922 vs JM109) are distinct strains.",
+          "note": "different E. coli strain"
+        },
+        {
+          "case_id": "hn_10_mrsa_nr100_119",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different strain designations (NR 100 vs NR 119) are distinct strains.",
+          "note": "different NR isolate"
+        },
+        {
+          "case_id": "hn_11_vrsa_vrs1_vrs4",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different strain designations (VRS1 vs VRS4) are distinct bacterial strains.",
+          "note": "different VRS isolate"
+        },
+        {
+          "case_id": "hn_12_mtcc_3160_96",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different MTCC culture collection numbers (3160 vs 96) are distinct strains.",
+          "note": "different MTCC strain"
+        },
+        {
+          "case_id": "hn_13_species_sa_ec",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different bacterial species (S. aureus vs E. coli) are distinct organisms.",
+          "note": "different species"
+        },
+        {
+          "case_id": "hn_14_species_sa_se",
+          "source": "hard_negative",
+          "field": "bacteria",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different bacterial species (S. aureus vs S. epidermidis) are distinct organisms.",
+          "note": "same genus diff species"
+        },
+        {
+          "case_id": "hn_15_gt_128_vs_128",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Inequality '> 128' is not equivalent to exact value '128'.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_16_lt_05_vs_05",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Inequality '< 0.5' is not equivalent to exact value '0.5'.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_17_ge_64_vs_64",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Inequality '≥ 64' is not equivalent to exact value '64'.",
+          "note": "inequality vs equality"
+        },
+        {
+          "case_id": "hn_18_rel_gt_vs_eq",
+          "source": "hard_negative",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different mathematical operators ('>' vs '=') convey different relationships.",
+          "note": "relation > vs ="
+        },
+        {
+          "case_id": "hn_19_rel_lt_vs_le",
+          "source": "hard_negative",
+          "field": "target_relation",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different inequality operators ('<' vs '≤') are not mathematically equivalent.",
+          "note": "strict < vs <="
+        },
+        {
+          "case_id": "hn_20_unconverted_mM_uM",
+          "source": "hard_negative",
+          "field": "target_units",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different concentration units (mM vs µM) without value conversion.",
+          "note": "unconverted mM vs uM"
+        },
+        {
+          "case_id": "hn_21_mass_vs_molar",
+          "source": "hard_negative",
+          "field": "target_units",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "µg/mL and µM are different concentration units without conversion.",
+          "note": "mass vs molarity"
+        },
+        {
+          "case_id": "hn_22_wrong_scale_10x",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "0.5 mg/mL equals 500 µg/mL, not 50 µg/mL.",
+          "note": "10x conversion error"
+        },
+        {
+          "case_id": "hn_23_std_diff",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Standard deviation values differ (0.01 vs 0.02).",
+          "note": "different SD"
+        },
+        {
+          "case_id": "hn_24_range_vs_point",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Range (10–25) vs single value (10) are different facts.",
+          "note": "interval vs point"
+        },
+        {
+          "case_id": "hn_25_val_8_vs_16",
+          "source": "hard_negative",
+          "field": "target_value",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different MIC values (8 vs 16).",
+          "note": "2-fold MIC diff"
+        },
+        {
+          "case_id": "hn_26_cid_8b_vs_8c",
+          "source": "hard_negative",
+          "field": "compound_id",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different compound identifiers (8b vs 8c).",
+          "note": "different compound ID"
+        },
+        {
+          "case_id": "hn_27_type_mic_pmic",
+          "source": "hard_negative",
+          "field": "target_type",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "MIC and pMIC are different measurement types.",
+          "note": "MIC vs pMIC"
+        },
+        {
+          "case_id": "hn_28_positional_isomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different aromatic substitution patterns in SMILES.",
+          "note": "para vs meta isomer"
+        },
+        {
+          "case_id": "hn_29_ez_isomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different stereochemistry (C/C=C/C vs C/C=C\\C).",
+          "note": "E vs Z stereoisomer"
+        },
+        {
+          "case_id": "hn_30_rs_enantiomer",
+          "source": "hard_negative",
+          "field": "smiles",
+          "gold": "NO",
+          "pred": "NO",
+          "correct": true,
+          "reasoning": "Different stereochemistry descriptors (@ vs @@).",
+          "note": "R vs S enantiomer"
+        }
+      ]
+    }
+  },
+  "gate_decision": {
+    "passed": true,
+    "criteria_checks": {
+      "record_matcher_dual_metric_exact_match": true,
+      "pot_112996_duplicates_3_of_3": true,
+      "pint_cpu_resolution_ge_80pct_zero_judge": true,
+      "numeric_quantity_comma_and_inequality": true,
+      "pot_merge_split_and_cutoff": true,
+      "simpleeval_invariants_and_security": true,
+      "judge_llm_only_kappa_ge_0_90_zero_hn_fp": true,
+      "judge_integrated_kappa_ge_0_90_zero_hn_fp": true,
+      "qualified_judges_llm_only": [
+        "gemini-3.8-flash"
+      ],
+      "qualified_judges_integrated": [
+        "gemini-3.8-flash",
+        "google/gemma-4-31b-it"
+      ]
+    },
+    "notes": "EXP-03 dual-metric matcher, Pint/numeric_quantity/simpleeval plugins, POT/RapidFuzz diagnostics, and 3-judge calibration."
+  }
+}

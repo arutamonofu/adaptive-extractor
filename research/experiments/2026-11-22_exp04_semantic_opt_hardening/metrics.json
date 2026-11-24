@@ -1,0 +1,1116 @@
+{
+  "experiment": "2026-11-22_exp04_semantic_opt_hardening",
+  "protocol_ref": "EXP-04",
+  "date": "2026-11-22",
+  "status": "completed",
+  "git_commit": "109656a",
+  "parent_experiment": "2026-11-21_benzimidazole_post_audit_eval",
+  "historical_reference": "2026-11-20_benzimidazole_hybrid_run",
+  "domain": "benzimidazole_antibiotics",
+  "split": "train->val",
+  "n_train_docs": 6,
+  "n_val_docs": 6,
+  "n_gt_rows_val": 314,
+  "runs": [
+    {
+      "arm": "SemOpt-Baseline (2026-11-20)",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.98259,
+        "macro_f1_semantic": 0.984388,
+        "per_field_f1_semantic": {
+          "compound_id": 0.9936,
+          "smiles": 0.9713,
+          "target_type": 0.9936,
+          "target_relation": 0.9936,
+          "target_value": 0.9936,
+          "target_units": 0.9936,
+          "bacteria": 0.9172
+        }
+      },
+      "iter_1_val_micro_f1": 0.963487,
+      "iter_2_val_micro_f1": 0.98259,
+      "iter_1_target_units_closed": true,
+      "iter_2_smiles_delta": -0.0255
+    },
+    {
+      "arm": "SemOpt-Guarded (EXP-04)",
+      "seed_repeats": 1,
+      "quality": {
+        "micro_f1_semantic": 0.9968152866242038,
+        "macro_f1_semantic": 0.9761904761904762,
+        "micro_f1_strict": 0.9308462238398544,
+        "macro_f1_strict": 0.9520795660036167,
+        "per_field_f1_semantic": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.977707
+        },
+        "per_field_f1_strict": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.515924
+        }
+      },
+      "efficiency": {
+        "latency_total_s": 9126.145,
+        "extraction_and_judge": {
+          "calls_total": 95,
+          "retries_total": 0,
+          "prompt_tokens": 1773050,
+          "cached_tokens": 752714,
+          "cache_hit_rate": 0.424531,
+          "completion_tokens": 422433,
+          "reasoning_tokens": 300926,
+          "agent_draft_tokens": 0,
+          "judge_calls": 0,
+          "judge_tokens": 0,
+          "cost_usd_total": 0.0
+        },
+        "semantic_optimization_teacher": {
+          "calls_total": 49,
+          "latency_s": 5138.202,
+          "prompt_tokens": 1996143,
+          "cached_tokens": 0,
+          "completion_tokens": 315622,
+          "reasoning_tokens": 179397,
+          "cost_usd_total": 0.0
+        }
+      },
+      "artifacts": {
+        "logs_dir": "logs/",
+        "doc_scores_iter1": {
+          "acsomega.2c06142": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 16,
+            "preds": 16,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "rjc.2023.1638382": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 14,
+            "preds": 14,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.bmcl.2018.03.046": {
+            "f1": 0.9642857142857143,
+            "strict_f1": 0.9642857142857143,
+            "gts": 144,
+            "preds": 144,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 0.9166666666666666,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 0.8333333333333334
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2020.112996": {
+            "f1": 1.0,
+            "strict_f1": 0.9981916817359855,
+            "gts": 79,
+            "preds": 79,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "s41598-022-21435-6": {
+            "f1": 0.8571428571428571,
+            "strict_f1": 0.8571428571428571,
+            "gts": 7,
+            "preds": 7,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 0.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2019.03.026": {
+            "f1": 0.91005291005291,
+            "strict_f1": 0.91005291005291,
+            "gts": 54,
+            "preds": 54,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 0.37037037037037035,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          }
+        },
+        "doc_scores_iter2": {
+          "acsomega.2c06142": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 16,
+            "preds": 16,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "rjc.2023.1638382": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 14,
+            "preds": 14,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.bmcl.2018.03.046": {
+            "f1": 1.0,
+            "strict_f1": 0.8571428571428571,
+            "gts": 144,
+            "preds": 144,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2020.112996": {
+            "f1": 1.0,
+            "strict_f1": 0.9981916817359855,
+            "gts": 79,
+            "preds": 79,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "s41598-022-21435-6": {
+            "f1": 0.8571428571428571,
+            "strict_f1": 0.8571428571428571,
+            "gts": 7,
+            "preds": 7,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 0.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2019.03.026": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 54,
+            "preds": 54,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          }
+        }
+      }
+    }
+  ],
+  "iteration_details": {
+    "compilation_summary": {
+      "total_iterations": 2,
+      "best_iteration": 2,
+      "early_stopped": false,
+      "best_f1": 0.9968152866242038,
+      "best_per_field_f1": {
+        "compound_id": 1.0,
+        "smiles": 1.0,
+        "target_type": 1.0,
+        "target_relation": 1.0,
+        "target_value": 1.0,
+        "target_units": 1.0,
+        "bacteria": 0.977707
+      },
+      "f1_history": [
+        0.964968152866242,
+        0.9968152866242038
+      ],
+      "per_field_history": [
+        {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 0.853503,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.901274
+        },
+        {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.977707
+        }
+      ],
+      "pareto_rollback_history": [
+        {
+          "iteration": 2,
+          "regressed_fields": [
+            "compound_id",
+            "smiles",
+            "target_type",
+            "target_value",
+            "target_units",
+            "bacteria"
+          ],
+          "pre_rollback_f1": 0.87598,
+          "pre_rollback_per_field_f1": {
+            "compound_id": 0.915371,
+            "smiles": 0.915371,
+            "target_type": 0.915371,
+            "target_relation": 0.915371,
+            "target_value": 0.915371,
+            "target_units": 0.915371,
+            "bacteria": 0.83247
+          },
+          "post_rollback_f1": 0.996815,
+          "post_rollback_per_field_f1": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.977707
+          },
+          "still_regressed": [],
+          "accepted": true
+        }
+      ],
+      "train_doc_ids": [
+        "antibiotics12071220",
+        "j.ejmech.2016.01.052",
+        "ja.2017.70",
+        "1570180811666140725185713",
+        "jccs.202000418j",
+        "acs.jafc.1c02545"
+      ],
+      "val_doc_ids": [
+        "acsomega.2c06142",
+        "rjc.2023.1638382",
+        "j.bmcl.2018.03.046",
+        "j.ejmech.2020.112996",
+        "s41598-022-21435-6",
+        "j.ejmech.2019.03.026"
+      ],
+      "corrected_gt_file": "/home/arutamonofu/projects/adaptive-extractor/research/experiments/2026-11-22_exp04_semantic_opt_hardening/raw/semantic_optimization/ground_truth_corrected.csv",
+      "expert_rulings_count": 15
+    },
+    "iter_1": {
+      "val_metrics": {
+        "iteration": 1,
+        "cache_key": "da0a5dc704cf979e49593c1d3871f28297fad565284de321dd2bf30e3f7c1af9",
+        "selection_metric": "micro_f1",
+        "f1_score": 0.964968152866242,
+        "macro_f1": 0.9552469135802468,
+        "micro_f1": 0.964968152866242,
+        "strict_micro_f1": 0.964513193812557,
+        "strict_macro_f1": 0.9549455272029111,
+        "per_field_f1": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 0.853503,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.901274
+        },
+        "strict_per_field_f1": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 0.853503,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.898089
+        },
+        "doc_scores": {
+          "acsomega.2c06142": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 16,
+            "preds": 16,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "rjc.2023.1638382": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 14,
+            "preds": 14,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.bmcl.2018.03.046": {
+            "f1": 0.9642857142857143,
+            "strict_f1": 0.9642857142857143,
+            "gts": 144,
+            "preds": 144,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 0.9166666666666666,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 0.8333333333333334
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2020.112996": {
+            "f1": 1.0,
+            "strict_f1": 0.9981916817359855,
+            "gts": 79,
+            "preds": 79,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "s41598-022-21435-6": {
+            "f1": 0.8571428571428571,
+            "strict_f1": 0.8571428571428571,
+            "gts": 7,
+            "preds": 7,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 0.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2019.03.026": {
+            "f1": 0.91005291005291,
+            "strict_f1": 0.91005291005291,
+            "gts": 54,
+            "preds": 54,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 0.37037037037037035,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          }
+        },
+        "pareto_rollback": null
+      },
+      "target_units_choices": null,
+      "case_patch_audit": {
+        "iteration": 1,
+        "active_docs_count": 2,
+        "blocked_count": 0,
+        "blocked_rules": []
+      },
+      "hitl_triage_queue": [
+        {
+          "round": 1,
+          "queue": [
+            {
+              "conflict_id": "target_value_baseline_conflict_001",
+              "priority": "P0",
+              "conflict_type": "BASELINE_POLICY_CONFLICT",
+              "scope": "column:target_value",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_29",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "bacteria_baseline_format_policy_001",
+              "priority": "P0",
+              "conflict_type": "BASELINE_POLICY_CONFLICT",
+              "scope": "column:bacteria",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_15",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "target_value_range_handling_001",
+              "priority": "P0",
+              "conflict_type": "CROSS_DOC_CONTRADICTION",
+              "scope": "column:target_value",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_10",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "target_units_unicode_inconsistency_001",
+              "priority": "P0",
+              "conflict_type": "CROSS_DOC_CONTRADICTION",
+              "scope": "column:target_units",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_40",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "target_units_spacing_inconsistency_002",
+              "priority": "P0",
+              "conflict_type": "CROSS_DOC_CONTRADICTION",
+              "scope": "column:target_units",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_40",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "bacteria_abbrev_expansion_inconsistency_001",
+              "priority": "P0",
+              "conflict_type": "CROSS_DOC_CONTRADICTION",
+              "scope": "column:bacteria",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_38",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "bacteria_abbrev_expansion_inconsistency_002",
+              "priority": "P0",
+              "conflict_type": "CROSS_DOC_CONTRADICTION",
+              "scope": "column:bacteria",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_22",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "smiles_conflict_001",
+              "priority": "P1",
+              "conflict_type": "SUSPECTED_GT_ERROR",
+              "scope": "column:smiles",
+              "document_id": "j.ejmech.2016.01.052",
+              "row_id": "row_150",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "smiles_conflict_002",
+              "priority": "P1",
+              "conflict_type": "SUSPECTED_GT_ERROR",
+              "scope": "column:smiles",
+              "document_id": "j.ejmech.2016.01.052",
+              "row_id": "row_159",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "GT_OMISSION_001",
+              "priority": "P1",
+              "conflict_type": "SUSPECTED_GT_OMISSION",
+              "scope": "rows",
+              "document_id": "antibiotics12071220",
+              "row_id": "gap_row_1",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "target_value_ingestion_defect_001",
+              "priority": "P2",
+              "conflict_type": "SUSPECTED_INGESTION_DEFECT",
+              "scope": "column:target_value",
+              "document_id": "j.ejmech.2016.01.052",
+              "row_id": "row_83",
+              "diagnostic_tag": null
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "queue": [
+            {
+              "conflict_id": "BASELINE_EXHAUSTIVE_CLARIFICATION",
+              "priority": "P0",
+              "conflict_type": "BASELINE_POLICY_CONFLICT",
+              "scope": "rows",
+              "document_id": "antibiotics12071220",
+              "row_id": "row_1",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "bacteria_expansion_002",
+              "priority": "P1",
+              "conflict_type": "SUSPECTED_GT_ERROR",
+              "scope": "column:bacteria",
+              "document_id": "j.ejmech.2016.01.052",
+              "row_id": "row_86",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "bacteria_expansion_003",
+              "priority": "P1",
+              "conflict_type": "SUSPECTED_GT_ERROR",
+              "scope": "column:bacteria",
+              "document_id": "j.ejmech.2016.01.052",
+              "row_id": "row_150",
+              "diagnostic_tag": null
+            }
+          ]
+        }
+      ]
+    },
+    "iter_2": {
+      "val_metrics": {
+        "iteration": 2,
+        "cache_key": "a04c5e5980d76aa9177b69de4f8a963d6cd348b42d51f464e0b623516695b13f",
+        "selection_metric": "micro_f1",
+        "f1_score": 0.9968152866242038,
+        "macro_f1": 0.9761904761904762,
+        "micro_f1": 0.9968152866242038,
+        "strict_micro_f1": 0.9308462238398544,
+        "strict_macro_f1": 0.9520795660036167,
+        "per_field_f1": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.977707
+        },
+        "strict_per_field_f1": {
+          "compound_id": 1.0,
+          "smiles": 1.0,
+          "target_type": 1.0,
+          "target_relation": 1.0,
+          "target_value": 1.0,
+          "target_units": 1.0,
+          "bacteria": 0.515924
+        },
+        "doc_scores": {
+          "acsomega.2c06142": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 16,
+            "preds": 16,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "rjc.2023.1638382": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 14,
+            "preds": 14,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.bmcl.2018.03.046": {
+            "f1": 1.0,
+            "strict_f1": 0.8571428571428571,
+            "gts": 144,
+            "preds": 144,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2020.112996": {
+            "f1": 1.0,
+            "strict_f1": 0.9981916817359855,
+            "gts": 79,
+            "preds": 79,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "s41598-022-21435-6": {
+            "f1": 0.8571428571428571,
+            "strict_f1": 0.8571428571428571,
+            "gts": 7,
+            "preds": 7,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 0.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          },
+          "j.ejmech.2019.03.026": {
+            "f1": 1.0,
+            "strict_f1": 1.0,
+            "gts": 54,
+            "preds": 54,
+            "fields": {
+              "compound_id": 1.0,
+              "smiles": 1.0,
+              "target_type": 1.0,
+              "target_relation": 1.0,
+              "target_value": 1.0,
+              "target_units": 1.0,
+              "bacteria": 1.0
+            },
+            "diagnostics": {
+              "duplicate_of_tp": [],
+              "row_merge": [],
+              "row_split": []
+            }
+          }
+        },
+        "pareto_rollback": {
+          "iteration": 2,
+          "regressed_fields": [
+            "compound_id",
+            "smiles",
+            "target_type",
+            "target_value",
+            "target_units",
+            "bacteria"
+          ],
+          "pre_rollback_f1": 0.87598,
+          "pre_rollback_per_field_f1": {
+            "compound_id": 0.915371,
+            "smiles": 0.915371,
+            "target_type": 0.915371,
+            "target_relation": 0.915371,
+            "target_value": 0.915371,
+            "target_units": 0.915371,
+            "bacteria": 0.83247
+          },
+          "post_rollback_f1": 0.996815,
+          "post_rollback_per_field_f1": {
+            "compound_id": 1.0,
+            "smiles": 1.0,
+            "target_type": 1.0,
+            "target_relation": 1.0,
+            "target_value": 1.0,
+            "target_units": 1.0,
+            "bacteria": 0.977707
+          },
+          "still_regressed": [],
+          "accepted": true
+        }
+      },
+      "target_units_choices": null,
+      "per_field_deltas_vs_iter1": {
+        "bacteria": 0.076433,
+        "compound_id": 0.0,
+        "smiles": 0.0,
+        "target_relation": 0.146497,
+        "target_type": 0.0,
+        "target_units": 0.0,
+        "target_value": 0.0
+      },
+      "uncompensated_regressions": {},
+      "case_patch_audit": {
+        "iteration": 2,
+        "active_docs_count": 6,
+        "blocked_count": 0,
+        "blocked_rules": []
+      },
+      "hitl_triage_queue": [
+        {
+          "round": 1,
+          "queue": [
+            {
+              "conflict_id": "bacteria_gt_error_001",
+              "priority": "P2",
+              "conflict_type": "SUSPECTED_GT_ERROR",
+              "scope": "column:bacteria",
+              "document_id": "jccs.202000418j",
+              "row_id": "row_1",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "bacteria_incomplete_extraction_001",
+              "priority": "P2",
+              "conflict_type": "CROSS_DOC_CONTRADICTION",
+              "scope": "column:bacteria",
+              "document_id": "jccs.202000418j",
+              "row_id": "row_1",
+              "diagnostic_tag": null
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "queue": [
+            {
+              "conflict_id": "bacteria_conflict_007",
+              "priority": "P1",
+              "conflict_type": "SUSPECTED_GT_ERROR",
+              "scope": "column:bacteria",
+              "document_id": "jccs.202000418j",
+              "row_id": "row_2",
+              "diagnostic_tag": null
+            },
+            {
+              "conflict_id": "bacteria_conflict_008",
+              "priority": "P1",
+              "conflict_type": "SUSPECTED_GT_ERROR",
+              "scope": "column:bacteria",
+              "document_id": "jccs.202000418j",
+              "row_id": "row_86",
+              "diagnostic_tag": null
+            }
+          ]
+        }
+      ],
+      "residual_reports": {
+        "1570180811666140725185713": {
+          "doc_id": "1570180811666140725185713",
+          "mode": "zero_delta_skip",
+          "f1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "pred_count": 22,
+          "gt_count": 22,
+          "tp_rows": 22,
+          "fn_rows": 0,
+          "fp_rows": 0,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp_count": 0,
+          "row_merge_count": 0,
+          "row_split_count": 0,
+          "high_confidence_unlabeled_count": 0,
+          "pu_high_confidence_rows": [],
+          "pot_diagnostics": {
+            "duplicate_of_tp": [],
+            "row_merge": [],
+            "row_split": []
+          },
+          "analyzed_fn_row_ids": [],
+          "analyzed_mismatch_row_ids": [],
+          "grouped_signatures": {},
+          "affected_scopes": [],
+          "fallback_reason": "",
+          "input_hash": "bfe92096b9d0da1a574aa31ce6a977cb0a3ad0f709f364ab8528086675832e91"
+        },
+        "acs.jafc.1c02545": {
+          "doc_id": "acs.jafc.1c02545",
+          "mode": "zero_delta_skip",
+          "f1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "pred_count": 112,
+          "gt_count": 112,
+          "tp_rows": 112,
+          "fn_rows": 0,
+          "fp_rows": 0,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp_count": 0,
+          "row_merge_count": 0,
+          "row_split_count": 0,
+          "high_confidence_unlabeled_count": 0,
+          "pu_high_confidence_rows": [],
+          "pot_diagnostics": {
+            "duplicate_of_tp": [],
+            "row_merge": [],
+            "row_split": []
+          },
+          "analyzed_fn_row_ids": [],
+          "analyzed_mismatch_row_ids": [],
+          "grouped_signatures": {},
+          "affected_scopes": [],
+          "fallback_reason": "",
+          "input_hash": "a2bfe15844a410b5994b1744795a7afaf45fca48beb0ea4dacf8f6c9538e28f8"
+        },
+        "ja.2017.70": {
+          "doc_id": "ja.2017.70",
+          "mode": "zero_delta_skip",
+          "f1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "pred_count": 33,
+          "gt_count": 33,
+          "tp_rows": 33,
+          "fn_rows": 0,
+          "fp_rows": 0,
+          "mismatch_pairs": 0,
+          "duplicate_of_tp_count": 0,
+          "row_merge_count": 0,
+          "row_split_count": 0,
+          "high_confidence_unlabeled_count": 0,
+          "pu_high_confidence_rows": [],
+          "pot_diagnostics": {
+            "duplicate_of_tp": [],
+            "row_merge": [],
+            "row_split": []
+          },
+          "analyzed_fn_row_ids": [],
+          "analyzed_mismatch_row_ids": [],
+          "grouped_signatures": {},
+          "affected_scopes": [],
+          "fallback_reason": "",
+          "input_hash": "2909ace2fff257961b90dba662fb7c53093a8764c4047ec695365ec157b25c09"
+        },
+        "jccs.202000418j": {
+          "doc_id": "jccs.202000418j",
+          "mode": "residual",
+          "f1": 0.8571428571428571,
+          "precision": 0.8571428571428571,
+          "recall": 0.8571428571428571,
+          "pred_count": 2,
+          "gt_count": 2,
+          "tp_rows": 0,
+          "fn_rows": 0,
+          "fp_rows": 0,
+          "mismatch_pairs": 2,
+          "duplicate_of_tp_count": 0,
+          "row_merge_count": 0,
+          "row_split_count": 0,
+          "high_confidence_unlabeled_count": 0,
+          "pu_high_confidence_rows": [],
+          "pot_diagnostics": {
+            "duplicate_of_tp": [],
+            "row_merge": [],
+            "row_split": []
+          },
+          "analyzed_fn_row_ids": [],
+          "analyzed_mismatch_row_ids": [
+            "row_2",
+            "row_1"
+          ],
+          "grouped_signatures": {
+            "bacteria:format_or_substring_diff": 2
+          },
+          "affected_scopes": [
+            "column:bacteria"
+          ],
+          "fallback_reason": "",
+          "input_hash": "277cedbba0492618bcc53c56451539bb7ea7a0408ad69847cca035bd7a778d65"
+        }
+      }
+    },
+    "final_prompt_case_patch_hits": []
+  },
+  "gate_decision": {
+    "passed": true,
+    "criteria_checks": {
+      "schema_target_units_not_closed_iter1": true,
+      "zero_uncompensated_col_regressions_iter1_to_iter2": true,
+      "val_micro_f1_ge_0_9949": true,
+      "zero_case_patch_in_final_prompt": true,
+      "p0_hitl_prioritized_first": true
+    },
+    "notes": ""
+  }
+}
