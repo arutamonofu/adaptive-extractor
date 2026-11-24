@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 from pydantic.json_schema import SkipJsonSchema
 
 # ---------------------------------------------------------------------------
@@ -76,6 +82,14 @@ class ElementManifestItem(BaseModel):
     page_index: int = Field(default=0, description="0-based index of visual crop page fragment")
     label: str = Field(default="", description="Label visible on image, e.g. '1', '3a-3j', '(a)'")
     description: str = Field(description="Guidance for what to tightly include in element bbox")
+    box_2d: Optional[list[int]] = Field(
+        default=None,
+        description="Bounding box [ymin, xmin, ymax, xmax] on the visual crop in normalized 0..1000 coordinates",
+    )
+    extra_boxes_2d: list[list[int]] = Field(
+        default_factory=list,
+        description="Additional disjoint [ymin, xmin, ymax, xmax] boxes on the visual crop (e.g. separated R-group legend)",
+    )
 
     @property
     def atom_id(self) -> str:
@@ -237,6 +251,16 @@ class ChemicalEntity(BaseModel):
     rdkit_error: SkipJsonSchema[Optional[str]] = Field(
         default=None, description="RDKit error message if invalid"
     )
+    provenance_status: SkipJsonSchema[
+        Literal["verified_exact", "unverified_valid", "mismatch_flagged"]
+    ] = Field(
+        default="unverified_valid",
+        description="Cross-modal semantic OCSR oracle verification status",
+    )
+    oracle_notes: SkipJsonSchema[Optional[str]] = Field(
+        default=None,
+        description="Diagnostic notes from cross-modal OCSR oracle checks",
+    )
 
 
 class MolecularParseResult(BaseModel):
@@ -266,10 +290,47 @@ class ChartParseResult(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     status: SkipJsonSchema[Literal["success", "no_extractable_chart", "failed"]] = "success"
-    content: str = Field(
+    chart_type: str = Field(
+        default="",
+        description="Plot or spectrum type (e.g. 'bar chart', 'dose-response curve', 'line plot')",
+    )
+    x_axis: str = Field(default="", description="X-axis variable name and unit")
+    y_axis: str = Field(default="", description="Y-axis variable name and unit")
+    series_names: list[str] = Field(
+        default_factory=list,
+        description="Legend series or compound identifiers plotted",
+    )
+    data_table: str = Field(
+        default="",
+        description="Digitized chart data formatted as Markdown pipe table(s)",
+    )
+    annotations: list[str] = Field(
+        default_factory=list,
+        description="Fitted metrics (IC50, Kd, R^2), significance markers, or panel notes",
+    )
+    content: SkipJsonSchema[str] = Field(
         default="",
         description="Digitized chart data formatted as Markdown table(s) and bulleted annotations",
     )
+
+    @model_validator(mode="after")
+    def _sync_chart_content(self) -> "ChartParseResult":
+        if not self.content and (self.data_table or self.annotations):
+            parts: list[str] = []
+            if self.data_table.strip():
+                parts.append(self.data_table.strip())
+            if self.annotations:
+                notes = "\n".join(
+                    f"- {a.strip()}" if not a.strip().startswith(("-", "*")) else a.strip()
+                    for a in self.annotations
+                    if a and a.strip()
+                )
+                if notes:
+                    parts.append(notes)
+            self.content = "\n\n".join(parts).strip()
+        elif self.content and not self.data_table:
+            self.data_table = self.content.strip()
+        return self
 
 
 class TableParseResult(BaseModel):
@@ -278,10 +339,41 @@ class TableParseResult(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     status: SkipJsonSchema[Literal["success", "no_extractable_table", "failed"]] = "success"
-    content: str = Field(
+    table_format: Literal["markdown", "html"] = Field(
+        default="markdown",
+        description="'markdown' for regular pipe tables, 'html' when multi-level headers/rowspan/colspan are needed",
+    )
+    headers: list[str] = Field(
+        default_factory=list,
+        description="Ordered column header names",
+    )
+    table_body: str = Field(
+        default="",
+        description="Complete table in Markdown pipe or HTML <table>...</table> format (without footnotes)",
+    )
+    footnotes: list[str] = Field(
+        default_factory=list,
+        description="All table footnotes, experimental conditions, and abbreviations below the table",
+    )
+    content: SkipJsonSchema[str] = Field(
         default="",
         description="Complete table in Markdown or HTML format, including all footnotes",
     )
+
+    @model_validator(mode="after")
+    def _sync_table_content(self) -> "TableParseResult":
+        if not self.content and (self.table_body or self.footnotes):
+            parts: list[str] = []
+            if self.table_body.strip():
+                parts.append(self.table_body.strip())
+            if self.footnotes:
+                fn_text = "\n".join(f.strip() for f in self.footnotes if f and f.strip())
+                if fn_text:
+                    parts.append(fn_text)
+            self.content = "\n\n".join(parts).strip()
+        elif self.content and not self.table_body:
+            self.table_body = self.content.strip()
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +386,9 @@ class StageUsage(BaseModel):
 
     calls: int = 0
     prompt_tokens: int = 0
+    cached_tokens: int = 0
     candidates_tokens: int = 0
+    reasoning_tokens: int = 0
     total_tokens: int = 0
 
 
@@ -309,6 +403,9 @@ class PipelineSummary(BaseModel):
     discarded_placeholder_ids: list[str] = Field(default_factory=list)
     not_localized_visual_ids: list[str] = Field(default_factory=list)
     invalid_smiles: list[dict[str, Any]] = Field(default_factory=list)
+    t4_skipped_calls: int = 0
+    t4_fallback_calls: int = 0
+    silent_error_retries: int = 0
     stages_usage: dict[str, StageUsage] = Field(default_factory=dict)
 
 

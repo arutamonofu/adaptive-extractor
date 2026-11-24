@@ -9,12 +9,12 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import pymupdf as fitz
 
 from ae.ingestion.parsers.gemini.artifacts import ArtifactManager
-from ae.ingestion.parsers.gemini.client import GeminiClient
+from ae.ingestion.parsers.gemini.client import BatchRequestSpec, GeminiClient
 from ae.ingestion.parsers.gemini.schemas import (
     Manifest,
     ManifestVisual,
@@ -236,3 +236,55 @@ def run_manifest_visuals(
 
 # Alias for backward compatibility
 run_classify = run_manifest_visuals
+
+
+def build_manifest_visuals_batch_spec(
+    placeholders: list[PlaceholderItem],
+    artifacts: ArtifactManager,
+    cfg: Any,
+) -> Optional[BatchRequestSpec]:
+    """Prepare a BatchRequestSpec for Stage 02 manifest classification if not already cached."""
+    if artifacts.has_manifest_artifact():
+        return None
+    if not placeholders:
+        empty_manifest = Manifest(visuals=[], discarded_ids=[])
+        artifacts.save_json(artifacts.manifest_json_path, empty_manifest)
+        return None
+
+    stage_cfg = cfg.gemini.get_stage_config("classify")
+    template = _read_prompt_template()
+    placeholders_list_str = json.dumps(
+        [{"id": p.id, "caption": p.caption, "page": p.page} for p in placeholders],
+        indent=2,
+        ensure_ascii=False,
+    )
+    prompt = template.replace("{placeholders_list}", placeholders_list_str)
+
+    target_pages: set[int] = set()
+    for ph in placeholders:
+        if ph.page:
+            target_pages.add(ph.page)
+        if ph.id.startswith("Unlabeled") and ph.page > 1:
+            target_pages.add(ph.page - 1)
+
+    contents: list[Any] = []
+    for p in sorted(target_pages):
+        page_img = artifacts.pages_dir / f"p{p}.png"
+        if page_img.exists() and page_img.stat().st_size > 0:
+            contents.append(f"=== Page {p} ===")
+            contents.append(page_img)
+    contents.append(prompt)
+
+    return BatchRequestSpec(
+        key=f"{artifacts.doc_name}__classify",
+        contents=contents,
+        stage_name="classify",
+        model=stage_cfg.model,
+        max_output_tokens=stage_cfg.max_output_tokens,
+        temperature=stage_cfg.temperature,
+        media_resolution=stage_cfg.media_resolution,
+        thinking_level=stage_cfg.thinking_level,
+        thinking_budget=stage_cfg.thinking_budget,
+        response_schema=Manifest,
+        doc_scope=artifacts.doc_name,
+    )

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
+import contextvars
 import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import pymupdf as fitz
 
@@ -15,10 +17,12 @@ from ae.core.config.settings import IngestionConfig
 from ae.ingestion.parsers.gemini.artifacts import ArtifactManager
 from ae.ingestion.parsers.gemini.client import GeminiClient
 from ae.ingestion.parsers.gemini.schemas import (
+    ElementLocalizationResult,
     Manifest,
     ManifestVisual,
     PageLocalization,
     PipelineSummary,
+    StageUsage,
     VisualBox,
     VisualDecomposition,
     VisualParseRecord,
@@ -40,6 +44,8 @@ from ae.ingestion.parsers.gemini.stages.segment_and_crop_visuals_elements import
     compute_crop_rect_and_dpi,
     crop_elements,
     decompose_visual,
+    extract_element_localization_from_decomposition,
+    generate_debug_overlay,
     localize_elements,
     localize_page,
     select_elements_by_hint,
@@ -248,7 +254,28 @@ class VisualParsingService:
             else:
                 req_by_root.setdefault(item_str, set()).add(None)
 
+        # Snapshot usage counters for this doc_name so we only add deltas to summary.json
+        prev_usage: dict[str, StageUsage] = {}
+        prev_counters: dict[str, int] = {}
+        if self._client is not None and hasattr(self._client, "get_all_stage_usage"):
+            raw_u = self._client.get_all_stage_usage(doc_id=doc_name)
+            if isinstance(raw_u, dict):
+                prev_usage = {k: v.model_copy() for k, v in raw_u.items() if isinstance(v, StageUsage)}
+        if self._client is not None and hasattr(self._client, "get_scope_counters"):
+            raw_c = self._client.get_scope_counters(doc_id=doc_name)
+            if isinstance(raw_c, dict):
+                prev_counters = dict(raw_c)
+
+        scope_cm = (
+            self._client.doc_scope(doc_name)
+            if self._client is not None and hasattr(self._client, "doc_scope")
+            else contextlib.nullcontext()
+        )
+        # Also bind doc_scope dynamically if self.client is lazily instantiated inside the loop
+        active_scope_entered = self._client is not None
+
         try:
+          with scope_cm:
             for visual_id, requested_elements in req_by_root.items():
                 caption = caption_map.get(visual_id, "")
                 cached_file = artifacts.parsed_visuals_dir / f"{visual_id}.json"
@@ -311,14 +338,27 @@ class VisualParsingService:
                                 break
 
                     if box is None:
-                        page_img = artifacts.pages_dir / f"p{page_num}.png"
-                        if not page_img.exists():
+                        loc_cfg = (
+                            self.cfg.gemini.get_stage_config("localize")
+                            if self.cfg and getattr(self.cfg, "gemini", None)
+                            else None
+                        )
+                        page_dpi = int(getattr(loc_cfg, "page_dpi", 150) or 150)
+                        loc_page_img = (
+                            artifacts.visuals_geom_dir / "pages" / f"p{page_num}_dpi{page_dpi}.png"
+                        )
+                        if not loc_page_img.exists() or loc_page_img.stat().st_size == 0:
                             doc = _get_pdf_doc()
                             p = doc[page_num - 1]
-                            scale = min(1.0, 768.0 / max(p.rect.width, p.rect.height))
-                            pix = p.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
-                            page_img.parent.mkdir(parents=True, exist_ok=True)
-                            pix.save(str(page_img))
+                            pix = p.get_pixmap(dpi=page_dpi, alpha=False)
+                            loc_page_img.parent.mkdir(parents=True, exist_ok=True)
+                            pix.save(str(loc_page_img))
+
+                        page_img = loc_page_img
+                        if not page_img.exists() or page_img.stat().st_size == 0:
+                            fallback_img = artifacts.pages_dir / f"p{page_num}.png"
+                            if fallback_img.exists():
+                                page_img = fallback_img
 
                         # Localize all manifest visuals on page_num
                         page_visuals: list[ManifestVisual] = []
@@ -389,24 +429,33 @@ class VisualParsingService:
 
                 local_context = (
                     extract_local_text_context(
-                        context_source_md, visual_id, caption_map=caption_map
+                        context_source_md,
+                        visual_id,
+                        caption_map=caption_map,
+                        description=visual_obj.description if visual_obj else "",
                     )
                     if context_source_md
                     else ""
                 )
 
-                # 5. Step T3: Analyze and Decompose Visual
-                decomp = decompose_visual(
-                    self.client,
-                    visual_id,
-                    visual_crops,
-                    caption,
-                    visual_type,
-                    artifacts,
-                    self.cfg,
-                    description=visual_obj.description if visual_obj else "",
-                    local_context=local_context,
-                )
+                # Bind doc_scope if client was lazily initialized above
+                with (
+                    self.client.doc_scope(doc_name)
+                    if (not active_scope_entered and hasattr(self.client, "doc_scope"))
+                    else contextlib.nullcontext()
+                ):
+                    # 5. Step T3: Analyze and Decompose Visual (with optional merged T4 boxes)
+                    decomp = decompose_visual(
+                        self.client,
+                        visual_id,
+                        visual_crops,
+                        caption,
+                        visual_type,
+                        artifacts,
+                        self.cfg,
+                        description=visual_obj.description if visual_obj else "",
+                        local_context=local_context,
+                    )
 
                 invalid_smiles_list: list[dict[str, Any]] = []
                 rendered_content = ""
@@ -431,15 +480,85 @@ class VisualParsingService:
                     else:
                         target_element_ids = all_elem_ids
 
-                    # Step T4: Localize elements
-                    elem_loc = localize_elements(
-                        self.client,
-                        visual_id,
-                        visual_crops,
-                        decomp.elements,
-                        artifacts,
-                        self.cfg,
+                    # Step T4: Localize elements (use merged T3+T4 boxes if valid, else fallback)
+                    merge_t3_t4 = getattr(
+                        getattr(self.cfg, "execution", None), "merge_t3_t4", None
                     )
+                    if merge_t3_t4 is None:
+                        merge_t3_t4 = getattr(
+                            getattr(self.cfg, "gemini", None), "merge_t3_t4", True
+                        )
+                    cached_elem_bbox = artifacts.element_bboxes_dir / f"{visual_id}.json"
+                    if cached_elem_bbox.exists() and cached_elem_bbox.stat().st_size > 0:
+                        elem_loc = localize_elements(
+                            self.client,
+                            visual_id,
+                            visual_crops,
+                            decomp.elements,
+                            artifacts,
+                            self.cfg,
+                        )
+                    elif merge_t3_t4:
+                        elem_loc, missing_elems = extract_element_localization_from_decomposition(
+                            decomp,
+                            crop_paths=visual_crops,
+                            visual_id=visual_id,
+                            artifacts=artifacts,
+                        )
+                        target_set = set(target_element_ids)
+                        missing_targets = [e for e in missing_elems if e.element_id in target_set]
+                        if not missing_targets:
+                            logger.info(
+                                f"Merged T3+T4 succeeded for '{visual_id}': skipped T4 call "
+                                f"({len(elem_loc.boxes)} element boxes)."
+                            )
+                            if hasattr(self.client, "record_event"):
+                                self.client.record_event("t4_skipped_calls", doc_id=doc_name)
+                        else:
+                            logger.info(
+                                f"Merged T3+T4 missing {len(missing_targets)} target box(es) for "
+                                f"'{visual_id}'; falling back to T4 localize_elements."
+                            )
+                            if hasattr(self.client, "record_event"):
+                                self.client.record_event("t4_fallback_calls", doc_id=doc_name)
+                            fallback_loc = localize_elements(
+                                self.client,
+                                visual_id,
+                                visual_crops,
+                                missing_elems,
+                                artifacts,
+                                self.cfg,
+                            )
+                            merged_boxes_by_id = {b.id: b for b in elem_loc.boxes}
+                            for fb in fallback_loc.boxes:
+                                merged_boxes_by_id[fb.id] = fb
+                            elem_loc = ElementLocalizationResult(
+                                boxes=list(merged_boxes_by_id.values())
+                            )
+                            artifacts.save_json(cached_elem_bbox, elem_loc)
+                            if visual_crops and visual_crops[0].exists():
+                                element_type_map = {e.element_id: e.type for e in decomp.elements}
+                                debug_boxes = [
+                                    (b.id, b.box_2d, element_type_map.get(b.id, "molecular_structure"))
+                                    for b in elem_loc.boxes
+                                    if b.found
+                                ]
+                                if debug_boxes:
+                                    generate_debug_overlay(
+                                        visual_crops[0],
+                                        debug_boxes,
+                                        artifacts.debug_dir / f"{visual_id}_elements_bboxes.png",
+                                        padding_ratio=0.05,
+                                    )
+                    else:
+                        elem_loc = localize_elements(
+                            self.client,
+                            visual_id,
+                            visual_crops,
+                            decomp.elements,
+                            artifacts,
+                            self.cfg,
+                        )
 
                     # Step T5: Direct vector crop for elements (grouped by page_index)
                     elem_page_idx_map = {e.element_id: e.page_index for e in decomp.elements}
@@ -529,8 +648,17 @@ class VisualParsingService:
                         with concurrent.futures.ThreadPoolExecutor(
                             max_workers=min(max_workers, len(pending_elements))
                         ) as executor:
-                            future_to_elem = {
-                                executor.submit(
+                            future_to_elem = {}
+                            for (
+                                elem_obj,
+                                elem_mv,
+                                crop_list,
+                                cache_path,
+                                elem_context,
+                            ) in pending_elements:
+                                ctx = contextvars.copy_context()
+                                fut = executor.submit(
+                                    ctx.run,
                                     parse_single_visual,
                                     self.client,
                                     elem_mv,
@@ -538,9 +666,8 @@ class VisualParsingService:
                                     caption,
                                     self.cfg,
                                     elem_context,
-                                ): (elem_obj, cache_path)
-                                for elem_obj, elem_mv, crop_list, cache_path, elem_context in pending_elements
-                            }
+                                )
+                                future_to_elem[fut] = (elem_obj, cache_path)
                             for future in concurrent.futures.as_completed(future_to_elem):
                                 elem_obj, cache_path = future_to_elem[future]
                                 try:
@@ -641,7 +768,7 @@ class VisualParsingService:
         if current_md:
             artifacts.save_text(artifacts.document_md_path, current_md)
 
-        # Update summary.json
+        # Update summary.json (merging per-document stage deltas without overwriting stage 01/02)
         if artifacts.summary_json_path.exists():
             try:
                 sum_data = artifacts.load_json(artifacts.summary_json_path)
@@ -650,7 +777,42 @@ class VisualParsingService:
                     list(artifacts.parsed_visuals_dir.glob("*.json"))
                 )
                 if self._client is not None and hasattr(self._client, "get_all_stage_usage"):
-                    summary.stages_usage = self._client.get_all_stage_usage()
+                    try:
+                        cur_usage = self._client.get_all_stage_usage(doc_id=doc_name)
+                    except TypeError:
+                        cur_usage = self._client.get_all_stage_usage()
+                    if isinstance(cur_usage, dict):
+                        for stage_key, cur_val in cur_usage.items():
+                            if not isinstance(cur_val, StageUsage):
+                                continue
+                            prev_val = prev_usage.get(stage_key, StageUsage())
+                            d_calls = max(0, cur_val.calls - prev_val.calls)
+                            d_prompt = max(0, cur_val.prompt_tokens - prev_val.prompt_tokens)
+                            d_cached = max(0, cur_val.cached_tokens - prev_val.cached_tokens)
+                            d_cand = max(0, cur_val.candidates_tokens - prev_val.candidates_tokens)
+                            d_reas = max(0, cur_val.reasoning_tokens - prev_val.reasoning_tokens)
+                            d_total = max(0, cur_val.total_tokens - prev_val.total_tokens)
+                            if d_calls or d_total:
+                                existing = summary.stages_usage.get(stage_key, StageUsage())
+                                existing.calls += d_calls
+                                existing.prompt_tokens += d_prompt
+                                existing.cached_tokens += d_cached
+                                existing.candidates_tokens += d_cand
+                                existing.reasoning_tokens += d_reas
+                                existing.total_tokens += d_total
+                                summary.stages_usage[stage_key] = existing
+                if self._client is not None and hasattr(self._client, "get_scope_counters"):
+                    cur_c = self._client.get_scope_counters(doc_id=doc_name)
+                    if isinstance(cur_c, dict):
+                        summary.t4_skipped_calls += max(
+                            0, int(cur_c.get("t4_skipped_calls", 0)) - prev_counters.get("t4_skipped_calls", 0)
+                        )
+                        summary.t4_fallback_calls += max(
+                            0, int(cur_c.get("t4_fallback_calls", 0)) - prev_counters.get("t4_fallback_calls", 0)
+                        )
+                        summary.silent_error_retries += max(
+                            0, int(cur_c.get("silent_error_retries", 0)) - prev_counters.get("silent_error_retries", 0)
+                        )
                 artifacts.save_json(artifacts.summary_json_path, summary)
             except Exception as e:
                 logger.warning(f"Could not update summary.json: {e}")

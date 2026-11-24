@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
+import json
 import logging
 import random
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, TypeVar
+from typing import Any, Iterator, Optional, TypeVar, Union
 
 from PIL import Image as PILImage
 from pydantic import BaseModel
@@ -23,6 +27,41 @@ from ae.ingestion.parsers.gemini.schemas import StageUsage
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+
+_CURRENT_DOC_SCOPE: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "ae_gemini_doc_scope", default="__global__"
+)
+
+INLINE_PDF_MAX_BYTES = 18 * 1024 * 1024  # 18 MB safe inline threshold below 20 MB API limit
+INLINE_BATCH_MAX_BYTES = 18 * 1024 * 1024
+
+
+@dataclass
+class BatchRequestSpec:
+    """Single request specification for Gemini Batch API execution."""
+
+    key: str
+    contents: list[Any]
+    stage_name: str
+    model: Optional[str] = None
+    system_instruction: Optional[str] = None
+    max_output_tokens: Optional[int] = None
+    temperature: Optional[float] = None
+    media_resolution: Optional[str] = None
+    thinking_level: Optional[str] = None
+    thinking_budget: Optional[int] = None
+    response_schema: Optional[type[BaseModel]] = None
+    doc_scope: Optional[str] = None
+
+
+@dataclass
+class BatchItemResult:
+    """Result of a single item in a Gemini Batch API job."""
+
+    key: str
+    text: Optional[str] = None
+    parsed: Optional[Any] = None
+    error: Optional[str] = None
 
 _MEDIA_RESOLUTION_MAP = {
     "high": "MEDIA_RESOLUTION_HIGH",
@@ -71,9 +110,46 @@ class GeminiClient:
         self._default_thinking_level = getattr(defaults, "thinking_level", "low")
         self._default_thinking_budget = getattr(defaults, "thinking_budget", None)
 
-        # Thread-safe usage statistics tracking
+        # Thread-safe usage statistics tracking scoped by doc_id
         self._usage_lock = threading.Lock()
-        self._stage_usage: dict[str, StageUsage] = {}
+        self._stage_usage_by_scope: dict[str, dict[str, StageUsage]] = {}
+        self._counters_by_scope: dict[str, dict[str, int]] = {}
+
+    @property
+    def _stage_usage(self) -> dict[str, StageUsage]:
+        """Backward-compatible view of stage usage for the active scope."""
+        scope = _CURRENT_DOC_SCOPE.get()
+        return self._stage_usage_by_scope.setdefault(scope, {})
+
+    @contextlib.contextmanager
+    def doc_scope(self, doc_id: Optional[str]) -> Iterator[None]:
+        """Bind token and counter tracking to a specific document ID."""
+        scope_key = doc_id.strip() if isinstance(doc_id, str) and doc_id.strip() else "__global__"
+        token = _CURRENT_DOC_SCOPE.set(scope_key)
+        try:
+            yield
+        finally:
+            _CURRENT_DOC_SCOPE.reset(token)
+
+    def reset_stage_usage(self, doc_id: Optional[str] = None) -> None:
+        """Clear accumulated usage statistics for a scope."""
+        scope = doc_id or _CURRENT_DOC_SCOPE.get()
+        with self._usage_lock:
+            self._stage_usage_by_scope.pop(scope, None)
+            self._counters_by_scope.pop(scope, None)
+
+    def record_event(self, metric_name: str, count: int = 1, doc_id: Optional[str] = None) -> None:
+        """Increment a per-document operational counter (e.g., t4_skipped_calls)."""
+        scope = doc_id or _CURRENT_DOC_SCOPE.get()
+        with self._usage_lock:
+            counters = self._counters_by_scope.setdefault(scope, {})
+            counters[metric_name] = counters.get(metric_name, 0) + count
+
+    def get_scope_counters(self, doc_id: Optional[str] = None) -> dict[str, int]:
+        """Return operational counters for the active or specified document scope."""
+        scope = doc_id or _CURRENT_DOC_SCOPE.get()
+        with self._usage_lock:
+            return dict(self._counters_by_scope.get(scope, {}))
 
     # ------------------------------------------------------------------
     # Usage metrics
@@ -85,28 +161,44 @@ class GeminiClient:
         prompt_tokens: int = 0,
         candidates_tokens: int = 0,
         total_tokens: int = 0,
+        *,
+        cached_tokens: int = 0,
+        reasoning_tokens: int = 0,
+        doc_id: Optional[str] = None,
     ) -> None:
+        scope = doc_id or _CURRENT_DOC_SCOPE.get()
         with self._usage_lock:
-            if stage not in self._stage_usage:
-                self._stage_usage[stage] = StageUsage()
-            usage = self._stage_usage[stage]
+            scope_map = self._stage_usage_by_scope.setdefault(scope, {})
+            if stage not in scope_map:
+                scope_map[stage] = StageUsage()
+            usage = scope_map[stage]
             usage.calls += 1
             usage.prompt_tokens += prompt_tokens
+            usage.cached_tokens += cached_tokens
             usage.candidates_tokens += candidates_tokens
+            usage.reasoning_tokens += reasoning_tokens
             usage.total_tokens += total_tokens
 
-    def get_all_stage_usage(self) -> dict[str, StageUsage]:
+    def get_all_stage_usage(self, doc_id: Optional[str] = None) -> dict[str, StageUsage]:
+        scope = doc_id or _CURRENT_DOC_SCOPE.get()
         with self._usage_lock:
-            return {k: v.model_copy() for k, v in self._stage_usage.items()}
+            scope_map = self._stage_usage_by_scope.get(scope, {})
+            return {k: v.model_copy() for k, v in scope_map.items()}
 
     # ------------------------------------------------------------------
-    # Files API
+    # Files API & Inline Parts
     # ------------------------------------------------------------------
+
+    def make_pdf_part(self, pdf_source: Union[Path, bytes]) -> Any:
+        """Create an inline Gemini Part from PDF bytes or a PDF file path."""
+        data = pdf_source.read_bytes() if isinstance(pdf_source, Path) else pdf_source
+        return self._genai.types.Part.from_bytes(data=data, mime_type="application/pdf")
 
     def upload_file(self, file_path: Path) -> Any:
         """Upload a file via the Files API and return the file handle."""
         logger.info(f"Uploading {file_path.name} to Gemini Files API…")
         file_handle = self._client.files.upload(file=str(file_path))
+        self.record_event("files_api_uploads")
         logger.info(f"Uploaded: {file_handle.name}")
         return file_handle
 
@@ -117,6 +209,7 @@ class GeminiClient:
         try:
             name = getattr(file_handle, "name", str(file_handle))
             self._client.files.delete(name=name)
+            self.record_event("files_api_deletes")
             logger.debug(f"Deleted uploaded file: {name}")
         except Exception as exc:
             logger.warning(f"Failed to delete uploaded file: {exc}")
@@ -401,14 +494,200 @@ class GeminiClient:
             f"Gemini API call failed after {self._max_retries} attempts: {last_exc}",
         ) from last_exc
 
-    def _record_response_usage(self, stage: str, response: Any) -> None:
+    def _record_response_usage(
+        self, stage: str, response: Any, *, doc_id: Optional[str] = None
+    ) -> None:
         usage = getattr(response, "usage_metadata", None)
         if usage is not None:
             prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
+            cached_tokens = getattr(usage, "cached_content_token_count", 0) or 0
             candidates_tokens = getattr(usage, "candidates_token_count", 0) or 0
+            reasoning_tokens = getattr(usage, "thoughts_token_count", 0) or 0
             total_tokens = getattr(usage, "total_token_count", 0) or (
-                prompt_tokens + candidates_tokens
+                prompt_tokens + candidates_tokens + reasoning_tokens
             )
-            self.record_usage(stage, prompt_tokens, candidates_tokens, total_tokens)
+            self.record_usage(
+                stage,
+                prompt_tokens,
+                candidates_tokens,
+                total_tokens,
+                cached_tokens=cached_tokens,
+                reasoning_tokens=reasoning_tokens,
+                doc_id=doc_id,
+            )
         else:
-            self.record_usage(stage, 0, 0, 0)
+            self.record_usage(stage, 0, 0, 0, doc_id=doc_id)
+
+    # ------------------------------------------------------------------
+    # Gemini Batch API support
+    # ------------------------------------------------------------------
+
+    def _to_batch_part(self, item: Any) -> Any:
+        """Normalize a content item into a Gemini types.Part or string for Batch API."""
+        types = self._genai.types
+        if isinstance(item, Path):
+            suffix = item.suffix.lower()
+            mime = "image/png" if suffix == ".png" else "image/jpeg"
+            if suffix == ".pdf":
+                mime = "application/pdf"
+            return types.Part.from_bytes(data=item.read_bytes(), mime_type=mime)
+        return item
+
+    def run_batch_requests(
+        self,
+        specs: list[BatchRequestSpec],
+        *,
+        display_name: str = "ae-ingest-batch",
+        poll_interval: float = 5.0,
+        timeout_s: float = 1800.0,
+    ) -> dict[str, BatchItemResult]:
+        """Execute heterogeneous requests via Gemini Batch API (50% discount tier).
+
+        Automatically chunks requests so each inline Batch API submission stays below
+        ``INLINE_BATCH_MAX_BYTES``. Falls back per-item error reporting if any item fails.
+        """
+        results: dict[str, BatchItemResult] = {}
+        if not specs:
+            return results
+
+        types = self._genai.types
+
+        # Partition specs into payload-bounded inline chunks
+        chunks: list[list[BatchRequestSpec]] = []
+        current_chunk: list[BatchRequestSpec] = []
+        current_bytes = 0
+
+        for spec in specs:
+            est_bytes = 0
+            for item in spec.contents:
+                if isinstance(item, Path) and item.exists():
+                    est_bytes += item.stat().st_size
+                elif isinstance(item, str):
+                    est_bytes += len(item.encode("utf-8"))
+                elif hasattr(item, "inline_data") and getattr(item.inline_data, "data", None):
+                    est_bytes += len(item.inline_data.data)
+                else:
+                    est_bytes += 4096
+            # Base64 expansion (~1.34x) + JSON overhead
+            est_wire = int(est_bytes * 1.4) + 2048
+            if current_chunk and current_bytes + est_wire > INLINE_BATCH_MAX_BYTES:
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_bytes = 0
+            current_chunk.append(spec)
+            current_bytes += est_wire
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        terminal_states = {
+            "JOB_STATE_SUCCEEDED",
+            "JOB_STATE_FAILED",
+            "JOB_STATE_CANCELLED",
+            "JOB_STATE_EXPIRED",
+            "JOB_STATE_PARTIALLY_SUCCEEDED",
+        }
+
+        for chunk_idx, chunk_specs in enumerate(chunks, 1):
+            model_name = chunk_specs[0].model or self._default_model
+            inlined_requests = []
+            for spec in chunk_specs:
+                norm_contents = [self._to_batch_part(c) for c in spec.contents]
+                cfg = self._build_config(
+                    system_instruction=spec.system_instruction,
+                    temperature=spec.temperature,
+                    max_output_tokens=spec.max_output_tokens,
+                    media_resolution=spec.media_resolution,
+                    thinking_level=spec.thinking_level,
+                    thinking_budget=spec.thinking_budget,
+                    response_schema=spec.response_schema,
+                )
+                inlined_requests.append(
+                    types.InlinedRequest(
+                        model=spec.model or model_name,
+                        contents=norm_contents,
+                        metadata={"key": spec.key},
+                        config=cfg,
+                    )
+                )
+
+            logger.info(
+                f"Submitting Gemini Batch job '{display_name}' chunk {chunk_idx}/{len(chunks)} "
+                f"({len(chunk_specs)} requests, model={model_name})..."
+            )
+            job = self._client.batches.create(
+                model=model_name,
+                src=inlined_requests,
+                config=types.CreateBatchJobConfig(display_name=f"{display_name}-{chunk_idx}"),
+            )
+
+            deadline = time.monotonic() + timeout_s
+            while True:
+                state_str = str(getattr(job, "state", ""))
+                if "." in state_str:
+                    state_str = state_str.split(".")[-1]
+                state_str = state_str.upper()
+                if state_str in terminal_states:
+                    break
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"Batch job {getattr(job, 'name', display_name)} timed out after {timeout_s}s"
+                    )
+                time.sleep(poll_interval)
+                job = self._client.batches.get(name=job.name)
+
+            dest = getattr(job, "dest", None)
+            inlined_responses = getattr(dest, "inlined_responses", None) or []
+
+            # Also support JSONL file destination if SDK returns file_name instead of inlined_responses
+            if not inlined_responses and getattr(dest, "file_name", None):
+                raw_bytes = self._client.files.download(file=dest.file_name)
+                lines = raw_bytes.decode("utf-8").splitlines()
+                for idx, spec in enumerate(chunk_specs):
+                    if idx >= len(lines):
+                        results[spec.key] = BatchItemResult(key=spec.key, error="Missing batch output line")
+                        continue
+                    row = json.loads(lines[idx])
+                    resp_dict = row.get("response")
+                    if not resp_dict:
+                        results[spec.key] = BatchItemResult(
+                            key=spec.key, error=str(row.get("error") or "Empty batch response")
+                        )
+                        continue
+                    resp_obj = types.GenerateContentResponse.model_validate(resp_dict)
+                    self._record_response_usage(spec.stage_name, resp_obj, doc_id=spec.doc_scope)
+                    try:
+                        self._validate_response(resp_obj, stage_name=spec.stage_name)
+                        text = resp_obj.text or ""
+                        parsed = (
+                            spec.response_schema.model_validate_json(text)
+                            if spec.response_schema is not None and text.strip()
+                            else None
+                        )
+                        results[spec.key] = BatchItemResult(key=spec.key, text=text, parsed=parsed)
+                    except Exception as exc:
+                        results[spec.key] = BatchItemResult(key=spec.key, error=str(exc))
+                continue
+
+            for idx, spec in enumerate(chunk_specs):
+                if idx >= len(inlined_responses):
+                    results[spec.key] = BatchItemResult(
+                        key=spec.key, error=f"Missing inlined batch response (state={state_str})"
+                    )
+                    continue
+                ir = inlined_responses[idx]
+                if getattr(ir, "error", None):
+                    results[spec.key] = BatchItemResult(key=spec.key, error=str(ir.error))
+                    continue
+                resp = getattr(ir, "response", None)
+                self._record_response_usage(spec.stage_name, resp, doc_id=spec.doc_scope)
+                try:
+                    self._validate_response(resp, stage_name=spec.stage_name)
+                    text = getattr(resp, "text", None) or ""
+                    parsed = getattr(resp, "parsed", None)
+                    if parsed is None and spec.response_schema is not None and text.strip():
+                        parsed = spec.response_schema.model_validate_json(text)
+                    results[spec.key] = BatchItemResult(key=spec.key, text=text, parsed=parsed)
+                except Exception as exc:
+                    results[spec.key] = BatchItemResult(key=spec.key, error=str(exc))
+
+        return results

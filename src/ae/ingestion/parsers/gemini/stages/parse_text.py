@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextvars
 import logging
 import re
 import shutil
@@ -13,8 +14,15 @@ import pymupdf as fitz
 
 from ae.core.exceptions import GeminiEmptyResponseError
 from ae.ingestion.parsers.gemini.artifacts import ArtifactManager
-from ae.ingestion.parsers.gemini.client import GeminiClient
+from ae.ingestion.parsers.gemini.client import (
+    INLINE_PDF_MAX_BYTES,
+    BatchRequestSpec,
+    GeminiClient,
+)
 from ae.ingestion.parsers.gemini.schemas import PlaceholderItem
+from ae.ingestion.parsers.gemini.stages.silent_error_guard import (
+    detect_parse_text_silent_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,28 +45,44 @@ def _read_prompt_template() -> str:
     return prompt_file.read_text(encoding="utf-8")
 
 
+def format_parse_text_page_context(
+    start_page: Optional[int] = None,
+    end_page: Optional[int] = None,
+) -> str:
+    """Format dynamic per-chunk page context for user contents (preserving static system prompt)."""
+    if start_page is None:
+        return ""
+
+    if end_page is None or end_page == start_page:
+        page_info = (
+            f"Document Page Context: You are transcribing physical page {start_page} of the PDF document."
+        )
+        example_id = f"Unlabeled_p{start_page}_1"
+    else:
+        page_info = (
+            f"Document Page Context: You are transcribing physical pages {start_page} to {end_page} "
+            "of the PDF document."
+        )
+        example_id = f"Unlabeled_p{start_page}_1"
+
+    return (
+        f"### Chunk Context\n"
+        f"- {page_info}\n"
+        f"- When assigning IDs to uncaptioned visuals on this page, use the 1-based document page "
+        f"number (e.g., `{example_id}`)."
+    )
+
+
 def compose_parse_text_prompt(
     start_page: Optional[int] = None,
     end_page: Optional[int] = None,
 ) -> str:
     """Read base prompt template for text parsing and inject chunk page context."""
     template = _read_prompt_template()
-    if start_page is None:
+    chunk_ctx = format_parse_text_page_context(start_page, end_page)
+    if not chunk_ctx:
         return template
-
-    if end_page is None or end_page == start_page:
-        page_info = f"Document Page Context: You are transcribing physical page {start_page} of the PDF document."
-        example_id = f"Unlabeled_p{start_page}_1"
-    else:
-        page_info = f"Document Page Context: You are transcribing physical pages {start_page} to {end_page} of the PDF document."
-        example_id = f"Unlabeled_p{start_page}_1"
-
-    return (
-        f"{template}\n\n"
-        f"### Chunk Context\n"
-        f"- {page_info}\n"
-        f"- When assigning IDs to uncaptioned visuals on this page, use the 1-based document page number (e.g., `{example_id}`)."
-    )
+    return f"{template}\n\n{chunk_ctx}"
 
 
 def split_pdf_into_chunks(
@@ -183,6 +207,143 @@ def _strip_chunk_edge_page_breaks(text: str) -> str:
     return text.strip()
 
 
+def _extract_pdf_pages_text(pdf_path: Path) -> dict[int, str]:
+    """Extract raw PyMuPDF text per 1-based page for silent-error checks."""
+    texts: dict[int, str] = {}
+    try:
+        doc = fitz.open(pdf_path)
+        try:
+            for idx in range(len(doc)):
+                texts[idx + 1] = doc[idx].get_text() or ""
+        finally:
+            doc.close()
+    except Exception as exc:
+        logger.debug(f"Could not extract raw PDF text for silent-error check: {exc}")
+    return texts
+
+
+def _should_use_inline_pdf(config: Any, chunk_pdf_path: Path) -> bool:
+    use_inline = getattr(getattr(config, "execution", None), "use_inline_pdf", None)
+    if use_inline is None:
+        use_inline = getattr(getattr(config, "gemini", None), "use_inline_pdf", True)
+    if not bool(use_inline):
+        return False
+    try:
+        return chunk_pdf_path.stat().st_size <= INLINE_PDF_MAX_BYTES
+    except OSError:
+        return False
+
+
+def _is_silent_error_guard_enabled(config: Any) -> bool:
+    guard = getattr(getattr(config, "execution", None), "silent_error_guard", None)
+    if guard is None:
+        guard = getattr(getattr(config, "gemini", None), "silent_error_guard", True)
+    return bool(guard)
+
+
+def assemble_parse_text_chunks(
+    chunks: list[tuple[int, int, Path]],
+    chunk_results: list[Optional[str]],
+    artifacts: ArtifactManager,
+) -> tuple[str, list[PlaceholderItem]]:
+    """Assemble chronological chunk outputs into text.md and placeholders.json."""
+    id_counts: dict[str, int] = {}
+    unlabeled_counts: dict[int, int] = {}
+    clean_chunk_texts: list[str] = []
+    all_placeholders: list[PlaceholderItem] = []
+
+    for (start_page, end_page, _), raw_chunk_md in zip(chunks, chunk_results):
+        if not raw_chunk_md or not raw_chunk_md.strip():
+            raise GeminiEmptyResponseError(
+                stage="parse_text",
+                details=f"Chunk covering pages {start_page}-{end_page} is empty.",
+            )
+        clean_chunk_md, chunk_phs = parse_placeholders_from_markdown(
+            raw_chunk_md,
+            start_page=start_page,
+            end_page=end_page,
+            id_counts=id_counts,
+            unlabeled_counts=unlabeled_counts,
+        )
+        clean_chunk_texts.append(clean_chunk_md)
+        all_placeholders.extend(chunk_phs)
+
+    clean_md_parts: list[str] = []
+    for chunk_text in clean_chunk_texts:
+        cleaned = _strip_chunk_edge_page_breaks(chunk_text)
+        cleaned = _PAGE_BREAK_RE.sub("", cleaned).strip()
+        if cleaned:
+            clean_md_parts.append(cleaned)
+
+    clean_md = "\n\n<!-- page_break -->\n\n".join(clean_md_parts)
+
+    if not clean_md or not clean_md.strip():
+        raise GeminiEmptyResponseError(
+            stage="parse_text",
+            details=(
+                f"Parsed text markdown for document '{artifacts.doc_name}' "
+                f"is empty after combining chunks."
+            ),
+        )
+
+    artifacts.save_text(artifacts.text_md_path, clean_md)
+    artifacts.save_json(
+        artifacts.placeholders_json_path,
+        [p.model_dump() for p in all_placeholders],
+    )
+    return clean_md, all_placeholders
+
+
+def _generate_chunk_markdown(
+    client: GeminiClient,
+    chunk_pdf_path: Path,
+    start_page: int,
+    end_page: int,
+    static_system_prompt: str,
+    stage_cfg: Any,
+    config: Any,
+    *,
+    temperature_override: Optional[float] = None,
+) -> str:
+    """Invoke Gemini for a single PDF chunk using inline Part.from_bytes (or Files API fallback)."""
+    page_ctx = format_parse_text_page_context(start_page, end_page)
+    temp = stage_cfg.temperature if temperature_override is None else temperature_override
+
+    if _should_use_inline_pdf(config, chunk_pdf_path):
+        pdf_part = client.make_pdf_part(chunk_pdf_path)
+        contents = [pdf_part, page_ctx] if page_ctx else [pdf_part]
+        return client.generate_text(
+            contents,
+            system_instruction=static_system_prompt,
+            stage_name="parse_text",
+            model=stage_cfg.model,
+            temperature=temp,
+            max_output_tokens=stage_cfg.max_output_tokens,
+            media_resolution=stage_cfg.media_resolution,
+            thinking_level=stage_cfg.thinking_level,
+            thinking_budget=stage_cfg.thinking_budget,
+        )
+
+    chunk_file_handle = None
+    try:
+        chunk_file_handle = client.upload_file(chunk_pdf_path)
+        contents = [chunk_file_handle, page_ctx] if page_ctx else [chunk_file_handle]
+        return client.generate_text(
+            contents,
+            system_instruction=static_system_prompt,
+            stage_name="parse_text",
+            model=stage_cfg.model,
+            temperature=temp,
+            max_output_tokens=stage_cfg.max_output_tokens,
+            media_resolution=stage_cfg.media_resolution,
+            thinking_level=stage_cfg.thinking_level,
+            thinking_budget=stage_cfg.thinking_budget,
+        )
+    finally:
+        if chunk_file_handle is not None:
+            client.delete_file(chunk_file_handle)
+
+
 def run_chunked_parse_text(
     client: GeminiClient,
     pdf_path: Path,
@@ -193,6 +354,9 @@ def run_chunked_parse_text(
     """Execute Stage 1 by processing document in 1-page chunks in parallel."""
     stage_cfg = config.gemini.get_stage_config("parse_text")
     temp_dir = artifacts.artifact_dir / "tmp_chunks"
+    static_system_prompt = _read_prompt_template()
+    use_guard = _is_silent_error_guard_enabled(config)
+    page_texts = _extract_pdf_pages_text(pdf_path) if use_guard else {}
 
     logger.info(
         f"Stage 1 [parse_text]: Chunked text parsing enabled for '{artifacts.doc_name}' "
@@ -221,46 +385,64 @@ def run_chunked_parse_text(
             f"Stage 1 [parse_text]: Parsing chunk {idx}/{len(chunks)} "
             f"(pages {start_page}-{end_page}) via Gemini…",
         )
-        chunk_file_handle = None
-        try:
-            chunk_file_handle = client.upload_file(chunk_pdf_path)
-            system_prompt = compose_parse_text_prompt(start_page, end_page)
+        chunk_md = _generate_chunk_markdown(
+            client=client,
+            chunk_pdf_path=chunk_pdf_path,
+            start_page=start_page,
+            end_page=end_page,
+            static_system_prompt=static_system_prompt,
+            stage_cfg=stage_cfg,
+            config=config,
+        )
 
-            contents = [chunk_file_handle]
-            chunk_md = client.generate_text(
-                contents,
-                system_instruction=system_prompt,
-                stage_name="parse_text",
-                model=stage_cfg.model,
-                temperature=stage_cfg.temperature,
-                max_output_tokens=stage_cfg.max_output_tokens,
-                media_resolution=stage_cfg.media_resolution,
-                thinking_level=stage_cfg.thinking_level,
-                thinking_budget=stage_cfg.thinking_budget,
+        if not chunk_md or not chunk_md.strip():
+            raise GeminiEmptyResponseError(
+                stage="parse_text",
+                details=(
+                    f"Gemini returned empty response for chunk {idx} "
+                    f"(pages {start_page}-{end_page}) of '{artifacts.doc_name}'."
+                ),
             )
 
-            if not chunk_md or not chunk_md.strip():
-                raise GeminiEmptyResponseError(
-                    stage="parse_text",
-                    details=(
-                        f"Gemini returned empty response for chunk {idx} "
-                        f"(pages {start_page}-{end_page}) of '{artifacts.doc_name}'."
-                    ),
+        if use_guard:
+            raw_pdf_txt = "\n".join(
+                page_texts.get(p, "") for p in range(start_page, end_page + 1)
+            )
+            err_reason = detect_parse_text_silent_error(chunk_md, pdf_page_text=raw_pdf_txt)
+            if err_reason:
+                logger.warning(
+                    f"Silent-Error Guard triggered on '{artifacts.doc_name}' pages {start_page}-{end_page} "
+                    f"({err_reason}); retrying at temperature=0.5..."
                 )
+                if hasattr(client, "record_event"):
+                    client.record_event("silent_error_retries")
+                retry_md = _generate_chunk_markdown(
+                    client=client,
+                    chunk_pdf_path=chunk_pdf_path,
+                    start_page=start_page,
+                    end_page=end_page,
+                    static_system_prompt=static_system_prompt,
+                    stage_cfg=stage_cfg,
+                    config=config,
+                    temperature_override=0.5,
+                )
+                if retry_md and retry_md.strip():
+                    retry_err = detect_parse_text_silent_error(retry_md, pdf_page_text=raw_pdf_txt)
+                    if not retry_err or len(retry_md.strip()) > len(chunk_md.strip()):
+                        chunk_md = retry_md
 
-            chunk_cache_path.write_text(chunk_md, encoding="utf-8")
-            return chunk_md
-
-        finally:
-            if chunk_file_handle is not None:
-                client.delete_file(chunk_file_handle)
+        chunk_cache_path.write_text(chunk_md, encoding="utf-8")
+        return chunk_md
 
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_idx = {
-                executor.submit(_process_chunk, idx, start_page, end_page, chunk_pdf_path): idx - 1
-                for idx, (start_page, end_page, chunk_pdf_path) in enumerate(chunks, 1)
-            }
+            future_to_idx = {}
+            for idx, (start_page, end_page, chunk_pdf_path) in enumerate(chunks, 1):
+                ctx = contextvars.copy_context()
+                future = executor.submit(
+                    ctx.run, _process_chunk, idx, start_page, end_page, chunk_pdf_path
+                )
+                future_to_idx[future] = idx - 1
             for future in concurrent.futures.as_completed(future_to_idx):
                 i = future_to_idx[future]
                 chunk_results[i] = future.result()
@@ -269,57 +451,52 @@ def run_chunked_parse_text(
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    # Assemble chunks in chronological order and parse placeholders
-    id_counts: dict[str, int] = {}
-    unlabeled_counts: dict[int, int] = {}
-    clean_chunk_texts: list[str] = []
-    all_placeholders: list[PlaceholderItem] = []
-
-    for (start_page, end_page, _), raw_chunk_md in zip(chunks, chunk_results):
-        if not raw_chunk_md or not raw_chunk_md.strip():
-            raise GeminiEmptyResponseError(
-                stage="parse_text",
-                details=f"Chunk covering pages {start_page}-{end_page} is empty.",
-            )
-        clean_chunk_md, chunk_phs = parse_placeholders_from_markdown(
-            raw_chunk_md,
-            start_page=start_page,
-            end_page=end_page,
-            id_counts=id_counts,
-            unlabeled_counts=unlabeled_counts,
-        )
-        clean_chunk_texts.append(clean_chunk_md)
-        all_placeholders.extend(chunk_phs)
-
-    clean_md_parts: list[str] = []
-    for chunk_text in clean_chunk_texts:
-        cleaned = _strip_chunk_edge_page_breaks(chunk_text)
-        # Any stray internal page break on a single page is invalid
-        cleaned = _PAGE_BREAK_RE.sub("", cleaned).strip()
-        if cleaned:
-            clean_md_parts.append(cleaned)
-
-    clean_md = "\n\n<!-- page_break -->\n\n".join(clean_md_parts)
-
-    if not clean_md or not clean_md.strip():
-        raise GeminiEmptyResponseError(
-            stage="parse_text",
-            details=(
-                f"Parsed text markdown for document '{artifacts.doc_name}' "
-                f"is empty after combining chunks."
-            ),
-        )
-
-    artifacts.save_text(artifacts.text_md_path, clean_md)
-    artifacts.save_json(
-        artifacts.placeholders_json_path,
-        [p.model_dump() for p in all_placeholders],
-    )
+    clean_md, all_placeholders = assemble_parse_text_chunks(chunks, chunk_results, artifacts)
     logger.info(
         f"Stage 1 [parse_text]: Finished chunked text parsing. "
         f"Found {len(all_placeholders)} visual placeholders across {len(chunks)} chunk(s).",
     )
     return clean_md, all_placeholders
+
+
+def build_parse_text_batch_specs(
+    client: GeminiClient,
+    pdf_path: Path,
+    artifacts: ArtifactManager,
+    config: Any,
+    chunk_pages: int = CHUNK_PAGES,
+) -> tuple[list[tuple[int, int, Path]], list[BatchRequestSpec], Path]:
+    """Prepare BatchRequestSpec objects for all uncached pages of a document."""
+    stage_cfg = config.gemini.get_stage_config("parse_text")
+    temp_dir = artifacts.artifact_dir / "tmp_chunks"
+    static_system_prompt = _read_prompt_template()
+    chunks = split_pdf_into_chunks(pdf_path, temp_dir=temp_dir, chunk_pages=chunk_pages)
+    specs: list[BatchRequestSpec] = []
+
+    for start_page, end_page, chunk_pdf_path in chunks:
+        chunk_cache_path = artifacts.chunks_dir / f"chunk_{start_page}_{end_page}.md"
+        if chunk_cache_path.exists() and chunk_cache_path.stat().st_size > 0:
+            continue
+        page_ctx = format_parse_text_page_context(start_page, end_page)
+        pdf_part = client.make_pdf_part(chunk_pdf_path)
+        contents = [pdf_part, page_ctx] if page_ctx else [pdf_part]
+        specs.append(
+            BatchRequestSpec(
+                key=f"{artifacts.doc_name}__chunk_{start_page}_{end_page}",
+                contents=contents,
+                stage_name="parse_text",
+                model=stage_cfg.model,
+                system_instruction=static_system_prompt,
+                max_output_tokens=stage_cfg.max_output_tokens,
+                temperature=stage_cfg.temperature,
+                media_resolution=stage_cfg.media_resolution,
+                thinking_level=stage_cfg.thinking_level,
+                thinking_budget=stage_cfg.thinking_budget,
+                doc_scope=artifacts.doc_name,
+            )
+        )
+
+    return chunks, specs, temp_dir
 
 
 def run_parse_text(

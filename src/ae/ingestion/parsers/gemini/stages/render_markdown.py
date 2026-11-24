@@ -380,7 +380,15 @@ def run_render_manifest(
         summary.counts_by_type[v.type] = summary.counts_by_type.get(v.type, 0) + 1
 
     if client is not None and hasattr(client, "get_all_stage_usage"):
-        summary.stages_usage = client.get_all_stage_usage()
+        usage_map = client.get_all_stage_usage()
+        if isinstance(usage_map, dict):
+            summary.stages_usage = usage_map
+    if client is not None and hasattr(client, "get_scope_counters"):
+        counters = client.get_scope_counters()
+        if isinstance(counters, dict):
+            summary.t4_skipped_calls = int(counters.get("t4_skipped_calls", 0) or 0)
+            summary.t4_fallback_calls = int(counters.get("t4_fallback_calls", 0) or 0)
+            summary.silent_error_retries = int(counters.get("silent_error_retries", 0) or 0)
 
     artifacts.save_json(artifacts.summary_json_path, summary)
     logger.info(
@@ -431,7 +439,15 @@ def run_render(
     summary.total_placeholders = len(caption_map)
     summary.total_manifest_visuals = len(manifest.visuals)
     if client is not None and hasattr(client, "get_all_stage_usage"):
-        summary.stages_usage = client.get_all_stage_usage()
+        usage_map = client.get_all_stage_usage()
+        if isinstance(usage_map, dict):
+            summary.stages_usage = usage_map
+    if client is not None and hasattr(client, "get_scope_counters"):
+        counters = client.get_scope_counters()
+        if isinstance(counters, dict):
+            summary.t4_skipped_calls = int(counters.get("t4_skipped_calls", 0) or 0)
+            summary.t4_fallback_calls = int(counters.get("t4_fallback_calls", 0) or 0)
+            summary.silent_error_retries = int(counters.get("silent_error_retries", 0) or 0)
     artifacts.save_json(artifacts.summary_json_path, summary)
 
     return enriched_md, summary

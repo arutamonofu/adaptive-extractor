@@ -297,7 +297,7 @@ def compute_crop_rect_and_dpi(
     x1 = (xmax / 1000.0) * w
     y1 = (ymax / 1000.0) * h
 
-    padding_ratio = getattr(crop_cfg, "padding_ratio", 0.02) if crop_cfg else 0.02
+    padding_ratio = getattr(crop_cfg, "padding_ratio", 0.05) if crop_cfg else 0.05
     pad_x = padding_ratio * w
     pad_y = padding_ratio * h
 
@@ -418,7 +418,7 @@ def run_crop_visuals(
             if debug_boxes:
                 page_img = artifacts.pages_dir / f"p{page_num}.png"
                 debug_path = artifacts.debug_dir / f"p{page_num}_localized_bboxes.png"
-                padding = getattr(crop_cfg, "padding_ratio", 0.04) if crop_cfg else 0.04
+                padding = getattr(crop_cfg, "padding_ratio", 0.05) if crop_cfg else 0.05
                 generate_debug_overlay(page_img, debug_boxes, debug_path, padding_ratio=padding)
 
     finally:
@@ -587,6 +587,70 @@ select_atoms_by_hint = select_elements_by_hint
 # ==============================================================================
 
 
+def _validate_extra_boxes(raw_extras: list[list[int]]) -> list[list[int]]:
+    valid: list[list[int]] = []
+    for extra in raw_extras or []:
+        if len(extra) == 4:
+            eymin, exmin, eymax, exmax = extra
+            if 0 <= eymin < eymax <= 1000 and 0 <= exmin < exmax <= 1000:
+                valid.append(list(extra))
+    return valid
+
+
+def extract_element_localization_from_decomposition(
+    decomp: VisualDecomposition,
+    *,
+    crop_paths: Optional[list[Path]] = None,
+    visual_id: str = "",
+    artifacts: Optional[ArtifactManager] = None,
+) -> tuple[ElementLocalizationResult, list[ElementManifestItem]]:
+    """Extract element bounding boxes returned directly by merged T3+T4 decomposition.
+
+    Returns:
+        (ElementLocalizationResult for valid boxes, list of elements missing valid boxes)
+    """
+    valid_boxes: list[VisualBox] = []
+    missing_elements: list[ElementManifestItem] = []
+
+    for elem in decomp.elements or []:
+        raw_box = getattr(elem, "box_2d", None)
+        is_valid = False
+        if isinstance(raw_box, list) and len(raw_box) == 4:
+            ymin, xmin, ymax, xmax = raw_box
+            if 0 <= ymin < ymax <= 1000 and 0 <= xmin < xmax <= 1000:
+                is_valid = True
+
+        if is_valid:
+            valid_extras = _validate_extra_boxes(getattr(elem, "extra_boxes_2d", []))
+            valid_boxes.append(
+                VisualBox(
+                    id=elem.element_id,
+                    box_2d=list(raw_box),
+                    extra_boxes_2d=valid_extras,
+                    found=True,
+                )
+            )
+        else:
+            missing_elements.append(elem)
+
+    loc_result = ElementLocalizationResult(boxes=valid_boxes)
+    if artifacts is not None and visual_id and valid_boxes and not missing_elements:
+        artifacts.save_json(artifacts.element_bboxes_dir / f"{visual_id}.json", loc_result)
+        if crop_paths and crop_paths[0].exists():
+            element_type_map = {e.element_id: e.type for e in decomp.elements}
+            debug_boxes: list[tuple[str, list[int], str]] = []
+            for box in valid_boxes:
+                e_type = element_type_map.get(box.id, "molecular_structure")
+                debug_boxes.append((box.id, box.box_2d, e_type))
+                for idx, extra in enumerate(box.extra_boxes_2d, start=1):
+                    debug_boxes.append((f"{box.id}[+{idx}]", extra, e_type))
+            if debug_boxes:
+                debug_img_path = artifacts.debug_dir / f"{visual_id}_elements_bboxes.png"
+                generate_debug_overlay(crop_paths[0], debug_boxes, debug_img_path, padding_ratio=0.05)
+
+    return loc_result, missing_elements
+
+
 def localize_elements(
     client: GeminiClient,
     visual_id: str,
@@ -711,8 +775,9 @@ def crop_elements(
                 part_x1 = visual_clip_rect.x0 + (xmax / 1000.0) * width_pt
                 part_y1 = visual_clip_rect.y0 + (ymax / 1000.0) * height_pt
 
-                pad_x = 0.04 * (part_x1 - part_x0)
-                pad_y = 0.04 * (part_y1 - part_y0)
+                pad_ratio = getattr(crop_cfg, "padding_ratio", 0.05) if crop_cfg else 0.05
+                pad_x = pad_ratio * (part_x1 - part_x0)
+                pad_y = pad_ratio * (part_y1 - part_y0)
                 clip_rect = fitz.Rect(
                     max(page.rect.x0, part_x0 - pad_x),
                     max(page.rect.y0, part_y0 - pad_y),

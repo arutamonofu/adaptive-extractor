@@ -1,4 +1,4 @@
-Transcribe the attached table image(s) into a complete, structured table in `content`.
+Transcribe the attached table image(s) into a complete, structured `TableParseResult` (`table_format`, `headers`, `table_body`, `footnotes`).
 
 Caption: {caption}
 Context: {description}
@@ -6,7 +6,7 @@ Surrounding Article Context:
 {context}
 
 ### Extraction Rules
-- **Completeness**: Extract all headers, subheaders, rows, and cells verbatim, preserving exact numbers, signs, uncertainty intervals (±), and units.
-- **Table format**: Use standard Markdown pipe table format for regular grids; use HTML `<table>...</table>` (with `rowspan`/`colspan`) whenever needed to faithfully represent complex multi-level headers, spanning unit/category headers above sub-columns, or merged cells—never drop upper spanning headers.
-- **Footnotes & conditions**: Append all table footnotes (`a`, `b`, `*`, experimental conditions, abbreviations) immediately below the table inside `content`.
+- **Completeness**: Extract all column headers into `headers`, the full table body into `table_body`, and all table footnotes into `footnotes`, preserving exact numbers, signs, uncertainty intervals (±), and units verbatim.
+- **Table format (`table_format`)**: Use `"markdown"` (standard Markdown pipe table in `table_body`) for regular grids; use `"html"` (HTML `<table>...</table>` with `rowspan`/`colspan` in `table_body`) whenever needed to faithfully represent complex multi-level headers, spanning unit/category headers above sub-columns, or merged cells—never drop upper spanning headers.
+- **Footnotes & conditions (`footnotes`)**: Extract all table footnotes (`a`, `b`, `*`, experimental conditions, abbreviations) printed below the table as entries in `footnotes` (do not drop them).
 - **Visual truth**: Read cell values strictly from the image(s); use the caption/context only to disambiguate headers or abbreviations.

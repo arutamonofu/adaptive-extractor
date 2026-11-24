@@ -236,15 +236,15 @@ def test_crop_math_and_dpi_scaling(mock_config):
     # y0=80, x0=60, y1=240, x1=180 -> width=120pt, height=160pt
     clip, dpi = compute_crop_rect_and_dpi([100, 100, 300, 300], page_rect, crop_cfg)
 
-    # Padding added (0.02 * 600 = 12pt, 0.02 * 800 = 16pt)
-    assert clip.x0 == 60 - 12
-    assert clip.y0 == 80 - 16
-    assert clip.x1 == 180 + 12
-    assert clip.y1 == 240 + 16
+    # Padding added (0.05 * 600 = 30pt, 0.05 * 800 = 40pt)
+    assert clip.x0 == 60 - 30
+    assert clip.y0 == 80 - 40
+    assert clip.x1 == 180 + 30
+    assert clip.y1 == 240 + 40
 
-    # Long side pt = 160 + 32 = 192 pt
-    # min_long_side_px = 2000 -> 2000 * 72 / 192 = 750 DPI
-    assert dpi == 750
+    # Long side pt = 160 + 80 = 240 pt
+    # min_long_side_px = 2000 -> 2000 * 72 / 240 = 600 DPI
+    assert dpi == 600
 
     # Test upscale disabled
     mock_config.gemini.crop.upscale.enabled = False
@@ -868,6 +868,7 @@ def test_run_chunked_parse_text_flow(tmp_path: Path):
     )
 
     mock_client = MagicMock()
+    mock_client.make_pdf_part.side_effect = lambda p: f"handle_{p.stem}"
     mock_client.upload_file.side_effect = lambda p: f"handle_{p.stem}"
 
     def _mock_generate(contents, **kwargs):
@@ -889,10 +890,16 @@ def test_run_chunked_parse_text_flow(tmp_path: Path):
     )
 
     assert mock_client.generate_text.call_count == 4
-    # Verify system_instruction was provided
+    mock_client.upload_file.assert_not_called()
+    # Verify static system_instruction was provided and page context is in contents
     call_kwargs = mock_client.generate_text.call_args_list[0].kwargs
     assert "system_instruction" in call_kwargs
     assert "Boundary continuity" in call_kwargs["system_instruction"]
+    assert "### Chunk Context" not in call_kwargs["system_instruction"]
+    assert any(
+        "### Chunk Context" in str(c)
+        for c in mock_client.generate_text.call_args_list[0].args[0]
+    )
 
     assert len(placeholders) == 2
     assert [p.id for p in placeholders] == ["Figure_1", "Table_1"]
@@ -964,6 +971,7 @@ def test_run_chunked_parse_text_preserves_page_breaks_between_chunks(tmp_path: P
     )
 
     mock_client = MagicMock()
+    mock_client.make_pdf_part.side_effect = lambda p: f"handle_{p.stem}"
     mock_client.upload_file.side_effect = lambda p: f"handle_{p.stem}"
 
     def _mock_generate(contents, **kwargs):
@@ -1034,6 +1042,7 @@ def test_run_chunked_parse_text_strips_edge_page_breaks(tmp_path: Path):
     )
 
     mock_client = MagicMock()
+    mock_client.make_pdf_part.side_effect = lambda p: f"handle_{p.stem}"
     mock_client.upload_file.side_effect = lambda p: f"handle_{p.stem}"
 
     # Chunk 1 ends with an accidental trailing page break

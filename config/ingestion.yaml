@@ -13,6 +13,11 @@ ingestion:
     concurrency:
       max_documents: 2            # Maximum number of PDF documents processed concurrently
       max_requests_per_document: 8 # Maximum concurrent API requests within a single document
+    use_inline_pdf: true          # Send 1-page PDF chunks inline via Part.from_bytes
+    merge_t3_t4: true             # Merge T3 decomposition and T4 element bbox localization with fallback
+    use_batch_api: false          # Use Gemini Batch API for parse_text and classify stages
+    silent_error_guard: true      # Detect silent empty/degenerate outputs and retry once at temperature=0.5
+    adaptive_table_thinking: true # Use thinking_level=low for single-page tables
 
   # ---------------------------------------------------------------------------
   # 2. API Client & Network Transport
@@ -32,7 +37,7 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 65536
+        max_output_tokens: 16384
         media_resolution: "high"
         thinking_level: "low"
         thinking_budget: null
@@ -43,8 +48,8 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 65536
-        media_resolution: "high"
+        max_output_tokens: 16384
+        media_resolution: "medium"
         thinking_level: "medium"
         thinking_budget: null
 
@@ -55,14 +60,14 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 65536
+        max_output_tokens: 4096
         media_resolution: "high"
         thinking_level: "low"
         thinking_budget: null
 
     # Stage 4 (T2 / T5): High-DPI vector cropping from PDF (PyMuPDF, no LLM)
     crop:
-      padding_ratio: 0.02         # Padding ratio (2%) around bbox to prevent clipping labels
+      padding_ratio: 0.05         # Padding ratio (5%) around bbox to prevent clipping labels
       base_dpi: 300               # Base DPI for vector cropping
       upscale:
         enabled: true             # Enable adaptive DPI upscaling for small figures
@@ -75,7 +80,7 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 65536
+        max_output_tokens: 16384
         media_resolution: "high"
         thinking_level: "medium"
         thinking_budget: null
@@ -88,7 +93,7 @@ ingestion:
           provider: "gemini"
           model: "gemini-3.8-flash"
           temperature: 0.0
-          max_output_tokens: 65536
+          max_output_tokens: 16384
           media_resolution: "high"
           thinking_level: "medium"
           thinking_budget: null
@@ -99,7 +104,7 @@ ingestion:
           provider: "gemini"
           model: "gemini-3.8-flash"
           temperature: 0.0
-          max_output_tokens: 65536
+          max_output_tokens: 16384
           media_resolution: "high"
           thinking_level: "medium"
           thinking_budget: null
@@ -110,10 +115,11 @@ ingestion:
           provider: "gemini"
           model: "gemini-3.8-flash"
           temperature: 0.0
-          max_output_tokens: 65536
+          max_output_tokens: 16384
           media_resolution: "high"
           thinking_level: "medium"
           thinking_budget: null
         validation:
           validate_rdkit: true    # Syntax and valence validation of SMILES via RDKit
+          enable_ocsr_oracle: true # Deterministic cross-modal OCSR oracle
           max_retries: 1          # Maximum self-correction retry cycles with error feedback

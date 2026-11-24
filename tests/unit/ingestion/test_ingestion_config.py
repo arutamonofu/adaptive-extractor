@@ -38,7 +38,7 @@ class TestIngestionConfigV2:
         assert cfg.stages.localize.model.model == "gemini-3.8-flash"
 
         assert cfg.stages.crop.base_dpi == 300
-        assert cfg.stages.crop.padding_ratio == 0.02
+        assert cfg.stages.crop.padding_ratio == 0.05
         assert cfg.stages.crop.upscale.enabled is True
         assert cfg.stages.crop.upscale.min_long_side_px == 2000
         assert cfg.stages.crop.upscale.max_dpi == 1200

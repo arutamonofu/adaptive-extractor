@@ -77,6 +77,13 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Override output ingestion directory (defaults to configured paths.ingestion_dir)",
+    )
+
+    parser.add_argument(
         "paths",
         nargs="*",
         type=Path,
@@ -191,13 +198,19 @@ def ingest_command(argv: Optional[list] = None) -> int:
         # Determine parser/engine name from ingestion config
         parser_name = getattr(settings.ingestion, "engine", "gemini")
 
+        output_dir = (
+            getattr(args, "output_dir", None)
+            or getattr(settings.ingestion, "ingestion_dir", None)
+            or settings.paths.ingestion_dir
+        )
+
         # Log ingestion settings
         logger.info("=" * 60)
         logger.info("INGESTION CONFIGURATION")
         logger.info("=" * 60)
         logger.info(f"Config file: {args.config}")
         logger.info(f"PDF files: {len(pdf_files)}")
-        logger.info(f"Output: {settings.paths.ingestion_dir}")
+        logger.info(f"Output: {output_dir}")
         logger.info(f"Engine: {parser_name}")
         logger.info(f"Overwrite: {args.overwrite}")
         if getattr(args, "from_stage", None):
@@ -205,10 +218,12 @@ def ingest_command(argv: Optional[list] = None) -> int:
         logger.info("=" * 60)
 
         parser_config = settings.ingestion
+        if hasattr(parser_config, "ingestion_dir"):
+            parser_config.ingestion_dir = output_dir
 
         return IngestDocumentsRequest(
             input_paths=pdf_files,
-            output_dir=settings.paths.ingestion_dir,
+            output_dir=output_dir,
             parser_name=parser_name,
             overwrite=args.overwrite,
             parser_config=parser_config,

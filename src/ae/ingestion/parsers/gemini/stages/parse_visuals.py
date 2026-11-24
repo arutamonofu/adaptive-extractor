@@ -25,6 +25,9 @@ from ae.ingestion.parsers.gemini.stages.context import extract_local_text_contex
 from ae.ingestion.parsers.gemini.stages.rdkit_validation import (
     validate_and_correct_entities,
 )
+from ae.ingestion.parsers.gemini.stages.silent_error_guard import (
+    detect_visual_parse_silent_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +122,24 @@ def parse_single_visual(
     )
     stage_cfg = config.gemini.get_stage_config("parse_visuals", sub_stage=visual.type)
 
+    # Adaptive thinking_level: single-page tables use 'low', multi-page tables keep configured level
+    adaptive_tbl = getattr(getattr(config, "execution", None), "adaptive_table_thinking", None)
+    if adaptive_tbl is None:
+        adaptive_tbl = getattr(getattr(config, "gemini", None), "adaptive_table_thinking", True)
+    thinking_level = stage_cfg.thinking_level
+    if (
+        adaptive_tbl
+        and visual.type == "table"
+        and len(crop_paths) == 1
+        and not getattr(visual, "panel_label", None)
+        and str(thinking_level or "").lower() == "medium"
+    ):
+        thinking_level = "low"
+
+    silent_guard = getattr(getattr(config, "execution", None), "silent_error_guard", None)
+    if silent_guard is None:
+        silent_guard = getattr(getattr(config, "gemini", None), "silent_error_guard", True)
+
     contents = list(crop_paths) + [prompt]
     try:
         res = client.generate_structured(
@@ -129,7 +150,7 @@ def parse_single_visual(
             temperature=stage_cfg.temperature,
             max_output_tokens=stage_cfg.max_output_tokens,
             media_resolution=stage_cfg.media_resolution,
-            thinking_level=stage_cfg.thinking_level,
+            thinking_level=thinking_level,
             thinking_budget=stage_cfg.thinking_budget,
         )
     except Exception as exc:
@@ -141,10 +162,37 @@ def parse_single_visual(
         else:
             return MolecularParseResult(status="failed")
 
-    # Step 4: RDKit validation & self-correction for chemical structures
+    if silent_guard:
+        err_reason = detect_visual_parse_silent_error(res, visual.type)
+        if err_reason:
+            logger.warning(
+                f"Silent-Error Guard triggered on visual '{visual.id}' ({err_reason}); "
+                f"retrying at temperature=0.5..."
+            )
+            if hasattr(client, "record_event"):
+                client.record_event("silent_error_retries")
+            try:
+                retry_res = client.generate_structured(
+                    contents,
+                    response_schema=schema_class,
+                    stage_name=f"parse_{visual.type}",
+                    model=stage_cfg.model,
+                    temperature=0.5,
+                    max_output_tokens=stage_cfg.max_output_tokens,
+                    media_resolution=stage_cfg.media_resolution,
+                    thinking_level=thinking_level,
+                    thinking_budget=stage_cfg.thinking_budget,
+                )
+                if detect_visual_parse_silent_error(retry_res, visual.type) is None:
+                    res = retry_res
+            except Exception as retry_exc:
+                logger.warning(f"Silent-Error Guard retry failed for '{visual.id}': {retry_exc}")
+
+    # Step 4: RDKit validation & semantic OCSR oracle self-correction for chemical structures
     if isinstance(res, MolecularParseResult) and res.entities:
         logger.info(f"Validating {len(res.entities)} chemical entities via RDKit for '{visual.id}'…")
-        max_attempts = getattr(stage_cfg, "rdkit_max_attempts", 3)
+        mol_cfg = getattr(config.gemini, "molecules", None) if hasattr(config, "gemini") else None
+        max_attempts = getattr(mol_cfg, "max_retries", 1) if mol_cfg is not None else 1
         corrected_entities, _ = validate_and_correct_entities(
             entities=res.entities,
             crop_paths=crop_paths,
@@ -220,7 +268,13 @@ def run_parse_visuals(
                 continue
 
             cap = caption_map.get(vis.id, "")
-            vis_ctx = extract_local_text_context(source_md, vis.id, caption_map=caption_map) if source_md else ""
+            vis_ctx = (
+                extract_local_text_context(
+                    source_md, vis.id, caption_map=caption_map, description=vis.description
+                )
+                if source_md
+                else ""
+            )
             future = executor.submit(
                 parse_single_visual,
                 client,
@@ -254,7 +308,13 @@ def run_parse_visuals(
             if not crop_list:
                 continue
             cap = caption_map.get(v_id, "")
-            vis_ctx = extract_local_text_context(source_md, vis.id, caption_map=caption_map) if source_md else ""
+            vis_ctx = (
+                extract_local_text_context(
+                    source_md, vis.id, caption_map=caption_map, description=vis.description
+                )
+                if source_md
+                else ""
+            )
             time.sleep(2.0)
             try:
                 res = parse_single_visual(client, vis, crop_list, cap, config, context=vis_ctx)

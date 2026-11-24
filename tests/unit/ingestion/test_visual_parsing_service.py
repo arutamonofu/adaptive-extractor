@@ -203,17 +203,41 @@ def test_render_composite_block_mixed_chart_and_molecules():
 
 def test_table_and_chart_schema_pruning():
     t_schema = TableParseResult.model_json_schema()
-    assert list(t_schema["properties"].keys()) == ["content"]
+    assert list(t_schema["properties"].keys()) == [
+        "table_format",
+        "headers",
+        "table_body",
+        "footnotes",
+    ]
     assert "status" not in t_schema["properties"]
-    assert "format" not in t_schema["properties"]
+    assert "content" not in t_schema["properties"]
     assert "warnings" not in t_schema["properties"]
 
     c_schema = ChartParseResult.model_json_schema()
-    assert list(c_schema["properties"].keys()) == ["content"]
+    assert list(c_schema["properties"].keys()) == [
+        "chart_type",
+        "x_axis",
+        "y_axis",
+        "series_names",
+        "data_table",
+        "annotations",
+    ]
     assert "status" not in c_schema["properties"]
-    assert "tables" not in c_schema["properties"]
+    assert "content" not in c_schema["properties"]
     assert "warnings" not in c_schema["properties"]
     assert "$defs" not in c_schema
+
+    # Verify automatic content synthesis and legacy backward compatibility
+    tbl = TableParseResult(
+        table_format="markdown",
+        headers=["Comp", "MIC"],
+        table_body="| Comp | MIC |\n|---|---|\n| 1a | 4 |",
+        footnotes=["a: S. aureus N315"],
+    )
+    assert "| 1a | 4 |" in tbl.content
+    assert "a: S. aureus N315" in tbl.content
+    legacy_tbl = TableParseResult(content="| A | B |\n|---|---|\n| 1 | 2 |")
+    assert legacy_tbl.table_body == "| A | B |\n|---|---|\n| 1 | 2 |"
 
     m_schema = ManifestVisual.model_json_schema()
     assert "contains_types" not in m_schema["properties"]

@@ -103,6 +103,10 @@ class IngestDocumentsUseCase:
             ):
                 request.parser_config.from_stage = request.from_stage
 
+            # Ensure parser writes artifacts into request.output_dir
+            if request.parser_config is not None and hasattr(request.parser_config, "ingestion_dir"):
+                request.parser_config.ingestion_dir = request.output_dir
+
             # Get parser
             parser = get_parser(request.parser_name, request.parser_config)
             logger.info(f"Using parser: {request.parser_name}")
@@ -114,6 +118,43 @@ class IngestDocumentsUseCase:
                 "skipped": 0,
                 "total": len(request.input_paths),
             }
+
+            use_batch = (
+                getattr(
+                    getattr(request.parser_config, "execution", None),
+                    "use_batch_api",
+                    False,
+                )
+                is True
+            )
+            if use_batch and hasattr(parser, "parse_batch"):
+                pending_paths: list[Path] = []
+                for pdf_path in request.input_paths:
+                    output_path = request.output_dir / pdf_path.stem / f"{pdf_path.stem}.md"
+                    if output_path.exists() and not request.overwrite and not request.from_stage:
+                        stats["skipped"] += 1
+                    else:
+                        pending_paths.append(pdf_path)
+
+                if pending_paths:
+                    batch_outputs = parser.parse_batch(pending_paths)
+                    for pdf_path in pending_paths:
+                        output_path = request.output_dir / pdf_path.stem / f"{pdf_path.stem}.md"
+                        hybrid_text = batch_outputs.get(pdf_path.resolve()) or batch_outputs.get(pdf_path)
+                        if hybrid_text:
+                            self.document_repo.save(hybrid_text, output_path)
+                            stats["success"] += 1
+                        else:
+                            stats["failed"] += 1
+
+                return IngestDocumentsResponse(
+                    success=stats["failed"] == 0,
+                    documents_parsed=stats["success"],
+                    documents_skipped=stats["skipped"],
+                    total_documents=stats["total"],
+                    failed_documents=stats["failed"],
+                    output_dir=request.output_dir,
+                )
 
             concurrency = getattr(request, "concurrency", 4)
             if concurrency < 1:

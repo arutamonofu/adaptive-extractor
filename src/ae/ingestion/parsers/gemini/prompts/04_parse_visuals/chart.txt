@@ -1,4 +1,4 @@
-Digitize the attached plot/chart image(s) into structured Markdown table(s) in `content`.
+Digitize the attached plot/chart image(s) into a structured `ChartParseResult` (`chart_type`, `x_axis`, `y_axis`, `series_names`, `data_table`, `annotations`).
 
 Caption: {caption}
 Context: {description}
@@ -6,9 +6,10 @@ Surrounding Article Context:
 {context}
 
 ### Digitization Rules
-- **Unified Tables**: Output data as clean Markdown pipe table(s). Combine series sharing a common X-axis or categorical dimension into a single unified table with distinct columns (e.g., `| Compound | Strain 1 | Strain 2 |` or `| Concentration (µM) | Inhibition Lead (%) | Inhibition Ref (%) |`).
+- **Metadata**: Populate `chart_type`, `x_axis` (label + unit), `y_axis` (label + unit), and `series_names`.
+- **Unified Data Table (`data_table`)**: Output digitized values as clean Markdown pipe table(s). Combine series sharing a common X-axis or categorical dimension into a single unified table with distinct columns (e.g., `| Compound | Strain 1 | Strain 2 |` or `| Concentration (µM) | Inhibition Lead (%) | Inhibition Ref (%) |`).
 - **Columns & Units**: Include explicit variable names and units in column headers (e.g., `Concentration (µM)`, `Inhibition (%)`). For categorical/bar charts, put category labels in the first column. Include uncertainty (±) or error values either in adjacent columns or formatted inline (e.g., `12.4 ± 0.5`).
 - **Data Fidelity**:
   - Discrete plots (bar, scatter, line, dose–response): extract all plotted data points, printed numeric labels, and error bar magnitudes when readable.
   - Continuous curves/spectra (chromatograms, NMR/IR/UV-Vis, thermograms): extract key characteristic points (peaks, extrema, inflection points, plateaus, and labeled thresholds).
-- **Annotations**: Append statistical significance markers (`*`, `p < 0.05`), fitted parameters ($IC_{50}$, $R^2$, $K_d$), or panel notes as bullet points immediately below the table.
+- **Annotations (`annotations`)**: List statistical significance markers (`*`, `p < 0.05`), fitted parameters ($IC_{50}$, $R^2$, $K_d$), or panel notes in `annotations`.

@@ -10,9 +10,10 @@ Surrounding Context:
    - For each target compound, output a distinct entity with its visible `label` (e.g. "1", "2a", "5f") and full valid `smiles`.
    - Do NOT output bare substituent fragments (e.g., standalone "a", "b", "c" from an R-group legend) as separate entities—only output complete assembled molecules.
 
-2. **Visual Truth & Context Disambiguation**:
-   - Determine ring sizes (explicitly count vertices on each ring, e.g., 5-membered vs 6-membered), heteroatom counts and positions, bond orders, and wedge/dash stereocenters directly from the attached high-resolution image(s). Never trust unverified chemical names in `Target Scope` if they conflict with the image.
-   - Use `Surrounding Context` (article prose, table column/row headers, and scheme definitions) to disambiguate chemical classes (e.g., named ring scaffolds), substituent attachments, or named stereoisomers (`(R)`/`(S)`) when consistent with the drawing.
+2. **Visual Truth & Graph-Traversal Disambiguation**:
+   - **Visual Graph-Traversal for Aliphatic Chains (`>= C6`) & Linkers**: Before writing SMILES for any long aliphatic chain (e.g., palmitoyl C16, stearoyl C18, alkyl chain `-(CH2)n-CH3`), explicitly trace and count EVERY vertex (each peak, trough, and terminal methyl) one by one starting from C1 (`C1=O` or attachment atom) through `C2, C3, ..., Cn` so the exact carbon count matches the drawing without off-by-one shifts.
+   - **Ring Sizes, Heteroatoms & Stereopriorities**: Explicitly count vertices on each ring (e.g., 5-membered vs 6-membered), trace substituent locants around aromatic/heterocyclic rings (e.g., 2- vs 3- vs 4-pyridinyl, 2,6- vs 2,5-disubstituted phenyl), and determine bond orders, wedge/dash stereocenters (`@`/`@@`), and `E`/`Z` double-bond geometry directly from the attached high-resolution image(s). Never trust unverified chemical names in `Target Scope` if they conflict with the image.
+   - Use `Surrounding Context` (article prose, experimental IUPAC names, molecular formulas/HRMS, table headers, and scheme definitions) to disambiguate chemical classes, substituent locants, or named stereoisomers (`(R)`/`(S)`) when consistent with the drawing.
 
 3. **Valid SMILES & Variable/Attachment Binding (`attachment_points`)**:
    - Generate a syntactically valid SMILES parsable by RDKit for every compound.

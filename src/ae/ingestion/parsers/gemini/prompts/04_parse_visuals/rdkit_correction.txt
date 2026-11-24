@@ -1,8 +1,8 @@
-The following SMILES extracted from the attached image(s) failed RDKit chemical validation:
+The following SMILES extracted from the attached image(s) failed chemical validation or cross-modal semantic verification:
 
 {invalid_items_list}
 
 Surrounding Context:
 {context}
 
-Re-examine the image(s) and return a valid, RDKit-parseable SMILES for each listed `label`. Ensure correct atomic valences, closed rings, and balanced parentheses.
+Re-examine the image(s) and Surrounding Context carefully and return a valid, accurate SMILES for each listed `label`. Ensure correct atomic valences, closed rings, balanced parentheses, and exact aliphatic chain length. Where Per-item prose-derived constraints are given, they are authoritative: unambiguous prose locants and substituent names override the drawing, while the image remains authoritative for stereochemistry unless a constraint explicitly names stereodescriptors. Return a SMILES that is RDKit-valid, matches the stated molecular formula, and contains ALL listed substructure constraints.

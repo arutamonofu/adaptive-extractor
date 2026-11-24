@@ -101,6 +101,43 @@ def _trim_after(text: str, max_chars: int) -> str:
     return head.strip()
 
 
+_PAGE_BREAK_SPLIT_RE = re.compile(r"<!--\s*page_break\s*-->")
+_COMPOUND_RANGE_RE = re.compile(r"\b(\d{1,3})\s*[–\-—]\s*(\d{1,3})\b")
+_COMPOUND_TOKEN_RE = re.compile(r"\b(\d{1,3}[a-z]?)\b", re.IGNORECASE)
+_CHEM_CALLOUT_HINT_RE = re.compile(
+    r"(?:HRMS|ESI-?MS|Anal\.?\s*Calcd|benzimidazol|pyridin|phenyl|chloro|fluoro|bromo|"
+    r"methoxy|coumarin|oxadiazole|pyrazole|isobutyl|MIC|IC50|IC_?50|carbonyl|methanone)",
+    re.IGNORECASE,
+)
+
+
+def _extract_target_compound_tokens(
+    caption: str,
+    description: str = "",
+) -> list[str]:
+    """Extract compound labels/ranges (e.g., '37-39' -> ['37','38','39']) from caption/description."""
+    source = f"{caption}\n{description}".strip()
+    if not source:
+        return []
+    tokens: list[str] = []
+    for m in _COMPOUND_RANGE_RE.finditer(source):
+        start_num, end_num = int(m.group(1)), int(m.group(2))
+        if 1 <= start_num < end_num and (end_num - start_num) <= 20:
+            for n in range(start_num, end_num + 1):
+                s = str(n)
+                if s not in tokens:
+                    tokens.append(s)
+    for m in _COMPOUND_TOKEN_RE.finditer(source):
+        tok = m.group(1)
+        if tok.isdigit() and int(tok) > 300:
+            continue
+        if len(tok) == 1 and tok.isdigit():
+            continue
+        if tok not in tokens:
+            tokens.append(tok)
+    return tokens[:24]
+
+
 def extract_local_text_context(
     doc_md: str,
     visual_id: str,
@@ -108,12 +145,15 @@ def extract_local_text_context(
     max_before_chars: int = 1800,
     max_after_chars: int = 900,
     max_ref_chars: int = 1000,
+    max_callout_chars: int = 2000,
+    description: str = "",
 ) -> str:
-    """Extract surrounding article prose and cross-referenced paragraphs for visual_id.
+    """Extract N±1 page-window prose, cross-referenced paragraphs, and in-text callouts.
 
     Collapses neighboring <visual> blocks so large parsed tables or SMILES registries do
-    not crowd out nearby prose, and searches the rest of the document for explicit
-    mentions (e.g. 'Table 11', 'Scheme 8') when a visual floats to another page.
+    not crowd out nearby prose, restricts immediate windowing to pages N-1..N+1 around the
+    visual, and searches the rest of the document for explicit visual mentions (e.g. 'Table 11')
+    and in-text chemical/compound callouts (IUPAC names, HRMS, substituent notes).
     """
     if not doc_md or not doc_md.strip():
         return ""
@@ -124,14 +164,28 @@ def extract_local_text_context(
         rf"|<visual\s+id=[\"']{esc_id}[\"'][^>]*/>",
         re.DOTALL,
     )
-    match = target_re.search(doc_md)
+
+    # Split into physical pages to enforce the N±1 window around the target visual
+    pages = _PAGE_BREAK_SPLIT_RE.split(doc_md)
+    window_doc = doc_md
+    target_page_idx: Optional[int] = None
+    for idx, page_txt in enumerate(pages):
+        if target_re.search(page_txt):
+            target_page_idx = idx
+            break
+    if target_page_idx is not None and len(pages) > 1:
+        p_start = max(0, target_page_idx - 1)
+        p_end = min(len(pages), target_page_idx + 2)
+        window_doc = "\n\n<!-- page_break -->\n\n".join(pages[p_start:p_end])
+
+    match = target_re.search(window_doc)
 
     sections: list[str] = []
     window_text = ""
 
     if match:
-        before_raw = doc_md[: match.start()]
-        after_raw = doc_md[match.end() :]
+        before_raw = window_doc[: match.start()]
+        after_raw = window_doc[match.end() :]
 
         before_collapsed = _collapse_visual_blocks(before_raw, caption_map)
         after_collapsed = _collapse_visual_blocks(after_raw, caption_map)
@@ -152,16 +206,17 @@ def extract_local_text_context(
             sections.append(f"Following text:\n{after_snippet}")
         window_text = f"{before_snippet}\n{after_snippet}"
 
-    # Find explicit cross-references outside the immediate window (e.g. floated tables/figures)
+    prose_only = _ANY_VISUAL_RE.sub("", doc_md)
+    prose_only = _COMMENT_RE.sub("", prose_only)
+    paragraphs = [p.strip() for p in re.split(r"\n{2,}", prose_only) if p.strip()]
+
+    # Find explicit visual cross-references outside the immediate window
     mention_re = _build_visual_mention_pattern(visual_id)
+    ref_paras: list[str] = []
     if mention_re is not None:
-        prose_only = _ANY_VISUAL_RE.sub("", doc_md)
-        prose_only = _COMMENT_RE.sub("", prose_only)
-        ref_paras: list[str] = []
         used_chars = 0
-        for para in re.split(r"\n{2,}", prose_only):
-            p_clean = para.strip()
-            if not p_clean or p_clean.startswith("#"):
+        for p_clean in paragraphs:
+            if p_clean.startswith("#"):
                 continue
             if p_clean in window_text:
                 continue
@@ -172,6 +227,41 @@ def extract_local_text_context(
                 used_chars += len(p_clean) + 2
         if ref_paras:
             sections.append("Cross-referenced paragraphs:\n" + "\n\n".join(ref_paras))
+
+    # Extract in-text callouts for compound IDs mentioned in caption/description (e.g. experimental IUPAC/HRMS)
+    caption = (caption_map or {}).get(visual_id, "")
+    compound_tokens = _extract_target_compound_tokens(caption, description)
+    if compound_tokens and not visual_id.lower().startswith("unlabeled"):
+        tok_pat = re.compile(
+            r"(?:Compound|compd\.?|hybrid)?\s*\b(?:"
+            + "|".join(re.escape(t) for t in compound_tokens)
+            + r")\b|\((?:"
+            + "|".join(re.escape(t) for t in compound_tokens)
+            + r")\)",
+            re.IGNORECASE,
+        )
+        callout_paras: list[str] = []
+        used_callout_chars = 0
+        already_included = window_text + "\n" + "\n".join(ref_paras)
+        for idx, p_clean in enumerate(paragraphs):
+            if p_clean in already_included:
+                continue
+            if tok_pat.search(p_clean) and _CHEM_CALLOUT_HINT_RE.search(p_clean):
+                if used_callout_chars + len(p_clean) > max_callout_chars and callout_paras:
+                    break
+                callout_paras.append(p_clean)
+                used_callout_chars += len(p_clean) + 2
+            elif p_clean.startswith("#") and tok_pat.search(p_clean) and idx + 1 < len(paragraphs):
+                # Include experimental heading + immediately following characterization paragraph
+                combined = f"{p_clean}\n{paragraphs[idx + 1]}"
+                if combined in already_included:
+                    continue
+                if used_callout_chars + len(combined) > max_callout_chars and callout_paras:
+                    break
+                callout_paras.append(combined)
+                used_callout_chars += len(combined) + 2
+        if callout_paras:
+            sections.append("In-text callouts:\n" + "\n\n".join(callout_paras))
 
     return "\n\n".join(sections).strip()
 
