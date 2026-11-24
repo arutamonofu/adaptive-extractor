@@ -1,6 +1,7 @@
 # src/ae/reverse_engineering/steps/negative_analysis.py
 """Phase 3: Negative Analysis (Rows and Columns) step implementation."""
 
+import contextlib
 import json
 import logging
 import re
@@ -209,177 +210,181 @@ def run_negative_analysis(context: RunContext, force_doc_ids: list[str] | None =
     row_predictor = dspy.Predict(NegativeRowAnalysis)
     col_predictor = dspy.Predict(NegativeColumnAnalysis)
 
+    tier_ctx_fn = getattr(context, "tier_4a_context", None)
+    tier_ctx = tier_ctx_fn() if callable(tier_ctx_fn) else contextlib.nullcontext()
+
     target_doc_ids = force_doc_ids if force_doc_ids is not None else context.doc_ids
     raw_batch_size = getattr(context, "row_batch_size", 5)
     batch_size = max(1, raw_batch_size if isinstance(raw_batch_size, int) and raw_batch_size >= 1 else 5)
     raw_max_rows = getattr(context, "max_rows_per_doc", 20)
     max_rows = raw_max_rows if isinstance(raw_max_rows, int) and raw_max_rows >= 0 else 20
 
-    for doc_id in target_doc_ids:
-        norm_doc_id = normalize_document_key(doc_id)
-        force_recompute = force_doc_ids is not None and doc_id in force_doc_ids
-        logger.info(f"Processing negative analysis for document: {norm_doc_id} (force_recompute={force_recompute})")
+    with tier_ctx:
+        for doc_id in target_doc_ids:
+            norm_doc_id = normalize_document_key(doc_id)
+            force_recompute = force_doc_ids is not None and doc_id in force_doc_ids
+            logger.info(f"Processing negative analysis for document: {norm_doc_id} (force_recompute={force_recompute})")
 
-        raw_text = doc_repo.get(norm_doc_id)
-        if not raw_text:
-            logger.warning(f"Parsed text for document {norm_doc_id} not found in {context.ingestion_dir}. Skipping.")
-            continue
+            raw_text = doc_repo.get(norm_doc_id)
+            if not raw_text:
+                logger.warning(f"Parsed text for document {norm_doc_id} not found in {context.ingestion_dir}. Skipping.")
+                continue
 
-        df_doc = df_gt[df_gt[id_col] == norm_doc_id].copy()
-        generalized_trigger, generalized_cores_str = _resolve_doc_triggers_and_cores(
-            context, norm_doc_id, fields
-        )
+            df_doc = df_gt[df_gt[id_col] == norm_doc_id].copy()
+            generalized_trigger, generalized_cores_str = _resolve_doc_triggers_and_cores(
+                context, norm_doc_id, fields
+            )
 
-        # Step 1B.1: Negative Row Analysis (Gaps - always uses FULL gt_table_csv)
-        row_artifact_path = context.artifacts.get_path("negative", "rows", f"{norm_doc_id}.json", iteration=None)
+            # Step 1B.1: Negative Row Analysis (Gaps - always uses FULL gt_table_csv)
+            row_artifact_path = context.artifacts.get_path("negative", "rows", f"{norm_doc_id}.json", iteration=None)
 
-        df_doc_with_id = prepare_prompt_table(df_doc, schema_fields)
-        gt_table_csv = df_doc_with_id.to_csv(index=False)
+            df_doc_with_id = prepare_prompt_table(df_doc, schema_fields)
+            gt_table_csv = df_doc_with_id.to_csv(index=False)
 
-        def compute_negative_rows(trig=generalized_trigger, g_cores=generalized_cores_str):
-            fresh_row_text = _unpack_manifests_for_negative(
+            def compute_negative_rows(trig=generalized_trigger, g_cores=generalized_cores_str):
+                fresh_row_text = _unpack_manifests_for_negative(
+                    norm_doc_id,
+                    raw_text,
+                    gt_table_csv,
+                    trig,
+                    g_cores,
+                    context,
+                    doc_repo,
+                    force_recompute=False,
+                )
+                logger.info(f"Calling NegativeRowAnalysis LLM for {norm_doc_id}")
+                response = row_predictor(
+                    extraction_schema=context.schema,
+                    baseline_prompt=context.baseline_prompt,
+                    raw_text=fresh_row_text,
+                    gt_table=gt_table_csv,
+                    generalized_trigger=trig,
+                )
+                return response.analysis
+
+            context.artifacts.load_or_compute(
+                row_artifact_path, compute_negative_rows, NegativeRowsOutput, force_recompute=force_recompute
+            )
+            raw_text = doc_repo.get(norm_doc_id) or raw_text
+
+            # Step 1B.2: Negative Column Analysis (with stratified sampling, row batching & prefix-cache field ordering)
+            if df_doc.empty:
+                continue
+
+            raw_text = _unpack_manifests_for_negative(
                 norm_doc_id,
                 raw_text,
                 gt_table_csv,
-                trig,
-                g_cores,
+                generalized_trigger,
+                generalized_cores_str,
                 context,
                 doc_repo,
                 force_recompute=False,
             )
-            logger.info(f"Calling NegativeRowAnalysis LLM for {norm_doc_id}")
-            response = row_predictor(
-                extraction_schema=context.schema,
-                baseline_prompt=context.baseline_prompt,
-                raw_text=fresh_row_text,
-                gt_table=gt_table_csv,
-                generalized_trigger=trig,
+            sampled_cols_df = select_representative_rows(
+                df_doc_with_id, raw_text, max_rows=max_rows
             )
-            return response.analysis
-
-        context.artifacts.load_or_compute(
-            row_artifact_path, compute_negative_rows, NegativeRowsOutput, force_recompute=force_recompute
-        )
-        raw_text = doc_repo.get(norm_doc_id) or raw_text
-
-        # Step 1B.2: Negative Column Analysis (with stratified sampling, row batching & prefix-cache field ordering)
-        if df_doc.empty:
-            continue
-
-        raw_text = _unpack_manifests_for_negative(
-            norm_doc_id,
-            raw_text,
-            gt_table_csv,
-            generalized_trigger,
-            generalized_cores_str,
-            context,
-            doc_repo,
-            force_recompute=False,
-        )
-        sampled_cols_df = select_representative_rows(
-            df_doc_with_id, raw_text, max_rows=max_rows
-        )
-        if len(sampled_cols_df) < len(df_doc_with_id):
-            logger.info(
-                f"NegativeColumnAnalysis sampling for {norm_doc_id}: "
-                f"{len(sampled_cols_df)}/{len(df_doc_with_id)} representative rows selected"
-            )
-
-        pending_positions: list[int] = []
-        for pos_idx in range(len(sampled_cols_df)):
-            row_id = str(sampled_cols_df.iloc[pos_idx]["row_id"])
-            col_artifact_path = context.artifacts.get_path(
-                "negative", "columns", f"{norm_doc_id}_{row_id}.json", iteration=None
-            )
-            if not force_recompute and context.artifacts.resume and col_artifact_path.exists():
-                context.artifacts.load_or_compute(
-                    col_artifact_path,
-                    lambda: NegativeColumnsOutput(fields=[]),
-                    NegativeColumnsOutput,
-                    force_recompute=False,
+            if len(sampled_cols_df) < len(df_doc_with_id):
+                logger.info(
+                    f"NegativeColumnAnalysis sampling for {norm_doc_id}: "
+                    f"{len(sampled_cols_df)}/{len(df_doc_with_id)} representative rows selected"
                 )
-            else:
-                pending_positions.append(pos_idx)
 
-        for start_idx in range(0, len(pending_positions), batch_size):
-            batch_positions = pending_positions[start_idx : start_idx + batch_size]
-            batch_df = sampled_cols_df.iloc[batch_positions]
-            batch_row_ids = [str(r) for r in batch_df["row_id"].tolist()]
-            target_gt_rows_csv = batch_df.to_csv(index=False)
-
-            if len(batch_positions) == 1:
-                single_row_id = batch_row_ids[0]
+            pending_positions: list[int] = []
+            for pos_idx in range(len(sampled_cols_df)):
+                row_id = str(sampled_cols_df.iloc[pos_idx]["row_id"])
                 col_artifact_path = context.artifacts.get_path(
-                    "negative", "columns", f"{norm_doc_id}_{single_row_id}.json", iteration=None
+                    "negative", "columns", f"{norm_doc_id}_{row_id}.json", iteration=None
                 )
+                if not force_recompute and context.artifacts.resume and col_artifact_path.exists():
+                    context.artifacts.load_or_compute(
+                        col_artifact_path,
+                        lambda: NegativeColumnsOutput(fields=[]),
+                        NegativeColumnsOutput,
+                        force_recompute=False,
+                    )
+                else:
+                    pending_positions.append(pos_idx)
 
-                def compute_single_negative_column(
-                    t_row=target_gt_rows_csv, r_id=single_row_id, g_cores=generalized_cores_str
-                ):
+            for start_idx in range(0, len(pending_positions), batch_size):
+                batch_positions = pending_positions[start_idx : start_idx + batch_size]
+                batch_df = sampled_cols_df.iloc[batch_positions]
+                batch_row_ids = [str(r) for r in batch_df["row_id"].tolist()]
+                target_gt_rows_csv = batch_df.to_csv(index=False)
+
+                if len(batch_positions) == 1:
+                    single_row_id = batch_row_ids[0]
+                    col_artifact_path = context.artifacts.get_path(
+                        "negative", "columns", f"{norm_doc_id}_{single_row_id}.json", iteration=None
+                    )
+
+                    def compute_single_negative_column(
+                        t_row=target_gt_rows_csv, r_id=single_row_id, g_cores=generalized_cores_str
+                    ):
+                        fresh_col_text = doc_repo.get(norm_doc_id) or raw_text
+                        logger.info(f"Calling NegativeColumnAnalysis LLM for {norm_doc_id} {r_id}")
+                        response = col_predictor(
+                            extraction_schema=context.schema,
+                            baseline_prompt=context.baseline_prompt,
+                            raw_text=fresh_col_text,
+                            gt_table=gt_table_csv,
+                            generalized_core=g_cores,
+                            target_gt_row=t_row,
+                        )
+                        return filter_equivalent_negative_candidates(response.analysis, context.schema)
+
+                    context.artifacts.load_or_compute(
+                        col_artifact_path,
+                        compute_single_negative_column,
+                        NegativeColumnsOutput,
+                        force_recompute=True,
+                    )
+                else:
                     fresh_col_text = doc_repo.get(norm_doc_id) or raw_text
-                    logger.info(f"Calling NegativeColumnAnalysis LLM for {norm_doc_id} {r_id}")
+                    logger.info(
+                        f"Calling NegativeColumnAnalysis LLM for {norm_doc_id} batch {batch_row_ids}"
+                    )
                     response = col_predictor(
                         extraction_schema=context.schema,
                         baseline_prompt=context.baseline_prompt,
                         raw_text=fresh_col_text,
                         gt_table=gt_table_csv,
-                        generalized_core=g_cores,
-                        target_gt_row=t_row,
+                        generalized_core=generalized_cores_str,
+                        target_gt_row=target_gt_rows_csv,
                     )
-                    return filter_equivalent_negative_candidates(response.analysis, context.schema)
+                    batch_neg_output: NegativeColumnsOutput = filter_equivalent_negative_candidates(
+                        response.analysis, context.schema
+                    )
 
-                context.artifacts.load_or_compute(
-                    col_artifact_path,
-                    compute_single_negative_column,
-                    NegativeColumnsOutput,
-                    force_recompute=True,
-                )
-            else:
-                fresh_col_text = doc_repo.get(norm_doc_id) or raw_text
-                logger.info(
-                    f"Calling NegativeColumnAnalysis LLM for {norm_doc_id} batch {batch_row_ids}"
-                )
-                response = col_predictor(
-                    extraction_schema=context.schema,
-                    baseline_prompt=context.baseline_prompt,
-                    raw_text=fresh_col_text,
-                    gt_table=gt_table_csv,
-                    generalized_core=generalized_cores_str,
-                    target_gt_row=target_gt_rows_csv,
-                )
-                batch_neg_output: NegativeColumnsOutput = filter_equivalent_negative_candidates(
-                    response.analysis, context.schema
-                )
-
-                fields_by_row: dict[str, list] = {r_id: [] for r_id in batch_row_ids}
-                for nf in batch_neg_output.fields:
-                    raw_r_id = getattr(nf, "row_id", "") or ""
-                    if raw_r_id in fields_by_row:
-                        target_r_id = raw_r_id
-                    else:
-                        m = re.search(r"(\d+)", str(raw_r_id))
-                        if m:
-                            idx = int(m.group(1))
-                            if f"row_{idx}" in fields_by_row:
-                                target_r_id = f"row_{idx}"
-                            elif 1 <= idx <= len(batch_row_ids):
-                                target_r_id = batch_row_ids[idx - 1]
+                    fields_by_row: dict[str, list] = {r_id: [] for r_id in batch_row_ids}
+                    for nf in batch_neg_output.fields:
+                        raw_r_id = getattr(nf, "row_id", "") or ""
+                        if raw_r_id in fields_by_row:
+                            target_r_id = raw_r_id
+                        else:
+                            m = re.search(r"(\d+)", str(raw_r_id))
+                            if m:
+                                idx = int(m.group(1))
+                                if f"row_{idx}" in fields_by_row:
+                                    target_r_id = f"row_{idx}"
+                                elif 1 <= idx <= len(batch_row_ids):
+                                    target_r_id = batch_row_ids[idx - 1]
+                                else:
+                                    target_r_id = batch_row_ids[0]
                             else:
                                 target_r_id = batch_row_ids[0]
-                        else:
-                            target_r_id = batch_row_ids[0]
-                    fields_by_row[target_r_id].append(nf)
+                        fields_by_row[target_r_id].append(nf)
 
-                for r_id in batch_row_ids:
-                    col_artifact_path = context.artifacts.get_path(
-                        "negative", "columns", f"{norm_doc_id}_{r_id}.json", iteration=None
-                    )
-                    row_neg_output = NegativeColumnsOutput(fields=fields_by_row[r_id])
-                    context.artifacts.load_or_compute(
-                        col_artifact_path,
-                        lambda out=row_neg_output: out,
-                        NegativeColumnsOutput,
-                        force_recompute=True,
-                    )
+                    for r_id in batch_row_ids:
+                        col_artifact_path = context.artifacts.get_path(
+                            "negative", "columns", f"{norm_doc_id}_{r_id}.json", iteration=None
+                        )
+                        row_neg_output = NegativeColumnsOutput(fields=fields_by_row[r_id])
+                        context.artifacts.load_or_compute(
+                            col_artifact_path,
+                            lambda out=row_neg_output: out,
+                            NegativeColumnsOutput,
+                            force_recompute=True,
+                        )
 
     logger.info("Finished Negative Analysis")

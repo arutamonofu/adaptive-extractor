@@ -724,3 +724,78 @@ def test_rulings_store_extended_dedup_generalize_and_ignore_case(gt_test_files, 
     )
     assert store.has_matching_ruling(same_doc_row2) is True
     assert store.has_matching_ruling(other_doc_row2) is False
+
+
+def test_hitl_p0_p3_priority_sorting_and_pot_tags():
+    """sort_conflicts_by_priority orders P0 (baseline/duplicate_of_tp/cross-doc) -> P1 (GT/PU) -> P2 (ingestion) -> P3."""
+    from ae.semantic_optimization.hitl import classify_conflict_priority, sort_conflicts_by_priority
+
+    c_p3 = REConflict(
+        conflict_id="cond_1",
+        scope="column:bacteria",
+        conflict_type="CONDITIONAL_BRANCH_NEEDED",
+        document_id="d1",
+        row_id="row_1",
+        explanation="Optional footnote expansion",
+    )
+    c_p2 = REConflict(
+        conflict_id="ing_1",
+        scope="column:smiles",
+        conflict_type="SUSPECTED_INGESTION_DEFECT",
+        document_id="d1",
+        row_id="row_2",
+        explanation="OCR typo",
+    )
+    c_p1_gt = REConflict(
+        conflict_id="gt_1",
+        scope="column:target_value",
+        conflict_type="SUSPECTED_GT_ERROR",
+        document_id="d1",
+        row_id="row_3",
+        explanation="GT typo",
+    )
+    c_p1_pu = REConflict(
+        conflict_id="pu_1",
+        scope="rows",
+        conflict_type="SUSPECTED_GT_OMISSION",
+        document_id="d1",
+        row_id="gap_row_1",
+        explanation="Missing clinical isolate row",
+        diagnostic_tag="high_confidence_unlabeled",
+    )
+    c_p0_dup = REConflict(
+        conflict_id="dup_1",
+        scope="rows",
+        conflict_type="SUSPECTED_GT_OMISSION",
+        document_id="d1",
+        row_id="gap_row_2",
+        explanation="Cross-table repeat duplicate_of_tp",
+        diagnostic_tag="duplicate_of_tp",
+    )
+    c_p0_base = REConflict(
+        conflict_id="base_1",
+        scope="rows",
+        conflict_type="BASELINE_POLICY_CONFLICT",
+        document_id="d1",
+        row_id="row_4",
+        explanation="Baseline conflict",
+    )
+
+    sorted_list = sort_conflicts_by_priority([c_p3, c_p2, c_p1_pu, c_p1_gt, c_p0_dup, c_p0_base])
+    assert [c.conflict_id for c in sorted_list] == [
+        "base_1",
+        "dup_1",
+        "gt_1",
+        "pu_1",
+        "ing_1",
+        "cond_1",
+    ]
+    assert [classify_conflict_priority(c)[2] for c in sorted_list] == [
+        "P0",
+        "P0",
+        "P1",
+        "P1",
+        "P2",
+        "P3",
+    ]
+

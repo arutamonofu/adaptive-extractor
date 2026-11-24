@@ -22,7 +22,12 @@ import pandas as pd
 from ae.core.storage.documents import DocumentRepository
 from ae.core.utils import normalize_document_key
 from ae.ingestion.parsers.gemini.stages.render_markdown import extract_unparsed_visual_ids
-from ae.semantic_optimization.models import ExpertRuling, REConflict, ResolutionOption
+from ae.semantic_optimization.models import (
+    ExpertRuling,
+    PriorityTier,
+    REConflict,
+    ResolutionOption,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -517,6 +522,84 @@ class RulingsStore:
         return "\n".join(lines)
 
 
+_PRIORITY_TIER_RANK: Dict[PriorityTier, int] = {
+    "P0": 0,
+    "P1": 1,
+    "P2": 2,
+    "P3": 3,
+}
+
+_POT_STRUCTURAL_TAGS = frozenset({"duplicate_of_tp", "row_merge", "row_split"})
+
+
+def classify_conflict_priority(conflict: REConflict) -> tuple[int, int, PriorityTier]:
+    """Classify a conflict into HITL triage priority tiers P0 (highest) to P3 (lowest).
+
+    P0: Policy contradictions (BASELINE_POLICY_CONFLICT), POT structural duplicates/merges
+        (`duplicate_of_tp`, `row_merge`, `row_split`), and CROSS_DOC_CONTRADICTION.
+    P1: Ground Truth integrity errors (SUSPECTED_GT_ERROR) and PU-triggered / general
+        SUSPECTED_GT_OMISSION (`high_confidence_unlabeled` ranked ahead of other omissions).
+    P2: Source text / ingestion defects (TEXT_VS_GT_MISMATCH, SUSPECTED_INGESTION_DEFECT).
+    P3: Conditional nuances (CONDITIONAL_BRANCH_NEEDED) and fallback items.
+    """
+    diag_tag = (conflict.diagnostic_tag or "").strip().lower()
+    text_blob = (
+        f"{conflict.conflict_id} {conflict.explanation} {conflict.conflicting_value_or_rule}"
+    ).lower()
+    is_pot_structural = diag_tag in _POT_STRUCTURAL_TAGS or any(
+        tag in text_blob for tag in _POT_STRUCTURAL_TAGS
+    )
+    is_pu_high_conf = (
+        diag_tag == "high_confidence_unlabeled" or "high_confidence_unlabeled" in text_blob
+    )
+
+    if conflict.conflict_type == "BASELINE_POLICY_CONFLICT":
+        sub_rank = 0
+        default_tier: PriorityTier = "P0"
+    elif is_pot_structural:
+        sub_rank = 1
+        default_tier = "P0"
+    elif conflict.conflict_type == "CROSS_DOC_CONTRADICTION":
+        sub_rank = 2
+        default_tier = "P0"
+    elif conflict.conflict_type == "SUSPECTED_GT_ERROR":
+        sub_rank = 0
+        default_tier = "P1"
+    elif conflict.conflict_type == "SUSPECTED_GT_OMISSION":
+        sub_rank = 1 if is_pu_high_conf else 2
+        default_tier = "P1"
+    elif conflict.conflict_type == "TEXT_VS_GT_MISMATCH":
+        sub_rank = 0
+        default_tier = "P2"
+    elif conflict.conflict_type == "SUSPECTED_INGESTION_DEFECT":
+        sub_rank = 1
+        default_tier = "P2"
+    elif conflict.conflict_type == "CONDITIONAL_BRANCH_NEEDED":
+        sub_rank = 0
+        default_tier = "P3"
+    else:
+        sub_rank = 1
+        default_tier = "P3"
+
+    tier: PriorityTier = conflict.priority if conflict.priority in _PRIORITY_TIER_RANK else default_tier
+    return (_PRIORITY_TIER_RANK[tier], sub_rank, tier)
+
+
+def sort_conflicts_by_priority(conflicts: List[REConflict]) -> List[REConflict]:
+    """Deduplicate by conflict_id, populate priority tiers P0-P3, and sort deterministically."""
+    seen_ids: Set[str] = set()
+    unique_conflicts: List[REConflict] = []
+    for c in conflicts:
+        if c.conflict_id not in seen_ids:
+            seen_ids.add(c.conflict_id)
+            _, _, tier = classify_conflict_priority(c)
+            if c.priority is None:
+                c = c.model_copy(update={"priority": tier})
+            unique_conflicts.append(c)
+
+    return sorted(unique_conflicts, key=classify_conflict_priority)
+
+
 class InteractiveConflictResolver:
     """Interactively resolves RE conflicts in terminal (single or batch digest)."""
 
@@ -604,43 +687,23 @@ class InteractiveConflictResolver:
         return True
 
     def resolve_batch(self, conflicts: List[REConflict]) -> BatchResolutionResult:
-        """Resolve a unified batch of conflicts across rows and all columns in a single digest session."""
+        """Resolve a unified batch of conflicts across rows and all columns in P0-P3 priority order."""
         result = BatchResolutionResult()
         if not conflicts:
             return result
 
-        # Deduplicate by conflict_id while preserving order
-        seen_ids: Set[str] = set()
-        unique_conflicts: List[REConflict] = []
-        for c in conflicts:
-            if c.conflict_id not in seen_ids:
-                seen_ids.add(c.conflict_id)
-                unique_conflicts.append(c)
-
-        # Priority order: Baseline Prompt Conflicts first, then GT/Ingestion errors, then Cross-Doc
-        priority_map = {
-            "BASELINE_POLICY_CONFLICT": 0,
-            "SUSPECTED_GT_ERROR": 1,
-            "SUSPECTED_GT_OMISSION": 2,
-            "TEXT_VS_GT_MISMATCH": 3,
-            "SUSPECTED_INGESTION_DEFECT": 4,
-            "CROSS_DOC_CONTRADICTION": 5,
-            "CONDITIONAL_BRANCH_NEEDED": 6,
-        }
-        sorted_conflicts = sorted(
-            unique_conflicts,
-            key=lambda c: priority_map.get(c.conflict_type, 99),
-        )
+        sorted_conflicts = sort_conflicts_by_priority(conflicts)
 
         pending = [c for c in sorted_conflicts if not self.rulings_store.has_matching_ruling(c)]
         if pending and self.interactive:
             row_count = sum(1 for c in pending if c.scope == "rows")
             col_count = len(pending) - row_count
-            baseline_count = sum(1 for c in pending if c.conflict_type == "BASELINE_POLICY_CONFLICT")
+            p0_count = sum(1 for c in pending if classify_conflict_priority(c)[2] == "P0")
+            p1_count = sum(1 for c in pending if classify_conflict_priority(c)[2] == "P1")
             print("\n" + "#" * 70)
             print(
                 f"📋 HITL CONFLICT DIGEST: {len(pending)} item(s) to review "
-                f"(Rows: {row_count}, Columns: {col_count}, Baseline vs GT: {baseline_count})"
+                f"(P0: {p0_count}, P1: {p1_count}, Rows: {row_count}, Columns: {col_count})"
             )
             print("#" * 70)
 
@@ -677,7 +740,26 @@ class InteractiveConflictResolver:
 
         if not self.interactive:
             default_action = conflict.options[0].action_type if conflict.options else "GENERALIZE"
-            default_text = conflict.options[0].proposed_rule_or_value if conflict.options else conflict.explanation
+            raw_default_text = (
+                conflict.options[0].proposed_rule_or_value
+                if conflict.options
+                else conflict.explanation
+            )
+            field_name = conflict.scope.split("column:", 1)[1] if "column:" in conflict.scope else ""
+            if default_action in ("KEEP_BASELINE", "OVERRIDE_BASELINE") and not _is_descriptive_rule_text(raw_default_text):
+                default_text = (
+                    conflict.explanation
+                    if _is_descriptive_rule_text(conflict.explanation)
+                    else (
+                        "Keep authoritative baseline prompt rule"
+                        if default_action == "KEEP_BASELINE"
+                        else "Override baseline prompt rule with empirical Ground Truth behavior"
+                    )
+                )
+            else:
+                default_text = raw_default_text
+            if default_action in ("IGNORE_INGESTION_DEFECT", "IGNORE_CASE") and conflict.document_id and conflict.row_id:
+                self.rulings_store.mark_ignored(conflict.document_id, conflict.row_id, field_name)
             ruling = ExpertRuling(
                 conflict_id=conflict.conflict_id,
                 scope=conflict.scope,
@@ -686,14 +768,16 @@ class InteractiveConflictResolver:
                 decision_text=default_text,
                 document_id=conflict.document_id,
                 row_id=conflict.row_id,
-                field_name=conflict.scope.split("column:", 1)[1] if "column:" in conflict.scope else "",
+                field_name=field_name,
             )
             self.rulings_store.add_ruling(ruling)
             return ruling, False
 
         # Interactive terminal prompt
+        _, _, tier_label = classify_conflict_priority(conflict)
+        diag_suffix = f" [{conflict.diagnostic_tag}]" if conflict.diagnostic_tag else ""
         print("\n" + "=" * 70)
-        print(f"⚠️  CONFLICT DETECTED [{conflict.conflict_type}]")
+        print(f"⚠️  CONFLICT DETECTED [{tier_label}] [{conflict.conflict_type}]{diag_suffix}")
         print(f"Scope: {conflict.scope} | Document: {conflict.document_id} | Row: {conflict.row_id}")
         print("-" * 70)
         print(f"Explanation: {conflict.explanation}")

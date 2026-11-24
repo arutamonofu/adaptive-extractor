@@ -18,7 +18,10 @@ from ae.core.storage.documents import DocumentRepository
 from ae.core.utils import normalize_document_key
 from ae.semantic_optimization.context import RunContext
 from ae.semantic_optimization.hitl import _get_id_column
-from ae.semantic_optimization.steps.generalization import run_generalization
+from ae.semantic_optimization.steps.generalization import (
+    replace_prompt_sections,
+    run_generalization,
+)
 from ae.semantic_optimization.steps.negative_analysis import run_negative_analysis
 from ae.semantic_optimization.steps.positive_analysis import run_positive_analysis
 from ae.semantic_optimization.steps.residual_analysis import run_residual_analysis
@@ -48,9 +51,12 @@ class SemanticOptimizationState(TypedDict, total=False):
 
     # Metrics
     val_f1_history: list[float]
+    val_per_field_history: list[dict[str, float]]
     best_f1: float
+    best_per_field_f1: dict[str, float]
     best_prompt: str
     best_iteration: int
+    pareto_rollback_history: list[dict[str, Any]]
     early_stopped: bool
     step_artifacts: dict[str, Path]
     _gt_modified_in_generalization: bool
@@ -68,6 +74,7 @@ class SemanticOptimizationGraph:
         max_tool_iterations: int = 5,
         initial_docs: Optional[int] = None,
         step_size: Optional[int] = None,
+        pareto_regression_threshold: Optional[float] = None,
     ) -> None:
         self.context = context
         self.train_doc_ids = train_doc_ids
@@ -77,6 +84,7 @@ class SemanticOptimizationGraph:
 
         ctx_init = getattr(context, "initial_docs", None)
         ctx_step = getattr(context, "step_size", None)
+        ctx_pareto = getattr(context, "pareto_regression_threshold", None)
         self.initial_docs = (
             initial_docs
             if initial_docs is not None
@@ -86,6 +94,15 @@ class SemanticOptimizationGraph:
             step_size
             if step_size is not None
             else (ctx_step if isinstance(ctx_step, int) and ctx_step >= 1 else 1)
+        )
+        self.pareto_regression_threshold = (
+            float(pareto_regression_threshold)
+            if pareto_regression_threshold is not None
+            else (
+                float(ctx_pareto)
+                if isinstance(ctx_pareto, (int, float)) and not isinstance(ctx_pareto, bool)
+                else 0.01
+            )
         )
         if not isinstance(getattr(self.context, "max_tool_iterations", None), int):
             self.context.max_tool_iterations = self.max_tool_iterations
@@ -368,25 +385,337 @@ class SemanticOptimizationGraph:
             return "recompute_positive"
         return "proceed_to_evaluate"
 
+    def _evaluate_prompt_on_val(
+        self,
+        ctx: RunContext,
+        val_ids: list[str],
+        eval_schema_path: Path,
+        generated_path: Path,
+        selection_metric: str,
+        enable_judge: bool,
+    ) -> dict[str, Any]:
+        """Run extraction + evaluation on val_ids and return micro/macro/per-field metrics."""
+        from ae.core.evaluation import TaskMetric
+        from ae.core.schema import load_schema_complete
+        from ae.core.schema.loader import create_row_converter, load_schema_with_models
+        from ae.extraction.agent import UniversalExtractor
+        import dspy
+
+        cfg_path_raw = getattr(ctx, "config_path", None)
+        cfg_path = cfg_path_raw if isinstance(cfg_path_raw, (str, Path)) else None
+        doc_repo = DocumentRepository(ingestion_dir=ctx.ingestion_dir)
+
+        extract_task = load_schema_complete(
+            yaml_path=eval_schema_path,
+            instruction_path=generated_path if generated_path.exists() else None,
+        )
+        if Path(eval_schema_path).resolve() != Path(ctx.schema_path).resolve():
+            gt_cfg, gt_rec_model, gt_output_model = load_schema_with_models(
+                yaml_path=ctx.schema_path,
+                instruction_path=None,
+            )
+            gt_row_converter = create_row_converter(gt_cfg, gt_rec_model)
+        else:
+            gt_output_model = extract_task.output_model
+            gt_row_converter = getattr(extract_task, "row_converter", None)
+
+        metric_config = getattr(extract_task.config, "metric_config", {})
+        if not metric_config and hasattr(extract_task.config, "model_dump"):
+            metric_config = extract_task.config.model_dump()
+
+        if "compare_fields" not in metric_config:
+            metric_config["compare_fields"] = list(extract_task.config.compare_fields)
+        if not metric_config.get("name"):
+            metric_config["name"] = (
+                getattr(extract_task.config, "name", None)
+                or getattr(ctx, "task_name", None)
+                or "unknown"
+            )
+
+        descriptions = extract_task.config.judge_field_descriptions or {
+            name: spec.description for name, spec in extract_task.config.fields.items()
+        }
+
+        settings = Settings.load(config_path=cfg_path, load_env_file=False)
+        flt_tol = getattr(
+            settings.syntactic_optimization,
+            "float_tolerance",
+            extract_task.config.float_tolerance,
+        )
+
+        student_llm = None
+        if (
+            enable_judge
+            and hasattr(ctx, "re_client")
+            and hasattr(ctx.re_client, "get_validation_client")
+        ):
+            try:
+                val_client = ctx.re_client.get_validation_client()
+                if val_client is not None and hasattr(val_client, "get_dspy_adapter"):
+                    student_llm = val_client.get_dspy_adapter()
+            except Exception as val_exc:
+                logger.warning(
+                    f"Could not resolve validation student_llm for Semantic Judge: {val_exc}"
+                )
+
+        if enable_judge and student_llm is not None:
+            logger.info(
+                f"Validation evaluation: Semantic Judge ENABLED "
+                f"(model={getattr(student_llm, 'model', type(student_llm).__name__)})"
+            )
+        elif enable_judge:
+            logger.warning(
+                "Validation evaluation: enable_semantic_judge=True, but student_llm could not be resolved; "
+                "falling back to strict matching."
+            )
+        else:
+            logger.info("Validation evaluation: Semantic Judge DISABLED (strict matching only).")
+
+        raw_constraints = getattr(extract_task.config, "field_constraints", None)
+        field_constraints = raw_constraints if isinstance(raw_constraints, dict) else None
+        raw_validators = getattr(extract_task.config, "field_validators", None)
+        field_validators = raw_validators if isinstance(raw_validators, dict) else None
+
+        metric = TaskMetric(
+            task_config=metric_config,
+            float_tolerance=flt_tol,
+            student_llm=student_llm,
+            field_descriptions=descriptions,
+            enable_semantic_judge=enable_judge,
+            field_constraints=field_constraints,
+            field_validators=field_validators,
+        )
+
+        df_gt = pd.read_csv(ctx.active_gt_path)
+        df_gt.columns = df_gt.columns.str.lower().str.strip()
+        id_col = _get_id_column(df_gt)
+
+        if hasattr(ctx, "re_client") and hasattr(ctx.re_client, "create_validation_extractor"):
+            try:
+                if "ingestion_dir" in inspect.signature(ctx.re_client.create_validation_extractor).parameters:
+                    extractor = ctx.re_client.create_validation_extractor(
+                        extract_task.signature, ingestion_dir=ctx.ingestion_dir
+                    )
+                else:
+                    extractor = ctx.re_client.create_validation_extractor(extract_task.signature)
+            except (TypeError, ValueError):
+                extractor = ctx.re_client.create_validation_extractor(extract_task.signature)
+        else:
+            extractor = UniversalExtractor(
+                extract_task.signature, ingestion_dir=ctx.ingestion_dir
+            )
+
+        compare_fields = list(metric_config.get("compare_fields") or [])
+        scores: list[float] = []
+        strict_scores: list[float] = []
+        doc_scores_detail: dict[str, dict[str, Any]] = {}
+        total_weight = 0
+        weighted_f1_sum = 0.0
+        weighted_strict_sum = 0.0
+        field_tp: dict[str, float] = {f: 0.0 for f in compare_fields}
+        strict_field_tp: dict[str, float] = {f: 0.0 for f in compare_fields}
+        field_total_p = 0
+        field_total_g = 0
+
+        can_use_detailed_report = (
+            hasattr(metric, "matcher")
+            and callable(getattr(metric.matcher, "get_detailed_report", None))
+            and isinstance(getattr(metric.matcher, "fields", None), list)
+            and callable(getattr(metric, "_extract_records", None))
+        )
+
+        for v_id in val_ids:
+            norm_v_id = normalize_document_key(v_id)
+            v_text = doc_repo.get(norm_v_id)
+            if not v_text:
+                continue
+            gt_rows = df_gt[
+                df_gt[id_col].astype(str).apply(normalize_document_key) == norm_v_id
+            ]
+            gt_records = gt_rows.to_dict(orient="records")
+            if not gt_records:
+                continue
+
+            clean_gt_records = []
+            for rec in gt_records:
+                clean_rec = {k: (None if pd.isna(v) else v) for k, v in rec.items()}
+                if callable(gt_row_converter):
+                    converted = gt_row_converter(clean_rec)
+                    if converted is not None:
+                        clean_gt_records.append(converted)
+                else:
+                    clean_gt_records.append(clean_rec)
+
+            doc_header = f"<!-- document_id: {norm_v_id} -->\n\n"
+            eval_text = v_text if norm_v_id in v_text else doc_header + v_text
+            pred = extractor.forward(document_text=eval_text)
+
+            example = dspy.Example(
+                extracted_data=gt_output_model(records=clean_gt_records)
+            )
+            if can_use_detailed_report:
+                gt_ents = metric._extract_records(example)
+                pred_ents = metric._extract_records(pred)
+                rep = metric.matcher.get_detailed_report(
+                    pred_ents,
+                    gt_ents,
+                    task_name=getattr(metric, "task_name", metric_config["name"]),
+                )
+                if logger.isEnabledFor(logging.INFO) and hasattr(metric, "_log_metrics"):
+                    metric._log_metrics(rep)
+                score = float(rep["f1"])
+                strict_doc_f1 = float(rep.get("strict_f1", score))
+                n_p = int((rep.get("counts") or {}).get("preds", len(pred_ents)))
+                n_g = int((rep.get("counts") or {}).get("gts", len(gt_ents)))
+                denom_doc = max(n_p, n_g)
+                doc_fields = {k: float(v) for k, v in (rep.get("fields") or {}).items()}
+                doc_strict_fields = {
+                    k: float(v) for k, v in (rep.get("strict_fields") or doc_fields).items()
+                }
+                for f, f_sc in doc_fields.items():
+                    field_tp[f] = field_tp.get(f, 0.0) + f_sc * denom_doc
+                for f, sf_sc in doc_strict_fields.items():
+                    strict_field_tp[f] = strict_field_tp.get(f, 0.0) + sf_sc * denom_doc
+                field_total_p += n_p
+                field_total_g += n_g
+                doc_scores_detail[norm_v_id] = {
+                    "f1": score,
+                    "strict_f1": strict_doc_f1,
+                    "gts": n_g,
+                    "preds": n_p,
+                    "fields": doc_fields,
+                    "diagnostics": rep.get("diagnostics", {}),
+                }
+            else:
+                score = float(metric(example, pred))
+                strict_doc_f1 = score
+                doc_scores_detail[norm_v_id] = {
+                    "f1": score,
+                    "gts": len(clean_gt_records),
+                }
+
+            row_weight = max(1, len(clean_gt_records))
+            scores.append(score)
+            strict_scores.append(strict_doc_f1)
+            weighted_f1_sum += score * row_weight
+            weighted_strict_sum += strict_doc_f1 * row_weight
+            total_weight += row_weight
+
+        macro_f1 = (sum(scores) / len(scores)) if scores else 0.0
+        micro_f1 = (weighted_f1_sum / total_weight) if total_weight > 0 else macro_f1
+        strict_macro_f1 = (sum(strict_scores) / len(strict_scores)) if strict_scores else 0.0
+        strict_micro_f1 = (
+            (weighted_strict_sum / total_weight) if total_weight > 0 else strict_macro_f1
+        )
+        f1_score = micro_f1 if selection_metric == "micro_f1" else macro_f1
+
+        denom_fields = field_total_p + field_total_g
+        per_field_f1 = (
+            {
+                f: round((2.0 * field_tp.get(f, 0.0)) / denom_fields, 6)
+                for f in compare_fields
+            }
+            if denom_fields > 0 and can_use_detailed_report
+            else {}
+        )
+        strict_per_field_f1 = (
+            {
+                f: round((2.0 * strict_field_tp.get(f, 0.0)) / denom_fields, 6)
+                for f in compare_fields
+            }
+            if denom_fields > 0 and can_use_detailed_report
+            else {}
+        )
+
+        return {
+            "f1_score": f1_score,
+            "macro_f1": macro_f1,
+            "micro_f1": micro_f1,
+            "strict_micro_f1": strict_micro_f1,
+            "strict_macro_f1": strict_macro_f1,
+            "per_field_f1": per_field_f1,
+            "strict_per_field_f1": strict_per_field_f1,
+            "doc_scores": doc_scores_detail,
+            "evaluated_count": len(scores),
+        }
+
+    def _rollback_column_artifacts_and_schema(
+        self,
+        ctx: RunContext,
+        iter_num: int,
+        best_k: int,
+        regressed_fields: list[str],
+        eval_schema_path: Path,
+    ) -> bool:
+        """Restore regressed column generalization artifacts and schema field specs from best_k."""
+        schema_changed = False
+        artifacts_mgr = getattr(ctx, "artifacts", None)
+        if artifacts_mgr is not None and hasattr(artifacts_mgr, "get_path"):
+            for f in regressed_fields:
+                curr_col_art = artifacts_mgr.get_path(
+                    "generalization", "columns", f"{f}.json", iteration=iter_num
+                )
+                best_col_art = artifacts_mgr.get_path(
+                    "generalization", "columns", f"{f}.json", iteration=best_k
+                )
+                if best_col_art.exists() and curr_col_art != best_col_art:
+                    if curr_col_art.exists():
+                        backup = curr_col_art.with_suffix(".pre_rollback.json")
+                        shutil.copy2(curr_col_art, backup)
+                    curr_col_art.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(best_col_art, curr_col_art)
+
+            best_schema_cand = artifacts_mgr.get_path(
+                "generalization", "", "candidate_schema.yaml", iteration=best_k
+            )
+            curr_schema_cand = artifacts_mgr.get_path(
+                "generalization", "", "candidate_schema.yaml", iteration=iter_num
+            )
+            if best_schema_cand.exists() and eval_schema_path.exists():
+                try:
+                    from ae.core.schema.loader import load_schema_from_yaml, save_schema_to_yaml
+
+                    best_cfg = load_schema_from_yaml(best_schema_cand)
+                    curr_cfg = load_schema_from_yaml(eval_schema_path)
+                    for f in regressed_fields:
+                        if f in best_cfg.fields and f in curr_cfg.fields:
+                            if curr_cfg.fields[f] != best_cfg.fields[f]:
+                                curr_cfg.fields[f] = best_cfg.fields[f].model_copy(deep=True)
+                                schema_changed = True
+                    if schema_changed:
+                        save_schema_to_yaml(curr_cfg, eval_schema_path)
+                        if curr_schema_cand != eval_schema_path:
+                            save_schema_to_yaml(curr_cfg, curr_schema_cand)
+                except Exception as exc:
+                    logger.warning(f"Could not roll back schema fields {regressed_fields}: {exc}")
+
+        return schema_changed
+
     def _evaluate_val(self, state: SemanticOptimizationState) -> dict[str, Any]:
-        """Evaluate candidate prompt on validation split."""
+        """Evaluate candidate prompt on validation split with per-column Pareto Auto-Rollback."""
         if state.get("zero_delta_iteration"):
             val_history = state.get("val_f1_history", [])
+            val_pf_history = state.get("val_per_field_history", [])
             prev_f1 = val_history[-1] if val_history else float(state.get("best_f1", 0.0))
+            prev_pf = (
+                dict(val_pf_history[-1])
+                if val_pf_history
+                else dict(state.get("best_per_field_f1", {}))
+            )
             logger.info(
                 f"Iter {state['current_iteration']}: Zero-Delta Fast-Forward — "
                 f"reusing previous validation F1 ({prev_f1:.4f}) without re-running extraction."
             )
             return {
                 "val_f1_history": val_history + [prev_f1],
+                "val_per_field_history": val_pf_history + [prev_pf],
                 "best_f1": state.get("best_f1", prev_f1),
+                "best_per_field_f1": state.get("best_per_field_f1", prev_pf),
                 "best_prompt": state.get("best_prompt", ""),
                 "best_iteration": state.get("best_iteration", 1),
             }
 
         ctx: RunContext = state["context"]
-        raw_cfg = getattr(ctx, "config_path", None)
-        cfg_path = raw_cfg if isinstance(raw_cfg, (str, Path)) else None
         generated_path = self._resolve_prompt_path(ctx)
         current_prompt = (
             generated_path.read_text(encoding="utf-8") if generated_path.exists() else ""
@@ -397,16 +726,22 @@ class SemanticOptimizationGraph:
             logger.info("No validation document IDs provided. Skipping validation evaluation.")
             return {
                 "val_f1_history": state["val_f1_history"] + [0.0],
+                "val_per_field_history": state.get("val_per_field_history", []) + [{}],
                 "best_prompt": current_prompt or state["best_prompt"],
                 "best_iteration": state["current_iteration"],
             }
 
         f1_score = 0.0
-        try:
-            from ae.core.evaluation import TaskMetric
-            from ae.core.schema import load_schema_complete
+        per_field_f1: dict[str, float] = {}
+        pareto_history = list(state.get("pareto_rollback_history", []))
+        best_f1 = float(state.get("best_f1", 0.0))
+        best_per_field_f1 = dict(state.get("best_per_field_f1", {}))
+        best_prompt = str(state.get("best_prompt", ""))
+        best_iteration = int(state.get("best_iteration", 1))
+        iter_num = int(state["current_iteration"])
 
-            eval_schema_path = ctx.schema_path
+        try:
+            eval_schema_path = Path(ctx.schema_path)
             gen_schema_candidate = getattr(ctx, "generated_schema_path", None)
             if gen_schema_candidate is not None and Path(gen_schema_candidate).exists():
                 eval_schema_path = Path(gen_schema_candidate)
@@ -416,8 +751,8 @@ class SemanticOptimizationGraph:
             if selection_metric not in ("micro_f1", "macro_f1"):
                 selection_metric = "micro_f1"
             schema_text_for_key = (
-                Path(eval_schema_path).read_text(encoding="utf-8")
-                if Path(eval_schema_path).exists()
+                eval_schema_path.read_text(encoding="utf-8")
+                if eval_schema_path.exists()
                 else ""
             )
             doc_repo = DocumentRepository(ingestion_dir=ctx.ingestion_dir)
@@ -428,7 +763,10 @@ class SemanticOptimizationGraph:
             )
             val_md_hashes = {
                 normalize_document_key(v_id): hashlib.sha256(
-                    (doc_repo.get_canonical_manifest_text(normalize_document_key(v_id)) or "").encode("utf-8")
+                    (
+                        doc_repo.get_canonical_manifest_text(normalize_document_key(v_id))
+                        or ""
+                    ).encode("utf-8")
                 ).hexdigest()
                 for v_id in sorted(val_ids)
             }
@@ -458,7 +796,7 @@ class SemanticOptimizationGraph:
             artifacts_mgr = getattr(ctx, "artifacts", None)
             if artifacts_mgr is not None and hasattr(artifacts_mgr, "get_path"):
                 cand_cache_path = artifacts_mgr.get_path(
-                    "", "", "val_metrics.json", iteration=state["current_iteration"]
+                    "", "", "val_metrics.json", iteration=iter_num
                 )
                 if isinstance(cand_cache_path, Path):
                     val_cache_path = cand_cache_path
@@ -473,173 +811,156 @@ class SemanticOptimizationGraph:
                     cached_val = json.loads(val_cache_path.read_text(encoding="utf-8"))
                     if cached_val.get("cache_key") == val_cache_key:
                         f1_score = float(cached_val["f1_score"])
+                        per_field_f1 = dict(cached_val.get("per_field_f1", {}))
                         used_cache = True
                         logger.info(
-                            f"Iter {state['current_iteration']}: Loaded cached validation F1={f1_score:.4f} from {val_cache_path}"
+                            f"Iter {iter_num}: Loaded cached validation F1={f1_score:.4f} from {val_cache_path}"
                         )
                 except Exception as cache_exc:
                     logger.debug(f"Could not read cached validation metrics {val_cache_path}: {cache_exc}")
 
             if not used_cache:
-                from ae.core.schema.loader import create_row_converter, load_schema_with_models
-
-                extract_task = load_schema_complete(
-                    yaml_path=eval_schema_path,
-                    instruction_path=generated_path if generated_path.exists() else None,
+                eval_out = self._evaluate_prompt_on_val(
+                    ctx=ctx,
+                    val_ids=val_ids,
+                    eval_schema_path=eval_schema_path,
+                    generated_path=generated_path,
+                    selection_metric=selection_metric,
+                    enable_judge=enable_judge,
                 )
-                if Path(eval_schema_path).resolve() != Path(ctx.schema_path).resolve():
-                    gt_cfg, gt_rec_model, gt_output_model = load_schema_with_models(
-                        yaml_path=ctx.schema_path,
-                        instruction_path=None,
-                    )
-                    gt_row_converter = create_row_converter(gt_cfg, gt_rec_model)
-                else:
-                    gt_output_model = extract_task.output_model
-                    gt_row_converter = getattr(extract_task, "row_converter", None)
+                f1_score = float(eval_out["f1_score"])
+                per_field_f1 = dict(eval_out.get("per_field_f1", {}))
+                pareto_event: Optional[dict[str, Any]] = None
 
-                metric_config = getattr(extract_task.config, "metric_config", {})
-                if not metric_config and hasattr(extract_task.config, "model_dump"):
-                    metric_config = extract_task.config.model_dump()
-
-                if "compare_fields" not in metric_config:
-                    metric_config["compare_fields"] = list(extract_task.config.compare_fields)
-                if not metric_config.get("name"):
-                    metric_config["name"] = (
-                        getattr(extract_task.config, "name", None)
-                        or getattr(ctx, "task_name", None)
-                        or "unknown"
-                    )
-
-                descriptions = extract_task.config.judge_field_descriptions or {
-                    name: spec.description for name, spec in extract_task.config.fields.items()
-                }
-
-                settings = Settings.load(config_path=cfg_path, load_env_file=False)
-                flt_tol = getattr(
-                    settings.syntactic_optimization,
-                    "float_tolerance",
-                    extract_task.config.float_tolerance,
-                )
-
-                student_llm = None
+                # Per-Column Pareto Auto-Rollback when iter >= 2 and any column regresses > threshold
                 if (
-                    enable_judge
-                    and hasattr(ctx, "re_client")
-                    and hasattr(ctx.re_client, "get_validation_client")
+                    iter_num >= 2
+                    and best_per_field_f1
+                    and per_field_f1
+                    and best_prompt
+                    and current_prompt
                 ):
-                    try:
-                        val_client = ctx.re_client.get_validation_client()
-                        if val_client is not None and hasattr(val_client, "get_dspy_adapter"):
-                            student_llm = val_client.get_dspy_adapter()
-                    except Exception as val_exc:
+                    regressed_fields = [
+                        f
+                        for f, score_val in per_field_f1.items()
+                        if f in best_per_field_f1
+                        and (score_val - best_per_field_f1[f]) < -self.pareto_regression_threshold
+                    ]
+                    if regressed_fields:
+                        deltas = {
+                            f: round(per_field_f1[f] - best_per_field_f1[f], 6)
+                            for f in regressed_fields
+                        }
                         logger.warning(
-                            f"Could not resolve validation student_llm for Semantic Judge: {val_exc}"
+                            f"Iter {iter_num}: Pareto Auto-Rollback triggered for regressed fields "
+                            f"{regressed_fields} (deltas={deltas}, threshold=-{self.pareto_regression_threshold})"
+                        )
+                        uniform_all_regressed = (
+                            len(regressed_fields) == len(per_field_f1) and len(per_field_f1) > 1
+                        )
+                        rollback_targets = (
+                            ["rows"] + regressed_fields if uniform_all_regressed else regressed_fields
+                        )
+                        repaired_prompt = replace_prompt_sections(
+                            current_prompt, best_prompt, rollback_targets
+                        )
+                        if artifacts_mgr is not None and hasattr(artifacts_mgr, "get_path"):
+                            iter_p = artifacts_mgr.get_path(
+                                "generalization", "", "candidate_prompt.txt", iteration=iter_num
+                            )
+                            if isinstance(iter_p, Path) and iter_p.exists():
+                                shutil.copy2(iter_p, iter_p.with_suffix(".pre_rollback.txt"))
+
+                        schema_changed = self._rollback_column_artifacts_and_schema(
+                            ctx, iter_num, best_iteration, regressed_fields, eval_schema_path
                         )
 
-                if enable_judge and student_llm is not None:
-                    logger.info(
-                        f"Validation evaluation: Semantic Judge ENABLED "
-                        f"(model={getattr(student_llm, 'model', type(student_llm).__name__)})"
-                    )
-                elif enable_judge:
-                    logger.warning(
-                        "Validation evaluation: enable_semantic_judge=True, but student_llm could not be resolved; "
-                        "falling back to strict matching."
-                    )
-                else:
-                    logger.info("Validation evaluation: Semantic Judge DISABLED (strict matching only).")
+                        if repaired_prompt != current_prompt or schema_changed:
+                            generated_path.write_text(repaired_prompt, encoding="utf-8")
+                            if artifacts_mgr is not None and hasattr(artifacts_mgr, "get_path"):
+                                iter_p = artifacts_mgr.get_path(
+                                    "generalization", "", "candidate_prompt.txt", iteration=iter_num
+                                )
+                                if isinstance(iter_p, Path):
+                                    iter_p.parent.mkdir(parents=True, exist_ok=True)
+                                    iter_p.write_text(repaired_prompt, encoding="utf-8")
 
-                raw_constraints = getattr(extract_task.config, "field_constraints", None)
-                field_constraints = raw_constraints if isinstance(raw_constraints, dict) else None
-                raw_validators = getattr(extract_task.config, "field_validators", None)
-                field_validators = raw_validators if isinstance(raw_validators, dict) else None
+                            repaired_out = self._evaluate_prompt_on_val(
+                                ctx=ctx,
+                                val_ids=val_ids,
+                                eval_schema_path=eval_schema_path,
+                                generated_path=generated_path,
+                                selection_metric=selection_metric,
+                                enable_judge=enable_judge,
+                            )
+                            repaired_f1 = float(repaired_out["f1_score"])
+                            repaired_pf = dict(repaired_out.get("per_field_f1", {}))
+                            still_regressed = [
+                                f
+                                for f, s_val in repaired_pf.items()
+                                if f in best_per_field_f1
+                                and (s_val - best_per_field_f1[f]) < -self.pareto_regression_threshold
+                            ]
+                            accepted = (
+                                repaired_f1 >= best_f1 - 1e-9 and not still_regressed
+                            ) or (repaired_f1 > f1_score and not still_regressed)
 
-                metric = TaskMetric(
-                    task_config=metric_config,
-                    float_tolerance=flt_tol,
-                    student_llm=student_llm,
-                    field_descriptions=descriptions,
-                    enable_semantic_judge=enable_judge,
-                    field_constraints=field_constraints,
-                    field_validators=field_validators,
-                )
+                            pareto_event = {
+                                "iteration": iter_num,
+                                "regressed_fields": regressed_fields,
+                                "pre_rollback_f1": round(f1_score, 6),
+                                "pre_rollback_per_field_f1": dict(per_field_f1),
+                                "post_rollback_f1": round(repaired_f1, 6),
+                                "post_rollback_per_field_f1": repaired_pf,
+                                "still_regressed": still_regressed,
+                                "accepted": accepted,
+                            }
+                            pareto_history.append(pareto_event)
 
-                # Evaluate over val_ids using active_gt_path
-                df_gt = pd.read_csv(ctx.active_gt_path)
-                df_gt.columns = df_gt.columns.str.lower().str.strip()
-                id_col = _get_id_column(df_gt)
+                            if accepted:
+                                logger.info(
+                                    f"Iter {iter_num}: Per-column Pareto Auto-Rollback ACCEPTED "
+                                    f"(F1 {f1_score:.4f} -> {repaired_f1:.4f}, rolled_back={regressed_fields})"
+                                )
+                                current_prompt = repaired_prompt
+                                eval_out = repaired_out
+                                f1_score = repaired_f1
+                                per_field_f1 = repaired_pf
+                            else:
+                                logger.warning(
+                                    f"Iter {iter_num}: Per-column rollback did not restore Pareto frontier "
+                                    f"({repaired_f1:.4f} vs best {best_f1:.4f}); reverting active prompt to iter_{best_iteration}."
+                                )
+                                generated_path.write_text(best_prompt, encoding="utf-8")
+                                if (
+                                    artifacts_mgr is not None
+                                    and hasattr(artifacts_mgr, "get_path")
+                                    and eval_schema_path.exists()
+                                ):
+                                    best_schema = artifacts_mgr.get_path(
+                                        "generalization", "", "candidate_schema.yaml", iteration=best_iteration
+                                    )
+                                    if isinstance(best_schema, Path) and best_schema.exists():
+                                        shutil.copy2(best_schema, eval_schema_path)
 
-                from ae.extraction.agent import UniversalExtractor
-
-                if hasattr(ctx, "re_client") and hasattr(ctx.re_client, "create_validation_extractor"):
-                    extractor = ctx.re_client.create_validation_extractor(extract_task.signature)
-                else:
-                    extractor = UniversalExtractor(extract_task.signature)
-
-                scores = []
-                doc_scores_detail: dict[str, dict[str, Any]] = {}
-                total_weight = 0
-                weighted_f1_sum = 0.0
-                import dspy
-
-                for v_id in val_ids:
-                    norm_v_id = normalize_document_key(v_id)
-                    v_text = doc_repo.get(norm_v_id)
-                    if not v_text:
-                        continue
-                    # Ground truth records
-                    gt_rows = df_gt[
-                        df_gt[id_col].astype(str).apply(normalize_document_key) == norm_v_id
-                    ]
-                    gt_records = gt_rows.to_dict(orient="records")
-                    if not gt_records:
-                        continue
-
-                    clean_gt_records = []
-                    for rec in gt_records:
-                        clean_rec = {
-                            k: (None if pd.isna(v) else v)
-                            for k, v in rec.items()
-                        }
-                        if callable(gt_row_converter):
-                            converted = gt_row_converter(clean_rec)
-                            if converted is not None:
-                                clean_gt_records.append(converted)
-                        else:
-                            clean_gt_records.append(clean_rec)
-
-                    doc_header = f"<!-- document_id: {norm_v_id} -->\n\n"
-                    eval_text = v_text if norm_v_id in v_text else doc_header + v_text
-                    pred = extractor.forward(document_text=eval_text)
-
-                    example = dspy.Example(
-                        extracted_data=gt_output_model(records=clean_gt_records)
-                    )
-                    score = float(metric(example, pred))
-                    doc_scores_detail[norm_v_id] = {"f1": score, "gts": len(clean_gt_records)}
-                    row_weight = max(1, len(clean_gt_records))
-
-                    scores.append(score)
-                    weighted_f1_sum += score * row_weight
-                    total_weight += row_weight
-
-                macro_f1 = (sum(scores) / len(scores)) if scores else 0.0
-                micro_f1 = (weighted_f1_sum / total_weight) if total_weight > 0 else macro_f1
-                f1_score = micro_f1 if selection_metric == "micro_f1" else macro_f1
-
-                if val_cache_path is not None and scores:
+                if val_cache_path is not None and eval_out.get("evaluated_count", 0) > 0:
                     try:
                         val_cache_path.parent.mkdir(parents=True, exist_ok=True)
                         val_cache_path.write_text(
                             json.dumps(
                                 {
-                                    "iteration": state["current_iteration"],
+                                    "iteration": iter_num,
                                     "cache_key": val_cache_key,
                                     "selection_metric": selection_metric,
                                     "f1_score": f1_score,
-                                    "macro_f1": macro_f1,
-                                    "micro_f1": micro_f1,
-                                    "doc_scores": doc_scores_detail,
+                                    "macro_f1": eval_out["macro_f1"],
+                                    "micro_f1": eval_out["micro_f1"],
+                                    "strict_micro_f1": eval_out["strict_micro_f1"],
+                                    "strict_macro_f1": eval_out["strict_macro_f1"],
+                                    "per_field_f1": per_field_f1,
+                                    "strict_per_field_f1": eval_out["strict_per_field_f1"],
+                                    "doc_scores": eval_out["doc_scores"],
+                                    "pareto_rollback": pareto_event,
                                 },
                                 indent=2,
                             ),
@@ -653,28 +974,42 @@ class SemanticOptimizationGraph:
             f1_score = 0.0
 
         new_history = state["val_f1_history"] + [f1_score]
-        best_f1 = state["best_f1"]
-        best_prompt = state["best_prompt"]
-        best_iteration = state.get("best_iteration", 1)
+        new_pf_history = state.get("val_per_field_history", []) + [per_field_f1]
 
-        if f1_score > best_f1 or (
-            f1_score == best_f1
-            and current_prompt
-            and (not best_prompt or state["current_iteration"] > best_iteration)
+        has_uncompensated_col_regression = bool(
+            best_per_field_f1
+            and per_field_f1
+            and any(
+                f in best_per_field_f1
+                and (per_field_f1[f] - best_per_field_f1[f]) < -self.pareto_regression_threshold
+                for f in per_field_f1
+            )
+        )
+        if not has_uncompensated_col_regression and (
+            f1_score > best_f1
+            or (
+                f1_score == best_f1
+                and current_prompt
+                and (not best_prompt or iter_num > best_iteration)
+            )
         ):
             logger.info(
                 f"Updating best validation F1 score: {f1_score:.4f} (previous: {best_f1:.4f}) "
-                f"at iteration {state['current_iteration']}"
+                f"at iteration {iter_num}"
             )
             best_f1 = f1_score
+            best_per_field_f1 = dict(per_field_f1)
             best_prompt = current_prompt
-            best_iteration = state["current_iteration"]
+            best_iteration = iter_num
 
         return {
             "val_f1_history": new_history,
+            "val_per_field_history": new_pf_history,
             "best_f1": best_f1,
+            "best_per_field_f1": best_per_field_f1,
             "best_prompt": best_prompt,
             "best_iteration": best_iteration,
+            "pareto_rollback_history": pareto_history,
         }
 
     def _should_continue(self, state: SemanticOptimizationState) -> str:
@@ -716,7 +1051,10 @@ class SemanticOptimizationGraph:
             "best_iteration": best_k,
             "early_stopped": early_stopped,
             "best_f1": state["best_f1"],
+            "best_per_field_f1": state.get("best_per_field_f1", {}),
             "f1_history": state["val_f1_history"],
+            "per_field_history": state.get("val_per_field_history", []),
+            "pareto_rollback_history": state.get("pareto_rollback_history", []),
             "train_doc_ids": state["train_doc_ids"],
             "val_doc_ids": state["val_doc_ids"],
             "corrected_gt_file": str(state["context"].active_gt_path),
@@ -781,9 +1119,12 @@ class SemanticOptimizationGraph:
             "f1_threshold": self.f1_threshold,
             "max_tool_iterations": self.max_tool_iterations,
             "val_f1_history": [],
+            "val_per_field_history": [],
             "best_f1": 0.0,
+            "best_per_field_f1": {},
             "best_prompt": "",
             "best_iteration": 1,
+            "pareto_rollback_history": [],
             "early_stopped": False,
             "step_artifacts": {},
         }

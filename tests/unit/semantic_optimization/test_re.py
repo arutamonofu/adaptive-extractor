@@ -1669,3 +1669,77 @@ def test_visual_prep_logs_to_re_history_with_context(temp_dir):
     assert entries[0]["node"] == "prepare_document_visuals"
 
 
+def test_case_patch_filter_and_contradiction_first_harmonization():
+    """CASE_PATCH literals are filtered while GENERALIZED_RULEs survive, and Contradiction-First detects cross-section conflicts."""
+    from ae.semantic_optimization.models import RuleAttribution
+    from ae.semantic_optimization.steps.generalization import (
+        _detect_prompt_contradictions,
+        filter_case_patch_instructions,
+        parse_prompt_sections,
+        replace_prompt_sections,
+    )
+
+    instructions = [
+        "Extract SMILES from Chemical Entities Registry tables or assemble via assemble_markush_smiles.",
+        "In j.ejmech.2016.01.052, expand MRSA to Methicillin-Resistant Staphylococcus aureus N315.",
+        "For compound 4d, replace 'CCC' with 'CCN' manually.",
+        "Preserve exact precision (e.g., '0.030') when present in source.",
+        "For row_22, keep value '0.202' verbatim.",
+    ]
+    attrs = [
+        RuleAttribution(
+            rule_text=instructions[0],
+            rule_kind="GENERALIZED_RULE",
+            supporting_doc_ids=["doc1", "doc2"],
+        ),
+        RuleAttribution(
+            rule_text=instructions[1],
+            rule_kind="CASE_PATCH",
+            supporting_doc_ids=["j.ejmech.2016.01.052"],
+        ),
+        RuleAttribution(
+            rule_text=instructions[3],
+            rule_kind="GENERALIZED_RULE",
+            supporting_doc_ids=["doc1", "doc2"],
+        ),
+    ]
+    kept, blocked = filter_case_patch_instructions(
+        instructions,
+        attrs,
+        known_doc_ids={"j.ejmech.2016.01.052", "antibiotics12071220"},
+        active_doc_count=2,
+        scope="column:smiles",
+    )
+    assert kept == [instructions[0], instructions[3]]
+    assert len(blocked) == 3
+
+    draft = (
+        "Preamble\n\n---\n\n"
+        "EXPERT RULINGS AND AUTHORITATIVE DECISIONS (HARD CONSTRAINTS):\n"
+        "- Record bacterial names in the format they appear without normalization.\n\n---\n\n"
+        "SMILES\n\nExtract ONLY if satisfy:\n- Valid SMILES.\n\n---\n\n"
+        "BACTERIA\n\nTransformation rules:\n- Apply table footnote expansions for abbreviated headers.\n"
+    )
+    findings, involved = _detect_prompt_contradictions(
+        parse_prompt_sections(draft),
+        "Record bacterial names in the format they appear without normalization.",
+        ["smiles", "bacteria"],
+    )
+    assert len(findings) == 1
+    assert "BACTERIA" in involved
+    assert "SMILES" not in involved
+
+    repaired = replace_prompt_sections(
+        target_prompt=draft,
+        reference_prompt=(
+            "Preamble\n\n---\n\n"
+            "SMILES\n\nExtract ONLY if satisfy:\n- Restored SMILES rule.\n\n---\n\n"
+            "BACTERIA\n\nTransformation rules:\n- Old bacteria.\n"
+        ),
+        field_names=["smiles"],
+    )
+    assert "Restored SMILES rule." in repaired
+    assert "Apply table footnote expansions" in repaired
+
+
+

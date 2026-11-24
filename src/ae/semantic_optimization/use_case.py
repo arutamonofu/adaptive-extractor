@@ -45,6 +45,8 @@ class SemanticOptimizationRequest:
     generated_prompt_path: Optional[Path] = None
     generated_schema_path: Optional[Path] = None
     infer_schema_constraints: bool = True
+    min_enum_doc_support: int = 4
+    pareto_regression_threshold: float = 0.01
     enable_semantic_judge: bool = True
     residual_enabled: bool = True
     residual_fallback_threshold: float = 0.35
@@ -54,6 +56,7 @@ class SemanticOptimizationRequest:
     residual_max_fp_rows: int = 10
     pdf_dir: Optional[Path] = None
     config_path: Optional[Path] = None
+    tier_4a_lm: Optional[Any] = None
 
 
 @dataclass
@@ -109,6 +112,8 @@ class SemanticOptimizationUseCase:
             generated_prompt_path=request.generated_prompt_path,
             generated_schema_path=request.generated_schema_path,
             infer_schema_constraints=request.infer_schema_constraints,
+            min_enum_doc_support=request.min_enum_doc_support,
+            pareto_regression_threshold=request.pareto_regression_threshold,
             enable_semantic_judge=request.enable_semantic_judge,
             residual_enabled=request.residual_enabled,
             residual_fallback_threshold=request.residual_fallback_threshold,
@@ -117,6 +122,7 @@ class SemanticOptimizationUseCase:
             residual_max_fn_rows=request.residual_max_fn_rows,
             residual_max_fp_rows=request.residual_max_fp_rows,
             config_path=request.config_path,
+            tier_4a_lm=request.tier_4a_lm,
         )
 
         # 3. Determine steps to run
@@ -170,6 +176,7 @@ class SemanticOptimizationUseCase:
                         val_doc_ids=request.val_doc_ids,
                         f1_threshold=request.f1_threshold,
                         max_tool_iterations=request.max_tool_iterations,
+                        pareto_regression_threshold=request.pareto_regression_threshold,
                     )
                     final_state = graph.run()
                     step_artifacts = final_state.get("step_artifacts", {})

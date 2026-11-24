@@ -27,6 +27,7 @@ from ae.semantic_optimization.signatures.schema import SchemaConstraintInference
 logger = logging.getLogger(__name__)
 
 _MAX_ENUM_CHOICES = 25
+_DEFAULT_MIN_ENUM_DOC_SUPPORT = 4
 
 
 def build_column_profiles(
@@ -45,21 +46,38 @@ def build_column_profiles(
 
     profiles: Dict[str, Dict[str, Any]] = {}
     total_rows = int(len(train_df))
+    has_id_col = id_col in train_df.columns and not train_df.empty
+    train_doc_keys = (
+        train_df[id_col].astype(str).apply(normalize_document_key).tolist()
+        if has_id_col
+        else []
+    )
+    active_docs_count = (
+        len(active_norm_ids)
+        if active_norm_ids
+        else (len(set(train_doc_keys)) if train_doc_keys else 0)
+    )
 
     for field_name, spec in schema_config.fields.items():
         col_key = field_name.lower().strip()
         observed: List[str] = []
+        value_counts: Dict[str, int] = {}
+        value_docs: Dict[str, set[str]] = {}
         null_count = total_rows
 
         if col_key in train_df.columns:
             series = train_df[col_key]
-            non_null = series.dropna()
-            observed = [str(v).strip() for v in non_null.tolist() if str(v).strip() != ""]
+            for row_idx, raw_val in enumerate(series.tolist()):
+                if pd.isna(raw_val):
+                    continue
+                val = str(raw_val).strip()
+                if not val:
+                    continue
+                observed.append(val)
+                value_counts[val] = value_counts.get(val, 0) + 1
+                if train_doc_keys:
+                    value_docs.setdefault(val, set()).add(train_doc_keys[row_idx])
             null_count = total_rows - len(observed)
-
-        value_counts: Dict[str, int] = {}
-        for val in observed:
-            value_counts[val] = value_counts.get(val, 0) + 1
 
         sorted_counts = sorted(value_counts.items(), key=lambda x: (-x[1], x[0]))
         distinct_count = len(value_counts)
@@ -69,16 +87,30 @@ def build_column_profiles(
         profile: Dict[str, Any] = {
             "declared_type": getattr(spec.type, "__name__", str(spec.type)),
             "required": spec.required,
+            "active_docs_count": active_docs_count,
             "total_rows": total_rows,
             "non_null_count": non_null_count,
             "null_count": null_count,
             "distinct_count": distinct_count,
             "uniqueness_ratio": uniqueness_ratio,
-            "top_values": [{"value": v, "count": c} for v, c in sorted_counts[:20]],
+            "single_doc_values_count": sum(1 for docs in value_docs.values() if len(docs) == 1),
+            "multi_doc_values_count": sum(1 for docs in value_docs.values() if len(docs) >= 2),
+            "top_values": [
+                {
+                    "value": v,
+                    "count": c,
+                    "doc_count": len(value_docs.get(v, set())),
+                }
+                for v, c in sorted_counts[:20]
+            ],
         }
 
         if distinct_count <= 50:
             profile["all_observed_values"] = [v for v, _ in sorted_counts]
+            if value_docs:
+                profile["value_doc_support"] = {
+                    v: len(value_docs.get(v, set())) for v, _ in sorted_counts
+                }
 
         if observed:
             lengths = [len(v) for v in observed]
@@ -108,10 +140,38 @@ def build_column_profiles(
     return profiles
 
 
+def _passes_enum_doc_support_gate(
+    field_name: str,
+    profile: Dict[str, Any],
+    min_enum_doc_support: int,
+) -> bool:
+    """Return True if empirical document support justifies closing a string field into an enum."""
+    active_docs = profile.get("active_docs_count")
+    if active_docs is not None and active_docs < min_enum_doc_support:
+        logger.warning(
+            f"Skipping proposed closed enum for '{field_name}': "
+            f"active_docs_count={active_docs} < {min_enum_doc_support} (doc_support gate)"
+        )
+        return False
+
+    value_doc_support = profile.get("value_doc_support")
+    if isinstance(value_doc_support, dict) and value_doc_support:
+        single_doc_vals = [v for v, dc in value_doc_support.items() if dc == 1]
+        if single_doc_vals:
+            logger.warning(
+                f"Skipping proposed closed enum for '{field_name}': "
+                f"observed value(s) with doc_count == 1 ({single_doc_vals[:5]}) indicate open vocabulary"
+            )
+            return False
+
+    return True
+
+
 def apply_schema_refinements(
     base_config: SchemaConfig,
     refinement: SchemaRefinementOutput,
     column_profiles: Dict[str, Dict[str, Any]],
+    min_enum_doc_support: int = _DEFAULT_MIN_ENUM_DOC_SUPPORT,
 ) -> SchemaConfig:
     """Safely merge proposed field constraints into a copy of SchemaConfig with guardrails."""
     refined = copy.deepcopy(base_config)
@@ -131,7 +191,7 @@ def apply_schema_refinements(
         if not spec.description and proposal.description and proposal.description.strip():
             spec.description = proposal.description.strip()
 
-        # 2. Closed enum choices (only for str fields without existing choices)
+        # 2. Closed enum choices (only for str fields without existing choices + doc_support gate)
         if (
             spec.type is str
             and not spec.choices
@@ -141,7 +201,9 @@ def apply_schema_refinements(
             cleaned_choices = list(
                 dict.fromkeys(str(c).strip() for c in proposal.choices if str(c).strip())
             )
-            if 1 <= len(cleaned_choices) <= _MAX_ENUM_CHOICES:
+            if 1 <= len(cleaned_choices) <= _MAX_ENUM_CHOICES and _passes_enum_doc_support_gate(
+                field_name, profile, min_enum_doc_support
+            ):
                 if observed_values is None or all(v in cleaned_choices for v in observed_values):
                     spec.choices = cleaned_choices
                 else:
@@ -261,7 +323,18 @@ def run_schema_refinement(
         cache_key=cache_key,
     )
 
-    refined_config = apply_schema_refinements(base_config, refinement, column_profiles)
+    raw_min_support = getattr(context, "min_enum_doc_support", _DEFAULT_MIN_ENUM_DOC_SUPPORT)
+    min_support = (
+        raw_min_support
+        if isinstance(raw_min_support, int) and raw_min_support >= 1
+        else _DEFAULT_MIN_ENUM_DOC_SUPPORT
+    )
+    refined_config = apply_schema_refinements(
+        base_config,
+        refinement,
+        column_profiles,
+        min_enum_doc_support=min_support,
+    )
     output_schema_path = Path(context.generated_schema_path).resolve()
     save_schema_to_yaml(refined_config, output_schema_path)
 

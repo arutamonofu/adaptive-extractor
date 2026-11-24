@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from pathlib import Path
 from typing import Any, Callable, List, Optional
 
-from ae.semantic_optimization.hitl import GTEditor, InteractiveConflictResolver, MarkdownEditor, RulingsStore
+from ae.semantic_optimization.hitl import (
+    GTEditor,
+    InteractiveConflictResolver,
+    MarkdownEditor,
+    RulingsStore,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +131,8 @@ class RunContext:
         generated_prompt_path: Optional[Path] = None,
         generated_schema_path: Optional[Path] = None,
         infer_schema_constraints: bool = True,
+        min_enum_doc_support: int = 4,
+        pareto_regression_threshold: float = 0.01,
         enable_semantic_judge: bool = True,
         residual_enabled: bool = True,
         residual_fallback_threshold: float = 0.35,
@@ -134,6 +142,7 @@ class RunContext:
         residual_max_fp_rows: int = 10,
         selection_metric: str = "micro_f1",
         config_path: Optional[Path] = None,
+        tier_4a_lm: Optional[Any] = None,
     ):
         self.task_name = task_name
         self.doc_ids = doc_ids
@@ -150,6 +159,8 @@ class RunContext:
         self.harmonize_prompt = harmonize_prompt
         self.max_tool_iterations = max_tool_iterations
         self.infer_schema_constraints = infer_schema_constraints
+        self.min_enum_doc_support = min_enum_doc_support
+        self.pareto_regression_threshold = pareto_regression_threshold
         self.enable_semantic_judge = enable_semantic_judge
         self.residual_enabled = residual_enabled
         self.residual_fallback_threshold = residual_fallback_threshold
@@ -173,6 +184,9 @@ class RunContext:
             self.re_client = teacher_lm
         else:
             raise ValueError("Either re_client or teacher_lm must be provided to RunContext")
+
+        self.tier_4a_lm = tier_4a_lm
+        self._tier_4a_adapter: Optional[Any] = None
 
         self.artifacts_dir = Path(artifacts_dir) if artifacts_dir else Path("data/interim/semantic_optimization")
         self.generated_prompt_path = (
@@ -223,6 +237,23 @@ class RunContext:
         # Lazy loaded inputs
         self._baseline_prompt: Optional[str] = None
         self._schema: Optional[str] = None
+
+    def tier_4a_context(self) -> Any:
+        """Return a DSPy LM context manager for Tier 4A worker signatures if configured."""
+        if self.tier_4a_lm is None:
+            return contextlib.nullcontext()
+        import dspy
+
+        if self._tier_4a_adapter is None:
+            if isinstance(self.tier_4a_lm, dspy.LM):
+                self._tier_4a_adapter = self.tier_4a_lm
+            elif hasattr(self.tier_4a_lm, "get_dspy_adapter"):
+                self._tier_4a_adapter = self.tier_4a_lm.get_dspy_adapter()
+            else:
+                from ae.core.llm import DSPyLMAdapter
+
+                self._tier_4a_adapter = DSPyLMAdapter(self.tier_4a_lm)
+        return dspy.context(lm=self._tier_4a_adapter)
 
     @property
     def active_gt_path(self) -> Path:

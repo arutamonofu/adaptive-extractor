@@ -168,12 +168,20 @@ class SemanticOptimizationClient:
                 self._validation_client = ExtractionClient.from_settings(settings)
         return self._validation_client
 
-    def create_validation_extractor(self, signature_class: Any) -> Any:
+    def create_validation_extractor(
+        self,
+        signature_class: Any,
+        ingestion_dir: Optional[Path] = None,
+    ) -> Any:
         """Create a UniversalExtractor configured with the extraction validation client."""
         from ae.extraction.agent import UniversalExtractor
 
         val_client = self.get_validation_client()
-        return UniversalExtractor(signature_class, client=val_client)
+        return UniversalExtractor(
+            signature_class,
+            client=val_client,
+            ingestion_dir=ingestion_dir,
+        )
 
     def save_history(
         self,

@@ -563,3 +563,93 @@ def test_residual_classifies_and_groups_stereo_diff_and_invalidates_on_eval_sche
     s2 = run_residual_analysis(ctx)
     assert fake_extractor.forward.call_count == 2
     assert s2.doc_reports[0].input_hash != s1.doc_reports[0].input_hash
+
+
+def test_residual_pu_trigger_and_pot_duplicate_prioritization():
+    """_score_fp_pu_candidates detects high_confidence_unlabeled omissions while separating POT duplicate_of_tp."""
+    from types import SimpleNamespace
+    from ae.semantic_optimization.steps.residual_analysis import (
+        _group_fp_rows,
+        _score_fp_pu_candidates,
+    )
+
+    fields = ["compound_id", "smiles", "target_type", "target_relation", "target_value", "target_units", "bacteria"]
+    gt_records = [
+        SimpleNamespace(
+            compound_id="8b",
+            smiles="c1ccccc1",
+            target_type="MIC",
+            target_relation="=",
+            target_value="8",
+            target_units="µg/mL",
+            bacteria="S. aureus ATCC 29213",
+        ),
+        SimpleNamespace(
+            compound_id="8c",
+            smiles="c1ccncc1",
+            target_type="MIC",
+            target_relation="=",
+            target_value="4",
+            target_units="µg/mL",
+            bacteria="S. aureus ATCC 29213",
+        ),
+    ]
+    fp_pairs = [
+        # 1. Distractor control (different anchor, different bacteria, violates choices if constrained)
+        {
+            "status": "fp",
+            "pred_index": 0,
+            "pred": SimpleNamespace(
+                compound_id="Penicillin",
+                smiles="CC(=O)N",
+                target_type="MIC",
+                target_relation="=",
+                target_value="1",
+                target_units="µg/mL",
+                bacteria="B. subtilis",
+            ),
+            "diagnostic_tag": None,
+        },
+        # 2. POT duplicate_of_tp (same compound_id/bacteria as TP)
+        {
+            "status": "fp",
+            "pred_index": 1,
+            "pred": SimpleNamespace(
+                compound_id="8b",
+                smiles="c1ccccc1",
+                target_type="MIC",
+                target_relation="=",
+                target_value="8",
+                target_units="µg/mL",
+                bacteria="S. aureus ATCC 29213",
+            ),
+            "diagnostic_tag": "duplicate_of_tp",
+        },
+        # 3. Genuine PU high_confidence_unlabeled omission (shared compound_id '8b' + MIC + µg/mL, new MRSA strain!)
+        {
+            "status": "fp",
+            "pred_index": 2,
+            "pred": SimpleNamespace(
+                compound_id="8b",
+                smiles="c1ccccc1",
+                target_type="MIC",
+                target_relation="=",
+                target_value="16",
+                target_units="µg/mL",
+                bacteria="MRSA NR 100",
+            ),
+            "diagnostic_tag": None,
+        },
+    ]
+
+    scored = _score_fp_pu_candidates(fp_pairs, gt_records, fields)
+    assert scored[0]["pu_status"] == "unlabeled"
+    assert scored[1]["pu_status"] == "duplicate_of_tp"
+    assert scored[2]["pu_status"] == "high_confidence_unlabeled"
+    assert scored[2]["pu_score"] >= 0.75
+
+    grouped = _group_fp_rows(scored, fields, max_per_sig=1, max_total=10)
+    assert grouped[0]["pu_status"] == "high_confidence_unlabeled"
+    assert grouped[1]["diagnostic_tag"] == "duplicate_of_tp"
+    assert grouped[2]["pu_status"] == "unlabeled"
+

@@ -319,9 +319,10 @@ Refine and augment the user's baseline prompt while detecting Ground Truth error
 5. If a negative candidate reveals that the Ground Truth cell has an error, typo, or extracted an invalid parameter (e.g. characterization optimum instead of experimental measurement), flag it as a `SUSPECTED_GT_ERROR` conflict.
 6. If a value discrepancy appears caused by an OCR or VLM recognition defect in the ingested .md document, flag it as `TEXT_VS_GT_MISMATCH` or `SUSPECTED_INGESTION_DEFECT` so the user can patch .md or unpack visuals.
 7. Formulate general semantic principles first, placing specific terms/compounds from training texts in parentheses as examples `(e.g., ...)` to prevent overfitting.
-8. Write every instruction in the imperative mood (e.g., "Extract ...", "Exclude ...", "Convert ...").
-9. Order `options` in each conflict in descending order of recommendation so the most strongly recommended resolution option is always placed first (`options[0]`).
-10. Write all text strictly in English; never include CJK or other foreign-script characters.
+8. GENERALIZED_RULE VS CASE_PATCH FILTER: Emit ONLY cross-document generalizable rules (`GENERALIZED_RULE`) in `Instructions`. NEVER hardcode single-document IDs, single-row IDs (`row_12`), or single-paper instance patches (`CASE_PATCH`) into `Instructions` (record any single-document factual anomaly in `Conflicts` instead). Populate `Rule_Attributions` for each rule with `rule_kind` (`"GENERALIZED_RULE"` or `"CASE_PATCH"`) and `supporting_doc_ids`.
+9. Write every instruction in the imperative mood (e.g., "Extract ...", "Exclude ...", "Convert ...").
+10. Order `options` in each conflict in descending order of recommendation so the most strongly recommended resolution option is always placed first (`options[0]`).
+11. Write all text strictly in English; never include CJK or other foreign-script characters.
 </execution_constraints>
 
 <synthesis_directives>
@@ -365,6 +366,14 @@ Return response strictly matching the JSON structure below.
       "Instruction 2"
     ]
   },
+  "Rule_Attributions": [
+    {
+      "rule_text": "Exact instruction string from Instructions",
+      "rule_kind": "GENERALIZED_RULE | CASE_PATCH",
+      "supporting_doc_ids": ["doc_id_1", "doc_id_2"],
+      "rationale": "Why this rule is cross-document generalizable or a single-case patch"
+    }
+  ],
   "Conflicts": [
     {
       "conflict_id": "Unique string id",
@@ -401,16 +410,20 @@ Return response strictly matching the JSON structure below.
 
 class PromptHarmonization(dspy.Signature):
     """<mission>
-Harmonize the assembled extraction prompt across all record-selection and column-specific sections.
-Align cross-column dependencies, eliminate redundant repetitions, and ensure non-conflicting rules from the user's baseline prompt and authoritative expert rulings are seamlessly integrated.
+Perform Contradiction-First Sectional Harmonization of the assembled extraction prompt across all record-selection and column-specific sections.
+Detect and resolve cross-section contradictions FIRST, then preserve unaffected column sections with minimal-diff isolation while seamlessly integrating non-conflicting baseline rules and authoritative expert rulings.
 </mission>
 
 <execution_constraints>
-1. Preserve the plain-text section structure separated by `---` (Preamble, Expert Rulings if present, RECORD SELECTION, each FIELD section in uppercase, and REASONING STYLE only if already present in `draft_prompt`).
-2. CROSS-COLUMN ALIGNMENT: Ensure dependent fields (e.g. a kinetic parameter and its corresponding assay condition/substrate, or a value and its unit/relation) explicitly reference each other consistently.
-3. BASELINE PRESERVATION: Integrate the domain persona, scope, and non-conflicting extraction guidelines from `baseline_prompt` into the appropriate sections of the prompt, explicitly retaining conditional assembly/derivation workflows (e.g., combining templates/scaffolds with separate modifiers or identifiers across figures/tables), visual-inspection directives, and usage rules for any tools declared in `extraction_schema`, while stripping external wrapper syntax (e.g., XML tags, code assignments, or raw JSON schema dumps) or conflicting output-format examples.
-4. Do NOT dilute or delete specific Inclusion, Exclusion, or Transformation rules discovered for individual columns; only deduplicate verbatim redundancy and harmonize terminology.
-5. CONTRADICTION CHECK: Explicitly verify that no field section contradicts another field section or RECORD SELECTION (e.g., if one section allows a category or metric type, another section must not exclude it). Resolve any such cross-section contradiction in favor of the schema and authoritative rulings. Apply specificity precedence when reconciling general format-preservation rules (e.g., `expert_rulings` stating "no normalization" or "preserve source form") with local resolution rules: if a table `footnote`, `superscript`, `caption`, or `legend` explicitly maps an abbreviated header or code to a full or qualified entity/condition/category designation, that local definition takes precedence over any general rule to preserve the raw form of standalone terms; otherwise preserve the source format. Explicitly separate the scopes of these two rules so they do not conflict.
+1. CONTRADICTION-FIRST SCAN (STEP 1): Before editing or deduplicating text, inspect any `[CONTRADICTION-FIRST AUDIT]` findings and scan all sections (`EXPERT RULINGS`, `RECORD SELECTION`, and each `FIELD` section) for:
+   - conflicts between general surface-form preservation rules (e.g., `expert_rulings` stating "no normalization" or "preserve source form") and local resolution rules (e.g., resolving table `footnote`, `superscript`, `caption`, or `legend` mappings);
+   - conflicts between `RECORD SELECTION` and individual field inclusion/exclusion rules;
+   - conflicts between `baseline_prompt` tool/assembly mechanisms and field transformation rules.
+   Apply specificity precedence: a local `footnote`, `superscript`, `caption`, or `legend` mapping explicitly defining an abbreviated header or code takes precedence over any general rule to preserve the raw form of standalone terms; otherwise preserve the source format. Explicitly separate the scopes of conflicting rules and document every resolved contradiction in `harmonization_notes`.
+2. SECTIONAL ISOLATION & MINIMAL-DIFF PRESERVATION (STEP 2): Preserve the plain-text section structure separated by `---` (Preamble, Expert Rulings if present, RECORD SELECTION, each FIELD section in uppercase, and REASONING STYLE only if already present in `draft_prompt`). Keep each section self-contained and do NOT alter, dilute, or reword rules in unaffected/locked column sections that have no cross-section contradiction.
+3. CROSS-COLUMN ALIGNMENT: Ensure dependent fields (e.g. a measurement value and its unit/relation, or an entity ID and its structure) explicitly reference each other consistently without mutating unrelated columns.
+4. BASELINE PRESERVATION: Integrate the domain persona, scope, and non-conflicting extraction guidelines from `baseline_prompt` into the appropriate sections of the prompt, explicitly retaining conditional assembly/derivation workflows (e.g., combining templates/scaffolds with separate modifiers or identifiers across figures/tables), visual-inspection directives, and usage rules for any tools declared in `extraction_schema`, while stripping external wrapper syntax (e.g., XML tags, code assignments, or raw JSON schema dumps) or conflicting output-format examples.
+5. Do NOT dilute or delete specific Inclusion, Exclusion, or Transformation rules discovered for individual columns; only deduplicate verbatim redundancy and harmonize terminology where needed.
 6. GENERALIZE MECHANISMS: When rules mention resolving abbreviations or labels via table footnotes, superscripts, legends, or captions, keep the mechanism general (any footnote/superscript/index marker) rather than overfitting to one marker style.
 7. Write the final harmonized prompt strictly in clean English; strip any accidental CJK or other foreign-script characters.
 </execution_constraints>"""

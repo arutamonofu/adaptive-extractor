@@ -31,6 +31,9 @@ ActionType = Literal[
 ]
 
 
+PriorityTier = Literal["P0", "P1", "P2", "P3"]
+
+
 class ResolutionOption(BaseModel):
     action_type: ActionType
     label: str
@@ -48,6 +51,8 @@ class REConflict(BaseModel):
     conflicting_value_or_rule: str = ""
     explanation: str
     options: list[ResolutionOption] = Field(default_factory=list)
+    priority: Optional[PriorityTier] = None
+    diagnostic_tag: Optional[str] = None
 
 
 class ExpertRuling(BaseModel):
@@ -175,6 +180,15 @@ class Anomaly(BaseModel):
     anomaly_description: str
 
 
+class RuleAttribution(BaseModel):
+    """Tracks whether a synthesized rule is cross-document generalizable or a single-case patch."""
+
+    rule_text: str
+    rule_kind: Literal["GENERALIZED_RULE", "CASE_PATCH"] = "GENERALIZED_RULE"
+    supporting_doc_ids: list[str] = Field(default_factory=list)
+    rationale: str = ""
+
+
 class RowInstructions(BaseModel):
     Row_Inclusion_Instructions: list[str] = Field(default_factory=list)
     Row_Exclusion_Instructions: list[str] = Field(default_factory=list)
@@ -191,6 +205,7 @@ class GeneralizedRowsOutput(BaseModel):
         description="Consolidated policy for target vs reference entities and filtration boundaries",
     )
     Instructions: RowInstructions
+    Rule_Attributions: list[RuleAttribution] = Field(default_factory=list)
     Anomalies: list[Anomaly] = Field(default_factory=list)
     Conflicts: list[REConflict] = Field(default_factory=list)
 
@@ -222,6 +237,7 @@ class GeneralizedColumnsOutput(BaseModel):
         description="Consolidated policy for analytical methods, hierarchy level, and binding",
     )
     Instructions: ColumnInstructions
+    Rule_Attributions: list[RuleAttribution] = Field(default_factory=list)
     Anomalies: list[ColumnAnomaly] = Field(default_factory=list)
     Conflicts: list[REConflict] = Field(default_factory=list)
 
@@ -314,6 +330,12 @@ class ResidualDocReport(BaseModel):
     fn_rows: int = 0
     fp_rows: int = 0
     mismatch_pairs: int = 0
+    duplicate_of_tp_count: int = 0
+    row_merge_count: int = 0
+    row_split_count: int = 0
+    high_confidence_unlabeled_count: int = 0
+    pu_high_confidence_rows: list[dict[str, Any]] = Field(default_factory=list)
+    pot_diagnostics: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
     analyzed_fn_row_ids: list[str] = Field(default_factory=list)
     analyzed_mismatch_row_ids: list[str] = Field(default_factory=list)
     grouped_signatures: dict[str, int] = Field(default_factory=dict)

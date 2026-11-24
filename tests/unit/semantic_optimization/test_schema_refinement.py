@@ -151,16 +151,19 @@ class TestSchemaRefinement:
         baseline_path = tmp_path / "baseline.txt"
         baseline_path.write_text("target_relation: '=', '>', or '<'. Default '='.", encoding="utf-8")
         gt_path = tmp_path / "gt.csv"
-        pd.DataFrame({"pdf": ["doc1", "doc1"], "target_relation": ["=", ">"]}).to_csv(
-            gt_path, index=False
-        )
+        pd.DataFrame(
+            {
+                "pdf": ["doc1", "doc1", "doc2", "doc2", "doc3", "doc3", "doc4", "doc4"],
+                "target_relation": ["=", ">", "=", ">", "=", ">", "=", ">"],
+            }
+        ).to_csv(gt_path, index=False)
         gen_prompt_path = tmp_path / "generated_instruction.txt"
         gen_prompt_path.write_text("Generated prompt", encoding="utf-8")
         gen_schema_path = tmp_path / "generated_schema.yaml"
 
         ctx = RunContext(
             task_name="antibiotics",
-            doc_ids=["doc1"],
+            doc_ids=["doc1", "doc2", "doc3", "doc4"],
             gt_path=gt_path,
             ingestion_dir=tmp_path / "ing",
             baseline_prompt_path=baseline_path,
@@ -196,7 +199,7 @@ class TestSchemaRefinement:
                 id_col="pdf",
                 compiled_columns={},
                 final_prompt="Generated prompt",
-                active_norm_ids={"doc1"},
+                active_norm_ids={"doc1", "doc2", "doc3", "doc4"},
             )
 
         assert out_path == gen_schema_path.resolve()
@@ -220,7 +223,7 @@ class TestSchemaRefinement:
                 id_col="pdf",
                 compiled_columns={},
                 final_prompt="Generated prompt",
-                active_norm_ids={"doc1"},
+                active_norm_ids={"doc1", "doc2", "doc3", "doc4"},
             )
         assert mock_predictor.call_count == 0
 
@@ -232,7 +235,7 @@ class TestSchemaRefinement:
                 id_col="pdf",
                 compiled_columns={},
                 final_prompt="Updated generated prompt",
-                active_norm_ids={"doc1"},
+                active_norm_ids={"doc1", "doc2", "doc3", "doc4"},
             )
         assert mock_predictor.call_count == 1
 
@@ -312,3 +315,71 @@ class TestSchemaRefinement:
         assert parsed.fields[0].rationale == ""
         assert parsed.fields[0].is_closed_enum is False
         assert parsed.fields[1].choices == ["=", ">", "<"]
+
+    def test_doc_support_gate_blocks_low_doc_count_and_singleton_values(self):
+        """doc_support gate blocks is_closed_enum when active_docs_count < 4 or any value has doc_count == 1."""
+        base = SchemaConfig(
+            name="antibiotics",
+            fields={
+                "target_units": FieldSpec(type=str, required=False),
+                "target_type": FieldSpec(type=str, required=False),
+            },
+            compare_fields=["target_units", "target_type"],
+        )
+        proposal = SchemaRefinementOutput(
+            fields=[
+                FieldConstraintProposal(
+                    field_name="target_units",
+                    description="Concentration units",
+                    is_closed_enum=True,
+                    choices=["µg/mL", "mM", "µM"],
+                ),
+                FieldConstraintProposal(
+                    field_name="target_type",
+                    description="Measurement type",
+                    is_closed_enum=True,
+                    choices=["MIC", "pMIC"],
+                ),
+            ]
+        )
+
+        # Case 1: iter_1 with 2 docs -> active_docs_count < 4 blocks both enums
+        df_iter1 = pd.DataFrame(
+            {
+                "pdf": ["doc1", "doc2"],
+                "target_units": ["µg/mL", "mM"],
+                "target_type": ["MIC", "MIC"],
+            }
+        )
+        profiles_iter1 = build_column_profiles(
+            df_gt=df_iter1,
+            schema_config=base,
+            active_norm_ids={"doc1", "doc2"},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        assert profiles_iter1["target_units"]["active_docs_count"] == 2
+        refined_iter1 = apply_schema_refinements(base, proposal, profiles_iter1)
+        assert refined_iter1.fields["target_units"].choices is None
+        assert refined_iter1.fields["target_type"].choices is None
+
+        # Case 2: iter_2 with 6 docs -> target_units has singleton doc_count == 1 ('mM'), target_type has doc_count == 6
+        df_iter2 = pd.DataFrame(
+            {
+                "pdf": ["d1", "d2", "d3", "d4", "d5", "d6"],
+                "target_units": ["µg/mL", "µg/mL", "µg/mL", "µg/mL", "µg/mL", "mM"],
+                "target_type": ["MIC", "MIC", "MIC", "MIC", "MIC", "MIC"],
+            }
+        )
+        profiles_iter2 = build_column_profiles(
+            df_gt=df_iter2,
+            schema_config=base,
+            active_norm_ids={"d1", "d2", "d3", "d4", "d5", "d6"},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        assert profiles_iter2["target_units"]["value_doc_support"]["mM"] == 1
+        assert profiles_iter2["target_type"]["value_doc_support"]["MIC"] == 6
+        refined_iter2 = apply_schema_refinements(base, proposal, profiles_iter2)
+        assert refined_iter2.fields["target_units"].choices is None
+        assert refined_iter2.fields["target_type"].choices == ["MIC", "pMIC"]

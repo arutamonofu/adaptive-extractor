@@ -13,7 +13,8 @@ Analyze the task schema, extraction instructions, and empirical training column 
 <execution_constraints>
 1. CLOSED ENUM VS OPEN VOCABULARY:
    - Set `is_closed_enum = true` ONLY if the field represents a genuinely finite, closed set of discrete categories, operators, flags, or assay/measurement types defined by the task ontology or instructions.
-   - NEVER set `is_closed_enum = true` for open-vocabulary entities, identifiers, chemical structures/formulas, species/names, free-text descriptions, or arbitrary numeric measurements, even if the training sample has only a few distinct values.
+   - DOCUMENT SUPPORT GATE: NEVER set `is_closed_enum = true` if `active_docs_count < 4` or if observed values in `column_profiles` keep appearing in only 1 document (`doc_count == 1`), because cross-document vocabulary saturation has not been established.
+   - NEVER set `is_closed_enum = true` for open-vocabulary entities, identifiers, chemical structures/formulas, species/names, unit notations with cross-paper surface variants, free-text descriptions, or arbitrary numeric measurements, even if the training sample has only a few distinct values.
    - When `is_closed_enum = true`, `choices` MUST include ALL observed empirical values from `column_profiles` PLUS any other valid options explicitly stated in `baseline_prompt` or `generated_prompt` (e.g., if training data has `["=", ">"]` and the prompt also allows `"<"`, include `["=", ">", "<"]`).
 2. DEFAULT VALUES:
    - Set `default_value` ONLY when the prompt or rules explicitly define a deterministic default when a value is absent in the document (e.g., "use '=' if no operator is stated"). Otherwise leave `default_value = null`.

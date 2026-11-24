@@ -1,6 +1,7 @@
 # src/ae/reverse_engineering/steps/consolidation.py
 """Phase 2: Positive Consolidation step implementation with HITL conflict handling."""
 
+import contextlib
 import json
 import logging
 from pathlib import Path
@@ -131,74 +132,78 @@ def run_consolidation(context: RunContext) -> bool:
         return response.consolidation
 
     force_recompute = not getattr(context, "resume", False)
-    consolidated_rows = context.artifacts.load_or_compute(
-        row_consolidated_path, compute_row_consolidation, ConsolidatedRowsOutput, force_recompute=force_recompute
-    )
+    tier_ctx_fn = getattr(context, "tier_4a_context", None)
+    tier_ctx = tier_ctx_fn() if callable(tier_ctx_fn) else contextlib.nullcontext()
 
-    all_conflicts = list(consolidated_rows.Conflicts)
-
-    # 2. Phase 2.2: Column Consolidation
-    logger.info("Executing Phase 2.2: Column Consolidation")
-    col_predictor = dspy.Predict(ColumnConsolidation)
-
-    all_field_analyses = []
-    cols_dir = context.artifacts.get_phase_dir("positive", "columns", iteration=None)
-    if cols_dir.exists():
-        for file_path in sorted(cols_dir.glob("*.json")):
-            stem = file_path.stem
-            doc_part = stem.rsplit("_row_", 1)[0] if "_row_" in stem else stem
-            row_id_part = f"row_{stem.rsplit('_row_', 1)[1]}" if "_row_" in stem else "row_1"
-            if active_norm_ids and doc_part not in active_norm_ids:
-                continue
-            try:
-                content = file_path.read_text(encoding="utf-8")
-                analysis = PositiveColumnsOutput.model_validate_json(content)
-                for f in analysis.fields:
-                    if context.rulings_store.is_ignored(doc_part, row_id_part, f.field_name):
-                        continue
-                    f_dict = f.model_dump()
-                    f_dict["document_id"] = doc_part
-                    f_dict["row_id"] = row_id_part
-                    all_field_analyses.append(f_dict)
-            except Exception as e:
-                logger.warning(f"Failed to read column analysis from {file_path}: {e}")
-
-    for field in fields:
-        field_lower = field.lower().strip()
-        field_entries = [
-            fa for fa in all_field_analyses if fa.get("field_name", "").lower().strip() == field_lower
-        ]
-
-        col_consolidated_path = context.artifacts.get_path(
-            "consolidation", "columns", f"{field}.json", iteration=iter_num
+    with tier_ctx:
+        consolidated_rows = context.artifacts.load_or_compute(
+            row_consolidated_path, compute_row_consolidation, ConsolidatedRowsOutput, force_recompute=force_recompute
         )
 
-        def compute_col_consolidation(f_name=field, entries=field_entries):
-            if not entries:
-                logger.info(f"No field analyses found for field {f_name}. Using default.")
-                return ConsolidatedColumnsOutput(
-                    Semantic_Core_generalized="Not specified in training data",
-                    Analytical_and_Binding_Policy="Direct extraction if mentioned.",
-                )
+        all_conflicts = list(consolidated_rows.Conflicts)
 
-            entries_str = json.dumps(entries, ensure_ascii=False, indent=2)
-            expert_rulings = context.rulings_store.format_rulings_for_prompt(f"column:{f_name}")
-            logger.info(f"Calling ColumnConsolidation LLM for field {f_name}")
-            response = col_predictor(
-                field_analyses=entries_str,
-                baseline_prompt=context.baseline_prompt,
-                extraction_schema=context.schema,
-                field_name=f_name,
-                expert_rulings=expert_rulings,
+        # 2. Phase 2.2: Column Consolidation
+        logger.info("Executing Phase 2.2: Column Consolidation")
+        col_predictor = dspy.Predict(ColumnConsolidation)
+
+        all_field_analyses = []
+        cols_dir = context.artifacts.get_phase_dir("positive", "columns", iteration=None)
+        if cols_dir.exists():
+            for file_path in sorted(cols_dir.glob("*.json")):
+                stem = file_path.stem
+                doc_part = stem.rsplit("_row_", 1)[0] if "_row_" in stem else stem
+                row_id_part = f"row_{stem.rsplit('_row_', 1)[1]}" if "_row_" in stem else "row_1"
+                if active_norm_ids and doc_part not in active_norm_ids:
+                    continue
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                    analysis = PositiveColumnsOutput.model_validate_json(content)
+                    for f in analysis.fields:
+                        if context.rulings_store.is_ignored(doc_part, row_id_part, f.field_name):
+                            continue
+                        f_dict = f.model_dump()
+                        f_dict["document_id"] = doc_part
+                        f_dict["row_id"] = row_id_part
+                        all_field_analyses.append(f_dict)
+                except Exception as e:
+                    logger.warning(f"Failed to read column analysis from {file_path}: {e}")
+
+        for field in fields:
+            field_lower = field.lower().strip()
+            field_entries = [
+                fa for fa in all_field_analyses if fa.get("field_name", "").lower().strip() == field_lower
+            ]
+
+            col_consolidated_path = context.artifacts.get_path(
+                "consolidation", "columns", f"{field}.json", iteration=iter_num
             )
-            return response.consolidation
 
-        consolidated_col = context.artifacts.load_or_compute(
-            col_consolidated_path, compute_col_consolidation, ConsolidatedColumnsOutput, force_recompute=force_recompute
-        )
+            def compute_col_consolidation(f_name=field, entries=field_entries):
+                if not entries:
+                    logger.info(f"No field analyses found for field {f_name}. Using default.")
+                    return ConsolidatedColumnsOutput(
+                        Semantic_Core_generalized="Not specified in training data",
+                        Analytical_and_Binding_Policy="Direct extraction if mentioned.",
+                    )
 
-        if consolidated_col.Conflicts:
-            all_conflicts.extend(consolidated_col.Conflicts)
+                entries_str = json.dumps(entries, ensure_ascii=False, indent=2)
+                expert_rulings = context.rulings_store.format_rulings_for_prompt(f"column:{f_name}")
+                logger.info(f"Calling ColumnConsolidation LLM for field {f_name}")
+                response = col_predictor(
+                    field_analyses=entries_str,
+                    baseline_prompt=context.baseline_prompt,
+                    extraction_schema=context.schema,
+                    field_name=f_name,
+                    expert_rulings=expert_rulings,
+                )
+                return response.consolidation
+
+            consolidated_col = context.artifacts.load_or_compute(
+                col_consolidated_path, compute_col_consolidation, ConsolidatedColumnsOutput, force_recompute=force_recompute
+            )
+
+            if consolidated_col.Conflicts:
+                all_conflicts.extend(consolidated_col.Conflicts)
 
     all_conflicts = filter_equivalent_conflicts(all_conflicts, context.schema)
     if all_conflicts:

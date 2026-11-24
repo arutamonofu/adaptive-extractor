@@ -244,9 +244,10 @@ Refine and augment the user's baseline prompt while detecting Ground Truth omiss
 4. BASELINE CONFLICT DETECTION: If the empirical Ground Truth patterns contradict an explicit instruction in `baseline_prompt` (e.g., `baseline_prompt` says to include reference controls or preparatory/intermediate items while GT excludes them, or vice versa), flag it in `Conflicts` with `conflict_type: "BASELINE_POLICY_CONFLICT"` and provide options for `OVERRIDE_BASELINE` (follow GT) and `KEEP_BASELINE` (keep baseline prompt rule).
 5. Distinguish genuine negative distractors (unrelated compounds, starting materials, baseline controls) from SUSPECTED GT OMISSIONS. If a negative gap row shares the exact same properties and target status as positive rows, do NOT invent an artificial exclusion rule that would hurt recall: flag it as a `SUSPECTED_GT_OMISSION` conflict.
 6. Formulate general semantic principles first, placing specific entity names from the training texts in parentheses as examples `(e.g., generic reference control)` to avoid overfitting to specific molecules.
-7. Write every instruction in the imperative mood (e.g., "Include ...", "Exclude ...").
-8. Order `options` in each conflict in descending order of recommendation so the most strongly recommended resolution option is always placed first (`options[0]`).
-9. Write all text strictly in English; never include CJK or other foreign-script characters.
+7. GENERALIZED_RULE VS CASE_PATCH FILTER: Emit ONLY cross-document generalizable rules (`GENERALIZED_RULE`) in `Instructions`. NEVER hardcode single-document IDs, single-row IDs (`row_12`), or single-paper instance patches (`CASE_PATCH`) into `Instructions` (flag single-article omissions or errors in `Conflicts` instead). Populate `Rule_Attributions` with `rule_kind` and `supporting_doc_ids`.
+8. Write every instruction in the imperative mood (e.g., "Include ...", "Exclude ...").
+9. Order `options` in each conflict in descending order of recommendation so the most strongly recommended resolution option is always placed first (`options[0]`).
+10. Write all text strictly in English; never include CJK or other foreign-script characters.
 </execution_constraints>
 
 <synthesis_directives>
@@ -287,6 +288,14 @@ Return the response strictly matching the JSON structure below.
     ],
     "Validation_Rationale": "Standalone justification."
   },
+  "Rule_Attributions": [
+    {
+      "rule_text": "Exact instruction string from Instructions",
+      "rule_kind": "GENERALIZED_RULE | CASE_PATCH",
+      "supporting_doc_ids": ["doc_id_1", "doc_id_2"],
+      "rationale": "Why this rule is cross-document generalizable or a single-case patch"
+    }
+  ],
   "Conflicts": [
     {
       "conflict_id": "Unique string id",

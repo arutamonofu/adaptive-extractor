@@ -69,8 +69,9 @@ Diagnose concrete False Positive rows erroneously extracted using `current_promp
 
 <execution_constraints>
 1. Inspect the provided `false_positive_rows` (extracted by the current prompt but unmatched in `gt_table`) alongside `raw_text` and `gt_table`.
-2. CRITICAL — COHORT DEDUPLICATION VS INDIVIDUAL GT OMISSIONS:
-   - **Potential Ground Truth Omissions (emit individually):** If a false-positive row semantically satisfies the positive row-creation trigger, target system role, and inclusion scope of `gt_table` (looks like an accidental annotator omission in GT rather than an excluded distractor), emit a separate `gap_row` for each such item.
+2. CRITICAL — COHORT DEDUPLICATION VS INDIVIDUAL GT OMISSIONS (PU & POT SIGNALS):
+   - **Potential Ground Truth Omissions (emit individually):** Entries tagged `pu_status: "high_confidence_unlabeled"` structurally match Positive GT rows and are strong PU omission candidates. If a false-positive row semantically satisfies the positive row-creation trigger, target system role, and inclusion scope of `gt_table` (looks like an accidental annotator omission in GT rather than an excluded distractor), emit a separate `gap_row` for each such item.
+   - **POT Structural Duplicates (`diagnostic_tag: "duplicate_of_tp"` or `"row_split"`):** Do NOT invent exclusion rules against valid entities for rows tagged `duplicate_of_tp` (cross-table/cross-section repeat of an already-matched TP entity) or `row_split`; treat them as deduplication/row-merging anomalies rather than excluded categories.
    - **Homogeneous Distractor Cohorts (deduplicate per cohort):** When multiple `false_positive_rows` share the exact same exclusion reason (e.g., reference/control entities, preparatory/intermediate items, non-target experimental conditions/species, or off-target tables), emit **exactly one representative `gap_row` per cohort**: quote one representative verbatim substring in `raw_text` and summarize the full cohort scope, members, and `cohort_count` in `gap_entity_description`.
 3. The `raw_text` extraction must be an exact, character-for-character substring of the source document containing the representative entity and its local context.
 4. Formulate responses strictly in domain-specific taxonomy native to the source text, standalone and self-sufficient.

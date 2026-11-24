@@ -223,41 +223,201 @@ def _record_to_dict(record: Any, fields: list[str]) -> dict[str, Any]:
     }
 
 
+def _score_fp_pu_candidates(
+    fp_pairs: list[dict[str, Any]],
+    gt_records: list[Any],
+    fields: list[str],
+    field_constraints: Optional[dict[str, dict[str, Any]]] = None,
+    pu_threshold: float = 0.75,
+) -> list[dict[str, Any]]:
+    """Score unmatched FP predictions under Positive-Unlabeled (PU) heuristics.
+
+    Identifies `high_confidence_unlabeled` records that structurally match Positive GT
+    records (potential GT omissions) while separating POT `duplicate_of_tp` / `row_split`.
+    """
+    if not fp_pairs:
+        return []
+    if not gt_records:
+        return [
+            {
+                **p,
+                "pu_status": p.get("diagnostic_tag") or "unlabeled",
+                "pu_score": 0.0,
+                "pu_reason": "no_gt_reference",
+            }
+            for p in fp_pairs
+        ]
+
+    gt_dicts = [_record_to_dict(g, fields) for g in gt_records]
+    gt_null_sigs = {tuple(d[f] is not None for f in fields) for d in gt_dicts}
+    gt_vals_by_field: dict[str, set[str]] = {f: set() for f in fields}
+    for d in gt_dicts:
+        for f in fields:
+            if d[f] is not None:
+                gt_vals_by_field[f].add(_normalize_cell_for_match(d[f]))
+
+    cat_cap = min(8, max(1, len(gt_dicts) // 3)) if len(gt_dicts) >= 3 else 1
+    cat_fields = [
+        f
+        for f in fields
+        if 1 <= len(gt_vals_by_field[f]) <= cat_cap
+        and not (
+            len(gt_dicts) >= 2
+            and len(gt_vals_by_field[f]) == len(gt_dicts)
+            and all(_is_numeric_like(v) for v in gt_vals_by_field[f])
+        )
+    ]
+    anchor_fields = [
+        f
+        for f in fields
+        if f not in cat_fields
+        and len(gt_vals_by_field[f]) > 1
+        and not all(_is_numeric_like(v) for v in gt_vals_by_field[f])
+    ]
+
+    constraints = field_constraints or {}
+    scored: list[dict[str, Any]] = []
+    for p in fp_pairs:
+        entry = dict(p)
+        diag_tag = p.get("diagnostic_tag")
+        if diag_tag == "duplicate_of_tp":
+            entry["pu_status"] = "duplicate_of_tp"
+            entry["pu_score"] = 0.0
+            entry["pu_reason"] = "POT detected near-duplicate of an already matched TP row"
+            scored.append(entry)
+            continue
+
+        pred = p.get("pred")
+        if pred is None:
+            entry["pu_status"] = "unlabeled"
+            entry["pu_score"] = 0.0
+            entry["pu_reason"] = "empty_prediction"
+            scored.append(entry)
+            continue
+
+        pred_dict = _record_to_dict(pred, fields)
+        violates = False
+        for f in fields:
+            val = pred_dict[f]
+            if val is None:
+                continue
+            fc = constraints.get(f, {})
+            choices = fc.get("choices")
+            if choices and val not in choices:
+                violates = True
+                break
+            pattern = fc.get("pattern")
+            if pattern and not re.search(pattern, val):
+                violates = True
+                break
+
+        if violates:
+            entry["pu_status"] = "constraint_violation"
+            entry["pu_score"] = 0.0
+            entry["pu_reason"] = "violates_schema_constraints"
+            scored.append(entry)
+            continue
+
+        pred_null_sig = tuple(pred_dict[f] is not None for f in fields)
+        null_match = 1.0 if pred_null_sig in gt_null_sigs else 0.0
+
+        pop_cats = [f for f in cat_fields if pred_dict[f] is not None]
+        if pop_cats:
+            cat_hits = sum(
+                1 for f in pop_cats if _normalize_cell_for_match(pred_dict[f]) in gt_vals_by_field[f]
+            )
+            cat_ratio = cat_hits / len(pop_cats)
+        else:
+            cat_ratio = 0.0
+
+        anchor_hit = any(
+            pred_dict[f] is not None
+            and _normalize_cell_for_match(pred_dict[f]) in gt_vals_by_field[f]
+            for f in anchor_fields
+        )
+
+        pu_score = (0.35 * null_match) + (0.45 * cat_ratio) + (0.20 if anchor_hit else 0.0)
+        pu_score = round(min(1.0, pu_score), 4)
+
+        if null_match >= 1.0 and pu_score >= pu_threshold:
+            entry["pu_status"] = "high_confidence_unlabeled"
+            reasons = ["matches_gt_null_pattern"]
+            if cat_ratio >= 0.8:
+                reasons.append(f"cat_support={cat_ratio:.2f}")
+            if anchor_hit:
+                reasons.append("shared_gt_anchor_entity")
+            entry["pu_reason"] = ", ".join(reasons)
+        elif diag_tag == "row_split":
+            entry["pu_status"] = "row_split"
+            entry["pu_reason"] = "POT detected split fragment of a GT row"
+        else:
+            entry["pu_status"] = "unlabeled"
+            entry["pu_reason"] = f"pu_score={pu_score:.2f}"
+        entry["pu_score"] = pu_score
+        scored.append(entry)
+
+    return scored
+
+
 def _group_fp_rows(
     fp_pairs: list[dict[str, Any]],
     fields: list[str],
     max_per_sig: int,
     max_total: int,
 ) -> list[dict[str, Any]]:
-    """Group False Positive rows by structural/repeating signature and cap representatives."""
+    """Group False Positive rows by structural/repeating signature, prioritizing PU/POT triggers."""
     if not fp_pairs:
         return []
 
-    fp_dicts = [_record_to_dict(p["pred"], fields) for p in fp_pairs if p.get("pred") is not None]
-    if not fp_dicts:
+    fp_rows: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for p in fp_pairs:
+        if p.get("pred") is None:
+            continue
+        fp_rows.append((_record_to_dict(p["pred"], fields), p))
+    if not fp_rows:
         return []
 
     # Identify fields with repeated values across >= 2 FPs (good distractor cohort keys)
     cohort_fields = []
     for f in fields:
-        vals = [d[f] for d in fp_dicts if d[f] is not None]
+        vals = [d[f] for d, _ in fp_rows if d[f] is not None]
         if len(vals) >= 2 and len(set(vals)) < len(vals):
             cohort_fields.append(f)
 
-    buckets: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
-    for d in fp_dicts:
+    buckets: dict[tuple[Any, ...], list[tuple[dict[str, Any], dict[str, Any]]]] = {}
+    for d, p in fp_rows:
         null_sig = tuple(d[f] is not None for f in fields)
         val_sig = tuple((f, d[f]) for f in cohort_fields[:3])
-        buckets.setdefault((null_sig, val_sig), []).append(d)
+        pu_tag = p.get("pu_status") or p.get("diagnostic_tag") or ""
+        buckets.setdefault((pu_tag, null_sig, val_sig), []).append((d, p))
+
+    def _bucket_sort_key(item: tuple[tuple[Any, ...], list[tuple[dict[str, Any], dict[str, Any]]]]) -> tuple[int, float]:
+        (pu_tag, _, _), group = item
+        if pu_tag == "high_confidence_unlabeled":
+            rank = 0
+        elif pu_tag in ("duplicate_of_tp", "row_split"):
+            rank = 1
+        else:
+            rank = 2
+        max_pu = max(float(p.get("pu_score") or 0.0) for _, p in group)
+        return (rank, -max_pu)
 
     grouped_payload: list[dict[str, Any]] = []
-    for group in buckets.values():
+    for _, group in sorted(buckets.items(), key=_bucket_sort_key):
         if len(grouped_payload) >= max_total:
             break
         take = min(max_per_sig, max_total - len(grouped_payload), len(group))
         for idx in range(take):
-            entry = dict(group[idx])
+            d, p = group[idx]
+            entry = dict(d)
             entry["cohort_count"] = len(group)
+            if p.get("pu_status"):
+                entry["pu_status"] = p["pu_status"]
+                entry["pu_score"] = float(p.get("pu_score") or 0.0)
+            if p.get("pu_reason"):
+                entry["pu_reason"] = p["pu_reason"]
+            if p.get("diagnostic_tag"):
+                entry["diagnostic_tag"] = p["diagnostic_tag"]
             grouped_payload.append(entry)
 
     return grouped_payload
@@ -498,9 +658,21 @@ def run_residual_analysis(
 
     re_client = getattr(context, "re_client", None)
     if re_client is not None and hasattr(re_client, "create_validation_extractor"):
-        extractor = re_client.create_validation_extractor(extract_task.signature)
+        import inspect
+
+        try:
+            if "ingestion_dir" in inspect.signature(re_client.create_validation_extractor).parameters:
+                extractor = re_client.create_validation_extractor(
+                    extract_task.signature, ingestion_dir=context.ingestion_dir
+                )
+            else:
+                extractor = re_client.create_validation_extractor(extract_task.signature)
+        except (TypeError, ValueError):
+            extractor = re_client.create_validation_extractor(extract_task.signature)
     else:
-        extractor = UniversalExtractor(extract_task.signature)
+        extractor = UniversalExtractor(
+            extract_task.signature, ingestion_dir=context.ingestion_dir
+        )
 
     enable_judge = bool(getattr(context, "enable_semantic_judge", True))
     student_llm = _resolve_student_llm(context, enable_judge)
@@ -707,9 +879,29 @@ def run_residual_analysis(
         adjusted_pairs = _split_zero_discriminative_pairs(
             eval_res["pair_results"], df_doc, compare_fields
         )
+        pot_diagnostics = eval_res.get("diagnostics") or {}
         tp_pairs = [p for p in adjusted_pairs if p["status"] == "tp"]
         fn_pairs = [p for p in adjusted_pairs if p["status"] == "fn"]
-        fp_pairs = [p for p in adjusted_pairs if p["status"] == "fp"]
+        raw_fp_pairs = [p for p in adjusted_pairs if p["status"] == "fp"]
+        fp_pairs = _score_fp_pu_candidates(
+            raw_fp_pairs,
+            gt_records,
+            compare_fields,
+            field_constraints=getattr(extract_task.config, "field_constraints", None),
+        )
+        pu_high_conf_rows = [
+            {
+                **_record_to_dict(p["pred"], compare_fields),
+                "pu_score": p.get("pu_score", 0.0),
+                "pu_reason": p.get("pu_reason", ""),
+            }
+            for p in fp_pairs
+            if p.get("pu_status") == "high_confidence_unlabeled" and p.get("pred") is not None
+        ][:max_fp_rows]
+        dup_of_tp_cnt = len(pot_diagnostics.get("duplicate_of_tp", []))
+        row_merge_cnt = len(pot_diagnostics.get("row_merge", []))
+        row_split_cnt = len(pot_diagnostics.get("row_split", []))
+        pu_high_cnt = sum(1 for p in fp_pairs if p.get("pu_status") == "high_confidence_unlabeled")
         mismatch_pairs = [p for p in adjusted_pairs if p["status"] == "field_mismatch"]
 
         # Guardrail 1: Alignment Fallback when F1 or Recall is too low
@@ -731,6 +923,12 @@ def run_residual_analysis(
                 fn_rows=len(fn_pairs),
                 fp_rows=len(fp_pairs),
                 mismatch_pairs=len(mismatch_pairs),
+                duplicate_of_tp_count=dup_of_tp_cnt,
+                row_merge_count=row_merge_cnt,
+                row_split_count=row_split_cnt,
+                high_confidence_unlabeled_count=pu_high_cnt,
+                pu_high_confidence_rows=pu_high_conf_rows,
+                pot_diagnostics=pot_diagnostics,
                 fallback_reason=reason,
                 input_hash=doc_input_hash,
             )
@@ -761,6 +959,12 @@ def run_residual_analysis(
                 fn_rows=len(fn_pairs),
                 fp_rows=len(fp_pairs),
                 mismatch_pairs=len(mismatch_pairs),
+                duplicate_of_tp_count=dup_of_tp_cnt,
+                row_merge_count=row_merge_cnt,
+                row_split_count=row_split_cnt,
+                high_confidence_unlabeled_count=pu_high_cnt,
+                pu_high_confidence_rows=pu_high_conf_rows,
+                pot_diagnostics=pot_diagnostics,
                 input_hash=doc_input_hash,
             )
             context.artifacts.load_or_compute(
@@ -1021,6 +1225,12 @@ def run_residual_analysis(
             fn_rows=len(fn_pairs),
             fp_rows=len(fp_pairs),
             mismatch_pairs=len(mismatch_pairs),
+            duplicate_of_tp_count=dup_of_tp_cnt,
+            row_merge_count=row_merge_cnt,
+            row_split_count=row_split_cnt,
+            high_confidence_unlabeled_count=pu_high_cnt,
+            pu_high_confidence_rows=pu_high_conf_rows,
+            pot_diagnostics=pot_diagnostics,
             analyzed_fn_row_ids=analyzed_fn_row_ids,
             analyzed_mismatch_row_ids=analyzed_mismatch_row_ids,
             grouped_signatures=grouped_signatures,

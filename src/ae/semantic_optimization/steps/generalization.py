@@ -12,12 +12,19 @@ import dspy
 
 from ae.core.utils import normalize_document_key
 from ae.semantic_optimization.context import RunContext
+from ae.semantic_optimization.hitl import (
+    _get_id_column,
+    classify_conflict_priority,
+    sort_conflicts_by_priority,
+)
 from ae.semantic_optimization.models import (
     ConsolidatedColumnsOutput,
     ConsolidatedRowsOutput,
     GeneralizedColumnsOutput,
     GeneralizedRowsOutput,
     REConflict,
+    ResidualDocReport,
+    RuleAttribution,
 )
 from ae.semantic_optimization.signatures import (
     ColumnGeneralization,
@@ -26,7 +33,6 @@ from ae.semantic_optimization.signatures import (
 )
 from ae.semantic_optimization.steps.consolidation import _invalidate_doc_artifacts
 from ae.semantic_optimization.steps.positive_analysis import filter_equivalent_conflicts
-from ae.semantic_optimization.hitl import _get_id_column
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +51,303 @@ def _strip_cjk_noise(text: str) -> str:
         cleaned_lines.append(no_cjk)
     trailing_nl = "\n" if text.endswith("\n") else ""
     return "\n".join(cleaned_lines) + trailing_nl
+
+
+_EXAMPLE_PAREN_RE = re.compile(r"\((?:e\.g\.|for example|such as|i\.e\.)[^)]*\)", re.IGNORECASE)
+_ROW_REF_RE = re.compile(r"\b(?:gap_)?row_\d+\b", re.IGNORECASE)
+_INSTANCE_PATCH_RE = re.compile(
+    r"(?:\bfor\s+(?:compound|entry|sample|record)\s+[A-Za-z0-9_-]{1,12}\b"
+    r"|\bin\s+(?:this\s+(?:article|paper|study)|document|paper)\s+[A-Za-z0-9._-]{4,}\b"
+    r"|\boverride\s+(?:only\s+)?for\s+(?:compound|row)\b)",
+    re.IGNORECASE,
+)
+_QUOTED_LITERAL_RE = re.compile(r"['\"]([^'\"]{2,80})['\"]")
+_BENIGN_QUOTED_TOKENS = frozenset(
+    {
+        "nan",
+        "mic",
+        "pmic",
+        "none",
+        "=",
+        ">",
+        "<",
+        "≥",
+        "≤",
+        "<td>",
+        "</td>",
+        "<th>",
+        "</th>",
+        "<b>",
+        "</b>",
+        "<i>",
+        "</i>",
+        "<em>",
+        "</em>",
+        "µg/ml",
+        "mg/l",
+        "mm",
+        "µm",
+        "±",
+    }
+)
+
+
+def _strip_parenthetical_examples(text: str) -> str:
+    return _EXAMPLE_PAREN_RE.sub("", text)
+
+
+def _is_case_patch_instruction(
+    inst: str,
+    attr: Optional[RuleAttribution],
+    known_doc_ids: set[str],
+    active_doc_count: int,
+) -> tuple[bool, str]:
+    """Return (is_case_patch, reason) if an instruction is a single-document/instance patch."""
+    clean = (inst or "").strip()
+    if not clean:
+        return True, "empty_rule"
+
+    if attr is not None and attr.rule_kind == "CASE_PATCH":
+        return True, "attributed_as_CASE_PATCH"
+
+    lower_clean = clean.lower()
+    for d_id in known_doc_ids:
+        d_norm = d_id.strip().lower()
+        if len(d_norm) >= 4 and re.search(
+            rf"(?<![a-z0-9]){re.escape(d_norm)}(?![a-z0-9])", lower_clean
+        ):
+            return True, f"mentions_document_id:{d_norm}"
+
+    if _ROW_REF_RE.search(clean):
+        return True, "mentions_row_id"
+
+    stripped = _strip_parenthetical_examples(clean)
+    if _INSTANCE_PATCH_RE.search(stripped):
+        return True, "instance_specific_patch_phrase"
+
+    if (
+        attr is not None
+        and active_doc_count >= 2
+        and len({normalize_document_key(d) for d in attr.supporting_doc_ids if d}) == 1
+    ):
+        quoted = [
+            q.strip()
+            for q in _QUOTED_LITERAL_RE.findall(stripped)
+            if q.strip().lower() not in _BENIGN_QUOTED_TOKENS
+        ]
+        has_specific_number = bool(re.search(r"\b\d+\.\d{2,}\b|\b\d{4,}\b", stripped))
+        if quoted or has_specific_number:
+            return True, "single_doc_support_with_hardcoded_literal"
+
+    return False, ""
+
+
+def filter_case_patch_instructions(
+    instructions: list[str],
+    rule_attributions: list[RuleAttribution],
+    known_doc_ids: set[str],
+    active_doc_count: int,
+    scope: str,
+) -> tuple[list[str], list[dict[str, str]]]:
+    """Filter single-article CASE_PATCH literals out of generalized rule lists."""
+    attr_by_text: dict[str, RuleAttribution] = {
+        a.rule_text.strip().lower(): a for a in rule_attributions if a.rule_text
+    }
+    kept: list[str] = []
+    blocked: list[dict[str, str]] = []
+    for inst in instructions:
+        attr = attr_by_text.get(inst.strip().lower())
+        is_patch, reason = _is_case_patch_instruction(
+            inst, attr, known_doc_ids, active_doc_count
+        )
+        if is_patch:
+            blocked.append(
+                {
+                    "scope": scope,
+                    "rule_text": inst,
+                    "reason": reason,
+                    "supporting_doc_ids": ", ".join(attr.supporting_doc_ids) if attr else "",
+                }
+            )
+            logger.warning(f"Filtered CASE_PATCH rule from {scope} ({reason}): {inst}")
+        else:
+            kept.append(inst)
+    return kept, blocked
+
+
+def _sanitize_row_output_case_patches(
+    row_data: GeneralizedRowsOutput,
+    known_doc_ids: set[str],
+    active_doc_count: int,
+) -> tuple[GeneralizedRowsOutput, list[dict[str, str]]]:
+    blocked_all: list[dict[str, str]] = []
+    kept_inc, b_inc = filter_case_patch_instructions(
+        list(row_data.Instructions.Row_Inclusion_Instructions),
+        row_data.Rule_Attributions,
+        known_doc_ids,
+        active_doc_count,
+        "rows:inclusion",
+    )
+    kept_exc, b_exc = filter_case_patch_instructions(
+        list(row_data.Instructions.Row_Exclusion_Instructions),
+        row_data.Rule_Attributions,
+        known_doc_ids,
+        active_doc_count,
+        "rows:exclusion",
+    )
+    blocked_all.extend(b_inc)
+    blocked_all.extend(b_exc)
+    if blocked_all:
+        row_data.Instructions.Row_Inclusion_Instructions = kept_inc
+        row_data.Instructions.Row_Exclusion_Instructions = kept_exc
+    return row_data, blocked_all
+
+
+def _sanitize_col_output_case_patches(
+    field_name: str,
+    col_data: GeneralizedColumnsOutput,
+    known_doc_ids: set[str],
+    active_doc_count: int,
+) -> tuple[GeneralizedColumnsOutput, list[dict[str, str]]]:
+    blocked_all: list[dict[str, str]] = []
+    kept_inc, b_inc = filter_case_patch_instructions(
+        list(col_data.Instructions.Column_Inclusion_Instructions),
+        col_data.Rule_Attributions,
+        known_doc_ids,
+        active_doc_count,
+        f"column:{field_name}:inclusion",
+    )
+    kept_exc, b_exc = filter_case_patch_instructions(
+        list(col_data.Instructions.Column_Exclusion_Instructions),
+        col_data.Rule_Attributions,
+        known_doc_ids,
+        active_doc_count,
+        f"column:{field_name}:exclusion",
+    )
+    kept_trn, b_trn = filter_case_patch_instructions(
+        list(col_data.Instructions.Transformation_Instructions),
+        col_data.Rule_Attributions,
+        known_doc_ids,
+        active_doc_count,
+        f"column:{field_name}:transformation",
+    )
+    blocked_all.extend(b_inc)
+    blocked_all.extend(b_exc)
+    blocked_all.extend(b_trn)
+    if blocked_all:
+        col_data.Instructions.Column_Inclusion_Instructions = kept_inc
+        col_data.Instructions.Column_Exclusion_Instructions = kept_exc
+        col_data.Instructions.Transformation_Instructions = kept_trn
+    return col_data, blocked_all
+
+
+def parse_prompt_sections(prompt_text: str) -> list[tuple[str, str]]:
+    """Split a sectioned extraction prompt on `---` into ordered (header_key, section_text) pairs."""
+    raw_sections = [s.strip() for s in (prompt_text or "").split("---") if s.strip()]
+    parsed: list[tuple[str, str]] = []
+    for idx, sec in enumerate(raw_sections):
+        header = _clean_header(sec)
+        if idx == 0 and header not in ("RECORD SELECTION", "EXPERIMENT SELECTION"):
+            parsed.append(("PREAMBLE", sec))
+        elif "EXPERT RULINGS" in header:
+            parsed.append(("EXPERT RULINGS", sec))
+        elif "RECORD SELECTION" in header or "EXPERIMENT SELECTION" in header:
+            parsed.append(("RECORD SELECTION", sec))
+        elif "REASONING STYLE" in header:
+            parsed.append(("REASONING STYLE", sec))
+        elif "GENERAL EXTRACTION GUIDELINES" in header:
+            parsed.append(("GENERAL EXTRACTION GUIDELINES", sec))
+        else:
+            parsed.append((header, sec))
+    return parsed
+
+
+def replace_prompt_sections(
+    target_prompt: str,
+    reference_prompt: str,
+    field_names: list[str],
+) -> str:
+    """Replace specific field sections (or RECORD SELECTION) in target_prompt from reference_prompt."""
+    target_secs = parse_prompt_sections(target_prompt)
+    ref_map = {k: v for k, v in parse_prompt_sections(reference_prompt)}
+    replace_keys = {
+        "RECORD SELECTION" if f.lower().strip() == "rows" else f.strip().upper()
+        for f in field_names
+        if f and f.strip()
+    }
+    if not replace_keys or not target_secs:
+        return target_prompt
+
+    updated_parts: list[str] = []
+    seen_keys: set[str] = set()
+    for key, sec_text in target_secs:
+        if key in replace_keys and key in ref_map:
+            updated_parts.append(ref_map[key])
+            seen_keys.add(key)
+        else:
+            updated_parts.append(sec_text)
+            seen_keys.add(key)
+
+    return "\n\n---\n\n".join(updated_parts).strip() + "\n"
+
+
+def _detect_prompt_contradictions(
+    sections: list[tuple[str, str]],
+    general_rulings: str,
+    fields: list[str],
+) -> tuple[list[str], set[str]]:
+    """Detect cross-section contradictions before PromptHarmonization (Contradiction-First)."""
+    sec_map = {k: v for k, v in sections}
+    findings: list[str] = []
+    involved_sections: set[str] = set()
+
+    rulings_low = (general_rulings or "").lower()
+    has_general_no_norm = any(
+        tok in rulings_low
+        for tok in ("without normalization", "preserve source", "format they appear", "do not normalize")
+    )
+
+    for field in fields:
+        f_key = field.upper()
+        f_text = sec_map.get(f_key, "")
+        f_low = f_text.lower()
+        if not f_text:
+            continue
+        if has_general_no_norm and any(
+            tok in f_low for tok in ("footnote", "superscript", "legend", "expand")
+        ):
+            findings.append(
+                f"CONFLICT [EXPERT RULINGS vs {f_key}]: General ruling preserves raw source format, "
+                f"while {f_key} requires resolving table footnotes/superscripts/legends. "
+                "Apply specificity precedence: local footnote/legend/caption definition takes precedence "
+                "over standalone format preservation; separate both scopes explicitly."
+            )
+            involved_sections.add(f_key)
+            involved_sections.add("EXPERT RULINGS")
+
+        if "pmic" in (sec_map.get("RECORD SELECTION", "").lower()) and "exclude pmic" in f_low:
+            findings.append(
+                f"CONFLICT [RECORD SELECTION vs {f_key}]: RECORD SELECTION includes pMIC while {f_key} excludes it."
+            )
+            involved_sections.add(f_key)
+            involved_sections.add("RECORD SELECTION")
+
+    return findings, involved_sections
+
+
+def _load_residual_doc_diagnostics(context: RunContext) -> dict[str, ResidualDocReport]:
+    """Load persisted ResidualDocReport artifacts keyed by normalized doc_id."""
+    reports: dict[str, ResidualDocReport] = {}
+    res_dir = context.artifacts.get_phase_dir("positive", "residual", iteration=None)
+    if not res_dir.exists():
+        return reports
+    for p in sorted(res_dir.glob("*.json")):
+        try:
+            rep = ResidualDocReport.model_validate_json(p.read_text(encoding="utf-8"))
+            reports[normalize_document_key(rep.doc_id)] = rep
+        except Exception:
+            pass
+    return reports
 
 
 def _collect_pos_neg_rows(
@@ -345,6 +648,18 @@ def run_generalization(
     fields = [col for col in df_gt.columns if col in schema_fields]
 
     active_norm_ids = {normalize_document_key(d) for d in context.doc_ids} if context.doc_ids is not None else set()
+    all_gt_doc_ids = (
+        {
+            normalize_document_key(str(d))
+            for d in df_gt[id_col].dropna().tolist()
+            if str(d).strip()
+        }
+        if id_col in df_gt.columns
+        else set()
+    )
+    known_doc_ids = set(active_norm_ids) | all_gt_doc_ids
+    active_doc_count = len(active_norm_ids) if active_norm_ids else len(all_gt_doc_ids)
+    blocked_case_patches: list[dict[str, str]] = []
     iter_num = context.current_iteration
     force_recompute = not getattr(context, "resume", False)
     can_carry_forward = (
@@ -515,6 +830,33 @@ def run_generalization(
         compiled_columns[field] = col_data
 
     # 3. Unified Batch HITL Conflict Digest
+    residual_reports_by_doc = _load_residual_doc_diagnostics(context)
+
+    def _enrich_conflict_diagnostics(conflict: REConflict) -> REConflict:
+        norm_d = normalize_document_key(conflict.document_id) if conflict.document_id else ""
+        rep = residual_reports_by_doc.get(norm_d)
+        updates: dict[str, str] = {}
+        if rep is not None and not conflict.diagnostic_tag:
+            text_low = (
+                f"{conflict.conflict_id} {conflict.explanation} {conflict.conflicting_value_or_rule}"
+            ).lower()
+            if rep.duplicate_of_tp_count > 0 and (
+                "duplicate" in text_low or "repeat" in text_low or "table_" in text_low
+            ):
+                updates["diagnostic_tag"] = "duplicate_of_tp"
+            elif rep.row_merge_count > 0 and "merge" in text_low:
+                updates["diagnostic_tag"] = "row_merge"
+            elif (
+                conflict.conflict_type == "SUSPECTED_GT_OMISSION"
+                and rep.high_confidence_unlabeled_count > 0
+            ):
+                updates["diagnostic_tag"] = "high_confidence_unlabeled"
+        cand = conflict.model_copy(update=updates) if updates else conflict
+        _, _, tier = classify_conflict_priority(cand)
+        if cand.priority != tier:
+            cand = cand.model_copy(update={"priority": tier})
+        return cand
+
     def _clean_and_collect_conflicts() -> list[REConflict]:
         nonlocal row_data
         collected: list[REConflict] = []
@@ -522,7 +864,9 @@ def run_generalization(
         orig_row_conflicts = list(row_data.Conflicts)
         eq_row_conflicts = filter_equivalent_conflicts(orig_row_conflicts, context.schema)
         unresolved_row_conflicts = [
-            c for c in eq_row_conflicts if not _is_conflict_resolved(context, c)
+            _enrich_conflict_diagnostics(c)
+            for c in eq_row_conflicts
+            if not _is_conflict_resolved(context, c)
         ]
         if [c.conflict_id for c in unresolved_row_conflicts] != [
             c.conflict_id for c in orig_row_conflicts
@@ -536,6 +880,8 @@ def run_generalization(
                 cache_key=_compute_row_cache_key(context, pos_rows, neg_rows),
             )
             _write_rulings_hash(row_rules_path, _scope_rulings_hash(context, "rows"))
+        else:
+            row_data.Conflicts = unresolved_row_conflicts
         collected.extend(row_data.Conflicts)
 
         for field in fields:
@@ -547,7 +893,9 @@ def run_generalization(
                 continue
             eq_col_conflicts = filter_equivalent_conflicts(orig_col_conflicts, context.schema)
             unresolved_col_conflicts = [
-                c for c in eq_col_conflicts if not _is_conflict_resolved(context, c)
+                _enrich_conflict_diagnostics(c)
+                for c in eq_col_conflicts
+                if not _is_conflict_resolved(context, c)
             ]
             if [c.conflict_id for c in unresolved_col_conflicts] != [
                 c.conflict_id for c in orig_col_conflicts
@@ -570,17 +918,37 @@ def run_generalization(
                 )
                 _write_rulings_hash(col_rules_path, _scope_rulings_hash(context, f"column:{field}"))
                 compiled_columns[field] = col_out
+            else:
+                col_out.Conflicts = unresolved_col_conflicts
             collected.extend(compiled_columns[field].Conflicts)
 
-        return collected
+        return sort_conflicts_by_priority(collected)
 
     did_rule_recompute = False
     max_hitl_rounds = 2
+    triage_audit_log: list[dict[str, object]] = []
     for hitl_round in range(1, max_hitl_rounds + 1):
         all_conflicts = _clean_and_collect_conflicts()
         if not all_conflicts:
             break
 
+        triage_audit_log.append(
+            {
+                "round": hitl_round,
+                "queue": [
+                    {
+                        "conflict_id": c.conflict_id,
+                        "priority": c.priority or classify_conflict_priority(c)[2],
+                        "conflict_type": c.conflict_type,
+                        "scope": c.scope,
+                        "document_id": c.document_id,
+                        "row_id": c.row_id,
+                        "diagnostic_tag": c.diagnostic_tag,
+                    }
+                    for c in all_conflicts
+                ],
+            }
+        )
         logger.info(
             f"Unified HITL Triage (round {hitl_round}/{max_hitl_rounds}): "
             f"resolving batch of {len(all_conflicts)} conflict(s)."
@@ -685,6 +1053,75 @@ def run_generalization(
                 return True
             _clean_and_collect_conflicts()
             break
+
+    # Persist HITL triage queue audit if any conflicts were processed
+    if triage_audit_log:
+        triage_path = context.artifacts.get_path(
+            "generalization", "", "hitl_triage_queue.json", iteration=iter_num
+        )
+        triage_path.parent.mkdir(parents=True, exist_ok=True)
+        triage_path.write_text(
+            json.dumps(triage_audit_log, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    # Filter CASE_PATCH literals out of generalized row and column instructions before persistence
+    row_data, row_blocked = _sanitize_row_output_case_patches(
+        row_data, known_doc_ids, active_doc_count
+    )
+    if row_blocked:
+        blocked_case_patches.extend(row_blocked)
+        row_data = context.artifacts.load_or_compute(
+            row_rules_path,
+            lambda out=row_data: out,
+            GeneralizedRowsOutput,
+            force_recompute=True,
+            cache_key=_compute_row_cache_key(context, pos_rows, neg_rows),
+        )
+        _write_rulings_hash(row_rules_path, _scope_rulings_hash(context, "rows"))
+
+    for field in fields:
+        if field not in compiled_columns:
+            continue
+        sanitized_col, col_blocked = _sanitize_col_output_case_patches(
+            field, compiled_columns[field], known_doc_ids, active_doc_count
+        )
+        if col_blocked:
+            blocked_case_patches.extend(col_blocked)
+            field_lower = field.lower().strip()
+            pos_f = _compact_positive_col_entries(
+                [pa for pa in pos_cols if pa.get("field_name", "").lower().strip() == field_lower]
+            )
+            neg_f = [na for na in neg_cols if na.get("field_name", "").lower().strip() == field_lower]
+            c_path = context.artifacts.get_path(
+                "generalization", "columns", f"{field}.json", iteration=iter_num
+            )
+            sanitized_col = context.artifacts.load_or_compute(
+                c_path,
+                lambda out=sanitized_col: out,
+                GeneralizedColumnsOutput,
+                force_recompute=True,
+                cache_key=_compute_col_cache_key(context, field, pos_f, neg_f),
+            )
+            _write_rulings_hash(c_path, _scope_rulings_hash(context, f"column:{field}"))
+        compiled_columns[field] = sanitized_col
+
+    case_patch_audit_path = context.artifacts.get_path(
+        "generalization", "", "case_patch_audit.json", iteration=iter_num
+    )
+    case_patch_audit_path.parent.mkdir(parents=True, exist_ok=True)
+    case_patch_audit_path.write_text(
+        json.dumps(
+            {
+                "iteration": iter_num,
+                "active_docs_count": active_doc_count,
+                "blocked_count": len(blocked_case_patches),
+                "blocked_rules": blocked_case_patches,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     # Persist consolidated artifacts for this iteration so they always match final row_data & compiled_columns
     if row_data.Row_Instantiation_Trigger_generalized:
@@ -806,14 +1243,72 @@ def run_generalization(
 
     if reasoning_style:
         assembled_prompt_parts.append(reasoning_style)
+
+    # Check for carried-forward harmonized sections and run Contradiction-First audit
+    prev_sections_map: dict[str, str] = {}
+    if iter_num is not None and iter_num > 1 and can_carry_forward:
+        prev_prompt_path = context.artifacts.get_path(
+            "generalization", "", "candidate_prompt.txt", iteration=iter_num - 1
+        )
+        if prev_prompt_path.exists():
+            prev_sections_map = {
+                k: v
+                for k, v in parse_prompt_sections(prev_prompt_path.read_text(encoding="utf-8"))
+            }
+
     draft_prompt = "\n\n---\n\n".join(assembled_prompt_parts) + "\n"
+    contradictions, contradiction_sections = _detect_prompt_contradictions(
+        parse_prompt_sections(draft_prompt), general_rulings or "", fields
+    )
+
+    locked_sections: dict[str, str] = {}
+    if prev_sections_map and changed_scopes is not None:
+        for field in fields:
+            f_upper = field.upper()
+            scope_key = f"column:{field}"
+            col_rules_prev = context.artifacts.get_path(
+                "generalization", "columns", f"{field}.json", iteration=iter_num - 1
+            )
+            if (
+                scope_key not in changed_scopes
+                and f_upper not in contradiction_sections
+                and f_upper in prev_sections_map
+                and col_rules_prev.exists()
+                and _can_carry_forward_rulings(col_rules_prev, context, scope_key)
+            ):
+                locked_sections[f_upper] = prev_sections_map[f_upper]
+
+        if locked_sections:
+            updated_parts: list[str] = []
+            for key, sec_txt in parse_prompt_sections(draft_prompt):
+                if key in locked_sections:
+                    updated_parts.append(locked_sections[key])
+                else:
+                    updated_parts.append(sec_txt)
+            draft_prompt = "\n\n---\n\n".join(updated_parts) + "\n"
+
     final_prompt = draft_prompt
+
+    audit_parts: list[str] = []
+    if general_rulings:
+        audit_parts.append(general_rulings)
+    if contradictions:
+        audit_parts.append(
+            "[CONTRADICTION-FIRST AUDIT — RESOLVE FIRST]\n"
+            + "\n".join(f"- {item}" for item in contradictions)
+        )
+    if locked_sections:
+        audit_parts.append(
+            "[LOCKED UNCHANGED SECTIONS — PRESERVE VERBATIM]\n"
+            f"Sections unchanged since iter_{iter_num - 1}: {', '.join(sorted(locked_sections.keys()))}"
+        )
+    harmonize_rulings_input = "\n\n".join(audit_parts) if audit_parts else "None"
 
     prompt_cache_key = hashlib.sha256(
         json.dumps(
             {
                 "draft_prompt": draft_prompt,
-                "general_rulings": general_rulings or "",
+                "general_rulings": harmonize_rulings_input,
                 "schema": context.schema,
                 "baseline_prompt": context.baseline_prompt,
                 "harmonize_prompt": bool(getattr(context, "harmonize_prompt", True)),
@@ -849,14 +1344,14 @@ def run_generalization(
                 f"Iter {iter_num}: Reusing cached candidate prompt from {cached_iter_prompt_path} on resume."
             )
 
-    # Optional LLM Prompt Harmonization step
+    # Optional LLM Prompt Harmonization step (Contradiction-First + Sectional Isolation)
     if not reused_cached_prompt and getattr(context, "harmonize_prompt", True):
         try:
             harmonizer = dspy.Predict(PromptHarmonization)
             harm_resp = harmonizer(
                 extraction_schema=context.schema,
                 baseline_prompt=context.baseline_prompt,
-                expert_rulings=general_rulings or "None",
+                expert_rulings=harmonize_rulings_input,
                 draft_prompt=draft_prompt,
             )
             if (
@@ -865,6 +1360,24 @@ def run_generalization(
                 and harm_resp.harmonization.harmonized_prompt.strip()
             ):
                 final_prompt = harm_resp.harmonization.harmonized_prompt.strip() + "\n"
+                if locked_sections and "---" in final_prompt:
+                    final_secs = parse_prompt_sections(final_prompt)
+                    final_map = {k: v for k, v in final_secs}
+                    restored_any = False
+                    rebuilt: list[str] = []
+                    for key, sec_txt in final_secs:
+                        if key in locked_sections and sec_txt.strip() != locked_sections[key].strip():
+                            rebuilt.append(locked_sections[key])
+                            restored_any = True
+                        else:
+                            rebuilt.append(sec_txt)
+                    # Also restore any locked section accidentally dropped
+                    for l_key, l_txt in locked_sections.items():
+                        if l_key not in final_map:
+                            rebuilt.append(l_txt)
+                            restored_any = True
+                    if restored_any:
+                        final_prompt = "\n\n---\n\n".join(rebuilt).strip() + "\n"
                 logger.info("Successfully harmonized final prompt across all columns and baseline rules.")
         except Exception as e:
             logger.warning(f"PromptHarmonization skipped or fell back to assembled draft prompt: {e}")
