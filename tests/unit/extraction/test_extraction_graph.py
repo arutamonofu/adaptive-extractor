@@ -1936,10 +1936,11 @@ def test_resolve_iupac_to_smiles_tool_and_missing_java(monkeypatch):
     assert res_ok == {"resolved": [{"iupac_name": "ethanol", "smiles": "CCO"}], "errors": []}
 
 
-def test_finalize_evidence_skips_domain_reminder_and_propagates_structured_hint(tmp_path):
+def test_finalize_evidence_respects_domain_reminder_guard_and_propagates_structured_hint(tmp_path):
     from ae.core.schema.tools import RegisteredToolProvider, register_extraction_tool, unregister_extraction_tool
 
     tool_name = "test_hinted_markush_tool"
+    passive_tool = "test_passive_hinted_tool"
     register_extraction_tool(
         tool_name,
         RegisteredToolProvider(
@@ -1949,6 +1950,17 @@ def test_finalize_evidence_skips_domain_reminder_and_propagates_structured_hint(
             policy_hint="Agent policy hint.",
             auto_remind=True,
             structured_output_hint="STRUCTURED CROSS-CHECK HINT",
+        ),
+    )
+    register_extraction_tool(
+        passive_tool,
+        RegisteredToolProvider(
+            name=passive_tool,
+            build_tool=lambda **_: _make_dummy_tool(passive_tool),
+            is_applicable=lambda txt: "PASSIVE" in txt,
+            policy_hint="Passive policy hint.",
+            auto_remind=False,
+            structured_output_hint="PASSIVE STRUCTURED HINT",
         ),
     )
     try:
@@ -1974,12 +1986,28 @@ def test_finalize_evidence_skips_domain_reminder_and_propagates_structured_hint(
             doc_id="doc_fe",
         )
         assert res["extracted_data"].summary == "OK"
-        # Agent called only once: finalize_evidence exited immediately without domain_reminder loop
-        assert mock_bound.invoke.call_count == 1
+        # One-time reminder guard: 1st finalize_evidence -> reminder -> 2nd finalize_evidence -> structured_output
+        assert mock_bound.invoke.call_count == 2
         structured_msgs = mock_structured.invoke.call_args[0][0]
         assert "STRUCTURED CROSS-CHECK HINT" in structured_msgs[0].content
+
+        # auto_remind=False exits immediately on first finalize_evidence
+        mock_bound.invoke.reset_mock()
+        graph_passive = ExtractionGraph(
+            llm=mock_llm,
+            output_model=DummyOutput,
+            ingestion_dir=tmp_path,
+            tools=[passive_tool],
+        )
+        res2 = graph_passive.run(
+            document_text="<!-- document_id: doc_fe_passive -->\n\nPASSIVE doc.",
+            doc_id="doc_fe_passive",
+        )
+        assert res2["extracted_data"].summary == "OK"
+        assert mock_bound.invoke.call_count == 1
     finally:
         unregister_extraction_tool(tool_name)
+        unregister_extraction_tool(passive_tool)
 
 
 def _make_dummy_tool(name: str):

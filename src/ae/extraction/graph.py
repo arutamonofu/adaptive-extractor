@@ -7,6 +7,7 @@ import http.client
 import inspect
 import json
 import logging
+import math
 import operator
 import random
 import re
@@ -190,17 +191,46 @@ def _tool_output_has_error(output: str) -> bool:
     return bool(parsed.get("error") or parsed.get("errors"))
 
 
-_DASH_TRANS = str.maketrans({"−": "-", "–": "-", "—": "-", "\u03bc": "\u00b5"})
+def _tool_output_completely_failed(output: str) -> bool:
+    """Return True if a domain tool output failed completely with no usable payload."""
+    stripped = output.strip()
+    if not stripped.startswith("{"):
+        return False
+    try:
+        parsed = json.loads(stripped)
+    except Exception:
+        return False
+    if not isinstance(parsed, dict):
+        return False
+    if not (parsed.get("error") or parsed.get("errors")):
+        return False
+    if "assembled" in parsed or "resolved" in parsed:
+        return not (parsed.get("assembled") or parsed.get("resolved"))
+    payload_values = [v for k, v in parsed.items() if k not in ("error", "errors")]
+    return not any(bool(v) for v in payload_values)
+
+
+_DASH_TRANS = str.maketrans(
+    {"−": "-", "–": "-", "—": "-", "\u03bc": "\u00b5", "≥": ">=", "≤": "<="}
+)
 _WS_RE = re.compile(r"\s+")
 _FLOAT_STR_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$")
 _COLLECTION_ID_RE = re.compile(
-    r"\b(ATCC|MTCC|NCTC|DSM|CMCC|CGMCC|NBRC|JCM|NCIM|CIP|LMG|CCM|KCTC|BCRC)\s*[-#]?\s*[A-Za-z0-9]+\b",
+    r"\b(ATCC|MTCC|NCTC|DSM|CMCC|CGMCC|NBRC|JCM|NCIM|CIP|LMG|CCM|KCTC|BCRC)\s*[-#]?\s*([A-Za-z0-9]+)\b",
     re.IGNORECASE,
 )
 _PHENOTYPE_TAG_RE = re.compile(
     r"\b(MSSA|MRSA|VRE|VRSA|ESBL|MDR|XDR|PRSP|CRKP|CRPA|CRAB)\b",
     re.IGNORECASE,
 )
+
+
+@functools.lru_cache(maxsize=1)
+def _get_unit_registry() -> Any:
+    """Return a cached pint.UnitRegistry singleton."""
+    import pint
+
+    return pint.UnitRegistry()
 
 
 @functools.lru_cache(maxsize=4096)
@@ -243,14 +273,18 @@ def _canonicalize_smiles_for_dedup(raw_smiles: str) -> str:
 
 def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
     """Normalize field values canonically for deduplication without fuzzy string matching."""
+    if value is None:
+        return None
     if isinstance(value, float):
+        if math.isnan(value):
+            return None
         return int(value) if value.is_integer() else value
     if not isinstance(value, str):
         return value
 
     cleaned = _WS_RE.sub(" ", value.translate(_DASH_TRANS)).strip()
-    if not cleaned:
-        return ""
+    if not cleaned or cleaned.lower() == "nan":
+        return None
 
     key_l = key.lower()
     if "smiles" in key_l:
@@ -260,20 +294,18 @@ def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
         cleaned = re.sub(r"\bug\b", "\u00b5g", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\buM\b", "\u00b5M", cleaned)
         try:
-            import pint
-
-            ureg = pint.UnitRegistry()
-            qty = ureg.Quantity(1.0, cleaned)
-            return f"{qty.to_base_units().units}"
+            ureg = _get_unit_registry()
+            base_qty = ureg.Quantity(1.0, cleaned).to_base_units()
+            return f"{base_qty.magnitude:.12g}|{base_qty.units}"
         except Exception:
             return cleaned
 
     if any(tok in key_l for tok in ("bacteria", "strain", "organism")):
-        if _COLLECTION_ID_RE.search(cleaned):
-            stripped = _PHENOTYPE_TAG_RE.sub("", cleaned)
-            stripped = re.sub(r"[\(\)\[\]\|,;/]+", " ", stripped)
-            return _WS_RE.sub(" ", stripped).strip().lower()
-        return cleaned
+        norm = _COLLECTION_ID_RE.sub(r"\1 \2", cleaned)
+        if _COLLECTION_ID_RE.search(norm):
+            norm = _PHENOTYPE_TAG_RE.sub("", norm)
+            norm = re.sub(r"[\(\)\[\]\|,;/]+", " ", norm)
+        return _WS_RE.sub(" ", norm).strip().lower()
 
     if _FLOAT_STR_RE.match(cleaned):
         try:
@@ -841,9 +873,11 @@ class ExtractionGraph:
         operation_name: str,
         fn: Callable[[], Any],
         on_retry: Optional[Callable[[int, Exception], None]] = None,
+        max_retries: Optional[int] = None,
     ) -> Any:
         """Execute an LLM call with exponential backoff on transient/network errors."""
-        total_attempts = max(1, self.max_retries + 1)
+        effective_retries = self.max_retries if max_retries is None else max(0, int(max_retries))
+        total_attempts = max(1, effective_retries + 1)
         last_exc: Optional[Exception] = None
 
         for attempt in range(1, total_attempts + 1):
@@ -995,9 +1029,10 @@ class ExtractionGraph:
             target = self._apply_retry_temperature(model_with_tools, is_retry, base_llm=target_agent_llm)
             return target.invoke(state["messages"])
 
-        def _on_agent_retry(_attempt: int, _exc: Exception) -> None:
+        def _on_agent_retry(_attempt: int, exc: Exception) -> None:
             nonlocal is_retry
-            is_retry = True
+            if isinstance(exc, StructuredOutputSanityError) or _is_parse_or_truncation_error(exc):
+                is_retry = True
 
         call_start = time.perf_counter()
         response = self._invoke_with_retry(
@@ -1140,9 +1175,6 @@ class ExtractionGraph:
         if has_new_calls:
             return "tools"
 
-        if any(tc.get("name") == "finalize_evidence" for tc in tool_calls):
-            return "structured_output"
-
         if not state.get("domain_reminder_sent", False):
             doc_text = state.get("document_text", "")
             active_names = {
@@ -1151,6 +1183,9 @@ class ExtractionGraph:
             called_names = set(state.get("non_visual_tools_called_since_doc_change", []))
             if active_names - called_names:
                 return "tools"
+
+        if any(tc.get("name") == "finalize_evidence" for tc in tool_calls):
+            return "structured_output"
 
         return "structured_output"
 
@@ -1243,21 +1278,25 @@ class ExtractionGraph:
                 if sig in executed_sigs_set:
                     res = f"Tool `{tool_name}` with identical arguments was already executed."
                 else:
+                    tool_failed_completely = False
                     try:
                         res = str(domain_tools_by_name[tool_name].invoke(tool_args))
                         if _tool_output_has_error(res):
                             ran_non_visual_error = True
+                        tool_failed_completely = _tool_output_completely_failed(res)
                     except Exception as exc:
                         logger.warning(f"Domain tool '{tool_name}' failed for doc '{doc_id}': {exc}")
                         res = json.dumps({"error": f"Tool execution failed: {exc}"})
                         ran_non_visual_error = True
+                        tool_failed_completely = True
                     executed_sigs.append(sig)
                     executed_sigs_set.add(sig)
                     if tool_name not in non_visual_called:
                         non_visual_called.append(tool_name)
-                    new_tool_results.append(
-                        {"tool": tool_name, "args": tool_args, "output": res}
-                    )
+                    if not tool_failed_completely:
+                        new_tool_results.append(
+                            {"tool": tool_name, "args": tool_args, "output": res}
+                        )
                     ran_non_visual = True
             else:
                 res = f"Tool {tool_name} not recognized."
@@ -1378,7 +1417,7 @@ class ExtractionGraph:
                 budget_note = (
                     f"\n\n[Budget status: {new_iterations}/{self.max_tool_iterations} tool iteration(s) used, "
                     f"1 FINAL iteration remaining; {len(eligible_remaining)} eligible unparsed/partial visual(s). "
-                    f"Batch all remaining needed visuals in your next call or reply READY.]"
+                    f"Batch all remaining needed visuals in your next call or call finalize_evidence.]"
                 )
             else:
                 budget_note = (
@@ -1489,12 +1528,14 @@ class ExtractionGraph:
         self,
         structured_model: Any,
         messages: list[BaseMessage],
+        base_llm: Optional[Any] = None,
     ) -> Any:
         """Invoke structured_model using streaming keep-alive for real chat models."""
+        target_llm = base_llm if base_llm is not None else self.llm
         can_stream = (
             self.use_streaming
-            and isinstance(self.llm, BaseChatModel)
-            and not isinstance(self.llm, NonCallableMock)
+            and isinstance(target_llm, BaseChatModel)
+            and not isinstance(target_llm, NonCallableMock)
             and isinstance(structured_model, Runnable)
             and not isinstance(structured_model, NonCallableMock)
         )
@@ -1601,7 +1642,15 @@ class ExtractionGraph:
             True,
             base_llm=target_repair_llm,
         )
-        repair_res = self._call_structured_model(repair_model, repair_messages)
+        repair_res = self._invoke_with_retry(
+            f"local_record_repair[{state.get('doc_id', '')}]",
+            lambda: self._call_structured_model(
+                repair_model,
+                repair_messages,
+                base_llm=target_repair_llm,
+            ),
+            max_retries=min(self.max_retries, 2),
+        )
 
         patched_records = list(records)
         failed_set = set(failed)
@@ -1640,6 +1689,8 @@ class ExtractionGraph:
                     break
                 except StructuredOutputSanityError as repair_exc:
                     current_exc = repair_exc
+                except CircuitBreakerError:
+                    raise
                 except Exception as repair_err:
                     logger.warning(
                         f"Local record repair failed for doc '{state.get('doc_id', '')}': {repair_err}"
@@ -1710,7 +1761,8 @@ class ExtractionGraph:
 
             def _on_batch_retry(attempt: int, exc: Exception) -> None:
                 nonlocal current_batch_size, retry_feedback, is_batch_retry
-                is_batch_retry = True
+                if isinstance(exc, StructuredOutputSanityError) or _is_parse_or_truncation_error(exc):
+                    is_batch_retry = True
                 if isinstance(exc, StructuredOutputSanityError):
                     retry_feedback = self._format_sanity_retry_feedback(exc)
                 if _is_parse_or_truncation_error(exc) and current_batch_size > 5:
@@ -1833,7 +1885,8 @@ class ExtractionGraph:
 
                 def _on_single_retry(_attempt: int, exc: Exception) -> None:
                     nonlocal retry_feedback, is_single_retry
-                    is_single_retry = True
+                    if isinstance(exc, StructuredOutputSanityError) or _is_parse_or_truncation_error(exc):
+                        is_single_retry = True
                     if isinstance(exc, StructuredOutputSanityError):
                         retry_feedback = self._format_sanity_retry_feedback(exc)
 
@@ -1853,8 +1906,8 @@ class ExtractionGraph:
                         outputs=[res],
                         latency_s=round(time.perf_counter() - call_start, 4),
                     )
+                res = self._deduplicate_output(res)
 
-            res = self._deduplicate_output(res)
             return {
                 "extracted_data": res,
                 "rationale": "",
