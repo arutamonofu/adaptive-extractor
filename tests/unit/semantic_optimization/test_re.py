@@ -1900,10 +1900,24 @@ def test_case_patch_min_doc_3_benign_tokens_and_missing_attributions_guard():
     # At active_doc_count=3:
     # - single_doc_literal_rule is blocked
     # - benign tokens ('n.d.', 'resistant', 'sensitive') are kept even with 1 supporting doc
-    # - unattributed literal rule (Rule_Attributions missing / attr is None) is blocked!
-    # - general unattributed rule with only parenthetical example is kept
+    # - unattributed literal rule (attr is None) logs warning and is NOT auto-banned unless explicit markers exist
+    # - explicit row/doc marker without attribution is still blocked
+    # - benign scaling constants ('1000', '1000000', '0.05') and nested parenthetical chemical names are kept
+    explicit_marker_unattributed = "Override row_12 in doc1."
+    scaling_rule = "Convert mg/mL to ug/mL by multiplying by 1000 or 1000000 with tolerance 0.05."
+    nested_chem_rule = (
+        "Normalize compound names (e.g., 2-(4-chlorophenyl)benzimidazole and 'Special-Alias-77') uniformly."
+    )
     kept_3, blocked_3 = filter_case_patch_instructions(
-        [single_doc_literal_rule, benign_rule, unattributed_literal_rule, general_unattributed],
+        [
+            single_doc_literal_rule,
+            benign_rule,
+            unattributed_literal_rule,
+            general_unattributed,
+            explicit_marker_unattributed,
+            scaling_rule,
+            nested_chem_rule,
+        ],
         [
             RuleAttribution(
                 rule_text=single_doc_literal_rule,
@@ -1915,15 +1929,31 @@ def test_case_patch_min_doc_3_benign_tokens_and_missing_attributions_guard():
                 rule_kind="GENERALIZED_RULE",
                 supporting_doc_ids=["doc1"],
             ),
+            RuleAttribution(
+                rule_text=scaling_rule,
+                rule_kind="GENERALIZED_RULE",
+                supporting_doc_ids=["doc1"],
+            ),
+            RuleAttribution(
+                rule_text=nested_chem_rule,
+                rule_kind="GENERALIZED_RULE",
+                supporting_doc_ids=["doc1"],
+            ),
         ],
         known_doc_ids={"doc1", "doc2", "doc3"},
         active_doc_count=3,
         scope="column:compound_id",
     )
-    assert kept_3 == [benign_rule, general_unattributed]
+    assert kept_3 == [
+        benign_rule,
+        unattributed_literal_rule,
+        general_unattributed,
+        scaling_rule,
+        nested_chem_rule,
+    ]
     assert [b["reason"] for b in blocked_3] == [
         "single_doc_support_with_hardcoded_literal",
-        "unattributed_rule_with_hardcoded_literal",
+        "mentions_document_id:doc1",
     ]
 
 
@@ -2020,6 +2050,174 @@ def test_visual_prep_prefers_tier_4a_and_validation_chat_model(temp_dir):
         )
     spy_val.assert_called_once()
     mock_val_client.get_chat_model.assert_called_once()
+
+
+def test_coupled_fields_not_locked_when_related_scope_changes(temp_dir: Path, mock_lm):
+    """When target_value is in changed_scopes, related target_units/target_relation are not locked."""
+    from ae.semantic_optimization.models import PromptHarmonizationOutput
+    from ae.semantic_optimization.steps.generalization import run_generalization
+
+    gt_path = temp_dir / "gt.csv"
+    pd.DataFrame(
+        {
+            "pdf": ["doc1", "doc2"],
+            "target_value": ["10", "20"],
+            "target_units": ["ug/mL", "ug/mL"],
+            "target_relation": ["=", "="],
+            "bacteria": ["S. aureus", "E. coli"],
+        }
+    ).to_csv(gt_path, index=False)
+    baseline_path = temp_dir / "baseline.txt"
+    baseline_path.write_text("Base prompt", encoding="utf-8")
+    schema_path = temp_dir / "schema.yaml"
+    schema_path.write_text(
+        "name: test\nfields:\n  target_value:\n    type: str\n  target_units:\n    type: str\n"
+        "  target_relation:\n    type: str\n  bacteria:\n    type: str\n"
+        "compare_fields:\n  - target_value\n  - target_units\n  - target_relation\n  - bacteria\n",
+        encoding="utf-8",
+    )
+    ingest_dir = temp_dir / "ingest"
+    ingest_dir.mkdir(parents=True, exist_ok=True)
+    ctx = RunContext(
+        task_name="test",
+        doc_ids=["doc1", "doc2"],
+        gt_path=gt_path,
+        ingestion_dir=ingest_dir,
+        baseline_prompt_path=baseline_path,
+        schema_path=schema_path,
+        teacher_lm=mock_lm,
+        artifacts_dir=temp_dir / "artifacts",
+        generated_prompt_path=temp_dir / "generated_prompt.txt",
+        generated_schema_path=temp_dir / "generated_schema.yaml",
+        interactive=False,
+        harmonize_prompt=True,
+        infer_schema_constraints=False,
+    )
+
+    iter1_gen = ctx.artifacts.get_phase_dir("generalization", iteration=1)
+    (iter1_gen / "columns").mkdir(parents=True, exist_ok=True)
+    (iter1_gen / "rows.json").write_text(
+        GeneralizedRowsOutput(
+            Row_Instantiation_Trigger_generalized="One row",
+            Instructions=RowInstructions(Row_Inclusion_Instructions=["Include rows"]),
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+    for col_name in ("target_value", "target_units", "target_relation", "bacteria"):
+        (iter1_gen / "columns" / f"{col_name}.json").write_text(
+            GeneralizedColumnsOutput(
+                Semantic_Core_generalized=f"Iter 1 {col_name}",
+                Instructions=ColumnInstructions(Column_Inclusion_Instructions=[f"Old {col_name}"]),
+            ).model_dump_json(),
+            encoding="utf-8",
+        )
+    (iter1_gen / "candidate_prompt.txt").write_text(
+        "Preamble\n\n---\n\nRECORD SELECTION\n\nInclude ONLY records satisfying:\n- Include rows\n\n---\n\n"
+        "TARGET_VALUE\n\nOld target_value\n\n---\n\n"
+        "TARGET_UNITS\n\nOld target_units\n\n---\n\n"
+        "TARGET_RELATION\n\nOld target_relation\n\n---\n\n"
+        "BACTERIA\n\nOld bacteria\n",
+        encoding="utf-8",
+    )
+
+    ctx.current_iteration = 2
+    captured_harm_inputs: dict[str, str] = {}
+
+    def fake_predict(sig):
+        name = getattr(sig, "__name__", str(sig))
+        def _call(**kwargs):
+            if name == "ColumnGeneralization":
+                return MagicMock(
+                    generalization=GeneralizedColumnsOutput(
+                        Semantic_Core_generalized="Iter 2 target_value",
+                        Instructions=ColumnInstructions(Column_Inclusion_Instructions=["New target_value"]),
+                    )
+                )
+            if name == "PromptHarmonization":
+                captured_harm_inputs["expert_rulings"] = kwargs.get("expert_rulings", "")
+                return MagicMock(
+                    harmonization=PromptHarmonizationOutput(
+                        harmonized_prompt=(
+                            "Preamble\n\n---\n\nRECORD SELECTION\n\nInclude ONLY records satisfying:\n- Include rows\n\n---\n\n"
+                            "TARGET_VALUE\n\nNew target_value\n\n---\n\n"
+                            "TARGET_UNITS\n\nAligned target_units\n\n---\n\n"
+                            "TARGET_RELATION\n\nAligned target_relation\n\n---\n\n"
+                            "BACTERIA\n\nMutated bacteria\n"
+                        ),
+                        harmonization_notes=["aligned coupled fields"],
+                    )
+                )
+            raise AssertionError(f"Unexpected call: {name}")
+        return _call
+
+    with patch("ae.semantic_optimization.steps.generalization.dspy.Predict", side_effect=fake_predict):
+        run_generalization(ctx, changed_scopes={"column:target_value"})
+
+    out_text = ctx.generated_prompt_path.read_text(encoding="utf-8")
+    # Unrelated BACTERIA stays locked, while coupled TARGET_UNITS and TARGET_RELATION are NOT locked
+    assert "BACTERIA" in captured_harm_inputs["expert_rulings"]
+    assert "TARGET_UNITS" not in captured_harm_inputs["expert_rulings"]
+    assert "TARGET_RELATION" not in captured_harm_inputs["expert_rulings"]
+    assert "Aligned target_units" in out_text
+    assert "Aligned target_relation" in out_text
+    assert "Old bacteria" in out_text
+    assert "Mutated bacteria" not in out_text
+
+
+def test_visual_prep_retries_with_backoff_and_logs_error_on_exhaustion(temp_dir, caplog):
+    """visual_prep retries bound.invoke with exponential backoff and logs error if retries exhaust."""
+    import logging
+    from types import SimpleNamespace
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessage
+    from ae.core.storage.documents import DocumentRepository
+    from ae.semantic_optimization.steps.visual_prep import prepare_document_visuals
+
+    ingestion_dir = temp_dir / "ingestion"
+    doc_dir = ingestion_dir / "doc_retry"
+    doc_dir.mkdir(parents=True)
+    raw_text = '<visual id="v1" type="table">Table 1\n> desc</visual>'
+    (doc_dir / "document.md").write_text(raw_text, encoding="utf-8")
+    doc_repo = DocumentRepository(ingestion_dir)
+
+    mock_chat = MagicMock(spec=BaseChatModel)
+    mock_bound = MagicMock()
+    mock_chat.bind_tools.return_value = mock_bound
+
+    ctx = SimpleNamespace(
+        ingestion_dir=ingestion_dir,
+        re_client=None,
+        tier_4a_lm=mock_chat,
+        artifacts=None,
+        config_path=None,
+        pdf_dir=None,
+        schema="",
+        baseline_prompt="",
+        max_tool_iterations=1,
+    )
+
+    # 1. Fails once, then succeeds on retry with backoff
+    mock_bound.invoke.side_effect = [RuntimeError("429 rate limit"), AIMessage(content="READY", tool_calls=[])]
+    with patch("ae.ingestion.service.VisualParsingService"), \
+         patch("ae.ingestion.tool.make_visual_parsing_tool"), \
+         patch("ae.semantic_optimization.steps.visual_prep.time.sleep") as mock_sleep:
+        res = prepare_document_visuals("doc_retry", raw_text, "a\n1", ctx, doc_repo)
+    assert res == raw_text
+    assert mock_bound.invoke.call_count == 2
+    mock_sleep.assert_called_once_with(1.0)
+
+    # 2. Exhausting retries logs error with traceback instead of silent warning
+    mock_bound.invoke.reset_mock()
+    mock_bound.invoke.side_effect = RuntimeError("persistent timeout")
+    with patch("ae.ingestion.service.VisualParsingService"), \
+         patch("ae.ingestion.tool.make_visual_parsing_tool"), \
+         patch("ae.semantic_optimization.steps.visual_prep.time.sleep") as mock_sleep, \
+         caplog.at_level(logging.ERROR):
+        res_fail = prepare_document_visuals("doc_retry", raw_text, "a\n1", ctx, doc_repo)
+    assert res_fail == raw_text
+    assert mock_bound.invoke.call_count == 3
+    assert [c.args[0] for c in mock_sleep.call_args_list] == [1.0, 2.0]
+    assert any("Contrastive visual preparation failed" in r.message for r in caplog.records)
 
 
 

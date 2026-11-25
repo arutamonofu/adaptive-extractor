@@ -53,7 +53,7 @@ def _strip_cjk_noise(text: str) -> str:
     return "\n".join(cleaned_lines) + trailing_nl
 
 
-_EXAMPLE_PAREN_RE = re.compile(r"\((?:e\.g\.|for example|such as|i\.e\.)[^)]*\)", re.IGNORECASE)
+_EXAMPLE_PAREN_RE = re.compile(r"\((?=\s*(?:e\.g\.|for example|such as|i\.e\.))", re.IGNORECASE)
 _ROW_REF_RE = re.compile(r"\b(?:gap_)?row_\d+\b", re.IGNORECASE)
 _INSTANCE_PATCH_RE = re.compile(
     r"(?:\bfor\s+(?:compound|entry|sample|record)\s+[A-Za-z0-9_-]{1,12}\b"
@@ -62,6 +62,7 @@ _INSTANCE_PATCH_RE = re.compile(
     re.IGNORECASE,
 )
 _QUOTED_LITERAL_RE = re.compile(r"['\"]([^'\"]{2,80})['\"]")
+_BENIGN_SCALING_NUMBERS = frozenset({"1000", "1000000", "0.05"})
 _BENIGN_QUOTED_TOKENS = frozenset(
     {
         "nan",
@@ -212,7 +213,32 @@ def _match_rule_attribution(
 
 
 def _strip_parenthetical_examples(text: str) -> str:
-    return _EXAMPLE_PAREN_RE.sub("", text)
+    """Remove parenthetical example blocks (e.g., ...) while handling nested parentheses."""
+    if not text:
+        return ""
+    out: list[str] = []
+    pos = 0
+    n = len(text)
+    for m in _EXAMPLE_PAREN_RE.finditer(text):
+        start = m.start()
+        if start < pos:
+            continue
+        depth = 0
+        end = -1
+        for i in range(start, n):
+            ch = text[i]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end != -1:
+            out.append(text[pos:start])
+            pos = end
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def _is_case_patch_instruction(
@@ -248,20 +274,25 @@ def _is_case_patch_instruction(
         attr is not None
         and len({normalize_document_key(d) for d in attr.supporting_doc_ids if d}) == 1
     )
-    if active_doc_count >= 3 and (has_single_doc_support or attr is None):
+    if active_doc_count >= 3 and attr is None:
+        logger.warning(
+            f"Rule attribution missing (attr is None) at active_doc_count={active_doc_count}; "
+            f"relying on explicit markers instead of auto-banning: {clean}"
+        )
+
+    if active_doc_count >= 3 and has_single_doc_support:
         quoted = [
             q.strip()
             for q in _QUOTED_LITERAL_RE.findall(stripped)
             if not _is_benign_quoted_literal(q)
         ]
-        has_specific_number = bool(re.search(r"\b\d+\.\d{2,}\b|\b\d{4,}\b", stripped))
-        if quoted or has_specific_number:
-            reason = (
-                "single_doc_support_with_hardcoded_literal"
-                if has_single_doc_support
-                else "unattributed_rule_with_hardcoded_literal"
-            )
-            return True, reason
+        specific_nums = [
+            num
+            for num in re.findall(r"\b\d+\.\d{2,}\b|\b\d{4,}\b", stripped)
+            if num not in _BENIGN_SCALING_NUMBERS
+        ]
+        if quoted or specific_nums:
+            return True, "single_doc_support_with_hardcoded_literal"
 
     return False, ""
 
@@ -457,10 +488,39 @@ _GENERIC_EXCLUDED_STOPWORDS = frozenset(
 )
 
 
+_COUPLED_FIELD_RE = re.compile(r"^(?:(.+?)_)?(value|units?|relation)$", re.IGNORECASE)
+
+
+def _get_related_changed_fields(fields: list[str], changed_scopes: set[str]) -> set[str]:
+    """Return lowercased field names coupled to any changed column (e.g. value/units/relation)."""
+    changed_cols = {
+        s.split(":", 1)[1].strip().lower()
+        for s in changed_scopes
+        if isinstance(s, str) and s.startswith("column:")
+    }
+    if not changed_cols:
+        return set()
+
+    groups: dict[str, set[str]] = {}
+    for f in fields:
+        f_low = f.strip().lower()
+        m = _COUPLED_FIELD_RE.match(f_low)
+        if m:
+            prefix = (m.group(1) or "").lower()
+            groups.setdefault(prefix, set()).add(f_low)
+
+    related: set[str] = set()
+    for members in groups.values():
+        if members & changed_cols:
+            related.update(members)
+    return related
+
+
 def _detect_prompt_contradictions(
     sections: list[tuple[str, str]],
     general_rulings: str,
     fields: list[str],
+    changed_scopes: Optional[set[str]] = None,
 ) -> tuple[list[str], set[str]]:
     """Detect cross-section contradictions before PromptHarmonization (Contradiction-First)."""
     sec_map = {k: v for k, v in sections}
@@ -514,6 +574,10 @@ def _detect_prompt_contradictions(
                     involved_sections.add(f_key)
                     involved_sections.add("RECORD SELECTION")
                     break
+
+    if changed_scopes:
+        for rel_f in _get_related_changed_fields(fields, changed_scopes):
+            involved_sections.add(rel_f.upper())
 
     return findings, involved_sections
 
@@ -1462,19 +1526,29 @@ def run_generalization(
 
     draft_prompt = "\n\n---\n\n".join(assembled_prompt_parts) + "\n"
     contradictions, contradiction_sections = _detect_prompt_contradictions(
-        parse_prompt_sections(draft_prompt), general_rulings or "", fields
+        parse_prompt_sections(draft_prompt),
+        general_rulings or "",
+        fields,
+        changed_scopes=changed_scopes,
     )
 
+    related_changed_fields = (
+        _get_related_changed_fields(fields, changed_scopes)
+        if changed_scopes is not None
+        else set()
+    )
     locked_sections: dict[str, str] = {}
     if prev_sections_map and changed_scopes is not None:
         for field in fields:
             f_upper = field.upper()
+            f_lower = field.strip().lower()
             scope_key = f"column:{field}"
             col_rules_prev = context.artifacts.get_path(
                 "generalization", "columns", f"{field}.json", iteration=iter_num - 1
             )
             if (
                 scope_key not in changed_scopes
+                and f_lower not in related_changed_fields
                 and f_upper not in contradiction_sections
                 and f_upper in prev_sections_map
                 and col_rules_prev.exists()

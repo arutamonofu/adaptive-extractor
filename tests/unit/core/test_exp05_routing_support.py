@@ -180,3 +180,33 @@ def test_run_context_tier_4a_context_switching(tmp_path):
         with ctx.tier_4a_context():
             assert dspy.settings.lm is lm_4a
         assert dspy.settings.lm is lm_4b
+
+
+def test_exp05_config_settings_and_yaml_alignment():
+    """Verify render_page_max_size, enable_record_dedup, tier_4a_model, temperature=0.3, and no fp8 in priority_order."""
+    from pathlib import Path
+    import yaml
+    from ae.core.config.optimization_settings import (
+        ExtractionConfig,
+        GeminiParserConfig,
+        IngestionConfig,
+        SemanticOptimizationConfig,
+    )
+
+    ing = IngestionConfig()
+    assert ing.execution.render_page_max_size == 768
+    assert ing.gemini.render_page_max_size == 768
+    assert GeminiParserConfig().render_page_max_size == 768
+
+    ext = ExtractionConfig()
+    assert ext.execution.enable_record_dedup is True
+    assert ext.enable_record_dedup is True
+
+    sem = SemanticOptimizationConfig()
+    assert sem.model.temperature == 0.3
+    assert sem.tier_4a_model is None
+    assert sem.get_tier_4a_llm_config() is None
+
+    sem_yaml = yaml.safe_load(Path("config/semantic_optimization.yaml").read_text(encoding="utf-8"))
+    priority = sem_yaml["semantic_optimization"]["model"]["api"]["provider"]["priority_order"]
+    assert all("fp8" not in str(p).lower() for p in priority)

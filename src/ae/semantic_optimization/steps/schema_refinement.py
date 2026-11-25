@@ -159,6 +159,28 @@ def build_column_profiles(
     return profiles
 
 
+def _extract_field_prompt_scope(field_name: str, prompt_text: str) -> str:
+    """Return only the target field's section from a sectioned prompt (or whole text if unsectioned)."""
+    if not prompt_text or not prompt_text.strip():
+        return ""
+    from ae.semantic_optimization.steps.generalization import _clean_header, parse_prompt_sections
+
+    sections = parse_prompt_sections(prompt_text)
+    target_key = field_name.strip().upper()
+    matched = [
+        sec_text
+        for key, sec_text in sections
+        if key == target_key or _clean_header(sec_text) == target_key
+    ]
+    if matched:
+        return "\n\n".join(matched)
+    # If the prompt is sectioned (contains '---' or multiple sections), do NOT fall back
+    # to other fields' sections or preamble!
+    if "---" in prompt_text or len(sections) > 1:
+        return ""
+    return prompt_text
+
+
 def _passes_enum_doc_support_gate(
     field_name: str,
     profile: Dict[str, Any],
@@ -185,21 +207,18 @@ def _passes_enum_doc_support_gate(
         )
         return False
 
+    field_prompt = _extract_field_prompt_scope(field_name, prompt_text)
     value_doc_support = profile.get("value_doc_support")
     if isinstance(value_doc_support, dict) and value_doc_support:
-        total_vals = len(value_doc_support)
-        multi_doc_count = sum(1 for dc in value_doc_support.values() if dc >= 2)
-        multi_doc_ratio = multi_doc_count / total_vals
         unbacked_singletons = [
             v
             for v, dc in value_doc_support.items()
-            if dc == 1 and not _is_value_explicit_in_prompt(v, prompt_text)
+            if dc == 1 and not _is_value_explicit_in_prompt(v, field_prompt)
         ]
-        if unbacked_singletons and (total_vals < 2 or multi_doc_ratio < 0.8):
+        if unbacked_singletons:
             logger.warning(
                 f"Skipping proposed closed enum for '{field_name}': "
-                f"multi_doc_ratio={multi_doc_ratio:.2f} (< 0.80) with unbacked doc_count==1 value(s) "
-                f"({unbacked_singletons[:5]})"
+                f"unbacked doc_count==1 value(s) ({unbacked_singletons[:5]})"
             )
             return False
 
@@ -223,17 +242,19 @@ def _is_quoted_or_word_explicit_in_prompt(value: str, prompt_text: str) -> bool:
 
 
 def _is_default_prompt_grounded(field_name: str, default_val: str, prompt_text: str) -> bool:
-    """Return True when default_val is explicitly grounded in prompt_text."""
-    if not prompt_text or not default_val:
+    """Return True when default_val is explicitly grounded in the target field's section of prompt_text."""
+    field_prompt = _extract_field_prompt_scope(field_name, prompt_text)
+    if not field_prompt or not default_val:
         return False
     val = default_val.strip()
     if not val:
         return False
     if len(val) == 1:
-        return f"'{val}'" in prompt_text or f'"{val}"' in prompt_text
-    if not _is_quoted_or_word_explicit_in_prompt(val, prompt_text):
+        if not (f"'{val}'" in field_prompt or f'"{val}"' in field_prompt):
+            return False
+    elif not _is_quoted_or_word_explicit_in_prompt(val, field_prompt):
         return False
-    low_prompt = prompt_text.lower()
+    low_prompt = field_prompt.lower()
     return (
         field_name.lower() in low_prompt
         or "default" in low_prompt
@@ -245,24 +266,25 @@ def _is_default_prompt_grounded(field_name: str, default_val: str, prompt_text: 
 
 
 def _is_pattern_prompt_grounded(field_name: str, pattern: str, prompt_text: str) -> bool:
-    """Return True when regex pattern (or its explicit closed alternatives) is grounded in prompt_text."""
-    if not prompt_text or not pattern:
+    """Return True when regex pattern (or its explicit closed alternatives) is grounded in target field's section."""
+    field_prompt = _extract_field_prompt_scope(field_name, prompt_text)
+    if not field_prompt or not pattern:
         return False
     pat = pattern.strip()
     if not pat:
         return False
     core = re.sub(r"^\^|\$$", "", pat)
-    if (len(pat) >= 4 and pat in prompt_text) or (len(core) >= 4 and core in prompt_text):
+    if (len(pat) >= 4 and pat in field_prompt) or (len(core) >= 4 and core in field_prompt):
         return True
     m = re.fullmatch(r"\^?\((?:\?:)?([^()]+)\)\$?", pat)
     if m and "|" in m.group(1):
         branches = [b.strip() for b in m.group(1).split("|") if b.strip()]
         if branches and all(
-            _is_quoted_or_word_explicit_in_prompt(b.replace("\\", ""), prompt_text)
+            _is_quoted_or_word_explicit_in_prompt(b.replace("\\", ""), field_prompt)
             for b in branches
         ):
-            return field_name.lower() in prompt_text.lower() or all(
-                f"'{b}'" in prompt_text or f'"{b}"' in prompt_text
+            return field_name.lower() in field_prompt.lower() or all(
+                f"'{b}'" in field_prompt or f'"{b}"' in field_prompt
                 for b in branches
                 if len(b) == 1
             )
@@ -485,7 +507,7 @@ def run_schema_refinement(
         cache_key=cache_key,
     )
 
-    combined_prompt_text = "\n\n".join(
+    combined_prompt_text = "\n\n---\n\n".join(
         p for p in (getattr(context, "baseline_prompt", "") or "", final_prompt or "") if p
     )
     refined_config = apply_schema_refinements(

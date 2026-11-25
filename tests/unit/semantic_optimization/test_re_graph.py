@@ -1711,4 +1711,220 @@ def test_pareto_row_only_regression_and_base_drift_sync(tmp_path):
     assert s3["val_f1_history"] == [0.90, 0.90]
 
 
+def test_pareto_consolidation_rollback_adaptive_threshold_raw_history_and_drift_guards(tmp_path):
+    """Covers consolidation rollback, adaptive field threshold, raw_val_f1_history, cache key fields, and error/strict base drift sync."""
+    from ae.core.config.llm_settings import GeminiInstanceConfig, LLMConfig, LLMInstanceConfig
+    from ae.core.config.optimization_settings import ExtractionConfig
+    from ae.semantic_optimization.context import ArtifactManager
+    from pydantic import SecretStr
+
+    ingest_dir = tmp_path / "ingestion"
+    ingest_dir.mkdir(parents=True, exist_ok=True)
+    (ingest_dir / "val_1.md").write_text("Val 1", encoding="utf-8")
+    gt_path = tmp_path / "gt.csv"
+    gt_path.write_text("pdf,smiles,bacteria\nval_1,CCO,S. aureus\n", encoding="utf-8")
+    schema_path = tmp_path / "schema.yaml"
+    schema_path.write_text(
+        "name: test\nfloat_tolerance: 0.01\nfields:\n  smiles:\n    type: str\n  bacteria:\n    type: str\n"
+        "compare_fields:\n  - smiles\n  - bacteria\n",
+        encoding="utf-8",
+    )
+    gen_prompt_path = tmp_path / "generated_instruction.txt"
+
+    iter1_prompt = (
+        "Preamble\n\n---\n\n"
+        "RECORD SELECTION\n\nInclude ONLY records satisfying:\n- Best row.\n\n---\n\n"
+        "SMILES\n\nExtract ONLY if satisfy:\n- Best SMILES.\n\n---\n\n"
+        "BACTERIA\n\nExtract ONLY if satisfy:\n- Best bacteria.\n"
+    )
+    iter2_prompt = (
+        "Preamble\n\n---\n\n"
+        "RECORD SELECTION\n\nInclude ONLY records satisfying:\n- Best row.\n\n---\n\n"
+        "SMILES\n\nExtract ONLY if satisfy:\n- Broken SMILES.\n\n---\n\n"
+        "BACTERIA\n\nExtract ONLY if satisfy:\n- Better bacteria.\n"
+    )
+
+    art_dir = tmp_path / "artifacts"
+    iter1_gen = art_dir / "iterations" / "iter_1" / "04_generalization"
+    iter2_gen = art_dir / "iterations" / "iter_2" / "04_generalization"
+    iter1_cons = art_dir / "iterations" / "iter_1" / "02_consolidation"
+    iter2_cons = art_dir / "iterations" / "iter_2" / "02_consolidation"
+    (iter1_gen / "columns").mkdir(parents=True, exist_ok=True)
+    (iter2_gen / "columns").mkdir(parents=True, exist_ok=True)
+    (iter1_cons / "columns").mkdir(parents=True, exist_ok=True)
+    (iter2_cons / "columns").mkdir(parents=True, exist_ok=True)
+
+    (iter1_gen / "candidate_prompt.txt").write_text(iter1_prompt, encoding="utf-8")
+    (iter1_gen / "columns" / "smiles.json").write_text('{"col": "best_smiles"}', encoding="utf-8")
+    (iter1_cons / "columns" / "smiles.json").write_text('{"cons": "best_smiles_cons"}', encoding="utf-8")
+    (iter2_gen / "candidate_prompt.txt").write_text(iter2_prompt, encoding="utf-8")
+    (iter2_gen / "columns" / "smiles.json").write_text('{"col": "broken_smiles"}', encoding="utf-8")
+    (iter2_cons / "columns" / "smiles.json").write_text('{"cons": "broken_smiles_cons"}', encoding="utf-8")
+
+    ctx = MagicMock(spec=RunContext)
+    ctx.artifacts_dir = art_dir
+    ctx.artifacts = ArtifactManager(art_dir, resume=False)
+    ctx.schema_path = schema_path
+    ctx.generated_schema_path = None
+    ctx.generated_prompt_path = gen_prompt_path
+    ctx.active_gt_path = gt_path
+    ctx.ingestion_dir = ingest_dir
+    ctx.config_path = None
+    ctx.resume = False
+    ctx.enable_semantic_judge = False
+    ctx.selection_metric = "micro_f1"
+    ctx.pareto_regression_threshold = 0.01
+    ctx.re_client = MagicMock()
+    ctx.re_client.extraction_config = ExtractionConfig(
+        execution={"agent_thinking_level": "low", "structured_output_batch_size": 0},
+        model={"provider": "gemini", "model": "gemini-3.8-flash", "gemini": {"thinking_level": "medium"}},
+    )
+
+    graph = SemanticOptimizationGraph(
+        context=ctx, train_doc_ids=["d1"], val_doc_ids=["val_1"], pareto_regression_threshold=0.01
+    )
+
+    # 1. Adaptive threshold in _find_regressed_fields: 1/5 = 0.20 drop is NOT regression when field_totals={'smiles': 5},
+    #    whereas 2/5 = 0.40 drop IS flagged! Without field_totals, 0.20 IS flagged.
+    assert graph._find_regressed_fields({"smiles": 0.80}, {"smiles": 1.0}, {}, {}) == ["smiles"]
+    assert graph._find_regressed_fields(
+        {"smiles": 0.80}, {"smiles": 1.0}, {}, {}, field_totals={"smiles": 5}
+    ) == []
+    assert graph._find_regressed_fields(
+        {"smiles": 0.59}, {"smiles": 1.0}, {}, {}, field_totals={"smiles": 5}
+    ) == ["smiles"]
+
+    # 2. _rollback_column_artifacts_and_schema also rolls back 02_consolidation/columns/smiles.json
+    gen_prompt_path.write_text(iter2_prompt, encoding="utf-8")
+    with patch.object(
+        graph,
+        "_evaluate_prompt_on_val",
+        side_effect=[
+            {
+                "f1_score": 0.60,
+                "macro_f1": 0.60,
+                "micro_f1": 0.60,
+                "strict_f1_score": 0.60,
+                "strict_micro_f1": 0.60,
+                "strict_macro_f1": 0.60,
+                "per_field_f1": {"smiles": 0.50, "bacteria": 1.0},
+                "strict_per_field_f1": {"smiles": 0.50, "bacteria": 1.0},
+                "per_field_total": {"smiles": 10.0, "bacteria": 10.0},
+                "doc_scores": {"val_1": {"f1": 0.60, "gts": 1}},
+                "evaluated_count": 1,
+            },
+            {
+                "f1_score": 0.80,  # < best_f1 0.90 -> triggers full revert & preserves raw_f1_score=0.60
+                "macro_f1": 0.80,
+                "micro_f1": 0.80,
+                "strict_f1_score": 0.80,
+                "strict_micro_f1": 0.80,
+                "strict_macro_f1": 0.80,
+                "per_field_f1": {"smiles": 0.90, "bacteria": 0.90},
+                "strict_per_field_f1": {"smiles": 0.90, "bacteria": 0.90},
+                "per_field_total": {"smiles": 10.0, "bacteria": 10.0},
+                "doc_scores": {"val_1": {"f1": 0.80, "gts": 1}},
+                "evaluated_count": 1,
+            },
+        ],
+    ):
+        s2 = graph._evaluate_val(
+            {
+                "context": ctx,
+                "val_doc_ids": ["val_1"],
+                "current_iteration": 2,
+                "val_f1_history": [0.90],
+                "raw_val_f1_history": [0.90],
+                "val_per_field_history": [{"smiles": 0.90, "bacteria": 0.90}],
+                "best_f1": 0.90,
+                "best_per_field_f1": {"smiles": 0.90, "bacteria": 0.90},
+                "best_strict_f1": 0.90,
+                "best_strict_per_field_f1": {"smiles": 0.90, "bacteria": 0.90},
+                "best_iteration": 1,
+                "best_prompt": iter1_prompt,
+                "pareto_rollback_history": [],
+            }
+        )
+    assert "best_smiles_cons" in (iter2_cons / "columns" / "smiles.json").read_text(encoding="utf-8")
+    assert (iter2_cons / "columns" / "smiles.pre_rollback.json").exists()
+    assert s2["val_f1_history"] == [0.90, 0.90]
+    assert s2["raw_val_f1_history"] == [0.90, 0.60]
+
+    # 3. Changing agent_thinking_level invalidates val_metrics.json cache on resume
+    ctx.resume = True
+    ctx.artifacts.resume = True
+    ctx.re_client.extraction_config = ExtractionConfig(
+        execution={"agent_thinking_level": "high", "structured_output_batch_size": 2},
+        model={"provider": "gemini", "model": "gemini-3.8-flash", "gemini": {"thinking_level": "high"}},
+    )
+    with patch.object(
+        graph,
+        "_evaluate_prompt_on_val",
+        side_effect=RuntimeError("Eval crashed after cache miss"),
+    ) as spy_eval:
+        s2_err = graph._evaluate_val(
+            {
+                "context": ctx,
+                "val_doc_ids": ["val_1"],
+                "current_iteration": 2,
+                "val_f1_history": [0.90],
+                "raw_val_f1_history": [0.90],
+                "val_per_field_history": [{"smiles": 0.90, "bacteria": 0.90}],
+                "best_f1": 0.90,
+                "best_per_field_f1": {"smiles": 0.90, "bacteria": 0.90},
+                "best_strict_f1": 0.90,
+                "best_strict_per_field_f1": {"smiles": 0.90, "bacteria": 0.90},
+                "best_iteration": 1,
+                "best_prompt": iter1_prompt,
+                "pareto_rollback_history": [],
+            }
+        )
+    assert spy_eval.call_count == 1
+    # On exception in iter >= 2, active prompt & iter_2 artifacts sync back to best_prompt (no base drift!)
+    assert gen_prompt_path.read_text(encoding="utf-8") == iter1_prompt
+    assert s2_err["raw_val_f1_history"] == [0.90, 0.0]
+    assert s2_err["val_f1_history"] == [0.90, 0.90]
+
+    # 4. _evaluate_prompt_on_val uses semantic_judge from LLMConfig when present
+    from types import SimpleNamespace
+    judge_cfg = LLMInstanceConfig(
+        provider="gemini",
+        model="gemini-3.7-flash",
+        max_retries=1,
+        temperature=0.0,
+        top_p=0.95,
+        enable_cache=False,
+        gemini=GeminiInstanceConfig(api_key=SecretStr("judge-key")),
+    )
+    fake_llm_cfg = SimpleNamespace(student=judge_cfg, semantic_judge=judge_cfg)
+    fake_settings = MagicMock()
+    fake_settings.syntactic_optimization.float_tolerance = 0.05
+    fake_settings.llm = fake_llm_cfg
+    fake_settings.circuit_breaker = None
+    captured_metric = {}
+
+    class SpyMetric:
+        def __init__(self, **kwargs):
+            captured_metric.update(kwargs)
+
+        def __call__(self, example, pred):
+            return 1.0
+
+    mock_ext = MagicMock()
+    mock_ext.forward.return_value = MagicMock(extracted_data={"records": [{"smiles": "CCO", "bacteria": "S. aureus"}]})
+    ctx.re_client.create_validation_extractor.return_value = mock_ext
+    with patch("ae.core.config.settings.Settings.load", return_value=fake_settings), \
+         patch("google.genai.Client", return_value=MagicMock()), \
+         patch("ae.core.evaluation.TaskMetric", SpyMetric):
+        graph._evaluate_prompt_on_val(
+            ctx=ctx,
+            val_ids=["val_1"],
+            eval_schema_path=schema_path,
+            generated_path=gen_prompt_path,
+            selection_metric="micro_f1",
+            enable_judge=True,
+        )
+    assert captured_metric["student_llm"].model == "gemini-3.7-flash"
+
+
 

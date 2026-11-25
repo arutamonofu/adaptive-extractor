@@ -60,7 +60,11 @@ semantic_optimization:
         priority_order:
           - alibaba
           - streamlake
-          - chutes/fp8
-          - deepinfra/fp8
           - morph
-          - parasail/fp8
+  # Optional fast/cheap Tier 4A worker model for per-row/per-doc extraction & visual prep
+  # tier_4a_model:
+  #   provider: "gemini"
+  #   model: "gemini-3.8-flash"
+  #   temperature: 0.0
+  #   top_p: 0.95
+  tier_4a_model: null

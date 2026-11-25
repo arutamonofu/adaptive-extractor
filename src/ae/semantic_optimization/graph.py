@@ -51,6 +51,7 @@ class SemanticOptimizationState(TypedDict, total=False):
 
     # Metrics
     val_f1_history: list[float]
+    raw_val_f1_history: list[float]
     val_per_field_history: list[dict[str, float]]
     best_f1: float
     best_per_field_f1: dict[str, float]
@@ -446,19 +447,59 @@ class SemanticOptimizationGraph:
         )
 
         student_llm = None
-        if (
-            enable_judge
-            and hasattr(ctx, "re_client")
-            and hasattr(ctx.re_client, "get_validation_client")
-        ):
-            try:
-                val_client = ctx.re_client.get_validation_client()
-                if val_client is not None and hasattr(val_client, "get_dspy_adapter"):
-                    student_llm = val_client.get_dspy_adapter()
-            except Exception as val_exc:
-                logger.warning(
-                    f"Could not resolve validation student_llm for Semantic Judge: {val_exc}"
-                )
+        if enable_judge:
+            from ae.core.config.llm_settings import LLMInstanceConfig
+            from ae.core.llm.provider import DSPyLMAdapter, create_lm
+
+            llm_cfg = getattr(settings, "llm", None) or getattr(
+                getattr(settings, "syntactic_optimization", None), "llm", None
+            )
+            judge_cfg = getattr(llm_cfg, "semantic_judge", None)
+            if isinstance(judge_cfg, LLMInstanceConfig):
+                try:
+                    cb_cfg = getattr(settings, "circuit_breaker", None)
+                    judge_lm = create_lm(
+                        judge_cfg,
+                        circuit_breaker_config=cb_cfg,
+                        enable_circuit_breaker=bool(cb_cfg is not None),
+                        enable_cache=bool(getattr(judge_cfg, "enable_cache", True)),
+                    )
+                    student_llm = DSPyLMAdapter(judge_lm)
+                except Exception as judge_exc:
+                    logger.warning(
+                        f"Could not instantiate semantic_judge LM from LLMConfig: {judge_exc}"
+                    )
+
+            if (
+                student_llm is None
+                and hasattr(ctx, "re_client")
+                and hasattr(ctx.re_client, "get_validation_client")
+            ):
+                try:
+                    val_client = ctx.re_client.get_validation_client()
+                    if val_client is not None and hasattr(val_client, "get_dspy_adapter"):
+                        student_llm = val_client.get_dspy_adapter()
+                except Exception as val_exc:
+                    logger.warning(
+                        f"Could not resolve validation student_llm for Semantic Judge: {val_exc}"
+                    )
+
+            if student_llm is None:
+                fallback_student_cfg = getattr(llm_cfg, "student", None)
+                if isinstance(fallback_student_cfg, LLMInstanceConfig):
+                    try:
+                        cb_cfg = getattr(settings, "circuit_breaker", None)
+                        student_lm = create_lm(
+                            fallback_student_cfg,
+                            circuit_breaker_config=cb_cfg,
+                            enable_circuit_breaker=bool(cb_cfg is not None),
+                            enable_cache=bool(getattr(fallback_student_cfg, "enable_cache", True)),
+                        )
+                        student_llm = DSPyLMAdapter(student_lm)
+                    except Exception as stu_exc:
+                        logger.warning(
+                            f"Could not instantiate fallback student LM for Semantic Judge: {stu_exc}"
+                        )
 
         if enable_judge and student_llm is not None:
             logger.info(
@@ -652,10 +693,12 @@ class SemanticOptimizationGraph:
 
         per_field_f1: dict[str, float] = {}
         strict_per_field_f1: dict[str, float] = {}
+        per_field_total: dict[str, float] = {}
         if can_use_detailed_report and saw_detailed_report:
             for f in compare_fields:
                 num = field_correct_sum.get(f, 0.0) + fb_field_num.get(f, 0.0)
                 den = field_total_sum.get(f, 0.0) + fb_field_den.get(f, 0.0)
+                per_field_total[f] = float(den)
                 per_field_f1[f] = (
                     round(min(1.0, max(0.0, num / den)), 6) if den > 0.0 else 1.0
                 )
@@ -675,6 +718,7 @@ class SemanticOptimizationGraph:
             "strict_macro_f1": strict_macro_f1,
             "per_field_f1": per_field_f1,
             "strict_per_field_f1": strict_per_field_f1,
+            "per_field_total": per_field_total,
             "doc_scores": doc_scores_detail,
             "evaluated_count": len(scores),
         }
@@ -707,23 +751,37 @@ class SemanticOptimizationGraph:
         best_pf: dict[str, float],
         curr_strict_pf: dict[str, float],
         best_strict_pf: dict[str, float],
+        field_totals: Optional[dict[str, float]] = None,
     ) -> list[str]:
         """Identify fields that regressed beyond threshold in semantic OR strict per-field accuracy."""
         regressed: list[str] = []
         seen: set[str] = set()
+
+        def _threshold_for(field_name: str) -> float:
+            total_val = field_totals.get(field_name) if field_totals else None
+            if (
+                isinstance(total_val, (int, float))
+                and not isinstance(total_val, bool)
+                and total_val > 0
+            ):
+                return max(self.pareto_regression_threshold, 1.0 / max(float(total_val), 1.0))
+            return self.pareto_regression_threshold
+
         for f, score_val in curr_pf.items():
+            eff_threshold = _threshold_for(f)
             if (
                 f in best_pf
-                and (score_val - best_pf[f]) < -self.pareto_regression_threshold
+                and (score_val - best_pf[f]) < -eff_threshold
             ):
                 regressed.append(f)
                 seen.add(f)
         if best_strict_pf and curr_strict_pf:
             for f, strict_val in curr_strict_pf.items():
+                eff_threshold = _threshold_for(f)
                 if (
                     f not in seen
                     and f in best_strict_pf
-                    and (strict_val - best_strict_pf[f]) < -self.pareto_regression_threshold
+                    and (strict_val - best_strict_pf[f]) < -eff_threshold
                 ):
                     regressed.append(f)
                     seen.add(f)
@@ -737,7 +795,7 @@ class SemanticOptimizationGraph:
         regressed_fields: list[str],
         eval_schema_path: Path,
     ) -> bool:
-        """Restore regressed row/column generalization artifacts and schema field specs from best_k."""
+        """Restore regressed row/column generalization & consolidation artifacts and schema field specs from best_k."""
         schema_changed = False
         artifacts_mgr = getattr(ctx, "artifacts", None)
         if artifacts_mgr is not None and hasattr(artifacts_mgr, "get_path"):
@@ -753,6 +811,15 @@ class SemanticOptimizationGraph:
                     self._copy_artifact_with_sidecars(
                         best_rows_art, curr_rows_art, backup_dst=True
                     )
+                    curr_rows_cons = artifacts_mgr.get_path(
+                        "consolidation", "", "rows.json", iteration=iter_num
+                    )
+                    best_rows_cons = artifacts_mgr.get_path(
+                        "consolidation", "", "rows.json", iteration=best_k
+                    )
+                    self._copy_artifact_with_sidecars(
+                        best_rows_cons, curr_rows_cons, backup_dst=True
+                    )
                 else:
                     col_targets.append(target)
                     curr_col_art = artifacts_mgr.get_path(
@@ -763,6 +830,15 @@ class SemanticOptimizationGraph:
                     )
                     self._copy_artifact_with_sidecars(
                         best_col_art, curr_col_art, backup_dst=True
+                    )
+                    curr_col_cons = artifacts_mgr.get_path(
+                        "consolidation", "columns", f"{target}.json", iteration=iter_num
+                    )
+                    best_col_cons = artifacts_mgr.get_path(
+                        "consolidation", "columns", f"{target}.json", iteration=best_k
+                    )
+                    self._copy_artifact_with_sidecars(
+                        best_col_cons, curr_col_cons, backup_dst=True
                     )
 
             best_schema_cand = artifacts_mgr.get_path(
@@ -870,6 +946,7 @@ class SemanticOptimizationGraph:
         """Evaluate candidate prompt on validation split with per-column Pareto Auto-Rollback."""
         if state.get("zero_delta_iteration"):
             val_history = state.get("val_f1_history", [])
+            raw_val_history = list(state.get("raw_val_f1_history", val_history))
             val_pf_history = state.get("val_per_field_history", [])
             prev_f1 = val_history[-1] if val_history else float(state.get("best_f1", 0.0))
             prev_pf = (
@@ -883,6 +960,7 @@ class SemanticOptimizationGraph:
             )
             return {
                 "val_f1_history": val_history + [prev_f1],
+                "raw_val_f1_history": raw_val_history + [prev_f1],
                 "val_per_field_history": val_pf_history + [prev_pf],
                 "best_f1": state.get("best_f1", prev_f1),
                 "best_per_field_f1": state.get("best_per_field_f1", prev_pf),
@@ -903,15 +981,19 @@ class SemanticOptimizationGraph:
             logger.info("No validation document IDs provided. Skipping validation evaluation.")
             return {
                 "val_f1_history": state["val_f1_history"] + [0.0],
+                "raw_val_f1_history": list(state.get("raw_val_f1_history", state["val_f1_history"])) + [0.0],
                 "val_per_field_history": state.get("val_per_field_history", []) + [{}],
                 "best_prompt": current_prompt or state["best_prompt"],
                 "best_iteration": state["current_iteration"],
             }
 
         f1_score = 0.0
+        raw_f1_score = 0.0
         strict_f1_score = 0.0
+        raw_strict_f1_score = 0.0
         per_field_f1: dict[str, float] = {}
         strict_per_field_f1: dict[str, float] = {}
+        per_field_total: dict[str, float] = {}
         reverted_to_best = False
         pareto_history = list(state.get("pareto_rollback_history", []))
         best_f1 = float(state.get("best_f1", 0.0))
@@ -921,13 +1003,53 @@ class SemanticOptimizationGraph:
         best_prompt = str(state.get("best_prompt", ""))
         best_iteration = int(state.get("best_iteration", 1))
         iter_num = int(state["current_iteration"])
+        eval_schema_path = Path(ctx.schema_path)
+        gen_schema_candidate = getattr(ctx, "generated_schema_path", None)
+        if gen_schema_candidate is not None and Path(gen_schema_candidate).exists():
+            eval_schema_path = Path(gen_schema_candidate)
+
+        def _is_candidate_better(
+            cand_f1: float,
+            cand_strict_f1: float,
+            cand_pf: dict[str, float],
+            cand_strict_pf: dict[str, float],
+            cand_pf_total: dict[str, float],
+            cand_prompt: str,
+        ) -> bool:
+            has_uncompensated_col_reg = bool(
+                best_per_field_f1
+                and cand_pf
+                and self._find_regressed_fields(
+                    cand_pf,
+                    best_per_field_f1,
+                    cand_strict_pf,
+                    best_strict_per_field_f1,
+                    field_totals=cand_pf_total,
+                )
+            )
+            strict_ok_for_best = (
+                not best_prompt
+                or cand_strict_f1 >= best_strict_f1 - self.pareto_regression_threshold
+            )
+            is_strictly_better_f1 = (cand_f1 > best_f1 + 1e-9) and strict_ok_for_best
+            is_tie_better = (
+                abs(cand_f1 - best_f1) <= 1e-9
+                and bool(cand_prompt)
+                and (
+                    not best_prompt
+                    or (cand_strict_f1 > best_strict_f1 + 1e-9)
+                    or (
+                        abs(cand_strict_f1 - best_strict_f1) <= 1e-9
+                        and iter_num > best_iteration
+                    )
+                )
+            )
+            return (
+                not has_uncompensated_col_reg
+                and (is_strictly_better_f1 or is_tie_better)
+            )
 
         try:
-            eval_schema_path = Path(ctx.schema_path)
-            gen_schema_candidate = getattr(ctx, "generated_schema_path", None)
-            if gen_schema_candidate is not None and Path(gen_schema_candidate).exists():
-                eval_schema_path = Path(gen_schema_candidate)
-
             enable_judge = getattr(ctx, "enable_semantic_judge", True) is not False
             selection_metric = getattr(ctx, "selection_metric", "micro_f1")
             if selection_metric not in ("micro_f1", "macro_f1"):
@@ -952,11 +1074,44 @@ class SemanticOptimizationGraph:
                 ).hexdigest()
                 for v_id in sorted(val_ids)
             }
+
+            def _safe_prim(val: Any, default: Any = None) -> Any:
+                return val if isinstance(val, (str, int, float, bool)) or val is None else default
+
             ext_model_id = ""
-            if hasattr(ctx, "re_client") and hasattr(ctx.re_client, "extraction_config"):
-                ext_cfg = ctx.re_client.extraction_config
-                if ext_cfg is not None:
-                    ext_model_id = str(getattr(ext_cfg, "model", ""))
+            agent_thinking_level = None
+            structured_output_batch_size = 0
+            judge_thinking_level = None
+            ext_cfg = (
+                getattr(ctx.re_client, "extraction_config", None)
+                if hasattr(ctx, "re_client")
+                else None
+            )
+            if ext_cfg is not None:
+                ext_model_id = str(getattr(ext_cfg, "model", ""))
+                agent_thinking_level = _safe_prim(getattr(ext_cfg, "agent_thinking_level", None))
+                structured_output_batch_size = _safe_prim(
+                    getattr(ext_cfg, "structured_output_batch_size", 0), 0
+                )
+                ext_model_spec = getattr(ext_cfg, "model", None)
+                judge_thinking_level = _safe_prim(
+                    getattr(getattr(ext_model_spec, "gemini", None), "thinking_level", None)
+                )
+            try:
+                cfg_path_raw = getattr(ctx, "config_path", None)
+                cfg_path_opt = cfg_path_raw if isinstance(cfg_path_raw, (str, Path)) else None
+                settings_opt = Settings.load(config_path=cfg_path_opt, load_env_file=False)
+                llm_cfg_opt = getattr(settings_opt, "llm", None) or getattr(
+                    getattr(settings_opt, "syntactic_optimization", None), "llm", None
+                )
+                judge_cfg_opt = getattr(llm_cfg_opt, "semantic_judge", None)
+                if judge_cfg_opt is not None:
+                    judge_thinking_level = _safe_prim(
+                        getattr(getattr(judge_cfg_opt, "gemini", None), "thinking_level", None),
+                        judge_thinking_level,
+                    )
+            except Exception:
+                pass
 
             def _compute_val_cache_key(prompt_text: str, schema_text: str) -> str:
                 return hashlib.sha256(
@@ -970,6 +1125,9 @@ class SemanticOptimizationGraph:
                             "gt_hash": gt_hash,
                             "val_md_hashes": val_md_hashes,
                             "ext_model": ext_model_id,
+                            "agent_thinking_level": agent_thinking_level,
+                            "structured_output_batch_size": structured_output_batch_size,
+                            "judge_thinking_level": judge_thinking_level,
                         },
                         sort_keys=True,
                     ).encode("utf-8")
@@ -996,14 +1154,19 @@ class SemanticOptimizationGraph:
                     cached_val = json.loads(val_cache_path.read_text(encoding="utf-8"))
                     if cached_val.get("cache_key") == val_cache_key:
                         f1_score = float(cached_val["f1_score"])
+                        raw_f1_score = float(cached_val.get("raw_f1_score", f1_score))
                         strict_f1_score = float(
                             cached_val.get(
                                 "strict_micro_f1" if selection_metric == "micro_f1" else "strict_macro_f1",
                                 f1_score,
                             )
                         )
+                        raw_strict_f1_score = float(
+                            cached_val.get("raw_strict_f1_score", strict_f1_score)
+                        )
                         per_field_f1 = dict(cached_val.get("per_field_f1", {}))
                         strict_per_field_f1 = dict(cached_val.get("strict_per_field_f1", {}))
+                        per_field_total = dict(cached_val.get("per_field_total", {}))
                         reverted_to_best = bool(
                             cached_val.get("reverted_to_best", False)
                             or ((cached_val.get("pareto_rollback") or {}).get("accepted") is False)
@@ -1025,6 +1188,7 @@ class SemanticOptimizationGraph:
                     enable_judge=enable_judge,
                 )
                 f1_score = float(eval_out["f1_score"])
+                raw_f1_score = f1_score
                 strict_f1_score = float(
                     eval_out.get(
                         "strict_f1_score",
@@ -1034,8 +1198,10 @@ class SemanticOptimizationGraph:
                         ),
                     )
                 )
+                raw_strict_f1_score = strict_f1_score
                 per_field_f1 = dict(eval_out.get("per_field_f1", {}))
                 strict_per_field_f1 = dict(eval_out.get("strict_per_field_f1", {}))
+                per_field_total = dict(eval_out.get("per_field_total", {}))
                 pareto_event: Optional[dict[str, Any]] = None
                 reverted_to_best = False
 
@@ -1047,12 +1213,14 @@ class SemanticOptimizationGraph:
                             best_per_field_f1,
                             strict_per_field_f1,
                             best_strict_per_field_f1,
+                            field_totals=per_field_total,
                         )
                         if (best_per_field_f1 and per_field_f1)
                         else []
                     )
                     row_only_regression = not regressed_fields and (
-                        f1_score < best_f1 - self.pareto_regression_threshold
+                        (f1_score < best_f1 - self.pareto_regression_threshold)
+                        or (strict_f1_score < best_strict_f1 - self.pareto_regression_threshold)
                     )
                     if regressed_fields or row_only_regression:
                         deltas = {
@@ -1133,12 +1301,14 @@ class SemanticOptimizationGraph:
                             )
                             repaired_pf = dict(repaired_out.get("per_field_f1", {}))
                             repaired_strict_pf = dict(repaired_out.get("strict_per_field_f1", {}))
+                            repaired_pf_total = dict(repaired_out.get("per_field_total", {}))
                             still_regressed = (
                                 self._find_regressed_fields(
                                     repaired_pf,
                                     best_per_field_f1,
                                     repaired_strict_pf,
                                     best_strict_per_field_f1,
+                                    field_totals=repaired_pf_total,
                                 )
                                 if (best_per_field_f1 and repaired_pf)
                                 else []
@@ -1177,6 +1347,7 @@ class SemanticOptimizationGraph:
                                 strict_f1_score = repaired_strict_f1
                                 per_field_f1 = repaired_pf
                                 strict_per_field_f1 = repaired_strict_pf
+                                per_field_total = repaired_pf_total
                             else:
                                 logger.warning(
                                     f"Iter {iter_num}: Rollback did not restore Pareto frontier "
@@ -1258,6 +1429,40 @@ class SemanticOptimizationGraph:
                         strict_per_field_f1 = dict(best_strict_per_field_f1)
                         reverted_to_best = True
 
+                # Base drift guard: if best_prompt is not updated on iter >= 2, always sync from best_k
+                if (
+                    iter_num >= 2
+                    and best_prompt
+                    and not reverted_to_best
+                    and not _is_candidate_better(
+                        f1_score,
+                        strict_f1_score,
+                        per_field_f1,
+                        strict_per_field_f1,
+                        per_field_total,
+                        current_prompt,
+                    )
+                ):
+                    logger.info(
+                        f"Iter {iter_num}: Candidate did not improve best frontier "
+                        f"(F1={f1_score:.4f}, strict={strict_f1_score:.4f} vs best={best_f1:.4f}, strict={best_strict_f1:.4f}); "
+                        f"syncing active prompt and iter_{iter_num} artifacts from iter_{best_iteration} to prevent base drift."
+                    )
+                    self._sync_iteration_generalization_from_best(
+                        ctx=ctx,
+                        iter_num=iter_num,
+                        best_k=best_iteration,
+                        best_prompt=best_prompt,
+                        eval_schema_path=eval_schema_path,
+                        generated_path=generated_path,
+                    )
+                    current_prompt = best_prompt
+                    f1_score = best_f1
+                    strict_f1_score = best_strict_f1
+                    per_field_f1 = dict(best_per_field_f1)
+                    strict_per_field_f1 = dict(best_strict_per_field_f1)
+                    reverted_to_best = True
+
                 final_schema_text = (
                     eval_schema_path.read_text(encoding="utf-8")
                     if eval_schema_path.exists()
@@ -1302,12 +1507,15 @@ class SemanticOptimizationGraph:
                                     "cache_key": val_cache_key,
                                     "selection_metric": selection_metric,
                                     "f1_score": f1_score,
+                                    "raw_f1_score": raw_f1_score,
                                     "macro_f1": eval_out["macro_f1"],
                                     "micro_f1": eval_out["micro_f1"],
                                     "strict_micro_f1": eval_out["strict_micro_f1"],
                                     "strict_macro_f1": eval_out["strict_macro_f1"],
+                                    "raw_strict_f1_score": raw_strict_f1_score,
                                     "per_field_f1": per_field_f1,
                                     "strict_per_field_f1": strict_per_field_f1,
+                                    "per_field_total": per_field_total,
                                     "doc_scores": eval_out["doc_scores"],
                                     "pareto_rollback": pareto_event,
                                     "reverted_to_best": reverted_to_best,
@@ -1321,42 +1529,42 @@ class SemanticOptimizationGraph:
 
         except Exception as e:
             logger.warning(f"Error during validation evaluation: {e}")
+            raw_f1_score = 0.0
             f1_score = 0.0
+            if iter_num >= 2 and best_prompt:
+                try:
+                    self._sync_iteration_generalization_from_best(
+                        ctx=ctx,
+                        iter_num=iter_num,
+                        best_k=best_iteration,
+                        best_prompt=best_prompt,
+                        eval_schema_path=eval_schema_path,
+                        generated_path=generated_path,
+                    )
+                except Exception as sync_exc:
+                    logger.warning(
+                        f"Iter {iter_num}: Failed to sync artifacts from iter_{best_iteration} after eval error: {sync_exc}"
+                    )
+                current_prompt = best_prompt
+                f1_score = best_f1
+                strict_f1_score = best_strict_f1
+                per_field_f1 = dict(best_per_field_f1)
+                strict_per_field_f1 = dict(best_strict_per_field_f1)
+                reverted_to_best = True
 
         new_history = state["val_f1_history"] + [f1_score]
+        new_raw_history = list(state.get("raw_val_f1_history", state["val_f1_history"])) + [
+            raw_f1_score
+        ]
         new_pf_history = state.get("val_per_field_history", []) + [per_field_f1]
 
-        has_uncompensated_col_regression = bool(
-            best_per_field_f1
-            and per_field_f1
-            and self._find_regressed_fields(
-                per_field_f1,
-                best_per_field_f1,
-                strict_per_field_f1,
-                best_strict_per_field_f1,
-            )
-        )
-        strict_ok_for_best = (
-            not best_prompt
-            or strict_f1_score >= best_strict_f1 - self.pareto_regression_threshold
-        )
-        is_strictly_better_f1 = (f1_score > best_f1 + 1e-9) and strict_ok_for_best
-        is_tie_better = (
-            abs(f1_score - best_f1) <= 1e-9
-            and bool(current_prompt)
-            and (
-                not best_prompt
-                or (strict_f1_score > best_strict_f1 + 1e-9)
-                or (
-                    abs(strict_f1_score - best_strict_f1) <= 1e-9
-                    and iter_num > best_iteration
-                )
-            )
-        )
-        if (
-            not reverted_to_best
-            and not has_uncompensated_col_regression
-            and (is_strictly_better_f1 or is_tie_better)
+        if not reverted_to_best and _is_candidate_better(
+            f1_score,
+            strict_f1_score,
+            per_field_f1,
+            strict_per_field_f1,
+            per_field_total,
+            current_prompt,
         ):
             logger.info(
                 f"Updating best validation F1 score: {f1_score:.4f} (previous: {best_f1:.4f}) "
@@ -1371,6 +1579,7 @@ class SemanticOptimizationGraph:
 
         return {
             "val_f1_history": new_history,
+            "raw_val_f1_history": new_raw_history,
             "val_per_field_history": new_pf_history,
             "best_f1": best_f1,
             "best_per_field_f1": best_per_field_f1,
@@ -1424,6 +1633,7 @@ class SemanticOptimizationGraph:
             "best_strict_f1": state.get("best_strict_f1", 0.0),
             "best_strict_per_field_f1": state.get("best_strict_per_field_f1", {}),
             "f1_history": state["val_f1_history"],
+            "raw_f1_history": state.get("raw_val_f1_history", state["val_f1_history"]),
             "per_field_history": state.get("val_per_field_history", []),
             "pareto_rollback_history": state.get("pareto_rollback_history", []),
             "train_doc_ids": state["train_doc_ids"],
@@ -1490,6 +1700,7 @@ class SemanticOptimizationGraph:
             "f1_threshold": self.f1_threshold,
             "max_tool_iterations": self.max_tool_iterations,
             "val_f1_history": [],
+            "raw_val_f1_history": [],
             "val_per_field_history": [],
             "best_f1": 0.0,
             "best_per_field_f1": {},

@@ -799,6 +799,59 @@ class TestLLMProviders:
         assert lm.cumulative_cost == pytest.approx(expected_cost)
         assert lm.history[-1]["usage"]["cost"] == pytest.approx(expected_cost)
 
+    def test_gemini_lm_includes_thoughts_tokens_in_cost(self, circuit_breaker):
+        """GeminiLM includes thoughts_token_count in billable output cost."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        from pydantic import SecretStr
+        from ae.core.config.llm_settings import LLMInstanceConfig
+        from ae.core.llm.provider import GeminiLM, MODEL_PRICING
+
+        cfg = LLMInstanceConfig(
+            provider="gemini",
+            model="gemini-3.8-flash",
+            api_key=SecretStr("test-key"),
+            max_retries=1,
+            temperature=0.0,
+            top_p=1.0,
+            enable_cache=False,
+        )
+        fake_usage = SimpleNamespace(
+            prompt_token_count=1_000_000,
+            candidates_token_count=500_000,
+            thoughts_token_count=500_000,
+            cached_content_token_count=0,
+            total_token_count=2_000_000,
+        )
+        fake_response = SimpleNamespace(text="ok", usage_metadata=fake_usage)
+        fake_client = MagicMock()
+        fake_client.models.generate_content.return_value = fake_response
+
+        with patch("google.genai.Client", return_value=fake_client):
+            lm = GeminiLM(cfg, circuit_breaker=circuit_breaker)
+            lm("ping")
+
+        expected_cost = MODEL_PRICING["gemini-3.8-flash"]["input"] + MODEL_PRICING["gemini-3.8-flash"]["output"]
+        assert lm.cumulative_cost == pytest.approx(expected_cost)
+        assert lm.history[-1]["usage"]["cost"] == pytest.approx(expected_cost)
+
+    def test_apply_prompt_caching_caches_long_human_document_message(self):
+        """Long HumanMessage document payloads in messages[1] receive ephemeral cache_control."""
+        from ae.core.llm.provider import apply_prompt_caching
+
+        long_doc = "Paragraph of scientific article. " * 100
+        messages = [
+            {"role": "system", "content": "Extract structured records."},
+            {"role": "user", "content": long_doc},
+        ]
+        cached = apply_prompt_caching(messages)
+        assert len(cached) == 2
+        assert cached[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert isinstance(cached[1]["content"], list)
+        assert cached[1]["content"][0]["type"] == "text"
+        assert cached[1]["content"][0]["text"] == long_doc
+        assert cached[1]["content"][0]["cache_control"] == {"type": "ephemeral"}
+
 
 
 

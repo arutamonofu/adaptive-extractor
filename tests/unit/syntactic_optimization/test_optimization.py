@@ -507,5 +507,80 @@ class TestOptimizeAgentDegradedMode:
         third_call_args = mock_mipro_class.call_args_list[2]
         assert third_call_args[1]["max_bootstrapped_demos"] == 0
 
+    def test_create_base_agent_and_metric_wire_student_and_semantic_judge(self, tmp_path):
+        """_create_base_agent forwards student_lm config & config_path; _create_metric uses semantic_judge_lm."""
+        from pydantic import SecretStr
+        from ae.core.config.llm_settings import GeminiInstanceConfig, LLMInstanceConfig
+        from ae.core.llm.provider import GeminiLM
+        from ae.syntactic_optimization.use_case import (
+            OptimizeAgentRequest,
+            SyntacticOptimizationUseCase,
+        )
+
+        use_case = SyntacticOptimizationUseCase(
+            dataset_builder=MagicMock(),
+            agent_manager=MagicMock(),
+        )
+        student_cfg = LLMInstanceConfig(
+            provider="gemini",
+            model="gemini-3.8-flash",
+            max_retries=1,
+            temperature=0.0,
+            top_p=0.95,
+            enable_cache=False,
+            gemini=GeminiInstanceConfig(api_key=SecretStr("test-student-key")),
+        )
+        judge_cfg = LLMInstanceConfig(
+            provider="gemini",
+            model="gemini-3.7-flash",
+            max_retries=1,
+            temperature=0.0,
+            top_p=0.95,
+            enable_cache=False,
+            gemini=GeminiInstanceConfig(api_key=SecretStr("test-judge-key")),
+        )
+        with patch("google.genai.Client", return_value=MagicMock()):
+            student_lm = GeminiLM(student_cfg)
+            judge_lm = GeminiLM(judge_cfg)
+
+        mock_task = MagicMock()
+        mock_task.config.name = "test_task"
+        mock_task.config.compare_fields = ["compound_id"]
+        mock_task.config.float_tolerance = 0.05
+        mock_task.config.field_descriptions = {"compound_id": "id"}
+        mock_task.config.field_constraints = None
+        mock_task.config.field_validators = None
+
+        cfg_dir = tmp_path / "cfg"
+        cfg_dir.mkdir()
+        request = OptimizeAgentRequest(
+            task=mock_task,
+            signature_class=MagicMock(),
+            gt_path=Path("gt.csv"),
+            split_path=Path("split.json"),
+            student_lm=student_lm,
+            semantic_judge_lm=judge_lm,
+            config_path=cfg_dir,
+            num_trials=1,
+            seed=42,
+            num_candidates=1,
+            max_bootstrapped_demos=0,
+            max_labeled_demos=0,
+            minibatch=False,
+            minibatch_size=1,
+            view_data_batch_size=1,
+            metric_threshold=1.0,
+            init_temperature=1.0,
+            max_errors=3,
+        )
+
+        agent = use_case._create_base_agent(request, request.signature_class)
+        assert agent._client is not None
+        assert agent._client.model == "gemini-3.8-flash"
+        assert agent._config_path == cfg_dir
+
+        metric = use_case._create_metric(request)
+        assert metric.matcher.student_llm.model == "gemini-3.7-flash"
+
 
 

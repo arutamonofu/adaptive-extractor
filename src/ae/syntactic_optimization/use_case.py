@@ -95,6 +95,8 @@ class OptimizeAgentRequest:
     cancel_event: Optional[Any] = None
     dry_run: bool = False
     enable_semantic_judge: bool = True
+    semantic_judge_lm: Optional[LMProvider] = None
+    config_path: Optional[Path] = None
 
 
 @dataclass
@@ -363,7 +365,35 @@ class SyntacticOptimizationUseCase:
     def _create_metric(self, request: OptimizeAgentRequest) -> TaskMetric:
         """Create evaluation metric for the task."""
         task_config = request.task.config
-        student_lm_adapter = DSPyLMAdapter(request.student_lm)
+        judge_lm = getattr(request, "semantic_judge_lm", None)
+        if judge_lm is None and getattr(request, "config_path", None) is not None:
+            try:
+                from ae.core.config.llm_settings import LLMInstanceConfig
+                from ae.core.config.settings import Settings
+                from ae.core.llm.provider import create_lm
+
+                settings = Settings.load(config_path=request.config_path, load_env_file=False)
+                llm_cfg = getattr(settings, "llm", None) or getattr(
+                    getattr(settings, "syntactic_optimization", None), "llm", None
+                )
+                judge_cfg = getattr(llm_cfg, "semantic_judge", None)
+                if isinstance(judge_cfg, LLMInstanceConfig):
+                    judge_lm = create_lm(
+                        judge_cfg,
+                        circuit_breaker_config=getattr(settings, "circuit_breaker", None),
+                        enable_circuit_breaker=bool(getattr(settings, "circuit_breaker", None)),
+                        enable_cache=bool(getattr(judge_cfg, "enable_cache", True)),
+                    )
+            except Exception as exc:
+                logger.debug(f"Could not resolve semantic_judge from config: {exc}")
+
+        if judge_lm is not None:
+            student_lm_adapter = (
+                judge_lm if isinstance(judge_lm, dspy.LM) else DSPyLMAdapter(judge_lm)
+            )
+        else:
+            student_lm_adapter = DSPyLMAdapter(request.student_lm)
+
         raw_constraints = getattr(task_config, "field_constraints", None)
         field_constraints = raw_constraints if isinstance(raw_constraints, dict) else None
         raw_validators = getattr(task_config, "field_validators", None)
@@ -385,9 +415,29 @@ class SyntacticOptimizationUseCase:
         self, request: OptimizeAgentRequest, signature_class: Any
     ) -> BaseAgent:
         """Create the base agent to optimize."""
+        from langchain_core.language_models.chat_models import BaseChatModel
+        from ae.core.config.llm_settings import LLMInstanceConfig
         from ae.extraction.agent import UniversalExtractor
+        from ae.extraction.client import ExtractionClient
 
-        return UniversalExtractor(signature_class=signature_class)
+        student_lm = request.student_lm
+        client: Optional[Any] = None
+        chat_model: Optional[Any] = None
+        if isinstance(student_lm, ExtractionClient):
+            client = student_lm
+        elif isinstance(student_lm, BaseChatModel):
+            chat_model = student_lm
+        elif isinstance(getattr(student_lm, "_config", None), LLMInstanceConfig):
+            client = ExtractionClient(config=student_lm._config)
+        elif isinstance(getattr(student_lm, "llm_config", None), LLMInstanceConfig):
+            client = ExtractionClient(config=student_lm.llm_config)
+
+        return UniversalExtractor(
+            signature_class=signature_class,
+            client=client,
+            chat_model=chat_model,
+            config_path=getattr(request, "config_path", None),
+        )
 
     def _run_optimization(
         self,

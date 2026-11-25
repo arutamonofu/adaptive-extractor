@@ -718,6 +718,44 @@ def apply_prompt_caching(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]
                     ],
                 }
             )
+        elif msg.get("role") == "user" and isinstance(content_val, str) and len(content_val) >= 1500:
+            new_messages.append(
+                {
+                    "role": msg["role"],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": content_val,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                }
+            )
+        elif msg.get("role") == "user" and isinstance(content_val, list):
+            total_text_len = sum(
+                len(b.get("text", ""))
+                for b in content_val
+                if isinstance(b, dict) and b.get("type") == "text"
+            )
+            if total_text_len >= 1500:
+                new_content = []
+                for block in content_val:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "text"
+                        and len(block.get("text", "")) >= 1500
+                        and "cache_control" not in block
+                    ):
+                        new_block = block.copy()
+                        new_block["cache_control"] = {"type": "ephemeral"}
+                        new_content.append(new_block)
+                    else:
+                        new_content.append(block)
+                new_msg = msg.copy()
+                new_msg["content"] = new_content
+                new_messages.append(new_msg)
+            else:
+                new_messages.append(msg)
         else:
             new_messages.append(msg)
 
@@ -1133,10 +1171,11 @@ class GeminiLM(BaseHTTPProvider):
             if cache_read_price is None:
                 cache_read_price = in_price * 0.1
             non_cached_prompt_tokens = max(0, prompt_tokens - cached_tokens)
+            output_billable_tokens = completion_tokens + reasoning_tokens
             cost = (
                 (non_cached_prompt_tokens * in_price)
                 + (cached_tokens * cache_read_price)
-                + (completion_tokens * out_price)
+                + (output_billable_tokens * out_price)
             ) / 1_000_000.0
             if self._config:
                 self.cumulative_cost += cost

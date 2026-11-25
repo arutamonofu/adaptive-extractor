@@ -148,6 +148,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             from ae.semantic_optimization.client import SemanticOptimizationClient
             re_client = SemanticOptimizationClient.from_settings(settings)
             re_client_container["client"] = re_client
+            tier_4a_lm = None
+            sem_cfg = getattr(settings, "semantic_optimization", None)
+            if sem_cfg is not None and getattr(sem_cfg, "tier_4a_model", None) is not None:
+                from ae.core.llm.provider import create_lm
+                tier_4a_cfg = sem_cfg.get_tier_4a_llm_config()
+                if tier_4a_cfg is not None:
+                    tier_4a_lm = create_lm(
+                        tier_4a_cfg,
+                        circuit_breaker_config=settings.circuit_breaker,
+                        enable_circuit_breaker=True,
+                        enable_cache=tier_4a_cfg.enable_cache,
+                    )
+            re_client_container["tier_4a_lm"] = tier_4a_lm
 
         def build_request(
             run_args: argparse.Namespace,
@@ -223,6 +236,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             schema_path = settings.paths.schema_file
 
             re_client = re_client_container.get("client")
+            tier_4a_lm = re_client_container.get("tier_4a_lm")
 
             return SemanticOptimizationRequest(
                 task_name=task_name,
@@ -259,6 +273,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 residual_max_fp_rows=residual_max_fp_rows,
                 pdf_dir=settings.paths.pdf_dir,
                 config_path=run_args.config,
+                tier_4a_lm=tier_4a_lm,
             )
 
         def execute_use_case(request: SemanticOptimizationRequest) -> SemanticOptimizationResponse:

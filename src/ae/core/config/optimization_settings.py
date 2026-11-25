@@ -70,6 +70,11 @@ class ExecutionConfig(BaseModel):
         default=True,
         description="Use thinking_level='low' for single-page tables while keeping configured level for multi-page tables",
     )
+    render_page_max_size: int = Field(
+        default=768,
+        ge=64,
+        description="Maximum page image dimension (px) for visual localization/manifest rendering",
+    )
 
 
 class ApiClientConfig(BaseModel):
@@ -107,6 +112,11 @@ class GeminiDefaultsConfig(BaseModel):
         default=None,
         ge=0,
         description="Max reasoning tokens budget",
+    )
+    render_page_max_size: int = Field(
+        default=768,
+        ge=64,
+        description="Maximum page image dimension (px) for visual localization/manifest rendering",
     )
 
 
@@ -325,6 +335,7 @@ class GeminiParserConfig(BaseModel):
     use_batch_api: bool = Field(default=False)
     silent_error_guard: bool = Field(default=True)
     adaptive_table_thinking: bool = Field(default=True)
+    render_page_max_size: int = Field(default=768, ge=64)
     defaults: GeminiDefaultsConfig = Field(default_factory=GeminiDefaultsConfig)
     stages: Optional[Any] = None
     crop: CropConfig = Field(default_factory=CropConfig)
@@ -411,6 +422,10 @@ class _GeminiLegacyAdapter:
     @property
     def adaptive_table_thinking(self) -> bool:
         return self._config.execution.adaptive_table_thinking
+
+    @property
+    def render_page_max_size(self) -> int:
+        return self._config.execution.render_page_max_size
 
     def get_stage_config(
         self, stage_name: str, sub_stage: Optional[str] = None
@@ -714,6 +729,10 @@ class ExtractionExecutionConfig(BaseModel):
         default=True,
         description="Enable domain-independent decoding sanity checks and retry on structured output anomalies",
     )
+    enable_record_dedup: bool = Field(
+        default=True,
+        description="Enable canonical record deduplication across structured output batches",
+    )
     agent_thinking_level: Optional[Literal["minimal", "low", "medium", "high"]] = Field(
         default="low",
         description="Thinking level override for agent tool-routing node (null uses model default)",
@@ -808,6 +827,14 @@ class ExtractionConfig(BaseModel):
     @enable_sanity_checks.setter
     def enable_sanity_checks(self, value: bool) -> None:
         self.execution.enable_sanity_checks = value
+
+    @property
+    def enable_record_dedup(self) -> bool:
+        return self.execution.enable_record_dedup
+
+    @enable_record_dedup.setter
+    def enable_record_dedup(self, value: bool) -> None:
+        self.execution.enable_record_dedup = value
 
     @property
     def agent_thinking_level(self) -> Optional[Literal["minimal", "low", "medium", "high"]]:
@@ -958,10 +985,14 @@ class SemanticOptimizationConfig(BaseModel):
         default_factory=lambda: ConfigurableModelSpec(
             provider="api",
             model="qwen/qwen3.5-397b-a17b",
-            temperature=1.0,
+            temperature=0.3,
             top_p=0.9,
         ),
         description="Model configuration for Semantic Prompt Optimization reasoning",
+    )
+    tier_4a_model: Optional[ConfigurableModelSpec] = Field(
+        default=None,
+        description="Optional Tier 4A worker model specification for per-row/per-doc analyses and visual prep",
     )
 
     @model_validator(mode="before")
@@ -1123,6 +1154,23 @@ class SemanticOptimizationConfig(BaseModel):
 
     def get_llm_config(self) -> LLMInstanceConfig:
         return self.model.to_instance_config(
+            api_client=self.api_client,
+            enable_cache=self.execution.enable_cache,
+        )
+
+    def get_tier_4a_llm_config(self) -> Optional[LLMInstanceConfig]:
+        """Return validated LLMInstanceConfig for optional Tier 4A worker model."""
+        if self.tier_4a_model is None:
+            return None
+        import os
+        from pydantic import SecretStr
+
+        spec = self.tier_4a_model.model_copy(deep=True)
+        if spec.provider == "api" and spec.api is not None and spec.api.api_key is None:
+            env_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+            if env_key:
+                spec.api.api_key = SecretStr(env_key)
+        return spec.to_instance_config(
             api_client=self.api_client,
             enable_cache=self.execution.enable_cache,
         )

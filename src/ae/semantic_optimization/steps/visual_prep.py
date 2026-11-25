@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from ae.core.llm.history_logger import extraction_log_context
 from ae.core.storage.documents import DocumentRepository
@@ -34,6 +35,37 @@ APPLY THIS STRICT TWO-TIER UNPACKING POLICY:
    - **Clearly off-target visuals**: Visuals whose irrelevance or distractor role is **already unambiguous from their manifest caption and `> description` alone** — such as clearly off-target/orthogonal experiments, routine diagnostic/calibration plots, or generic schematic illustrations. Leave these as manifest stubs; downstream negative analysis will cite their stub descriptions directly without wasting VLM compute.
 
 Call `parse_visuals` with the list of all Tier 1 `visual_ids`. If no Tier 1 visuals remain unparsed, reply ONLY with `READY`."""
+
+
+def _invoke_visual_prep_with_retry(
+    bound_model: Any,
+    messages: list[Any],
+    norm_doc_id: str,
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+) -> Any:
+    """Invoke bound visual_prep chat model with exponential backoff retry."""
+    last_exc: Optional[Exception] = None
+    attempts = max(1, int(max_attempts))
+    for attempt in range(attempts):
+        try:
+            return bound_model.invoke(messages)
+        except Exception as exc:
+            last_exc = exc
+            if attempt + 1 < attempts:
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    f"visual_prep invoke failed for '{norm_doc_id}' "
+                    f"(attempt {attempt + 1}/{attempts}): {exc}; retrying in {delay:.1f}s"
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    f"visual_prep invoke failed for '{norm_doc_id}' after {attempts} attempts: {exc}",
+                    exc_info=True,
+                )
+    assert last_exc is not None
+    raise last_exc
 
 
 def prepare_document_visuals(
@@ -175,7 +207,7 @@ def prepare_document_visuals(
                 stage="visual_prep",
                 node="prepare_document_visuals",
             ):
-                msg = bound.invoke(messages)
+                msg = _invoke_visual_prep_with_retry(bound, messages, norm_doc_id)
             tool_calls = getattr(msg, "tool_calls", None) or []
             parse_calls = [tc for tc in tool_calls if tc.get("name") == "parse_visuals"]
             if not parse_calls:
@@ -246,5 +278,8 @@ def prepare_document_visuals(
 
         return current_text
     except Exception as exc:
-        logger.warning(f"Contrastive visual preparation skipped for '{norm_doc_id}': {exc}")
+        logger.error(
+            f"Contrastive visual preparation failed for '{norm_doc_id}': {exc}",
+            exc_info=True,
+        )
         return raw_text

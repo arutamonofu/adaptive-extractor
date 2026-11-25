@@ -482,9 +482,10 @@ class TestSchemaRefinement:
         assert refined_low.fields["target_relation"].default is None
         assert refined_low.fields["target_relation"].pattern is None
 
-        # Case B: 5 distinct values across 4 docs, 4 with doc_count >= 2 and 1 rare ('<=' with doc_count=1) -> 4/5 = 0.80 >= 0.80
-        # Meanwhile assay_type has 2 values ('MIC' doc_count=4, 'IC50' doc_count=1) -> 1/2 = 0.50, blocked WITHOUT prompt mention,
-        # but allowed WITH explicit prompt mention!
+        # Case B: 5 distinct values across 4 docs, 4 with doc_count >= 2 and 1 rare ('<=' with doc_count=1).
+        # Even when multi_doc_ratio == 0.80, ungrounded dc==1 values are blocked from closed enums!
+        # Meanwhile assay_type has 2 values ('MIC' doc_count=4, 'IC50' doc_count=1), also blocked WITHOUT prompt mention,
+        # and BOTH are allowed when explicitly grounded inside their own prompt sections!
         df_rich = pd.DataFrame(
             {
                 "pdf": ["d1", "d1", "d2", "d2", "d3", "d3", "d4", "d4", "d4"],
@@ -500,7 +501,7 @@ class TestSchemaRefinement:
             compiled_columns={},
         )
         refined_no_prompt = apply_schema_refinements(base, proposal, profiles_rich, min_enum_doc_support=4)
-        assert refined_no_prompt.fields["target_relation"].choices == ["=", ">", "<", ">=", "<="]
+        assert refined_no_prompt.fields["target_relation"].choices is None
         assert refined_no_prompt.fields["target_relation"].default == "="
         assert refined_no_prompt.fields["target_relation"].pattern == r"^(?:=|>|<|>=|<=)$"
         assert refined_no_prompt.fields["assay_type"].choices is None
@@ -510,8 +511,12 @@ class TestSchemaRefinement:
             proposal,
             profiles_rich,
             min_enum_doc_support=4,
-            prompt_text="Extract assay_type as MIC or IC50.",
+            prompt_text=(
+                "TARGET_RELATION\n\nAllowed: '=', '>', '<', '>=', '<='.\n\n---\n\n"
+                "ASSAY_TYPE\n\nExtract assay_type as MIC or IC50."
+            ),
         )
+        assert refined_with_prompt.fields["target_relation"].choices == ["=", ">", "<", ">=", "<="]
         assert refined_with_prompt.fields["assay_type"].choices == ["MIC", "IC50"]
 
     def test_numeric_bounds_doc_support_gate_and_prompt_grounded_iter1_constraints(self):
@@ -637,5 +642,73 @@ class TestSchemaRefinement:
             )
 
         assert mock_predictor.call_args.kwargs["min_enum_doc_support"] == 2
+
+    def test_prompt_grounding_isolated_to_target_field_section(self):
+        """Grounding for default_value, pattern, and enum singletons must only match the target field's section."""
+        base = SchemaConfig(
+            name="antibiotics",
+            fields={
+                "target_relation": FieldSpec(type=str, required=False),
+                "target_units": FieldSpec(type=str, required=False),
+            },
+            compare_fields=["target_relation", "target_units"],
+        )
+        df_iter1 = pd.DataFrame(
+            {
+                "pdf": ["d1", "d2"],
+                "target_relation": ["=", ">"],
+                "target_units": ["ug/mL", "uM"],
+            }
+        )
+        profiles_iter1 = build_column_profiles(
+            df_gt=df_iter1,
+            schema_config=base,
+            active_norm_ids={"d1", "d2"},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        proposal = SchemaRefinementOutput(
+            fields=[
+                FieldConstraintProposal(
+                    field_name="target_relation",
+                    description="Relation operator",
+                    is_closed_enum=False,
+                    default_value="=",
+                    pattern=r"^(?:=|>|<)$",
+                )
+            ]
+        )
+
+        # Tokens for target_relation appear ONLY in TARGET_UNITS section -> must NOT ground target_relation!
+        cross_section_prompt = (
+            "Preamble\n\n---\n\n"
+            "TARGET_UNITS\n\nExtract units; ignore target_relation '=' '>' '<' default '='.\n\n---\n\n"
+            "TARGET_RELATION\n\nExtract comparison symbol if stated.\n"
+        )
+        refined_ungrounded = apply_schema_refinements(
+            base,
+            proposal,
+            profiles_iter1,
+            min_enum_doc_support=4,
+            prompt_text=cross_section_prompt,
+        )
+        assert refined_ungrounded.fields["target_relation"].default is None
+        assert refined_ungrounded.fields["target_relation"].pattern is None
+
+        # When grounded inside TARGET_RELATION section -> allowed!
+        same_section_prompt = (
+            "Preamble\n\n---\n\n"
+            "TARGET_UNITS\n\nExtract units.\n\n---\n\n"
+            "TARGET_RELATION\n\nAllowed: '=', '>', '<'. Use default '=' if omitted.\n"
+        )
+        refined_grounded = apply_schema_refinements(
+            base,
+            proposal,
+            profiles_iter1,
+            min_enum_doc_support=4,
+            prompt_text=same_section_prompt,
+        )
+        assert refined_grounded.fields["target_relation"].default == "="
+        assert refined_grounded.fields["target_relation"].pattern == r"^(?:=|>|<)$"
 
 

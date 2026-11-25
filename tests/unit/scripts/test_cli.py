@@ -489,3 +489,50 @@ class TestSemanticOptimizationCLI:
         assert len(captured_requests) == 1
         assert captured_requests[0].doc_ids == ["z_doc", "a_doc", "m_doc"]
         assert captured_requests[0].val_doc_ids == ["v_last", "v_first"]
+
+    def test_semantic_cli_wires_tier_4a_model_from_config(self, tmp_path: Path, monkeypatch):
+        """CLI wires optional semantic_optimization.tier_4a_model into SemanticOptimizationRequest.tier_4a_lm."""
+        from ae.semantic_optimization.cli import main as re_main
+
+        instruction = tmp_path / "instruction.txt"
+        instruction.write_text("Test instruction", encoding="utf-8")
+        config_dir = tmp_path / "config"
+        parsed_dir = tmp_path / "parsed"
+        parsed_dir.mkdir()
+        write_minimal_config(config_dir, parsed_dir, instruction)
+
+        splits_file = tmp_path / "splits.json"
+        splits_file.write_text('{"train": ["doc1"], "val": []}', encoding="utf-8")
+        for yml in config_dir.glob("*.yaml"):
+            data = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
+            if "paths" in data and isinstance(data["paths"], dict):
+                data["paths"]["splits_file"] = str(splits_file)
+            if "semantic_optimization" in data and isinstance(data["semantic_optimization"], dict):
+                data["semantic_optimization"]["tier_4a_model"] = {
+                    "provider": "gemini",
+                    "model": "gemini-3.8-flash",
+                    "temperature": 0.0,
+                    "top_p": 0.95,
+                }
+            yml.write_text(yaml.dump(data), encoding="utf-8")
+
+        captured_requests = []
+
+        class FakeUseCase:
+            def execute(self, request):
+                captured_requests.append(request)
+                resp = MagicMock()
+                resp.success = True
+                resp.generated_prompt_path = tmp_path / "gen.txt"
+                resp.anomalies = []
+                return resp
+
+        monkeypatch.setattr("ae.semantic_optimization.client.SemanticOptimizationClient.from_settings", lambda s: MagicMock())
+        monkeypatch.setattr("ae.semantic_optimization.cli.SemanticOptimizationUseCase", FakeUseCase)
+        with patch("google.genai.Client", return_value=MagicMock()):
+            rc = re_main(["run", "--config", str(config_dir), "--non-interactive"])
+
+        assert rc == 0
+        assert len(captured_requests) == 1
+        assert captured_requests[0].tier_4a_lm is not None
+        assert captured_requests[0].tier_4a_lm.model == "gemini-3.8-flash"
