@@ -1162,3 +1162,128 @@ class TestContour4AuditFixes:
         assert h1 == h2
         assert h1 != h3
         assert build_calls == [("assay_fresh", False), ("assay_fresh", True)]
+
+    def test_cutoff_uses_combined_score_pot_dash_case_and_field_mismatch_dup(self):
+        """Cutoff evaluates combined_score, POT normalizes dashes/case and catches dup on field_mismatch."""
+        # Cutoff on combined_score: 1 constant field (1.0) + 1 discriminative field (0.0)
+        # disc_score=0.0, uniform_score=0.5 -> combined_score=0.15 < 0.25 (split),
+        # while with threshold=0.10, combined_score=0.15 >= 0.10 keeps pair even though disc_score=0.0!
+        preds = [SimpleNamespace(id="X1", kind="MIC")]
+        gts = [
+            SimpleNamespace(id="Y1", kind="MIC"),
+            SimpleNamespace(id="Z9", kind="MIC"),
+        ]
+        m_low = RecordMatcher(
+            fields_to_compare=["id", "kind"],
+            float_tolerance=0.05,
+            min_alignment_score=0.10,
+        )
+        indexed = m_low.align_pairs_with_indices(preds, gts)
+        assert any(pi == 0 and gi is not None for pi, gi in indexed)
+
+        # POT duplicate_of_tp works when GT was matched as field_mismatch and across case/dash variants
+        preds_dup = [
+            SimpleNamespace(id="8b", t="MIC", r="=", u="ug/mL", val="10", bacteria="S. aureus—ATCC 29213"),
+            SimpleNamespace(id="8b", t="MIC", r="=", u="ug/mL", val="10", bacteria="s. aureus-atcc 29213"),
+        ]
+        gts_dup = [
+            SimpleNamespace(id="8b", t="MIC", r="=", u="ug/mL", val="999", bacteria="S. aureus-ATCC 29213"),
+        ]
+        m_dup = RecordMatcher(
+            fields_to_compare=["id", "t", "r", "u", "val", "bacteria"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+        rep = m_dup.evaluate_pairs(preds_dup, gts_dup)
+        assert len(rep["diagnostics"]["duplicate_of_tp"]) == 1
+        assert rep["diagnostics"]["duplicate_of_tp"][0]["gt_index"] == 0
+
+    def test_missing_judge_fields_not_cached_lru_eviction_token_sig_and_openrouter_format(self, caplog):
+        """Missing JSON fields count as parse failures without cache poisoning; LRU, token attrs, and response_format work."""
+        import logging
+
+        calls = []
+
+        class PartialJudgeLLM:
+            provider = "OpenRouter"
+            response_format = None
+            model = "google/gemma-4-31b-it"
+
+            def __call__(self, messages, **kwargs):
+                calls.append(kwargs)
+                if len(calls) == 1:
+                    return ['{"a": {"reasoning": "ok", "match": "YES"}}']  # Missing 'b'
+                return [
+                    '{"a": {"reasoning": "ok", "match": "YES"}, '
+                    '"b": {"reasoning": "ok", "match": "YES"}}'
+                ]
+
+        matcher = RecordMatcher(
+            fields_to_compare=["id", "a", "b"],
+            float_tolerance=0.05,
+            student_llm=PartialJudgeLLM(),
+            enable_semantic_judge=True,
+        )
+        with caplog.at_level(logging.WARNING):
+            rep1 = matcher.get_detailed_report(
+                [SimpleNamespace(id="1", a="x1", b="y1")],
+                [SimpleNamespace(id="1", a="x2", b="y2")],
+                task_name="t",
+            )
+        assert rep1["judge_parse_failures"] == 1
+        assert len(matcher._verdict_cache) == 0  # Must NOT cache incomplete response
+        assert calls[0] == {"response_format": {"type": "json_object"}}
+
+        # Second call re-queries instead of reading poisoned "NO" from cache
+        rep2 = matcher.get_detailed_report(
+            [SimpleNamespace(id="1", a="x1", b="y1")],
+            [SimpleNamespace(id="1", a="x2", b="y2")],
+            task_name="t",
+        )
+        assert len(calls) == 2
+        assert rep2["semantic_f1"] == pytest.approx(1.0)
+
+        # Batch missing field check
+        batch_calls = []
+
+        class PartialBatchLLM:
+            def __call__(self, messages, **kwargs):
+                batch_calls.append(messages)
+                return [
+                    '{"0": {"a": {"reasoning": "ok", "match": "YES"}}, '
+                    '"1": {"a": {"reasoning": "ok", "match": "YES"}, "b": {"reasoning": "ok", "match": "YES"}}}'
+                ]
+
+        m_batch = RecordMatcher(
+            fields_to_compare=["id", "a", "b"],
+            float_tolerance=0.05,
+            student_llm=PartialBatchLLM(),
+            enable_semantic_judge=True,
+            max_cache_size=2,
+        )
+        rep_b = m_batch.get_detailed_report(
+            [SimpleNamespace(id="1", a="x1", b="y1"), SimpleNamespace(id="2", a="p1", b="q1")],
+            [SimpleNamespace(id="1", a="x2", b="y2"), SimpleNamespace(id="2", a="p2", b="q2")],
+            task_name="t",
+        )
+        assert rep_b["judge_parse_failures"] == 1
+        assert len(m_batch._verdict_cache) == 1  # Only complete pair "1" cached
+
+        # LRU cache eviction bound (max_cache_size=2)
+        for idx in range(3):
+            m_batch._cache_set(m_batch._verdict_cache, ("k", idx), {"a": "YES"})
+        assert len(m_batch._verdict_cache) == 2
+        assert ("k", 0) not in m_batch._verdict_cache
+
+        # Config signature reads max_output_tokens (Gemini) and num_predict (Ollama)
+        m_gem1 = RecordMatcher(["a"], 0.05, student_llm=SimpleNamespace(model="g", max_output_tokens=1024))
+        m_gem2 = RecordMatcher(["a"], 0.05, student_llm=SimpleNamespace(model="g", max_output_tokens=4096))
+        m_oll1 = RecordMatcher(["a"], 0.05, student_llm=SimpleNamespace(model="o", num_predict=512))
+        m_oll2 = RecordMatcher(["a"], 0.05, student_llm=SimpleNamespace(model="o", num_predict=2048))
+        assert m_gem1._get_judge_config_signature() != m_gem2._get_judge_config_signature()
+        assert m_oll1._get_judge_config_signature() != m_oll2._get_judge_config_signature()
+
+        # System prompt explicitly forbids dropping ± SD and inequality signs
+        sys_prompt = m_gem1._build_judge_system_prompt("t", is_batch=False)
+        assert "0.5 ± 0.05" in sys_prompt
+        assert ">128" in sys_prompt

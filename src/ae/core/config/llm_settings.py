@@ -436,10 +436,16 @@ class LLMConfig(BaseModel):
         default=None,
         description="Teacher LLM configuration"
     )
+    semantic_judge: Optional[LLMInstanceConfig] = Field(
+        default=None,
+        description="SemanticJudge LLM configuration (defaults to student if omitted)"
+    )
 
     @model_validator(mode="after")
     def set_default_visual_extractor(self) -> "LLMConfig":
-        """Set default visual extractor configuration to student model if not provided."""
+        """Set default visual extractor and semantic judge configurations to student model if not provided."""
         if self.visual_extractor is None and self.student is not None:
             self.visual_extractor = self.student
+        if self.semantic_judge is None and self.student is not None:
+            self.semantic_judge = self.student
         return self
