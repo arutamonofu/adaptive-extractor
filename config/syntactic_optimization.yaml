@@ -71,7 +71,7 @@ syntactic_optimization:
       rate_limit_delay: 10.0
       max_retries: 5
       api:
-        max_tokens: 8192
+        max_tokens: 32768
         base_url: "https://openrouter.ai/api/v1"
         reasoning:
           enabled: true
@@ -79,7 +79,7 @@ syntactic_optimization:
         prompt_caching: true
         provider:
           require_parameter_support: true
-          allow_fallbacks: false
+          allow_fallbacks: true
           priority_order:
             - alibaba
             - streamlake

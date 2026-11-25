@@ -1742,4 +1742,133 @@ def test_case_patch_filter_and_contradiction_first_harmonization():
     assert "Apply table footnote expansions" in repaired
 
 
+def test_case_patch_normalized_jaccard_benign_tokens_and_generic_contradiction():
+    """Verify normalized/Jaccard attribution matching, relaxed operator/unit/assay tokens, and domain-agnostic contradiction audit."""
+    from ae.semantic_optimization.models import RuleAttribution
+    from ae.semantic_optimization.steps.generalization import (
+        _detect_prompt_contradictions,
+        filter_case_patch_instructions,
+        parse_prompt_sections,
+    )
+
+    # 1. Normalized & token-Jaccard fallback catches CASE_PATCH even when rule_text has formatting/minor wording drift
+    inst_paraphrased = "Replace 'CCC' with 'CCN' manually for this specific compound."
+    attrs = [
+        RuleAttribution(
+            rule_text="- replace 'CCC' with 'CCN' manually for specific compound",
+            rule_kind="CASE_PATCH",
+            supporting_doc_ids=["doc1"],
+        ),
+        # 2. Benign short operators, units, and assay tokens from 1 doc must NOT be falsely filtered
+        RuleAttribution(
+            rule_text="Normalize operator '<=' and unit 'ug/mL' for 'IC50' values.",
+            rule_kind="GENERALIZED_RULE",
+            supporting_doc_ids=["doc1"],
+        ),
+    ]
+    kept, blocked = filter_case_patch_instructions(
+        [inst_paraphrased, "Normalize operator '<=' and unit 'ug/mL' for 'IC50' values."],
+        attrs,
+        known_doc_ids={"doc1", "doc2"},
+        active_doc_count=2,
+        scope="column:target_units",
+    )
+    assert kept == ["Normalize operator '<=' and unit 'ug/mL' for 'IC50' values."]
+    assert len(blocked) == 1
+    assert blocked[0]["reason"] == "attributed_as_CASE_PATCH"
+
+    # 3. Domain-agnostic contradiction detection (non-pMIC token such as 'ic50')
+    draft = (
+        "Preamble\n\n---\n\n"
+        "RECORD SELECTION\n\nInclude ONLY records satisfying:\n- Include IC50 assays.\n\nExclude:\n- Unrelated controls.\n\n---\n\n"
+        "TARGET_TYPE\n\nDO NOT extract:\n- Exclude IC50 measurements.\n"
+    )
+    findings, involved = _detect_prompt_contradictions(
+        parse_prompt_sections(draft),
+        "",
+        ["target_type"],
+    )
+    assert len(findings) == 1
+    assert "TARGET_TYPE" in involved
+    assert "RECORD SELECTION" in involved
+
+
+def test_run_generalization_never_emits_empty_record_inclusion_section(tmp_path):
+    """When Row_Inclusion_Instructions are filtered or empty, RECORD SELECTION falls back cleanly instead of empty Include block."""
+    import pandas as pd
+    from ae.semantic_optimization.context import RunContext
+    from ae.semantic_optimization.models import (
+        ColumnInstructions,
+        GeneralizedColumnsOutput,
+        GeneralizedRowsOutput,
+        RowInstructions,
+        RuleAttribution,
+    )
+    from ae.semantic_optimization.steps.generalization import run_generalization
+
+    ingest_dir = tmp_path / "ing"
+    ingest_dir.mkdir(parents=True, exist_ok=True)
+    gt_path = tmp_path / "gt.csv"
+    pd.DataFrame({"pdf": ["doc1", "doc2"], "target_type": ["MIC", "MIC"]}).to_csv(gt_path, index=False)
+    schema_path = tmp_path / "schema.yaml"
+    schema_path.write_text(
+        "name: test\nfields:\n  target_type:\n    type: str\ncompare_fields:\n  - target_type\n",
+        encoding="utf-8",
+    )
+    baseline_path = tmp_path / "baseline.txt"
+    baseline_path.write_text("Base prompt", encoding="utf-8")
+    gen_prompt = tmp_path / "generated_instruction.txt"
+
+    ctx = RunContext(
+        task_name="test",
+        doc_ids=["doc1", "doc2"],
+        gt_path=gt_path,
+        ingestion_dir=ingest_dir,
+        baseline_prompt_path=baseline_path,
+        schema_path=schema_path,
+        teacher_lm=MagicMock(),
+        artifacts_dir=tmp_path / "art",
+        generated_prompt_path=gen_prompt,
+        harmonize_prompt=False,
+        infer_schema_constraints=False,
+        interactive=False,
+    )
+    ctx.current_iteration = 1
+
+    # Row inclusion contains ONLY a CASE_PATCH that will be stripped
+    bad_row_inst = "In doc1, include row_1 only."
+    row_out = GeneralizedRowsOutput(
+        Row_Instantiation_Trigger_generalized="One record per tested compound-assay pair.",
+        Instructions=RowInstructions(
+            Row_Inclusion_Instructions=[bad_row_inst],
+            Row_Exclusion_Instructions=["Exclude background buffers."],
+        ),
+        Rule_Attributions=[
+            RuleAttribution(
+                rule_text=bad_row_inst,
+                rule_kind="CASE_PATCH",
+                supporting_doc_ids=["doc1"],
+            )
+        ],
+    )
+    col_out = GeneralizedColumnsOutput(
+        Semantic_Core_generalized="Assay type",
+        Instructions=ColumnInstructions(Column_Inclusion_Instructions=["Extract assay type."]),
+    )
+
+    def fake_predict(sig):
+        name = getattr(sig, "__name__", str(sig))
+        if name == "RowGeneralization":
+            return lambda **kwargs: MagicMock(generalization=row_out)
+        return lambda **kwargs: MagicMock(generalization=col_out)
+
+    with patch("ae.semantic_optimization.steps.generalization.dspy.Predict", side_effect=fake_predict):
+        run_generalization(ctx)
+
+    text = gen_prompt.read_text(encoding="utf-8")
+    assert "Include ONLY records satisfying:\n- Extract one record per valid target instance matching: One record per tested compound-assay pair." in text
+    assert bad_row_inst not in text
+
+
+
 

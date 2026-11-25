@@ -73,6 +73,11 @@ _BENIGN_QUOTED_TOKENS = frozenset(
         "<",
         "≥",
         "≤",
+        "<=",
+        ">=",
+        "==",
+        "!=",
+        "~=",
         "<td>",
         "</td>",
         "<th>",
@@ -84,12 +89,123 @@ _BENIGN_QUOTED_TOKENS = frozenset(
         "<em>",
         "</em>",
         "µg/ml",
+        "ug/ml",
         "mg/l",
+        "mg/ml",
+        "ng/ml",
+        "pg/ml",
+        "mmol/l",
+        "µmol/l",
+        "umol/l",
         "mm",
         "µm",
+        "um",
+        "nm",
+        "pm",
+        "iu/ml",
+        "cfu/ml",
         "±",
+        "ic50",
+        "ec50",
+        "cc50",
+        "gi50",
+        "lc50",
+        "ld50",
+        "ki",
+        "kd",
+        "mic50",
+        "mic90",
+        "mbc",
+        "mfc",
+        "zoi",
+        "auc",
+        "nd",
+        "na",
+        "n/a",
+        "null",
+        "true",
+        "false",
+        "not detected",
+        "not tested",
+        "inactive",
     }
 )
+_OPERATOR_LITERAL_RE = re.compile(r"^[<>≤≥=~!±/%]+$")
+_UNIT_LITERAL_RE = re.compile(
+    r"^(?:[µuμnmkp]?(?:g|l|m|mol)|iu|cfu|ppm|ppb|hz|khz|mhz)(?:/[µuμnmk]?[gl]|/h|/min)?$",
+    re.IGNORECASE,
+)
+_ASSAY_LITERAL_RE = re.compile(
+    r"^(?:ic|ec|cc|gi|lc|ld|mic|mbc|mfc|ed|td)\d{1,3}$",
+    re.IGNORECASE,
+)
+
+
+def _is_benign_quoted_literal(token: str) -> bool:
+    """Return True if a quoted token is a generic operator, unit, or standard assay symbol."""
+    cleaned = token.strip()
+    low = cleaned.lower()
+    if low in _BENIGN_QUOTED_TOKENS:
+        return True
+    if _OPERATOR_LITERAL_RE.fullmatch(cleaned):
+        return True
+    if _UNIT_LITERAL_RE.fullmatch(cleaned):
+        return True
+    if _ASSAY_LITERAL_RE.fullmatch(cleaned):
+        return True
+    return False
+
+
+def _normalize_rule_text(text: str) -> str:
+    """Normalize an instruction string for resilient attribution lookup."""
+    s = (text or "").strip().lower()
+    s = re.sub(r"^(?:[-*•]+|\d+[.)])\s*", "", s)
+    s = re.sub(r"\s+", " ", s)
+    return s.rstrip(".;:, ")
+
+
+def _rule_tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9_]+", _normalize_rule_text(text)))
+
+
+def _match_rule_attribution(
+    inst: str,
+    attr_by_text: dict[str, RuleAttribution],
+    attr_by_norm: dict[str, RuleAttribution],
+    attr_tokens_list: list[tuple[set[str], RuleAttribution]],
+) -> Optional[RuleAttribution]:
+    """Match an instruction to its RuleAttribution using exact, normalized, then token-Jaccard fallback."""
+    exact = attr_by_text.get(inst.strip().lower())
+    if exact is not None:
+        return exact
+
+    norm_inst = _normalize_rule_text(inst)
+    norm_match = attr_by_norm.get(norm_inst)
+    if norm_match is not None:
+        return norm_match
+
+    inst_tokens = _rule_tokens(inst)
+    if not inst_tokens:
+        return None
+
+    best_score = 0.0
+    best_attr: Optional[RuleAttribution] = None
+    min_overlap = 2 if len(inst_tokens) >= 2 else 1
+    for cand_tokens, cand_attr in attr_tokens_list:
+        if not cand_tokens:
+            continue
+        overlap = len(inst_tokens & cand_tokens)
+        if overlap < min_overlap:
+            continue
+        union = len(inst_tokens | cand_tokens)
+        jaccard = overlap / union if union else 0.0
+        if jaccard >= 0.70 and (
+            jaccard > best_score
+            or (jaccard == best_score and cand_attr.rule_kind == "CASE_PATCH")
+        ):
+            best_score = jaccard
+            best_attr = cand_attr
+    return best_attr
 
 
 def _strip_parenthetical_examples(text: str) -> str:
@@ -133,7 +249,7 @@ def _is_case_patch_instruction(
         quoted = [
             q.strip()
             for q in _QUOTED_LITERAL_RE.findall(stripped)
-            if q.strip().lower() not in _BENIGN_QUOTED_TOKENS
+            if not _is_benign_quoted_literal(q)
         ]
         has_specific_number = bool(re.search(r"\b\d+\.\d{2,}\b|\b\d{4,}\b", stripped))
         if quoted or has_specific_number:
@@ -150,13 +266,25 @@ def filter_case_patch_instructions(
     scope: str,
 ) -> tuple[list[str], list[dict[str, str]]]:
     """Filter single-article CASE_PATCH literals out of generalized rule lists."""
-    attr_by_text: dict[str, RuleAttribution] = {
-        a.rule_text.strip().lower(): a for a in rule_attributions if a.rule_text
-    }
+    attr_by_text: dict[str, RuleAttribution] = {}
+    attr_by_norm: dict[str, RuleAttribution] = {}
+    attr_tokens_list: list[tuple[set[str], RuleAttribution]] = []
+    for a in rule_attributions:
+        if not a.rule_text:
+            continue
+        raw_k = a.rule_text.strip().lower()
+        norm_k = _normalize_rule_text(a.rule_text)
+        attr_by_text.setdefault(raw_k, a)
+        if norm_k:
+            attr_by_norm.setdefault(norm_k, a)
+        toks = _rule_tokens(a.rule_text)
+        if toks:
+            attr_tokens_list.append((toks, a))
+
     kept: list[str] = []
     blocked: list[dict[str, str]] = []
     for inst in instructions:
-        attr = attr_by_text.get(inst.strip().lower())
+        attr = _match_rule_attribution(inst, attr_by_text, attr_by_norm, attr_tokens_list)
         is_patch, reason = _is_case_patch_instruction(
             inst, attr, known_doc_ids, active_doc_count
         )
@@ -291,6 +419,36 @@ def replace_prompt_sections(
     return "\n\n---\n\n".join(updated_parts).strip() + "\n"
 
 
+_GENERIC_EXCLUDED_STOPWORDS = frozenset(
+    {
+        "any",
+        "all",
+        "the",
+        "this",
+        "that",
+        "such",
+        "other",
+        "non",
+        "records",
+        "record",
+        "rows",
+        "row",
+        "values",
+        "value",
+        "entries",
+        "entry",
+        "items",
+        "item",
+        "fields",
+        "field",
+        "data",
+        "null",
+        "empty",
+        "missing",
+    }
+)
+
+
 def _detect_prompt_contradictions(
     sections: list[tuple[str, str]],
     general_rulings: str,
@@ -306,6 +464,12 @@ def _detect_prompt_contradictions(
         tok in rulings_low
         for tok in ("without normalization", "preserve source", "format they appear", "do not normalize")
     )
+
+    rec_sel_low = sec_map.get("RECORD SELECTION", "").lower()
+    if "\nexclude:" in rec_sel_low:
+        rec_inc_low, rec_exc_low = rec_sel_low.split("\nexclude:", 1)
+    else:
+        rec_inc_low, rec_exc_low = rec_sel_low, ""
 
     for field in fields:
         f_key = field.upper()
@@ -325,12 +489,23 @@ def _detect_prompt_contradictions(
             involved_sections.add(f_key)
             involved_sections.add("EXPERT RULINGS")
 
-        if "pmic" in (sec_map.get("RECORD SELECTION", "").lower()) and "exclude pmic" in f_low:
-            findings.append(
-                f"CONFLICT [RECORD SELECTION vs {f_key}]: RECORD SELECTION includes pMIC while {f_key} excludes it."
+        if rec_inc_low:
+            excluded_terms = re.findall(
+                r"\b(?:exclude|do not extract|omit|skip)\s+([a-z0-9][a-z0-9_/-]{1,40})\b",
+                f_low,
             )
-            involved_sections.add(f_key)
-            involved_sections.add("RECORD SELECTION")
+            for term in excluded_terms:
+                if term in _GENERIC_EXCLUDED_STOPWORDS:
+                    continue
+                term_pat = rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])"
+                if re.search(term_pat, rec_inc_low) and not re.search(term_pat, rec_exc_low):
+                    findings.append(
+                        f"CONFLICT [RECORD SELECTION vs {f_key}]: RECORD SELECTION includes '{term}' "
+                        f"while {f_key} excludes it."
+                    )
+                    involved_sections.add(f_key)
+                    involved_sections.add("RECORD SELECTION")
+                    break
 
     return findings, involved_sections
 
@@ -1202,14 +1377,35 @@ def run_generalization(
     if general_rulings:
         assembled_prompt_parts.append(general_rulings)
 
-    # Record Selection rules
-    assembled_prompt_parts.append(
+    # Record Selection rules (never emit an empty Include ONLY records satisfying: block)
+    row_inc_list = [
+        inst.strip()
+        for inst in row_data.Instructions.Row_Inclusion_Instructions
+        if inst and inst.strip()
+    ]
+    if not row_inc_list:
+        trig = (row_data.Row_Instantiation_Trigger_generalized or "").strip()
+        if trig:
+            row_inc_list = [f"Extract one record per valid target instance matching: {trig}"]
+        else:
+            row_inc_list = [
+                "Extract all target records that match the extraction schema and non-conflicting baseline guidelines."
+            ]
+    row_exc_list = [
+        inst.strip()
+        for inst in row_data.Instructions.Row_Exclusion_Instructions
+        if inst and inst.strip()
+    ]
+    record_selection_text = (
         "RECORD SELECTION\n\n"
         "Include ONLY records satisfying:\n"
-        + "\n".join(f"- {inst}" for inst in row_data.Instructions.Row_Inclusion_Instructions)
-        + "\n\nExclude:\n"
-        + "\n".join(f"- {inst}" for inst in row_data.Instructions.Row_Exclusion_Instructions)
+        + "\n".join(f"- {inst}" for inst in row_inc_list)
     )
+    if row_exc_list:
+        record_selection_text += "\n\nExclude:\n" + "\n".join(
+            f"- {inst}" for inst in row_exc_list
+        )
+    assembled_prompt_parts.append(record_selection_text)
 
     # Field specific rules
     for field in fields:

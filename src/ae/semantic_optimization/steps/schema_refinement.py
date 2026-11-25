@@ -28,6 +28,25 @@ logger = logging.getLogger(__name__)
 
 _MAX_ENUM_CHOICES = 25
 _DEFAULT_MIN_ENUM_DOC_SUPPORT = 4
+_MAX_EXHAUSTIVE_DISTINCT_VALUES = 50
+
+
+def _is_value_explicit_in_prompt(value: str, prompt_text: str) -> bool:
+    """Return True if a discrete value appears explicitly in the extraction prompt."""
+    if not prompt_text or not value:
+        return False
+    val = value.strip()
+    if not val:
+        return False
+    if len(val) == 1:
+        if val.isalnum():
+            return f"'{val}'" in prompt_text or f'"{val}"' in prompt_text
+        return val in prompt_text
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", val):
+        return bool(
+            re.search(rf"(?<![A-Za-z0-9_]){re.escape(val)}(?![A-Za-z0-9_])", prompt_text)
+        )
+    return val in prompt_text
 
 
 def build_column_profiles(
@@ -144,8 +163,20 @@ def _passes_enum_doc_support_gate(
     field_name: str,
     profile: Dict[str, Any],
     min_enum_doc_support: int,
+    prompt_text: str = "",
 ) -> bool:
     """Return True if empirical document support justifies closing a string field into an enum."""
+    distinct_count = profile.get("distinct_count")
+    if (
+        profile.get("all_observed_values") is None
+        or (isinstance(distinct_count, int) and distinct_count > _MAX_EXHAUSTIVE_DISTINCT_VALUES)
+    ):
+        logger.warning(
+            f"Skipping proposed closed enum for '{field_name}': "
+            f"distinct_count={distinct_count} exceeds {_MAX_EXHAUSTIVE_DISTINCT_VALUES} or observed values unavailable"
+        )
+        return False
+
     active_docs = profile.get("active_docs_count")
     if active_docs is not None and active_docs < min_enum_doc_support:
         logger.warning(
@@ -156,14 +187,39 @@ def _passes_enum_doc_support_gate(
 
     value_doc_support = profile.get("value_doc_support")
     if isinstance(value_doc_support, dict) and value_doc_support:
-        single_doc_vals = [v for v, dc in value_doc_support.items() if dc == 1]
-        if single_doc_vals:
+        total_vals = len(value_doc_support)
+        multi_doc_count = sum(1 for dc in value_doc_support.values() if dc >= 2)
+        multi_doc_ratio = multi_doc_count / total_vals
+        unbacked_singletons = [
+            v
+            for v, dc in value_doc_support.items()
+            if dc == 1 and not _is_value_explicit_in_prompt(v, prompt_text)
+        ]
+        if unbacked_singletons and (total_vals < 2 or multi_doc_ratio < 0.8):
             logger.warning(
                 f"Skipping proposed closed enum for '{field_name}': "
-                f"observed value(s) with doc_count == 1 ({single_doc_vals[:5]}) indicate open vocabulary"
+                f"multi_doc_ratio={multi_doc_ratio:.2f} (< 0.80) with unbacked doc_count==1 value(s) "
+                f"({unbacked_singletons[:5]})"
             )
             return False
 
+    return True
+
+
+def _passes_constraint_doc_support_gate(
+    field_name: str,
+    profile: Dict[str, Any],
+    min_doc_support: int,
+    constraint_kind: str,
+) -> bool:
+    """Return True if active training document count meets min_doc_support for pattern/default constraints."""
+    active_docs = profile.get("active_docs_count")
+    if active_docs is not None and active_docs < min_doc_support:
+        logger.warning(
+            f"Skipping proposed {constraint_kind} for '{field_name}': "
+            f"active_docs_count={active_docs} < {min_doc_support} (doc_support gate)"
+        )
+        return False
     return True
 
 
@@ -172,6 +228,7 @@ def apply_schema_refinements(
     refinement: SchemaRefinementOutput,
     column_profiles: Dict[str, Dict[str, Any]],
     min_enum_doc_support: int = _DEFAULT_MIN_ENUM_DOC_SUPPORT,
+    prompt_text: str = "",
 ) -> SchemaConfig:
     """Safely merge proposed field constraints into a copy of SchemaConfig with guardrails."""
     refined = copy.deepcopy(base_config)
@@ -186,6 +243,11 @@ def apply_schema_refinements(
 
         profile = column_profiles.get(field_name, {})
         observed_values: Optional[List[str]] = profile.get("all_observed_values")
+        distinct_count = profile.get("distinct_count")
+        exceeds_exhaustive = (
+            observed_values is None
+            or (isinstance(distinct_count, int) and distinct_count > _MAX_EXHAUSTIVE_DISTINCT_VALUES)
+        )
 
         # 1. Description (only fill when missing)
         if not spec.description and proposal.description and proposal.description.strip():
@@ -201,10 +263,15 @@ def apply_schema_refinements(
             cleaned_choices = list(
                 dict.fromkeys(str(c).strip() for c in proposal.choices if str(c).strip())
             )
-            if 1 <= len(cleaned_choices) <= _MAX_ENUM_CHOICES and _passes_enum_doc_support_gate(
-                field_name, profile, min_enum_doc_support
+            if (
+                not exceeds_exhaustive
+                and observed_values is not None
+                and 1 <= len(cleaned_choices) <= _MAX_ENUM_CHOICES
+                and _passes_enum_doc_support_gate(
+                    field_name, profile, min_enum_doc_support, prompt_text=prompt_text
+                )
             ):
-                if observed_values is None or all(v in cleaned_choices for v in observed_values):
+                if all(v in cleaned_choices for v in observed_values):
                     spec.choices = cleaned_choices
                 else:
                     missing = [v for v in observed_values if v not in cleaned_choices]
@@ -212,11 +279,14 @@ def apply_schema_refinements(
                         f"Skipping proposed choices for '{field_name}': missing observed train GT values {missing}"
                     )
 
-        # 3. Default value (only for optional fields without existing default)
+        # 3. Default value (only for optional fields without existing default + doc_support gate)
         if (
             not spec.required
             and spec.default is None
             and proposal.default_value is not None
+            and _passes_constraint_doc_support_gate(
+                field_name, profile, min_enum_doc_support, "default_value"
+            )
         ):
             cand_default = str(proposal.default_value).strip()
             if cand_default:
@@ -227,19 +297,27 @@ def apply_schema_refinements(
                         f"Skipping proposed default {cand_default!r} for '{field_name}': not in choices {spec.choices}"
                     )
 
-        # 4. Regex pattern (conservative: must compile and match all observed train GT values)
+        # 4. Regex pattern (conservative: doc_support gate, full observed coverage, no >50 bypass)
         if spec.type is str and not spec.pattern and proposal.pattern:
-            try:
-                compiled_re = re.compile(proposal.pattern)
-                if observed_values is None or all(compiled_re.search(v) for v in observed_values):
-                    spec.pattern = proposal.pattern
-                else:
-                    logger.warning(
-                        f"Skipping proposed pattern {proposal.pattern!r} for '{field_name}': "
-                        "does not match all observed train GT values"
-                    )
-            except re.error as exc:
-                logger.warning(f"Skipping invalid regex pattern {proposal.pattern!r} for '{field_name}': {exc}")
+            if exceeds_exhaustive or not observed_values:
+                logger.warning(
+                    f"Skipping proposed pattern {proposal.pattern!r} for '{field_name}': "
+                    "cannot verify regex against full observed values (empty or distinct_count > 50)"
+                )
+            elif _passes_constraint_doc_support_gate(
+                field_name, profile, min_enum_doc_support, "pattern"
+            ):
+                try:
+                    compiled_re = re.compile(proposal.pattern)
+                    if all(compiled_re.search(v) for v in observed_values):
+                        spec.pattern = proposal.pattern
+                    else:
+                        logger.warning(
+                            f"Skipping proposed pattern {proposal.pattern!r} for '{field_name}': "
+                            "does not match all observed train GT values"
+                        )
+                except re.error as exc:
+                    logger.warning(f"Skipping invalid regex pattern {proposal.pattern!r} for '{field_name}': {exc}")
 
         # 5. Numeric bounds (only for int/float fields and consistent with observed values)
         if spec.type in (int, float):
@@ -329,11 +407,15 @@ def run_schema_refinement(
         if isinstance(raw_min_support, int) and raw_min_support >= 1
         else _DEFAULT_MIN_ENUM_DOC_SUPPORT
     )
+    combined_prompt_text = "\n\n".join(
+        p for p in (getattr(context, "baseline_prompt", "") or "", final_prompt or "") if p
+    )
     refined_config = apply_schema_refinements(
         base_config,
         refinement,
         column_profiles,
         min_enum_doc_support=min_support,
+        prompt_text=combined_prompt_text,
     )
     output_schema_path = Path(context.generated_schema_path).resolve()
     save_schema_to_yaml(refined_config, output_schema_path)

@@ -43,7 +43,7 @@ semantic_optimization:
   model:
     provider: "api"               # Provider: "gemini", "api" (OpenRouter/OpenAI), or "ollama"
     model: "qwen/qwen3.5-397b-a17b"
-    temperature: 1.0
+    temperature: 0.3
     top_p: 0.9
     api:
       max_tokens: 32768
@@ -54,7 +54,7 @@ semantic_optimization:
       prompt_caching: true
       provider:
         require_parameter_support: true
-        allow_fallbacks: false
+        allow_fallbacks: true
         priority_order:
           - alibaba
           - streamlake
