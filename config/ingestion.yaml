@@ -44,6 +44,7 @@ ingestion:
 
     # Stage 2: Visual placeholder classification and manifest generation (02_manifest.json)
     classify:
+      render_page_max_size: 768   # Max dimension (px) for Stage 2 page preview rendering
       model:
         provider: "gemini"
         model: "gemini-3.8-flash"
@@ -60,7 +61,7 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 8192
+        max_output_tokens: 16384
         media_resolution: "high"
         thinking_level: "low"
         thinking_budget: null
@@ -80,7 +81,7 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 16384
+        max_output_tokens: 32768
         media_resolution: "high"
         thinking_level: "medium"
         thinking_budget: null

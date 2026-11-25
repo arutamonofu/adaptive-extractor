@@ -21,7 +21,7 @@ from ae.ingestion.parsers.gemini.schemas import (
 logger = logging.getLogger(__name__)
 
 _VISUAL_BLOCK_RE = re.compile(
-    r"<visual\s+id=[\"'](?P<id>[\w.\-]+)[\"'](?:\s*/>|\s*>(?P<caption>.*?)</visual>)",
+    r"<visual\s+id=[\"'](?P<id>(?!\.\.?[\"'])[A-Za-z0-9_.-]+)[\"'](?:\s*/>|\s*>(?P<caption>.*?)</visual>)",
     re.DOTALL,
 )
 
@@ -299,9 +299,17 @@ def assemble_enriched_markdown(
 ) -> str:
     """Format and substitute all visual placeholders in Markdown with parsed content."""
     vis_by_id: dict[str, ManifestVisual] = {v.id: v for v in manifest.visuals}
+    merged_ids: set[str] = {
+        m
+        for v in manifest.visuals
+        for m in (getattr(v, "merged_from", None) or [])
+        if m not in vis_by_id
+    }
 
     def _replace_visual(match: re.Match) -> str:
         ph_id = match.group("id")
+        if ph_id in merged_ids:
+            return ""
         caption = caption_map.get(ph_id)
         if caption is None:
             raw_c = match.group("caption")
@@ -310,7 +318,10 @@ def assemble_enriched_markdown(
         visuals_list = [vis] if vis else []
         return render_placeholder_block(ph_id, caption, visuals_list, parsed_visuals)
 
-    return _VISUAL_BLOCK_RE.sub(_replace_visual, raw_md)
+    out = _VISUAL_BLOCK_RE.sub(_replace_visual, raw_md)
+    if merged_ids:
+        out = re.sub(r"\n{3,}", "\n\n", out)
+    return out
 
 
 def assemble_manifest_markdown(
@@ -323,9 +334,17 @@ def assemble_manifest_markdown(
     doc_id = artifacts.doc_name
     visuals_by_id = {v.id: v for v in manifest.visuals}
     discarded = set(manifest.discarded_ids)
+    merged_ids: set[str] = {
+        m
+        for v in manifest.visuals
+        for m in (getattr(v, "merged_from", None) or [])
+        if m not in visuals_by_id
+    }
 
     def _replace_visual(match: re.Match) -> str:
         ph_id = match.group("id")
+        if ph_id in merged_ids:
+            return ""
         caption = caption_map.get(ph_id)
         if caption is None:
             raw_c = match.group("caption")
@@ -358,6 +377,8 @@ def assemble_manifest_markdown(
         return caption.strip()
 
     body = _VISUAL_BLOCK_RE.sub(_replace_visual, raw_md)
+    if merged_ids:
+        body = re.sub(r"\n{3,}", "\n\n", body)
     doc_header = f"<!-- document_id: {doc_id} -->\n\n"
     if not body.startswith(f"<!-- document_id: {doc_id} -->"):
         return doc_header + body
@@ -429,9 +450,17 @@ def run_render(
         caption_map = {item["id"]: item.get("caption", "") for item in raw_ph}
 
     vis_by_id: dict[str, ManifestVisual] = {v.id: v for v in manifest.visuals}
+    merged_ids: set[str] = {
+        m
+        for v in manifest.visuals
+        for m in (getattr(v, "merged_from", None) or [])
+        if m not in vis_by_id
+    }
 
     def _replace_visual(match: re.Match) -> str:
         ph_id = match.group("id")
+        if ph_id in merged_ids:
+            return ""
         caption = caption_map.get(ph_id)
         if caption is None:
             raw_c = match.group("caption")
@@ -441,6 +470,8 @@ def run_render(
         return render_placeholder_block(ph_id, caption, visuals_list, parsed_visuals)
 
     enriched_md = _VISUAL_BLOCK_RE.sub(_replace_visual, raw_md)
+    if merged_ids:
+        enriched_md = re.sub(r"\n{3,}", "\n\n", enriched_md)
     doc_header = f"<!-- document_id: {artifacts.doc_name} -->\n\n"
     if not enriched_md.startswith(f"<!-- document_id: {artifacts.doc_name} -->"):
         enriched_md = doc_header + enriched_md

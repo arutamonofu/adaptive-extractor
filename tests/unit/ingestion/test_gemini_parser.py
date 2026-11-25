@@ -1171,10 +1171,10 @@ def test_render_pages_dynamic_scale(tmp_path: Path):
 
 
 def test_classify_targeted_page_preview(tmp_path: Path):
-    """Verify run_classify passes preview images for all placeholder pages (1, 2, 3) and skips non-placeholder pages (4)."""
+    """Verify run_classify passes preview images for placeholder + adjacent context pages (1..4) and skips unrelated pages (5)."""
     artifacts = ArtifactManager("test_classify_preview", base_dir=tmp_path)
-    # Pre-render dummy page images 1, 2, 3, 4
-    for p in (1, 2, 3, 4):
+    # Pre-render dummy page images 1..5
+    for p in (1, 2, 3, 4, 5):
         img_path = artifacts.pages_dir / f"p{p}.png"
         img_path.write_bytes(b"\x89PNG\r\n\x1a\nfake_image_bytes")
 
@@ -1216,17 +1216,14 @@ def test_classify_targeted_page_preview(tmp_path: Path):
     call_args = mock_client.generate_structured.call_args
     contents = call_args[0][0]
 
-    # Contents should have pages 1, 2, 3 (all placeholder pages)
-    assert "=== Page 1 ===" in contents
-    assert (artifacts.pages_dir / "p1.png") in contents
-    assert "=== Page 2 ===" in contents
-    assert (artifacts.pages_dir / "p2.png") in contents
-    assert "=== Page 3 ===" in contents
-    assert (artifacts.pages_dir / "p3.png") in contents
+    # Contents should have pages 1, 2, 3, and 4 (p+1 context for Unlabeled_p3_1)
+    for expected_p in (1, 2, 3, 4):
+        assert f"=== Page {expected_p} ===" in contents
+        assert (artifacts.pages_dir / f"p{expected_p}.png") in contents
 
-    # Page 4 has no placeholders and should NOT be in contents
-    assert "=== Page 4 ===" not in contents
-    assert (artifacts.pages_dir / "p4.png") not in contents
+    # Page 5 has no placeholders or adjacent unlabeled context and should NOT be in contents
+    assert "=== Page 5 ===" not in contents
+    assert (artifacts.pages_dir / "p5.png") not in contents
 
     # thinking_level must be passed from stage config ("low")
     assert call_args[1].get("thinking_level") == "low"

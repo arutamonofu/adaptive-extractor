@@ -31,10 +31,11 @@ logger = logging.getLogger(__name__)
 CHUNK_PAGES: Final[int] = 1
 
 _VISUAL_BLOCK_RE = re.compile(
-    r"<visual\s+id=[\"'](?P<id>[\w.\-]+)[\"'](?:\s*/>|\s*>(?P<caption>.*?)</visual>)",
+    r"<visual\s+id=[\"'](?P<id>(?!\.\.?[\"'])[A-Za-z0-9_.-]+)[\"'](?:\s*/>|\s*>(?P<caption>.*?)</visual>)",
     re.DOTALL,
 )
 _PAGE_BREAK_RE = re.compile(r"<!--\s*page_break\s*-->")
+_VALID_ID_ATTR_RE = re.compile(r"\bid\s*=\s*[\"'](?P<id>(?!\.\.?[\"'])[A-Za-z0-9_.-]+)[\"']", re.IGNORECASE)
 
 
 def _read_prompt_template() -> str:
@@ -180,13 +181,21 @@ def parse_placeholders_from_markdown(
 
         if raw_id.lower().startswith("unlabeled"):
             k = unlabeled_counts.get(visual_page, 0) + 1
-            unlabeled_counts[visual_page] = k
             unique_id = f"Unlabeled_p{visual_page}_{k}"
+            while unique_id in id_counts:
+                k += 1
+                unique_id = f"Unlabeled_p{visual_page}_{k}"
+            unlabeled_counts[visual_page] = k
+            id_counts.setdefault(unique_id, 1)
         else:
-            # Disambiguate duplicate IDs
+            # Disambiguate duplicate IDs without colliding with existing IDs
             count = id_counts.get(raw_id, 0) + 1
-            id_counts[raw_id] = count
             unique_id = raw_id if count == 1 else f"{raw_id}_dup{count}"
+            while count > 1 and unique_id in id_counts:
+                count += 1
+                unique_id = f"{raw_id}_dup{count}"
+            id_counts[raw_id] = count
+            id_counts.setdefault(unique_id, 1)
 
         item = PlaceholderItem(
             id=unique_id,
@@ -263,35 +272,78 @@ def _strip_chunk_edge_page_breaks(text: str) -> str:
     return text.strip()
 
 
-def _extract_pdf_pages_text(pdf_path: Path) -> dict[int, str]:
-    """Extract raw PyMuPDF text per 1-based page for silent-error checks."""
+def _extract_pdf_pages_metadata(pdf_path: Path) -> tuple[dict[int, str], dict[int, bool]]:
+    """Extract raw PyMuPDF text and visual content flags per 1-based page in a single pass."""
     texts: dict[int, str] = {}
-    try:
-        doc = fitz.open(pdf_path)
-        try:
-            for idx in range(len(doc)):
-                texts[idx + 1] = doc[idx].get_text() or ""
-        finally:
-            doc.close()
-    except Exception as exc:
-        logger.debug(f"Could not extract raw PDF text for silent-error check: {exc}")
-    return texts
-
-
-def _extract_pdf_pages_visual_flags(pdf_path: Path) -> dict[int, bool]:
-    """Detect per-page embedded images or vector drawings for scan-page silent-error checks."""
     flags: dict[int, bool] = {}
     try:
         doc = fitz.open(pdf_path)
         try:
             for idx in range(len(doc)):
                 page = doc[idx]
-                flags[idx + 1] = bool(page.get_images(full=False) or page.get_drawings())
+                page_num = idx + 1
+                texts[page_num] = page.get_text() or ""
+                flags[page_num] = bool(page.get_images(full=False) or page.get_drawings())
         finally:
             doc.close()
     except Exception as exc:
-        logger.debug(f"Could not inspect PDF visual flags for silent-error check: {exc}")
+        logger.debug(f"Could not extract PDF metadata for silent-error check: {exc}")
+    return texts, flags
+
+
+def _extract_pdf_pages_text(pdf_path: Path) -> dict[int, str]:
+    """Extract raw PyMuPDF text per 1-based page for silent-error checks."""
+    texts, _ = _extract_pdf_pages_metadata(pdf_path)
+    return texts
+
+
+def _extract_pdf_pages_visual_flags(pdf_path: Path) -> dict[int, bool]:
+    """Detect per-page embedded images or vector drawings for scan-page silent-error checks."""
+    _, flags = _extract_pdf_pages_metadata(pdf_path)
     return flags
+
+
+def repair_simple_visual_tags(text: str) -> str:
+    """Deterministically repair simple recoverable <visual> tag syntax errors.
+
+    Repairs tag case/whitespace (e.g. ``</visual >``, ``<VISUAL ...>``),
+    extra attributes when a valid ``id="..."`` is present, and standalone
+    angle-bracket-truncated self-closing tags (e.g. ``<visual id="Table_1"`` at EOL).
+    Does not guess arbitrary missing ``</visual>`` boundaries or rewrite invalid IDs.
+    """
+    if not text:
+        return text
+
+    # 1. Normalize closing tags like </VISUAL > -> </visual>
+    repaired = re.sub(r"</visual\s*>", "</visual>", text, flags=re.IGNORECASE)
+
+    # 2. Repair standalone line-truncated <visual ... id="VALID_ID" without '>' (self-closing)
+    def _fix_unclosed_angle(match: re.Match) -> str:
+        attrs = match.group(1)
+        id_m = _VALID_ID_ATTR_RE.search(attrs)
+        if not id_m:
+            return match.group(0)
+        return f'<visual id="{id_m.group("id")}" />'
+
+    repaired = re.sub(
+        r"(?im)^[ \t]*<visual\b([^>\n]*?)[ \t]*$",
+        _fix_unclosed_angle,
+        repaired,
+    )
+
+    # 3. Normalize <visual ...> tags that carry extra attributes or casing around a valid id
+    def _normalize_open_tag(match: re.Match) -> str:
+        full = match.group(0)
+        attrs = match.group(1)
+        id_m = _VALID_ID_ATTR_RE.search(attrs)
+        if not id_m:
+            return full
+        vis_id = id_m.group("id")
+        is_self = attrs.rstrip().endswith("/")
+        return f'<visual id="{vis_id}" />' if is_self else f'<visual id="{vis_id}">'
+
+    repaired = re.sub(r"<visual\b([^>]*)>", _normalize_open_tag, repaired, flags=re.IGNORECASE)
+    return repaired
 
 
 def is_visual_tag_silent_error(err_reason: Optional[str]) -> bool:
@@ -326,6 +378,8 @@ def assemble_parse_text_chunks(
     chunks: list[tuple[int, int, Path]],
     chunk_results: list[Optional[str]],
     artifacts: ArtifactManager,
+    *,
+    save_artifacts: bool = True,
 ) -> tuple[str, list[PlaceholderItem]]:
     """Assemble chronological chunk outputs into text.md and placeholders.json."""
     id_counts: dict[str, int] = {}
@@ -353,16 +407,21 @@ def assemble_parse_text_chunks(
         all_placeholders.extend(chunk_phs)
 
     clean_md_parts: list[str] = []
+    has_nonempty_content = False
     for (start_page, end_page, _), chunk_text in zip(chunks, clean_chunk_texts):
         cleaned = _strip_chunk_edge_page_breaks(chunk_text)
         if end_page == start_page:
             cleaned = _PAGE_BREAK_RE.sub("", cleaned).strip()
         if cleaned:
+            has_nonempty_content = True
             clean_md_parts.append(cleaned)
+        else:
+            page_span = max(1, end_page - start_page + 1)
+            clean_md_parts.append(
+                "\n\n<!-- page_break -->\n\n".join(["<!-- omitted -->"] * page_span)
+            )
 
-    clean_md = "\n\n<!-- page_break -->\n\n".join(clean_md_parts)
-
-    if not clean_md or not clean_md.strip():
+    if not has_nonempty_content:
         raise GeminiEmptyResponseError(
             stage="parse_text",
             details=(
@@ -371,11 +430,14 @@ def assemble_parse_text_chunks(
             ),
         )
 
-    artifacts.save_text(artifacts.text_md_path, clean_md)
-    artifacts.save_json(
-        artifacts.placeholders_json_path,
-        [p.model_dump() for p in all_placeholders],
-    )
+    clean_md = "\n\n<!-- page_break -->\n\n".join(clean_md_parts)
+
+    if save_artifacts:
+        artifacts.save_text(artifacts.text_md_path, clean_md)
+        artifacts.save_json(
+            artifacts.placeholders_json_path,
+            [p.model_dump() for p in all_placeholders],
+        )
     return clean_md, all_placeholders
 
 
@@ -448,6 +510,8 @@ def validate_and_retry_chunk_markdown(
     if chunk_md is not None:
         chunk_md = strip_outer_code_fences(chunk_md)
 
+    initial_was_empty = not (chunk_md and chunk_md.strip())
+
     err_reason: Optional[str] = None
     if initial_max_tokens_exc is not None:
         err_reason = f"max_tokens_truncation: {initial_max_tokens_exc}"
@@ -479,7 +543,13 @@ def validate_and_retry_chunk_markdown(
             config=config,
             temperature_override=0.5,
         )
-    except (GeminiMaxTokensError, GeminiEmptyResponseError):
+    except GeminiMaxTokensError as exc:
+        if initial_max_tokens_exc is not None:
+            raise initial_max_tokens_exc
+        if initial_was_empty:
+            raise exc
+        return chunk_md or ""
+    except GeminiEmptyResponseError:
         if initial_max_tokens_exc is not None:
             raise initial_max_tokens_exc
         return chunk_md or ""
@@ -497,6 +567,38 @@ def validate_and_retry_chunk_markdown(
     )
     if retry_err is None:
         return retry_md
+
+    if is_visual_tag_silent_error(retry_err):
+        repaired_retry = repair_simple_visual_tags(retry_md)
+        if (
+            detect_parse_text_silent_error(
+                repaired_retry,
+                pdf_page_text=raw_pdf_txt,
+                has_visual_content=has_visual_content,
+            )
+            is None
+        ):
+            logger.info(
+                f"Silent-Error Guard deterministically repaired visual tag(s) on retry for "
+                f"'{doc_name}' pages {start_page}-{end_page}."
+            )
+            return repaired_retry
+
+    if is_visual_tag_silent_error(err_reason) and chunk_md:
+        repaired_orig = repair_simple_visual_tags(chunk_md)
+        if (
+            detect_parse_text_silent_error(
+                repaired_orig,
+                pdf_page_text=raw_pdf_txt,
+                has_visual_content=has_visual_content,
+            )
+            is None
+        ):
+            logger.info(
+                f"Silent-Error Guard deterministically repaired visual tag(s) in original output for "
+                f"'{doc_name}' pages {start_page}-{end_page}."
+            )
+            return repaired_orig
 
     logger.warning(
         f"Silent-Error Guard retry for '{doc_name}' pages {start_page}-{end_page} "
@@ -540,13 +642,14 @@ def run_chunked_parse_text(
         or (artifacts.chunks_dir / f"chunk_{s}_{e}.md").stat().st_size == 0
         for s, e, _ in chunks
     )
-    page_texts = _extract_pdf_pages_text(pdf_path) if (use_guard and has_uncached) else {}
-    page_visual_flags = (
-        _extract_pdf_pages_visual_flags(pdf_path) if (use_guard and has_uncached) else {}
-    )
+    if use_guard and has_uncached:
+        page_texts, page_visual_flags = _extract_pdf_pages_metadata(pdf_path)
+    else:
+        page_texts, page_visual_flags = {}, {}
 
     max_workers = getattr(config.gemini, "max_concurrent_requests", 4)
     chunk_results: list[Optional[str]] = [None] * len(chunks)
+    unresolved_visual_errors: list[tuple[int, int, str]] = []
 
     def _process_chunk(idx: int, start_page: int, end_page: int, chunk_pdf_path: Path) -> str:
         chunk_cache_path = artifacts.chunks_dir / f"chunk_{start_page}_{end_page}.md"
@@ -625,10 +728,11 @@ def run_chunked_parse_text(
                 has_visual_content=has_visual_content,
             )
             if is_visual_tag_silent_error(final_err):
-                logger.warning(
-                    f"Stage 1 [parse_text]: Skipping cache write for '{artifacts.doc_name}' "
-                    f"pages {start_page}-{end_page} due to unresolved visual tag error ({final_err})."
+                logger.error(
+                    f"Stage 1 [parse_text]: Unresolved visual tag error on '{artifacts.doc_name}' "
+                    f"pages {start_page}-{end_page} ({final_err}); skipping chunk and stage artifact cache."
                 )
+                unresolved_visual_errors.append((start_page, end_page, str(final_err)))
                 return chunk_md
 
         atomic_write_text(chunk_cache_path, chunk_md)
@@ -651,7 +755,12 @@ def run_chunked_parse_text(
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    clean_md, all_placeholders = assemble_parse_text_chunks(chunks, chunk_results, artifacts)
+    clean_md, all_placeholders = assemble_parse_text_chunks(
+        chunks,
+        chunk_results,
+        artifacts,
+        save_artifacts=not unresolved_visual_errors,
+    )
     logger.info(
         f"Stage 1 [parse_text]: Finished chunked text parsing. "
         f"Found {len(all_placeholders)} visual placeholders across {len(chunks)} chunk(s).",
@@ -678,34 +787,42 @@ def build_parse_text_batch_specs(
     )
     specs: list[BatchRequestSpec] = []
 
-    for start_page, end_page, chunk_pdf_path in chunks:
-        chunk_cache_path = artifacts.chunks_dir / f"chunk_{start_page}_{end_page}.md"
-        if chunk_cache_path.exists() and chunk_cache_path.stat().st_size > 0:
-            continue
-        page_ctx = format_parse_text_page_context(start_page, end_page)
-        uploaded_handles: list[Any] = []
-        if _should_use_inline_pdf(config, chunk_pdf_path):
-            pdf_part = client.make_pdf_part(chunk_pdf_path)
-        else:
-            pdf_part = client.upload_file(chunk_pdf_path)
-            uploaded_handles.append(pdf_part)
-        contents = [pdf_part, page_ctx] if page_ctx else [pdf_part]
-        specs.append(
-            BatchRequestSpec(
-                key=f"{artifacts.doc_name}__chunk_{start_page}_{end_page}",
-                contents=contents,
-                stage_name="parse_text",
-                model=stage_cfg.model,
-                system_instruction=static_system_prompt,
-                max_output_tokens=stage_cfg.max_output_tokens,
-                temperature=stage_cfg.temperature,
-                media_resolution=stage_cfg.media_resolution,
-                thinking_level=stage_cfg.thinking_level,
-                thinking_budget=stage_cfg.thinking_budget,
-                doc_scope=artifacts.doc_name,
-                uploaded_handles=uploaded_handles,
+    try:
+        for start_page, end_page, chunk_pdf_path in chunks:
+            chunk_cache_path = artifacts.chunks_dir / f"chunk_{start_page}_{end_page}.md"
+            if chunk_cache_path.exists() and chunk_cache_path.stat().st_size > 0:
+                continue
+            page_ctx = format_parse_text_page_context(start_page, end_page)
+            uploaded_handles: list[Any] = []
+            if _should_use_inline_pdf(config, chunk_pdf_path):
+                pdf_part = client.make_pdf_part(chunk_pdf_path)
+            else:
+                pdf_part = client.upload_file(chunk_pdf_path)
+                uploaded_handles.append(pdf_part)
+            contents = [pdf_part, page_ctx] if page_ctx else [pdf_part]
+            specs.append(
+                BatchRequestSpec(
+                    key=f"{artifacts.doc_name}__chunk_{start_page}_{end_page}",
+                    contents=contents,
+                    stage_name="parse_text",
+                    model=stage_cfg.model,
+                    system_instruction=static_system_prompt,
+                    max_output_tokens=stage_cfg.max_output_tokens,
+                    temperature=stage_cfg.temperature,
+                    media_resolution=stage_cfg.media_resolution,
+                    thinking_level=stage_cfg.thinking_level,
+                    thinking_budget=stage_cfg.thinking_budget,
+                    doc_scope=artifacts.doc_name,
+                    uploaded_handles=uploaded_handles,
+                )
             )
-        )
+    except BaseException:
+        for spec in specs:
+            for handle in getattr(spec, "uploaded_handles", []) or []:
+                client.delete_file(handle)
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
 
     return chunks, specs, temp_dir
 

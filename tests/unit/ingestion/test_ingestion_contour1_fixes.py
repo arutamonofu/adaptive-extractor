@@ -366,16 +366,25 @@ def test_get_required_pages_case_insensitive_and_batch_spec_shared(tmp_path: Pat
         PlaceholderItem(id="unlabeled_p4_1", caption="", page=4),
         PlaceholderItem(id="Table_1", caption="T1", page=1),
     ]
-    assert get_required_pages(phs) == {1, 3, 4}
+    assert get_required_pages(phs) == {1, 3, 4, 5}
+    assert get_required_pages(phs, total_pages=4) == {1, 3, 4}
+
+    cont_phs = [
+        PlaceholderItem(id="Table_1_cont", caption="Table 1 cont.", page=4),
+        PlaceholderItem(id="Table_2_continued", caption="Table 2 continued", page=6),
+        PlaceholderItem(id="Control_1", caption="Control", page=8),
+    ]
+    assert get_required_pages(cont_phs) == {3, 4, 5, 6, 8}
 
     artifacts = ArtifactManager("req_pages", base_dir=tmp_path)
-    for p in (1, 3, 4):
+    for p in (1, 3, 4, 5):
         (artifacts.pages_dir / f"p{p}.png").write_bytes(b"png")
     cfg = IngestionConfig()
-    spec = build_manifest_visuals_batch_spec(phs, artifacts, cfg)
+    spec = build_manifest_visuals_batch_spec(phs, artifacts, cfg, total_pages=5)
     assert spec is not None
     assert "=== Page 3 ===" in spec.contents
     assert "=== Page 4 ===" in spec.contents
+    assert "=== Page 5 ===" in spec.contents
 
 
 def test_stage2_manifest_silent_error_guard_retries_at_temp_05(tmp_path: Path):
@@ -789,3 +798,252 @@ def test_ingestion_yaml_classify_thinking_level_low():
     raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
     cfg = IngestionConfig.model_validate(raw["ingestion"])
     assert cfg.stages.classify.model.thinking_level == "low"
+    assert raw["ingestion"]["stages"]["classify"]["render_page_max_size"] == 768
+    assert cfg.stages.localize.model.max_output_tokens == 16384
+    assert cfg.stages.decompose.model.max_output_tokens == 32768
+
+
+def test_parse_text_repair_id_constraints_dup_collision_empty_pages_and_max_tokens(
+    tmp_path: Path,
+):
+    from ae.core.exceptions import GeminiEmptyResponseError
+    from ae.ingestion.parsers.gemini.stages.parse_text import (
+        _extract_pdf_pages_metadata,
+        parse_placeholders_from_markdown,
+        repair_simple_visual_tags,
+    )
+
+    # 1. Narrowed visual ID regex rejects '.' and '..' and non-ASCII
+    _, dot_phs = parse_placeholders_from_markdown(
+        '<visual id="." />\n<visual id=".." />\n<visual id="Табл_1" />\n<visual id="Fig_1.a" />'
+    )
+    assert [p.id for p in dot_phs] == ["Fig_1.a"]
+
+    # 2. Collision prevention for _dupN when Fig_1_dup2 already exists
+    md_col = (
+        '<visual id="Fig_1_dup2" />\n'
+        '<visual id="Fig_1" />\n'
+        '<visual id="Fig_1" />\n'
+    )
+    clean_col, phs_col = parse_placeholders_from_markdown(md_col)
+    assert [p.id for p in phs_col] == ["Fig_1_dup2", "Fig_1", "Fig_1_dup3"]
+    assert '<visual id="Fig_1_dup3" />' in clean_col
+
+    # 3. Empty page marker preserves physical page indexing via <!-- page_break -->
+    arts_empty = ArtifactManager("empty_page_align", base_dir=tmp_path)
+    chunks = [
+        (1, 1, tmp_path / "c1.pdf"),
+        (2, 2, tmp_path / "c2.pdf"),
+        (3, 3, tmp_path / "c3.pdf"),
+    ]
+    clean_aligned, _ = assemble_parse_text_chunks(
+        chunks, ["Page 1 prose.", "<!-- page_break -->", "Page 3 prose."], arts_empty
+    )
+    pages_split = clean_aligned.split("<!-- page_break -->")
+    assert len(pages_split) == 3
+    assert "<!-- omitted -->" in pages_split[1]
+
+    # All-empty chunks still raise GeminiEmptyResponseError
+    with pytest.raises(GeminiEmptyResponseError):
+        assemble_parse_text_chunks(
+            [(1, 1, tmp_path / "c1.pdf")], ["<!-- page_break -->"], arts_empty
+        )
+
+    # 4. Deterministic repair fixes simple malformed tags (extra attrs, casing, truncated EOL)
+    repaired = repair_simple_visual_tags(
+        'Text\n<VISUAL type="table" id="Table_1" />\n<visual id="Fig_2"\n'
+    )
+    assert detect_parse_text_silent_error(repaired) is None
+    assert '<visual id="Table_1" />' in repaired
+    assert '<visual id="Fig_2" />' in repaired
+
+    # Unresolved visual tag error does NOT persist text.md / placeholders.json
+    pdf_path = _make_pdf(tmp_path / "unres.pdf", ["Page 1 scientific text."])
+    arts_unres = ArtifactManager("unres_no_persist", base_dir=tmp_path)
+    cfg = IngestionConfig(execution=ExecutionConfig(silent_error_guard=True))
+    mock_client_unres = MagicMock()
+    mock_client_unres.make_pdf_part.return_value = "pdf_part"
+    mock_client_unres.generate_text.side_effect = [
+        'Text\n<visual id="Fig_1">unclosed caption',
+        'Retry\n<visual id="Bad Space" />',
+    ]
+    run_chunked_parse_text(mock_client_unres, pdf_path, arts_unres, cfg)
+    assert arts_unres.has_parse_text_artifact() is False
+
+    # 5. Initial GeminiEmptyResponseError followed by retry GeminiMaxTokensError must NOT mask MAX_TOKENS
+    arts_mt = ArtifactManager("empty_then_max_tok", base_dir=tmp_path)
+    mock_client_mt = MagicMock()
+    mock_client_mt.make_pdf_part.return_value = "pdf_part"
+    mock_client_mt.generate_text.side_effect = [
+        GeminiEmptyResponseError(stage="parse_text"),
+        GeminiMaxTokensError(stage="parse_text"),
+    ]
+    with pytest.raises(GeminiMaxTokensError):
+        run_chunked_parse_text(mock_client_mt, pdf_path, arts_mt, cfg)
+
+    # 6. Single-pass metadata extraction
+    texts, flags = _extract_pdf_pages_metadata(pdf_path)
+    assert 1 in texts and "Page 1 scientific text." in texts[1]
+    assert flags[1] is False
+
+
+def test_silent_error_guard_prose_table_substantive_after_refs_and_1_drop():
+    # 1. Dropped prose on a table page is caught even with valid <visual>
+    dense_prose = (
+        "Compound 15 demonstrated strong antibacterial activity against MRSA strains in vitro. " * 12
+    )
+    err_table_prose = detect_parse_text_silent_error(
+        '<visual id="Table_1">Table 1. MIC values.</visual>',
+        pdf_page_text=dense_prose,
+        has_visual_content=True,
+    )
+    assert err_table_prose is not None and "silent_omission" in err_table_prose
+
+    # Pure table cell dump without prose sentences is NOT flagged
+    pure_table_dump = "\n".join(["1a | 0.25 | 4.0 | 8.0"] * 40)
+    assert (
+        detect_parse_text_silent_error(
+            '<visual id="Table_1">Table 1.</visual>',
+            pdf_page_text=pure_table_dump,
+            has_visual_content=True,
+        )
+        is None
+    )
+
+    # 2. Substantive section after References/Acknowledgments on same page is NOT boilerplate
+    refs_then_methods = "\n".join(
+        [
+            "### References",
+            "[1] Smith J. J. Med. Chem. 2020, 63, 100-110.",
+            "[2] Doe A. Eur. J. Med. Chem. 2021, 210, 112-120.",
+            "### Methods",
+            "General synthesis procedure for benzimidazole derivatives.",
+            "All reactions were carried out under inert nitrogen atmosphere.",
+        ]
+    )
+    assert _is_likely_reference_or_boilerplate_page(refs_then_methods) is False
+
+    # 3. Stage 2 manifest silent error triggers even on 1 unaccounted out of 10 placeholders
+    phs_10 = [PlaceholderItem(id=f"Fig_{i}", caption=f"F{i}", page=1) for i in range(10)]
+    raw_1_drop = Manifest(
+        visuals=[ManifestVisual(id=f"Fig_{i}", type="chart", pages=[1], description="C") for i in range(9)],
+        discarded_ids=[],
+    )
+    rec_1_drop = reconcile_manifest(raw_1_drop, phs_10)
+    err_1_drop = detect_manifest_silent_error(raw_1_drop, rec_1_drop, phs_10)
+    assert err_1_drop is not None and "high_unexpected_drop: 1/10" in err_1_drop
+
+
+def test_manifest_merged_from_reconcile_render_and_max_tokens_retry_fail(tmp_path: Path):
+    from ae.ingestion.parsers.gemini.stages.manifest_visuals import validate_and_retry_manifest
+    from ae.ingestion.parsers.gemini.stages.render_markdown import (
+        assemble_enriched_markdown,
+        assemble_manifest_markdown,
+    )
+
+    # 1. merged_from reconciliation and clean removal of continuation tag/caption
+    phs = [
+        PlaceholderItem(id="Table_1", caption="Table 1. MIC data.", page=3),
+        PlaceholderItem(id="Table_1_dup2", caption="Table 1 (continued)", page=4),
+        PlaceholderItem(id="Fig_1", caption="Photo of crystals", page=5),
+    ]
+    raw = Manifest(
+        visuals=[
+            ManifestVisual(
+                id="Table_1",
+                type="table",
+                pages=[3, 4],
+                description="MIC data for 1a-1f.",
+                merged_from=["Table_1_dup2"],
+            )
+        ],
+        discarded_ids=["Fig_1"],
+    )
+    rec = reconcile_manifest(raw, phs, total_pages=6)
+    assert rec.visuals[0].merged_from == ["Table_1_dup2"]
+    assert rec.discarded_ids == ["Fig_1"]
+    assert detect_manifest_silent_error(raw, rec, phs) is None
+
+    raw_md = (
+        "Intro text.\n\n"
+        '<visual id="Table_1">\nTable 1. MIC data.\n</visual>\n\n'
+        '<visual id="Table_1_dup2">\nTable 1 (continued)\n</visual>\n\n'
+        '<visual id="Fig_1">\nPhoto of crystals\n</visual>'
+    )
+    artifacts = ArtifactManager("merged_render", base_dir=tmp_path)
+    manifest_md = assemble_manifest_markdown(
+        raw_md, rec, {p.id: p.caption for p in phs}, artifacts
+    )
+    assert "Table 1 (continued)" not in manifest_md
+    assert "Table_1_dup2" not in manifest_md
+    assert "Photo of crystals" in manifest_md
+
+    enriched_md = assemble_enriched_markdown(
+        raw_md, rec, {}, {p.id: p.caption for p in phs}
+    )
+    assert "Table 1 (continued)" not in enriched_md
+
+    # 2. validate_and_retry_manifest raises GeminiMaxTokensError when retry after MAX_TOKENS still fails validation
+    (artifacts.pages_dir / "p3.png").write_bytes(b"png")
+    (artifacts.pages_dir / "p4.png").write_bytes(b"png")
+    (artifacts.pages_dir / "p5.png").write_bytes(b"png")
+    cfg = IngestionConfig(execution=ExecutionConfig(silent_error_guard=True))
+    mock_client = MagicMock()
+    mock_client.generate_structured.return_value = Manifest(visuals=[], discarded_ids=[])
+    with pytest.raises(GeminiMaxTokensError):
+        validate_and_retry_manifest(
+            mock_client,
+            None,
+            phs,
+            artifacts,
+            cfg,
+            total_pages=6,
+            initial_max_tokens_exc=GeminiMaxTokensError(stage="classify"),
+        )
+
+
+def test_parse_batch_cleans_up_on_prep_failure_and_no_second_render(tmp_path: Path, monkeypatch):
+    pdf1 = _make_pdf(tmp_path / "doc1.pdf", ["Doc 1 page 1"])
+    pdf2 = _make_pdf(tmp_path / "doc2.pdf", ["Doc 2 page 1"])
+    cfg = IngestionConfig(
+        ingestion_dir=tmp_path / "ing",
+        execution=ExecutionConfig(use_batch_api=True, use_inline_pdf=False),
+    )
+    monkeypatch.setattr(GeminiParser, "_resolve_api_key", staticmethod(lambda: "dummy"))
+    parser = GeminiParser(cfg)
+    mock_client = MagicMock()
+    handle1 = MagicMock(name="h1")
+    mock_client.upload_file.side_effect = [handle1, RuntimeError("upload boom")]
+    parser._client = mock_client
+
+    with pytest.raises(RuntimeError, match="upload boom"):
+        parser.parse_batch([pdf1, pdf2])
+
+    mock_client.delete_file.assert_called_once_with(handle1)
+    assert not (cfg.ingestion_dir / "doc1" / "tmp_chunks").exists()
+    assert not (cfg.ingestion_dir / "doc2" / "tmp_chunks").exists()
+
+    # Verify parse() invokes run_render_pages_with_visuals only once (for placeholders, not manifest)
+    cfg_sync = IngestionConfig(ingestion_dir=tmp_path / "ing_sync")
+    parser_sync = GeminiParser(cfg_sync)
+    parser_sync._client = MagicMock()
+    monkeypatch.setattr(
+        "ae.ingestion.parsers.gemini.parser.run_parse_text",
+        lambda *a, **kw: ('<visual id="Table_1">T1</visual>', [PlaceholderItem(id="Table_1", caption="T1", page=1)]),
+    )
+    render_calls = {"n": 0}
+    monkeypatch.setattr(
+        "ae.ingestion.parsers.gemini.parser.run_render_pages_with_visuals",
+        lambda *a, **kw: render_calls.__setitem__("n", render_calls["n"] + 1) or {1},
+    )
+    monkeypatch.setattr(
+        "ae.ingestion.parsers.gemini.parser.run_manifest_visuals",
+        lambda *a, **kw: Manifest(visuals=[ManifestVisual(id="Table_1", type="table", pages=[1, 2], description="T1")]),
+    )
+    monkeypatch.setattr(
+        "ae.ingestion.parsers.gemini.parser.run_render_manifest",
+        lambda *a, **kw: "final md",
+    )
+    out = parser_sync.parse(pdf1)
+    assert out == "final md"
+    assert render_calls["n"] == 1

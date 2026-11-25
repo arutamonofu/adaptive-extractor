@@ -52,6 +52,13 @@ class ManifestVisual(BaseModel):
         default="",
         description="Informative content sketch (compound codes, columns, axes, reactions)",
     )
+    merged_from: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Placeholder IDs from continuation/split pages that were merged into this visual "
+            "(e.g., ['Table_1_dup2', 'Unlabeled_p4_1'])."
+        ),
+    )
     panel_label: SkipJsonSchema[Optional[str]] = Field(
         default=None,
         exclude=True,
