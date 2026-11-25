@@ -39,7 +39,8 @@ _UNIT_POS_EXP_RE = re.compile(r"([A-Za-zµμ°%]+)(\d+)")
 
 _REL_PREFIX_RE = re.compile(r"^\s*(>=|<=|≥|≤|>|<|=|~|≈)\s*(.+)$")
 _STD_SPLIT_RE = re.compile(r"^(.+?)\s*(?:±|\+/-|\+-)\s*(.+)$")
-_NUM_TOKEN = r"[+-]?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?"
+_NUM_TOKEN = r"[+-]?\d+(?:[.,]\d+)*(?:[eE][+-]?\d+)?"
+_THOUSANDS_COMMA_RE = re.compile(r"^[+-]?[1-9]\d{0,2}(?:,\d{3})+(?:[eE][+-]?\d+)?$")
 _RANGE_SPLIT_RE = re.compile(
     rf"^\s*({_NUM_TOKEN})\s*(?:-|–|—|−|\.\.|to)\s*({_NUM_TOKEN})\s*$"
 )
@@ -162,26 +163,31 @@ def compare_unit_values(
 ) -> Tuple[Optional[bool], Optional[str]]:
     """Compare two unit strings via Pint dimensionality and conversion factor."""
     if not isinstance(val_a, str) or not isinstance(val_b, str):
-        return False, "invalid_unit"
+        return None, None
     u_a, err_a = _parse_pint_unit(val_a)
     u_b, err_b = _parse_pint_unit(val_b)
     if u_a is None or u_b is None or err_a is not None or err_b is not None:
-        return False, "invalid_unit"
+        # Unparseable/non-standard domain units (e.g. IU/mL, CFU/mL) escalate to SemanticJudge.
+        return None, None
 
     if u_a.dimensionality != u_b.dimensionality:
         return False, "incompatible_units"
 
     ureg = _get_unit_registry()
     try:
-        factor = float((1.0 * ureg.Quantity(1.0, u_a)).to(u_b).magnitude)
+        # Probe both 0 and 1 so offset units (°C, degC, K, degF) do not trigger OffsetUnitCalculusError.
+        val_0 = float(ureg.Quantity(0.0, u_a).to(u_b).magnitude)
+        val_1 = float(ureg.Quantity(1.0, u_a).to(u_b).magnitude)
     except Exception:
-        return False, "incompatible_units"
+        return None, None
 
-    if math.isclose(factor, 1.0, rel_tol=1e-9, abs_tol=1e-12):
+    if math.isclose(val_0, 0.0, abs_tol=1e-12) and math.isclose(
+        val_1, 1.0, rel_tol=1e-9, abs_tol=1e-12
+    ):
         return True, None
     if strict_scale:
         return False, "unit_scale_mismatch"
-    # Compatible dimensionality with non-1 scale factor (e.g. mM vs uM) may still match
+    # Compatible dimensionality with non-1 scale/offset (e.g. mM vs uM, °C vs K) may still match
     # when evaluated jointly with the coupled numeric value by SemanticJudge.
     return None, None
 
@@ -213,15 +219,26 @@ class ParsedQuantity:
 
 
 def _parse_decimal_number(token: str) -> Optional[float]:
-    """Parse numeric token supporting European decimal commas ('19,1' -> 19.1)."""
+    """Parse numeric token supporting thousands separators and European decimal commas."""
     s = token.strip().replace(" ", "").replace("\u00a0", "")
     if not s:
         return None
-    if "," in s:
-        if "." not in s and s.count(",") == 1:
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            # European format: e.g. "1.500,25"
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            # US/English format: e.g. "1,500.25"
+            s = s.replace(",", "")
+    elif "," in s:
+        if _THOUSANDS_COMMA_RE.match(s):
+            # Thousands grouping without decimal point: e.g. "1,000", "1,000,000"
+            s = s.replace(",", "")
+        elif s.count(",") == 1:
+            # Decimal comma: e.g. "19,1", "0,001"
             s = s.replace(",", ".")
         else:
-            s = s.replace(",", "")
+            return None
     try:
         val = float(s)
     except ValueError:
@@ -343,7 +360,8 @@ def compare_numeric_quantity_values(
     qa, err_a = parse_numeric_quantity(val_a)
     qb, err_b = parse_numeric_quantity(val_b)
     if qa is None or qb is None or err_a is not None or err_b is not None:
-        return False, "invalid_numeric_quantity"
+        # Non-standard expressions (e.g. "1.5 × 10⁻³", "50%", "10 (SD 2)") escalate to SemanticJudge.
+        return None, None
 
     if qa.relation != qb.relation:
         return False, "relation_mismatch"
@@ -468,6 +486,30 @@ def _record_to_dict(record: Any) -> Dict[str, Any]:
     return {}
 
 
+def _extract_referenced_names(expression: str) -> set[str]:
+    """Return identifier names referenced in a compute expression."""
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError:
+        return set()
+    return {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and isinstance(getattr(node, "ctx", None), ast.Load)
+    }
+
+
+def _has_non_scalar_referenced_variable(expression: str, variables: Dict[str, Any]) -> bool:
+    """Return True if any referenced variable in ``expression`` is None or a non-numeric string."""
+    for name in _extract_referenced_names(expression):
+        if name not in variables:
+            continue
+        coerced = _coerce_variable_value(variables[name])
+        if coerced is None or isinstance(coerced, str):
+            return True
+    return False
+
+
 def validate_compute_expression(
     value: Any,
     *,
@@ -475,6 +517,7 @@ def validate_compute_expression(
     expr: Optional[str] = None,
     when: Optional[str] = None,
     record: Optional[Any] = None,
+    _bind_value_aliases: bool = True,
     **_: Any,
 ) -> FieldValidationResult:
     """Evaluate a field or cross-column invariant expression via simpleeval."""
@@ -487,15 +530,27 @@ def validate_compute_expression(
         )
 
     variables = _record_to_dict(record)
-    variables["value"] = value
-    variables["val"] = value
-    variables["x"] = value
+    if _bind_value_aliases:
+        variables.setdefault("value", value)
+        variables.setdefault("val", value)
+        variables.setdefault("x", value)
 
     try:
         if when:
-            if not bool(evaluate_compute_expression(str(when), variables)):
+            try:
+                should_run = bool(evaluate_compute_expression(str(when), variables))
+            except TypeError:
+                if _has_non_scalar_referenced_variable(str(when), variables):
+                    return FieldValidationResult(valid=True, value=value)
+                raise
+            if not should_run:
                 return FieldValidationResult(valid=True, value=value)
-        outcome = evaluate_compute_expression(str(target_expr), variables)
+        try:
+            outcome = evaluate_compute_expression(str(target_expr), variables)
+        except TypeError:
+            if _has_non_scalar_referenced_variable(str(target_expr), variables):
+                return FieldValidationResult(valid=True, value=value)
+            raise
     except Exception as exc:
         return FieldValidationResult(
             valid=False,
@@ -526,6 +581,7 @@ def validate_record_compute_validators(
             expression=spec.params.get("expression") or spec.params.get("expr"),
             when=spec.params.get("when"),
             record=rec_dict,
+            _bind_value_aliases=False,
         )
         if not res.valid and spec.message:
             res = FieldValidationResult(valid=False, value=res.value, error=spec.message)

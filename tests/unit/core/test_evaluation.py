@@ -243,10 +243,12 @@ class TestSemanticJudgeAuditImprovements:
         assert report["recall"] < 1.0
 
     def test_verdict_cache_deduplication_and_coupled_keys(self):
-        """Identical discrepancies hit in-memory cache; differing coupled unit keys do not collide."""
+        """Identical full-context discrepancies hit cache; differing context or units do not collide."""
         calls = []
 
         class CountingLLM:
+            model = "judge-test"
+
             def __call__(self, messages, **kwargs):
                 calls.append(messages)
                 return ['{"target_value": {"reasoning": "ok", "match": "YES"}, "target_units": {"reasoning": "ok", "match": "YES"}}']
@@ -260,30 +262,36 @@ class TestSemanticJudgeAuditImprovements:
 
         preds = [
             SimpleNamespace(compound_id="C1", target_value="0.091", target_units="mM"),
-            SimpleNamespace(compound_id="C2", target_value="0.091", target_units="mM"),
+            SimpleNamespace(compound_id="C1", target_value="0.091", target_units="mM"),
         ]
         gts = [
             SimpleNamespace(compound_id="C1", target_value="91", target_units="uM"),
-            SimpleNamespace(compound_id="C2", target_value="91", target_units="uM"),
+            SimpleNamespace(compound_id="C1", target_value="91", target_units="uM"),
         ]
         report1 = matcher.get_detailed_report(preds, gts, task_name="bioassay")
         assert report1["f1"] == 1.0
-        assert len(calls) == 1  # Deduplicated across both rows in the document
+        assert len(calls) == 1  # Deduplicated across identical rows in the document
 
         # Re-evaluating across trials hits cache
         report2 = matcher.get_detailed_report(preds, gts, task_name="bioassay")
         assert report2["f1"] == 1.0
         assert len(calls) == 1
 
+        # Changing non-discrepant context field (C1 -> C2) produces a distinct cache key
+        preds_diff_ctx = [SimpleNamespace(compound_id="C2", target_value="0.091", target_units="mM")]
+        gts_diff_ctx = [SimpleNamespace(compound_id="C2", target_value="91", target_units="uM")]
+        matcher.get_detailed_report(preds_diff_ctx, gts_diff_ctx, task_name="bioassay")
+        assert len(calls) == 2
+
         # Changing coupled unit field produces a distinct cache key and triggers a new call
         preds_diff_unit = [SimpleNamespace(compound_id="C1", target_value="0.091", target_units="nM")]
         gts_diff_unit = [SimpleNamespace(compound_id="C1", target_value="91", target_units="uM")]
         matcher.get_detailed_report(preds_diff_unit, gts_diff_unit, task_name="bioassay")
-        assert len(calls) == 2
+        assert len(calls) == 3
 
         matcher.clear_cache()
         matcher.get_detailed_report(preds[:1], gts[:1], task_name="bioassay")
-        assert len(calls) == 3
+        assert len(calls) == 4
 
     def test_batch_judge_and_chunking_in_compute_stats(self):
         """Multiple distinct discrepancies in one document are batched into minimal LLM calls."""
@@ -328,7 +336,7 @@ class TestSemanticJudgeAuditImprovements:
         assert report["recall"] == pytest.approx(5 / 6)
 
     def test_batch_judge_failure_no_retry_storm_or_cache_poisoning(self):
-        """If a batched LLM call fails, matcher falls back cleanly without retrying N individual calls."""
+        """If a batched LLM call fails, matcher falls back to single-pair calls without caching {}."""
         calls = []
 
         class BrokenBatchLLM:
@@ -351,9 +359,48 @@ class TestSemanticJudgeAuditImprovements:
             SimpleNamespace(id="2", name="B"),
         ]
         report = matcher.get_detailed_report(preds, gts, task_name="test")
-        assert len(calls) == 1  # No individual fallback storm
+        assert len(calls) == 3  # 1 failed batch call + 2 single-pair fallback calls
         assert len(matcher._verdict_cache) == 0  # Failure not cached
+        assert report["judge_api_errors"] == 3
+        assert report["judge_parse_failures"] == 0
         assert report["precision"] == pytest.approx(2 / 4)
+
+    def test_batch_judge_missing_idx_no_broadcast_and_recovers_via_single_fallback(self):
+        """Flat-dict or partial batch response must never broadcast verdicts across pairs."""
+        calls = []
+
+        class MalformedBatchLLM:
+            def __call__(self, messages, **kwargs):
+                calls.append(messages)
+                user_msg = messages[1]["content"]
+                if '=== PAIR "0" ===' in user_msg:
+                    # Returns flat dict (no "0"/"1" keys) -> must NOT broadcast YES to both pairs
+                    return ['{"name": {"reasoning": "flat", "match": "YES"}}']
+                if "Alpha" in user_msg:
+                    return ['{"name": {"reasoning": "abbr", "match": "YES"}}']
+                return ['{"name": {"reasoning": "diff", "match": "NO"}}']
+
+        matcher = RecordMatcher(
+            fields_to_compare=["id", "name"],
+            float_tolerance=0.05,
+            student_llm=MalformedBatchLLM(),
+            enable_semantic_judge=True,
+        )
+        preds = [
+            SimpleNamespace(id="1", name="Alpha"),
+            SimpleNamespace(id="2", name="Beta"),
+        ]
+        gts = [
+            SimpleNamespace(id="1", name="A"),
+            SimpleNamespace(id="2", name="B"),
+        ]
+        report = matcher.get_detailed_report(preds, gts, task_name="test")
+        assert len(calls) == 3  # 1 malformed batch + 2 single-pair fallback calls
+        assert report["judge_parse_failures"] == 2
+        assert report["judge_api_errors"] == 0
+        # Pair 0 is YES, Pair 1 is NO -> TP=3 (2 ids + 1 name), FP=1, FN=1
+        assert report["precision"] == pytest.approx(3 / 4)
+        assert report["recall"] == pytest.approx(3 / 4)
 
     def test_response_cleaning_json_robustness_and_no_forced_kwargs(self):
         """Strip <think>/<thinking>/dangling </think>, handle booleans/trailing commas, avoid forced kwargs."""
@@ -812,3 +859,152 @@ class TestExp03DualMetricsCutoffAndPotDiagnostics:
         assert len(res_split["diagnostics"]["row_split"]) == 1
         assert set(res_split["diagnostics"]["row_split"][0]["pred_indices"]) == {0, 1}
         assert any(r.get("diagnostic_tag") == "row_split" for r in res_split["pair_results"])
+
+
+@pytest.mark.unit
+class TestContour4AuditFixes:
+    """Tests for P0/P1 fixes: cache key pinning, unit+numeric coordination, tolerance, and report contract."""
+
+    def test_cache_key_sensitive_to_spaces_provider_temp_thinking_and_prompt(self):
+        class LLMStub:
+            def __init__(self, model, provider, temperature, thinking_level=None, reasoning=None):
+                self.model = model
+                self.provider = provider
+                self.temperature = temperature
+                self.thinking_level = thinking_level
+                self.reasoning = reasoning
+
+        gt = {"compound_id": "1a", "bacteria": "S. aureus"}
+        pred_space = {"compound_id": "1a", "bacteria": "S. aureus"}
+        pred_nospace = {"compound_id": "1a", "bacteria": "S.aureus"}
+
+        m_base = RecordMatcher(
+            fields_to_compare=["compound_id", "bacteria"],
+            float_tolerance=0.05,
+            student_llm=LLMStub("gemma-4", "OpenRouter", 0.0, reasoning={"enabled": False}),
+        )
+        m_temp = RecordMatcher(
+            fields_to_compare=["compound_id", "bacteria"],
+            float_tolerance=0.05,
+            student_llm=LLMStub("gemma-4", "OpenRouter", 0.7, reasoning={"enabled": False}),
+        )
+        m_think = RecordMatcher(
+            fields_to_compare=["compound_id", "bacteria"],
+            float_tolerance=0.05,
+            student_llm=LLMStub("gemma-4", "OpenRouter", 0.0, reasoning={"enabled": True}),
+        )
+        m_prov = RecordMatcher(
+            fields_to_compare=["compound_id", "bacteria"],
+            float_tolerance=0.05,
+            student_llm=LLMStub("gemma-4", "Gemini", 0.0, reasoning={"enabled": False}),
+        )
+
+        k_space = m_base._make_discrepancy_cache_key("t", gt, pred_space, ["bacteria"])
+        k_nospace = m_base._make_discrepancy_cache_key("t", gt, pred_nospace, ["bacteria"])
+        assert k_space != k_nospace
+
+        assert k_space != m_temp._make_discrepancy_cache_key("t", gt, pred_space, ["bacteria"])
+        assert k_space != m_think._make_discrepancy_cache_key("t", gt, pred_space, ["bacteria"])
+        assert k_space != m_prov._make_discrepancy_cache_key("t", gt, pred_space, ["bacteria"])
+
+    def test_coupled_numeric_quantity_and_unit_escalation_to_judge(self):
+        pytest.importorskip("pint")
+        from ae.core.schema.validators import FieldValidatorSpec
+
+        calls = []
+
+        class CoupledJudgeLLM:
+            model = "judge-v1"
+
+            def __call__(self, messages, **kwargs):
+                calls.append(messages)
+                return [
+                    '{"target_value": {"reasoning": "0.5 mg/mL == 500 ug/mL", "match": "YES"}, '
+                    '"target_units": {"reasoning": "compatible concentration units", "match": "YES"}}'
+                ]
+
+        matcher = RecordMatcher(
+            fields_to_compare=["target_value", "target_units"],
+            float_tolerance=0.05,
+            student_llm=CoupledJudgeLLM(),
+            enable_semantic_judge=True,
+            field_validators={
+                "target_value": [FieldValidatorSpec(name="numeric_quantity", on_error="warn")],
+                "target_units": [FieldValidatorSpec(name="unit", on_error="warn")],
+            },
+        )
+
+        # 1. Compatible different-scale units ("mg/mL" vs "µg/mL"): must escalate BOTH fields to judge
+        rep_ok = matcher.get_detailed_report(
+            [SimpleNamespace(target_value="0.5", target_units="mg/mL")],
+            [SimpleNamespace(target_value="500", target_units="µg/mL")],
+            task_name="bioassay",
+        )
+        assert len(calls) == 1
+        assert rep_ok["semantic_f1"] == pytest.approx(1.0)
+        assert rep_ok["strict_f1"] == pytest.approx(0.0)
+
+        # 2. Incompatible units ("µM" vs "µg/mL"): deterministic NO, 0 extra judge calls
+        rep_incompat = matcher.get_detailed_report(
+            [SimpleNamespace(target_value="0.5", target_units="µM")],
+            [SimpleNamespace(target_value="500", target_units="µg/mL")],
+            task_name="bioassay",
+        )
+        assert len(calls) == 1
+        assert rep_incompat["semantic_f1"] == pytest.approx(0.0)
+
+        # 3. Same unit ("µg/mL" vs "µg/mL"), mismatched numeric value: deterministic NO, 0 extra judge calls
+        rep_same_unit = matcher.get_detailed_report(
+            [SimpleNamespace(target_value="0.5", target_units="µg/mL")],
+            [SimpleNamespace(target_value="500", target_units="µg/mL")],
+            task_name="bioassay",
+        )
+        assert len(calls) == 1
+        assert rep_same_unit["semantic_f1"] == pytest.approx(0.5)
+
+    def test_detailed_report_raw_field_counts_and_float_tolerance_forwarding(self):
+        from ae.core.schema.validators import FieldValidatorSpec
+
+        class DummyJudge:
+            model = "judge-v1"
+
+            def __call__(self, messages, **kwargs):
+                return ['{"bacteria": {"reasoning": "same", "match": "YES"}}']
+
+        matcher = RecordMatcher(
+            fields_to_compare=["val_num", "val_qty", "bacteria"],
+            float_tolerance=0.05,
+            student_llm=DummyJudge(),
+            enable_semantic_judge=True,
+            field_validators={
+                "val_qty": [FieldValidatorSpec(name="numeric_quantity", on_error="warn")],
+            },
+        )
+
+        # 10.2 vs 10.0 is 2% diff -> within float_tolerance=0.05
+        rep = matcher.get_detailed_report(
+            [SimpleNamespace(val_num=10.2, val_qty="10.2", bacteria="S. aureus")],
+            [SimpleNamespace(val_num=10.0, val_qty="10.0", bacteria="Staphylococcus aureus")],
+            task_name="bioassay",
+        )
+        assert rep["field_correct"] == {"val_num": 1, "val_qty": 1, "bacteria": 1}
+        assert rep["field_total"] == {"val_num": 1, "val_qty": 1, "bacteria": 1}
+        assert rep["strict_field_correct"] == {"val_num": 1, "val_qty": 1, "bacteria": 0}
+        assert rep["strict_field_total"] == {"val_num": 1, "val_qty": 1, "bacteria": 1}
+        assert rep["judge_parse_failures"] == 0
+        assert rep["judge_api_errors"] == 0
+
+        # Tight tolerance (0.0) rejects 10.2 vs 10.0
+        matcher_tight = RecordMatcher(
+            fields_to_compare=["val_num", "val_qty"],
+            float_tolerance=0.0,
+            enable_semantic_judge=False,
+            field_validators={
+                "val_qty": [FieldValidatorSpec(name="numeric_quantity", on_error="warn")],
+            },
+        )
+        rep_tight = matcher_tight.get_detailed_report(
+            [SimpleNamespace(val_num=10.2, val_qty="10.2")],
+            [SimpleNamespace(val_num=10.0, val_qty="10.0")],
+        )
+        assert rep_tight["strict_f1"] == pytest.approx(0.0)

@@ -682,6 +682,55 @@ class TestLLMProviders:
         assert usage["total_tokens"] == 625
         assert isinstance(usage["cost"], float) and usage["cost"] > 0
 
+    def test_openrouter_rate_limiter_keyed_by_base_url_and_model(self, circuit_breaker):
+        """Different models on OpenRouter must not share or overwrite each other's RateLimiter."""
+        from ae.core.config.llm_settings import ApiConfig, LLMInstanceConfig
+
+        cfg_qwen = LLMInstanceConfig(
+            provider="api",
+            model="qwen/qwen3.5-397b-a17b",
+            timeout=60,
+            max_retries=1,
+            temperature=0.0,
+            rate_limit_delay=10.0,
+            top_p=1.0,
+            enable_cache=False,
+            api=ApiConfig(max_tokens=256, api_key="sk-test", base_url="https://openrouter.ai/api/v1"),
+        )
+        cfg_gemma = LLMInstanceConfig(
+            provider="api",
+            model="google/gemma-4-31b-it",
+            timeout=60,
+            max_retries=1,
+            temperature=0.0,
+            rate_limit_delay=0.25,
+            top_p=1.0,
+            enable_cache=False,
+            api=ApiConfig(max_tokens=256, api_key="sk-test", base_url="https://openrouter.ai/api/v1"),
+        )
+        cfg_gemma_2 = cfg_gemma.model_copy(deep=True)
+
+        lm_qwen = OpenRouterLM(cfg_qwen, circuit_breaker=circuit_breaker)
+        lm_gemma_1 = OpenRouterLM(cfg_gemma, circuit_breaker=circuit_breaker)
+        lm_gemma_2 = OpenRouterLM(cfg_gemma_2, circuit_breaker=circuit_breaker)
+
+        assert lm_qwen._rate_limiter is not lm_gemma_1._rate_limiter
+        assert lm_qwen._rate_limiter.delay == 10.0
+        assert lm_gemma_1._rate_limiter.delay == 0.25
+        assert lm_gemma_1._rate_limiter is lm_gemma_2._rate_limiter
+
+    def test_openrouter_response_format_in_payload(self, openrouter_config, circuit_breaker):
+        """Optional response_format is forwarded in OpenRouterLM._prepare_payload."""
+        lm = OpenRouterLM(openrouter_config, circuit_breaker=circuit_breaker)
+        default_payload = lm._prepare_payload([{"role": "user", "content": "hi"}])
+        assert "response_format" not in default_payload
+
+        json_payload = lm._prepare_payload(
+            [{"role": "user", "content": "hi"}],
+            response_format={"type": "json_object"},
+        )
+        assert json_payload["response_format"] == {"type": "json_object"}
+
 
 
 
