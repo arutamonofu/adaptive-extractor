@@ -28,10 +28,26 @@ ProvenanceStatus = Literal["verified_exact", "unverified_valid", "mismatch_flagg
 
 _SUBSCRIPT_TRANSLATION = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
 _FORMULA_ELEMENT_RE = re.compile(r"([A-Z][a-z]?)(\d*)")
+_FORMULA_FULL_RE = re.compile(r"^(?:[A-Z][a-z]?\d*)+$")
+_VALID_ELEMENTS = frozenset({
+    "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+    "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca",
+    "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
+    "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr",
+    "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn",
+    "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd",
+    "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb",
+    "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg",
+    "Tl", "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th",
+    "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm",
+    "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds",
+    "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og", "D", "T",
+})
 _FORMULA_CANDIDATE_RE = re.compile(
-    r"(?:HRMS|ESI-?MS|MS|Anal\.?\s*Calcd\.?(?:\s+for)?|Calcd\.?\s+for|Molecular\s+Formula)"
-    r"(?:[^.\n;]|\.(?=\d)){0,80}?([A-Z][A-Za-z0-9_{}\\]*H\d+[A-Za-z0-9_{}\\]*)",
-    re.IGNORECASE,
+    r"(?i:\b(?:HRMS\b|ESI-?MS\b|MS\b|Anal\.?\s*Calcd\.?(?:\s+for\b)?|Calcd\.?\s+for\b|Molecular\s+Formula\b))"
+    r"(?:[^.\n;]|\.(?=\d)){0,80}?\b"
+    r"(?!IC\d|EC\d|LD\d|LC\d|GI\d|CC\d)"
+    r"([A-Z](?:[a-z]?(?:\d+|_\{?\d+\}?)[A-Z][A-Za-z0-9_{}\\]*|[A-Za-z0-9_{}\\]*H[A-Za-z0-9_{}\\]*\d[A-Za-z0-9_{}\\]*))",
 )
 _ADDUCT_TOKENS_RE = r"Na|K|NH4|Cl|HCOO|2H|H\s*-\s*H2O"
 _ADDUCT_SUFFIX_RE = re.compile(
@@ -63,17 +79,29 @@ _IUPAC_HEADING_RE = re.compile(
     re.MULTILINE,
 )
 _EXPLICIT_COMPOUND_ID_RE = re.compile(
-    r"\b(?:Compound|compd\.?|hybrid)\s+([A-Za-z0-9][A-Za-z0-9\-]{0,7})\b"
+    r"\b(?i:Compound|compd\.?|hybrid)\s+([A-Za-z0-9][A-Za-z0-9\-]{0,7})\b"
     r"|\(([0-9]{1,3}[a-z]?)\)"
     r"|(?<!Scheme\s)(?<!Figure\s)(?<!Fig\.\s)(?<!Fig\s)(?<!Table\s)(?<!Chart\s)(?<!Entry\s)(?<!Page\s)(?<!Section\s)"
-    r"\b([0-9]{1,3}[a-z]?)(?=\s*(?:,(?!\d)|which|had|with|showed|:))",
-    re.IGNORECASE,
+    r"\b([0-9]{1,3}[a-z]?)(?=\s*(?:,(?!\d)|(?i:which|had|with|showed)|:))",
 )
 
 # Bounded LRU in-process cache for py2opsin lookups to keep CPU overhead negligible
 _OPSIN_CACHE_MAX_SIZE = 4096
 _OPSIN_CACHE: OrderedDict[tuple[str, bool], Optional[str]] = OrderedDict()
 _OPSIN_CACHE_LOCK = threading.Lock()
+_OPSIN_SEMAPHORE = threading.Semaphore(2)
+_OPSIN_UNAVAILABLE_WARNED = False
+_OPSIN_WARN_LOCK = threading.Lock()
+
+
+def _warn_opsin_unavailable_once(reason: str) -> None:
+    global _OPSIN_UNAVAILABLE_WARNED
+    with _OPSIN_WARN_LOCK:
+        if not _OPSIN_UNAVAILABLE_WARNED:
+            _OPSIN_UNAVAILABLE_WARNED = True
+            logger.warning(
+                f"py2opsin IUPAC oracle unavailable ({reason}); IUPAC and substituent checks skipped."
+            )
 
 
 @dataclass
@@ -99,8 +127,8 @@ class OracleFinding:
 def _clean_latex_chemical_text(text: str) -> str:
     """Normalize LaTeX/Markdown formatting inside chemical names and formulas, preserving newlines."""
     cleaned = text.translate(_SUBSCRIPT_TRANSLATION)
-    cleaned = re.sub(r"\\text\{([^}]*)\}", r"\1", cleaned)
-    cleaned = re.sub(r"\\mathbf\{([^}]*)\}", r"\1", cleaned)
+    cleaned = re.sub(r"\\(?:text|mathbf|mathrm|rm)\{([^}]*)\}", r"\1", cleaned)
+    cleaned = re.sub(r"\\rm\b\s*", "", cleaned)
     cleaned = cleaned.replace("$", "").replace("*", "")
     cleaned = re.sub(r"_\{(\d+)\}", r"\1", cleaned)
     cleaned = re.sub(r"_(\d+)", r"\1", cleaned)
@@ -113,12 +141,12 @@ def parse_formula_counts(formula: str) -> dict[str, int]:
     """Parse a chemical formula string into element counts."""
     clean = _clean_latex_chemical_text(formula)
     clean = re.sub(r"[^A-Za-z0-9]", "", clean)
-    if not clean or not clean.startswith("C"):
+    if not clean or not _FORMULA_FULL_RE.match(clean):
         return {}
     counts: dict[str, int] = {}
     for elem, num_str in _FORMULA_ELEMENT_RE.findall(clean):
-        if not elem:
-            continue
+        if not elem or elem not in _VALID_ELEMENTS:
+            return {}
         counts[elem] = counts.get(elem, 0) + (int(num_str) if num_str else 1)
     return counts
 
@@ -156,8 +184,10 @@ def formulas_compatible(
     pred_counts = parse_formula_counts(predicted_formula)
     exp_cleaned = _ADDUCT_SUFFIX_RE.sub(" ", _clean_latex_chemical_text(expected_formula))
     exp_counts = parse_formula_counts(exp_cleaned)
-    if not pred_counts or not exp_counts:
+    if not exp_counts:
         return True
+    if not pred_counts:
+        return False
 
     if _formula_counts_match(pred_counts, exp_counts):
         return True
@@ -335,6 +365,7 @@ def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = Fals
         return results
 
     if not shutil.which("java"):
+        _warn_opsin_unavailable_once("java binary not found in PATH")
         for name in missing:
             results[name] = None
         return results
@@ -342,6 +373,7 @@ def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = Fals
     try:
         from py2opsin import py2opsin
     except ImportError:
+        _warn_opsin_unavailable_once("py2opsin package is not installed")
         for name in missing:
             results[name] = None
         return results
@@ -359,12 +391,13 @@ def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = Fals
         ) as tmp_file:
             tmp_fpath = tmp_file.name
 
-        raw = py2opsin(
-            missing,
-            allow_radicals=wildcard_radicals,
-            wildcard_radicals=wildcard_radicals,
-            tmp_fpath=tmp_fpath,
-        )
+        with _OPSIN_SEMAPHORE:
+            raw = py2opsin(
+                missing,
+                allow_radicals=wildcard_radicals,
+                wildcard_radicals=wildcard_radicals,
+                tmp_fpath=tmp_fpath,
+            )
         if isinstance(raw, bool) or raw is None:
             logger.debug("py2opsin oracle lookup returned failure sentinel")
         elif isinstance(raw, str):
@@ -406,18 +439,23 @@ def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = Fals
     return results
 
 
-def check_chembl_structure(mol: Any) -> list[str]:
-    """Run ChEMBL structure pipeline checker on an RDKit Mol and return severe issues (sev >= 5)."""
+def check_chembl_structure_detailed(mol: Any) -> list[tuple[int, str]]:
+    """Run ChEMBL structure pipeline checker on an RDKit Mol and return severe (sev >= 5) pairs."""
     try:
         from chembl_structure_pipeline import checker
         from rdkit import Chem
 
         molblock = Chem.MolToMolBlock(mol)
         issues = checker.check_molblock(molblock)
-        return [msg for sev, msg in issues if int(sev) >= 5]
+        return [(int(sev), msg) for sev, msg in issues if int(sev) >= 5]
     except Exception as exc:
         logger.debug(f"ChEMBL structure check skipped/failed: {exc}")
         return []
+
+
+def check_chembl_structure(mol: Any) -> list[str]:
+    """Run ChEMBL structure pipeline checker on an RDKit Mol and return severe issues (sev >= 5)."""
+    return [msg for _, msg in check_chembl_structure_detailed(mol)]
 
 
 def _has_other_compound_ids(text: str, target_label: str) -> bool:
@@ -475,8 +513,9 @@ def extract_context_cues_for_labels(
     para_sections: list[str] = []
     cur_section = "unsectioned"
     for p_str in raw_paras:
+        para_head_lines = [ln.lstrip() for ln in p_str.splitlines()[:2]]
         for prefix, sec_name in section_prefixes:
-            if p_str.startswith(prefix):
+            if any(ln.startswith(prefix) for ln in para_head_lines):
                 cur_section = sec_name
                 break
         para_sections.append(cur_section)
@@ -496,11 +535,10 @@ def extract_context_cues_for_labels(
         # Identify which target labels are explicitly mentioned in this paragraph
         matched_labels: list[str] = []
         for lbl in labels:
-            esc_lbl = re.escape(lbl)
             if re.search(
-                rf"(?:\bCompound\s+{esc_lbl}\b|\bcompd\.?\s*{esc_lbl}\b|\({esc_lbl}\)|\b{esc_lbl}\b(?=\s*(?:,(?!\d)|which|had|with|showed|:)))",
+                _label_sentence_pattern(lbl),
                 p_str,
-                re.IGNORECASE,
+                re.IGNORECASE if lbl.isdigit() else 0,
             ):
                 matched_labels.append(lbl)
 
@@ -542,7 +580,10 @@ def extract_context_cues_for_labels(
             continue
 
         # Attach formulas only when uniquely anchored to a single label in that paragraph/sentence
-        sentences = re.split(r"(?<=[.!?;])\s+", p_str)
+        sentences = re.split(
+            r"(?<!\bAnal\.)(?<!\bCalcd\.)(?<!\bcompd\.)(?<!\bCompd\.)(?<!\bFig\.)(?<=[.!?;])\s+",
+            p_str,
+        )
         for sent in sentences:
             sent_labels = [
                 lbl

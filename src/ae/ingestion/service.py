@@ -53,6 +53,34 @@ from ae.ingestion.parsers.gemini.stages.segment_and_crop_visuals_elements import
 
 logger = logging.getLogger(__name__)
 
+_ORACLE_NOTES_COMMENT_RE = re.compile(r"<!--\s*oracle_notes:\s*(.*?)\s*-->", re.DOTALL)
+_MISMATCH_ENTRY_RE = re.compile(r"(?:^|[;)]\s*)[^:;()]+\s*:\s*mismatch_flagged\b")
+
+
+def _count_mismatch_flagged_in_entities(entities: list[Any], *, dedup: bool = False) -> int:
+    seen: set[tuple[str, str]] = set()
+    count = 0
+    for ent in entities:
+        lbl = getattr(ent, "label", "")
+        smi = getattr(ent, "smiles", "")
+        if dedup:
+            key = (lbl, smi)
+            if key in seen:
+                continue
+            seen.add(key)
+        if getattr(ent, "provenance_status", None) == "mismatch_flagged":
+            count += 1
+    return count
+
+
+def _count_mismatch_flagged_from_markdown(rendered_markdown: str) -> int:
+    if not rendered_markdown:
+        return 0
+    total = 0
+    for match in _ORACLE_NOTES_COMMENT_RE.finditer(rendered_markdown):
+        total += len(_MISMATCH_ENTRY_RE.findall(match.group(1)))
+    return total
+
 
 def strip_pdf_extension(doc_id: str) -> str:
     """Strip .pdf extension if present, preserving dots in document IDs."""
@@ -255,6 +283,7 @@ class VisualParsingService:
                 req_by_root.setdefault(item_str, set()).add(None)
 
         # Snapshot usage counters for this doc_name so we only add deltas to summary.json
+        mismatch_by_visual: dict[str, int] = {}
         prev_usage: dict[str, StageUsage] = {}
         prev_counters: dict[str, int] = {}
         if self._client is not None and hasattr(self._client, "get_all_stage_usage"):
@@ -694,6 +723,15 @@ class VisualParsingService:
 
                     # Step T7: Assemble composite visual cleanly
                     rendered_content = render_composite_block(decomp, element_results, visual_id=visual_id)
+                    all_comp_entities = [
+                        ent
+                        for res in element_results.values()
+                        if hasattr(res, "entities") and res.entities
+                        for ent in res.entities
+                    ]
+                    mismatch_by_visual[visual_id] = _count_mismatch_flagged_in_entities(
+                        all_comp_entities, dedup=True
+                    )
                     parsed_element_ids = [e.element_id for e in decomp.elements if e.element_id in element_results]
                     unparsed_element_ids = [e.element_id for e in decomp.elements if e.element_id not in element_results]
                     parse_status: Literal["success", "partial", "failed"] = (
@@ -727,6 +765,10 @@ class VisualParsingService:
                             entry = dict(item) if isinstance(item, dict) else {"smiles": str(item)}
                             entry.setdefault("visual_id", visual_id)
                             invalid_smiles_list.append(entry)
+                    single_entities = getattr(single_res, "entities", None) or []
+                    mismatch_by_visual[visual_id] = _count_mismatch_flagged_in_entities(
+                        single_entities
+                    )
 
                     rendered_content = render_parse_body(single_res)
                     single_status = getattr(single_res, "status", "success")
@@ -773,9 +815,40 @@ class VisualParsingService:
             try:
                 sum_data = artifacts.load_json(artifacts.summary_json_path)
                 summary = PipelineSummary.model_validate(sum_data)
-                summary.total_parsed_visuals = len(
-                    list(artifacts.parsed_visuals_dir.glob("*.json"))
-                )
+                parsed_files = list(artifacts.parsed_visuals_dir.glob("*.json"))
+                summary.total_parsed_visuals = len(parsed_files)
+                total_mismatch_flagged = 0
+                for rec_file in parsed_files:
+                    v_id = rec_file.stem
+                    if v_id in mismatch_by_visual:
+                        total_mismatch_flagged += mismatch_by_visual[v_id]
+                        continue
+                    elem_files = list(artifacts.parsed_elements_dir.glob(f"{v_id}__*.json"))
+                    if elem_files:
+                        seen_elem_keys: set[tuple[str, str]] = set()
+                        for ef in elem_files:
+                            try:
+                                ef_data = artifacts.load_json(ef)
+                                for ent_dict in ef_data.get("entities") or []:
+                                    if not isinstance(ent_dict, dict):
+                                        continue
+                                    key = (str(ent_dict.get("label", "")), str(ent_dict.get("smiles", "")))
+                                    if key in seen_elem_keys:
+                                        continue
+                                    seen_elem_keys.add(key)
+                                    if ent_dict.get("provenance_status") == "mismatch_flagged":
+                                        total_mismatch_flagged += 1
+                            except Exception:
+                                pass
+                    else:
+                        try:
+                            rec_obj = VisualParseRecord.model_validate(artifacts.load_json(rec_file))
+                            total_mismatch_flagged += _count_mismatch_flagged_from_markdown(
+                                rec_obj.rendered_markdown
+                            )
+                        except Exception:
+                            pass
+                summary.mismatch_flagged_smiles = total_mismatch_flagged
                 if self._client is not None and hasattr(self._client, "get_all_stage_usage"):
                     try:
                         cur_usage = self._client.get_all_stage_usage(doc_id=doc_name)

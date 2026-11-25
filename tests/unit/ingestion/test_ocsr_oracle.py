@@ -15,6 +15,7 @@ from ae.ingestion.parsers.gemini.stages.ocsr_oracle import (
     OracleFinding,
     extract_context_cues_for_labels,
     formulas_compatible,
+    parse_formula_counts,
     same_connectivity,
     substructure_violations,
     verify_entities_with_oracle,
@@ -190,3 +191,85 @@ def test_opsin_cache_lru_bounded(monkeypatch):
     assert ("a", False) in cache
     assert ("c", False) in cache
     assert ("d", False) in cache
+
+
+def test_formulas_compatible_empty_pred_and_extended_formula_parsing(monkeypatch):
+    monkeypatch.setattr(ocsr_oracle, "_OPSIN_CACHE", OrderedDict())
+    monkeypatch.setattr(ocsr_oracle.shutil, "which", lambda _x: None)
+
+    assert formulas_compatible("", "C10H10O") is False
+    assert formulas_compatible("INVALID", "C10H10O") is False
+    assert formulas_compatible("O2", "C10H10O") is False
+    assert formulas_compatible("C10H10O", "") is True
+
+    assert parse_formula_counts("H2O") == {"H": 2, "O": 1}
+    assert parse_formula_counts("CHCl3") == {"C": 1, "H": 1, "Cl": 3}
+    assert parse_formula_counts("C6HF5") == {"C": 6, "H": 1, "F": 5}
+    assert parse_formula_counts("C6Cl6") == {"C": 6, "Cl": 6}
+    assert parse_formula_counts(r"\mathrm{C}_{6}\mathrm{HCl}_{3}") == {"C": 6, "H": 1, "Cl": 3}
+    assert parse_formula_counts(r"\rm C_6Cl_6") == {"C": 6, "Cl": 6}
+
+    ent = ChemicalEntity(label="1", smiles="O=O")
+    findings = verify_entities_with_oracle([ent], context="Compound 1 HRMS calcd for C10H12N2O.")
+    assert findings[0].passed is False
+    assert findings[0].provenance_status == "mismatch_flagged"
+
+
+def test_formula_candidate_re_word_boundary_and_halogenated_formulas():
+    ctx_false = (
+        "Compound 1 exists in several forms: CH2Cl2 was used as solvent. "
+        "Compound 2 systems gave C6H6 as byproduct. Grams of C2H6O were recovered."
+    )
+    cues_false = extract_context_cues_for_labels(ctx_false, ["1", "2"])
+    assert cues_false["1"]["formulas"] == []
+    assert cues_false["2"]["formulas"] == []
+
+    ctx_true = (
+        "Compound 1 HRMS calcd for CHCl3. "
+        "Compound 2 HRMS calcd for C6HF5. "
+        "Compound 3 Anal. Calcd. for C6Cl6."
+    )
+    cues_true = extract_context_cues_for_labels(ctx_true, ["1", "2", "3"])
+    assert cues_true["1"]["formulas"] == ["CHCl3"]
+    assert cues_true["2"]["formulas"] == ["C6HF5"]
+    assert cues_true["3"]["formulas"] == ["C6Cl6"]
+
+
+def test_explicit_compound_id_re_ignores_nmr_and_stereo_descriptors():
+    ctx_nmr = (
+        "Preceding text:\n"
+        "White solid; 1H NMR (2H, s) and isomer (2R), (3S), (1E), (2Z); HRMS calcd for C28H18FN5O."
+    )
+    cues = extract_context_cues_for_labels(ctx_nmr, ["37"])
+    assert cues["37"]["formulas"] == ["C28H18FN5O"]
+
+    # Real lowercase compound ID in parens still blocks foreign inheritance
+    ctx_other = (
+        "Preceding text:\n"
+        "Derivative (2a) showed HRMS calcd for C28H18FN5O."
+    )
+    cues_other = extract_context_cues_for_labels(ctx_other, ["37"])
+    assert cues_other["37"]["formulas"] == []
+
+
+def test_extract_cues_wrapped_surrounding_context_and_alphanumeric_paragraph():
+    wrapped_ctx = (
+        "Element Placement in Visual:\n"
+        '<element id="mol_37" />\n\n'
+        "Surrounding Article Context:\n"
+        "Preceding text:\n"
+        "Unrelated earlier page paragraph. HRMS calcd for C15H12N2O.\n\n"
+        "White powder, yield 76%. ESI-MS: 460.50 (C28H18FN5O, [M+H]+).\n\n"
+        "Following text:\n"
+        "Further biological assays were performed."
+    )
+    cues = extract_context_cues_for_labels(wrapped_ctx, ["37"])
+    assert cues["37"]["formulas"] == ["C28H18FN5O"]
+
+    ctx_alpha = (
+        "2a was obtained as a white solid. HRMS calcd for C15H14N2O.\n\n"
+        "2b was obtained as an oil. HRMS calcd for C16H16N2O."
+    )
+    cues_alpha = extract_context_cues_for_labels(ctx_alpha, ["2a", "2b"])
+    assert cues_alpha["2a"]["formulas"] == ["C15H14N2O"]
+    assert cues_alpha["2b"]["formulas"] == ["C16H16N2O"]

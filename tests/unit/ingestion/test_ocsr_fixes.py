@@ -347,3 +347,23 @@ def test_parse_single_visual_uses_rdkit_correction_stage_name(tmp_path: Path):
     assert mock_client.generate_structured.call_count == 2
     assert mock_client.generate_structured.call_args_list[0].kwargs["stage_name"] == "parse_molecular_structure"
     assert mock_client.generate_structured.call_args_list[1].kwargs["stage_name"] == "rdkit_correction"
+
+
+def test_opsin_unavailable_logs_single_warning_and_uses_semaphore(monkeypatch, caplog):
+    import logging
+    import threading
+
+    monkeypatch.setattr(ocsr_oracle, "_OPSIN_CACHE", {})
+    monkeypatch.setattr(ocsr_oracle, "_OPSIN_UNAVAILABLE_WARNED", False)
+    monkeypatch.setattr(ocsr_oracle.shutil, "which", lambda _x: None)
+
+    assert isinstance(ocsr_oracle._OPSIN_SEMAPHORE, threading.Semaphore)
+
+    with caplog.at_level(logging.WARNING):
+        res1 = _resolve_iupac_via_opsin(["benzene"])
+        res2 = _resolve_iupac_via_opsin(["toluene"])
+
+    assert res1 == {"benzene": None}
+    assert res2 == {"toluene": None}
+    opsin_warnings = [r for r in caplog.records if "py2opsin IUPAC oracle unavailable" in r.message]
+    assert len(opsin_warnings) == 1
