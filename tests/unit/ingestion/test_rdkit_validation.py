@@ -416,7 +416,7 @@ def test_corr_map_normalizes_label_whitespace_and_case():
 
 
 @pytest.mark.parametrize("level", ["minimal", "low", "medium", "high"])
-def test_thinking_level_configured_value_respected(level: str):
+def test_thinking_level_configured_value_respected(level: str, no_opsin):
     cfg = IngestionConfig(
         stages=IngestionStagesConfig(
             parse_visuals=ParseVisualsStagesConfig(
@@ -436,8 +436,58 @@ def test_thinking_level_configured_value_respected(level: str):
         client=client,
         config=cfg,
         max_attempts=1,
+        context="Compound 1 HRMS calcd for C2H6O.",
     )
     assert client.generate_structured.call_args.kwargs["thinking_level"] == level
+
+
+def test_pure_syntax_error_without_prose_flags_uses_low_thinking_level(no_opsin):
+    for level in ("medium", "high"):
+        cfg = IngestionConfig(
+            stages=IngestionStagesConfig(
+                parse_visuals=ParseVisualsStagesConfig(
+                    molecule=MoleculeExtractStageConfig(
+                        model=StageModelConfig(thinking_level=level),
+                    )
+                )
+            )
+        )
+        client = MagicMock()
+        client.generate_structured.return_value = SmilesCorrectionResponse(
+            corrections=[SmilesCorrectionItem(label="1", corrected_smiles="CCO")],
+        )
+        validate_and_correct_entities(
+            entities=[ChemicalEntity(label="1", smiles="BAD(((")],
+            crop_paths=[],
+            client=client,
+            config=cfg,
+            max_attempts=1,
+            context="",
+        )
+        assert client.generate_structured.call_args.kwargs["thinking_level"] == "low"
+
+    # minimal stays minimal
+    cfg_min = IngestionConfig(
+        stages=IngestionStagesConfig(
+            parse_visuals=ParseVisualsStagesConfig(
+                molecule=MoleculeExtractStageConfig(
+                    model=StageModelConfig(thinking_level="minimal"),
+                )
+            )
+        )
+    )
+    client_min = MagicMock()
+    client_min.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="1", corrected_smiles="CCO")],
+    )
+    validate_and_correct_entities(
+        entities=[ChemicalEntity(label="1", smiles="BAD(((")],
+        crop_paths=[],
+        client=client_min,
+        config=cfg_min,
+        max_attempts=1,
+    )
+    assert client_min.generate_structured.call_args.kwargs["thinking_level"] == "minimal"
 
 
 def test_deterministic_override_checks_expected_substructures(primed_opsin):
@@ -530,3 +580,157 @@ def test_pipeline_summary_mismatch_flagged_smiles_field():
     assert s_loaded.mismatch_flagged_smiles == 0
     s_set = PipelineSummary(mismatch_flagged_smiles=3)
     assert s_set.mismatch_flagged_smiles == 3
+
+
+def test_dead_formula_helper_removed():
+    assert not hasattr(rdkit_validation, "_formula_of_agrees_with")
+
+
+def test_trust_drawing_disables_deterministic_override(primed_opsin):
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[
+            SmilesCorrectionItem(
+                label="37",
+                corrected_smiles=BAD_37,
+                trust_drawing=True,
+                prose_conflict_reason="Heading 37 in prose belongs to another derivative",
+            )
+        ],
+    )
+    entities = [ChemicalEntity(label="37", smiles=BAD_37)]
+    _, canon_bad, _ = validate_and_canonicalize(BAD_37)
+    updated, replacements = validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=1,
+        context=CTX_37,
+    )
+    assert updated[0].smiles == canon_bad
+    assert updated[0].provenance_status == "mismatch_flagged"
+    assert "deterministic override skipped" in (updated[0].oracle_notes or "")
+    assert "Heading 37 in prose" in (updated[0].oracle_notes or "")
+    _, canon_37, _ = validate_and_canonicalize(SMI_37)
+    assert canon_37 not in replacements.values()
+
+
+def test_deterministic_override_blocked_by_chembl_issue(primed_opsin, monkeypatch):
+    monkeypatch.setattr(
+        rdkit_validation,
+        "check_chembl_structure",
+        lambda _mol: ["Severe ChEMBL valence problem"],
+    )
+    entities = [ChemicalEntity(label="37", smiles=BAD_37)]
+    _, canon_bad, _ = validate_and_canonicalize(BAD_37)
+    updated, _ = validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=None,
+        config=_default_config(),
+        max_attempts=0,
+        context=CTX_37,
+    )
+    assert updated[0].smiles == canon_bad
+    assert updated[0].provenance_status == "mismatch_flagged"
+
+
+def test_chembl_only_flag_rejects_worsened_and_accepts_improved(no_opsin, monkeypatch):
+    _, canon_c = validate_and_canonicalize("CCO")[:2]
+    _, canon_worse = validate_and_canonicalize("CCC")[:2]
+    _, canon_better = validate_and_canonicalize("CC(=O)O")[:2]
+
+    def _fake_chembl(mol):
+        from rdkit import Chem
+
+        smi = Chem.MolToSmiles(mol)
+        if smi == canon_c:
+            return [(6, "initial issue")]
+        if smi == canon_worse:
+            return [(7, "worse severity")]
+        return []
+
+    monkeypatch.setattr(ocsr_oracle, "check_chembl_structure_detailed", _fake_chembl)
+    monkeypatch.setattr(rdkit_validation, "check_chembl_structure_detailed", _fake_chembl)
+
+    client_worse = MagicMock()
+    client_worse.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="1", corrected_smiles=canon_worse)],
+    )
+    updated_w, _ = validate_and_correct_entities(
+        entities=[ChemicalEntity(label="1", smiles=canon_c)],
+        crop_paths=[],
+        client=client_worse,
+        config=_default_config(),
+        max_attempts=1,
+        context="",
+    )
+    assert updated_w[0].smiles == canon_c
+    assert "ChEMBL issues worsened" in (updated_w[0].oracle_notes or "")
+
+    client_better = MagicMock()
+    client_better.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="1", corrected_smiles=canon_better)],
+    )
+    updated_b, _ = validate_and_correct_entities(
+        entities=[ChemicalEntity(label="1", smiles=canon_c)],
+        crop_paths=[],
+        client=client_better,
+        config=_default_config(),
+        max_attempts=1,
+        context="",
+    )
+    assert updated_b[0].smiles == canon_better
+    assert updated_b[0].provenance_status == "unverified_valid"
+
+
+def test_invalid_markush_corrected_to_concrete_recomputes_oracle_finding(primed_opsin):
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="37", corrected_smiles=SMI_37)],
+    )
+    entities = [ChemicalEntity(label="37", smiles="[*:1]c1ccc(BROKEN((((")]
+    updated, _ = validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=1,
+        context=CTX_37,
+    )
+    _, canon_37, _ = validate_and_canonicalize(SMI_37)
+    assert updated[0].smiles == canon_37
+    assert updated[0].provenance_status == "verified_exact"
+
+
+def test_attachment_points_synced_on_correction(no_opsin):
+    from ae.ingestion.parsers.gemini.schemas import AttachmentPoint
+
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[
+            SmilesCorrectionItem(
+                label="m1",
+                corrected_smiles="[*:1]c1ccc(Cl)cc1",
+                attachment_points=[AttachmentPoint(placeholder="[*:1]", variable="R1")],
+            )
+        ],
+    )
+    entities = [
+        ChemicalEntity(
+            label="m1",
+            smiles="[*:1]c1ccc(BROKEN((",
+            attachment_points=[AttachmentPoint(placeholder="[*:1]", variable="R_old")],
+        )
+    ]
+    updated, _ = validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=1,
+    )
+    assert updated[0].smiles_valid is True
+    assert len(updated[0].attachment_points) == 1
+    assert updated[0].attachment_points[0].variable == "R1"

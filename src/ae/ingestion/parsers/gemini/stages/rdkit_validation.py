@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
 from ae.ingestion.parsers.gemini.client import GeminiClient
-from ae.ingestion.parsers.gemini.schemas import ChemicalEntity
+from ae.ingestion.parsers.gemini.schemas import AttachmentPoint, ChemicalEntity
 from ae.ingestion.parsers.gemini.stages.ocsr_oracle import (
     OracleFinding,
     _finding_expected_formulas,
     _is_markush_smiles,
+    check_chembl_structure,
+    check_chembl_structure_detailed,
     formulas_compatible,
     reverify_entity_with_finding,
     substructure_violations,
@@ -26,6 +29,24 @@ logger = logging.getLogger(__name__)
 class SmilesCorrectionItem(BaseModel):
     label: str
     corrected_smiles: str
+    trust_drawing: bool = Field(
+        default=False,
+        description=(
+            "Set true when surrounding prose/hints refer to a different compound and "
+            "the drawing structure should be kept instead of prose overrides."
+        ),
+    )
+    prose_conflict_reason: Optional[str] = Field(
+        default=None,
+        description="Brief explanation when trust_drawing is true due to conflicting prose context.",
+    )
+    attachment_points: Optional[list[AttachmentPoint]] = Field(
+        default=None,
+        description=(
+            "Updated dummy-atom attachment mappings when corrected_smiles contains "
+            "dummy atoms [*:1], [*:2], etc."
+        ),
+    )
 
 
 class SmilesCorrectionResponse(BaseModel):
@@ -114,19 +135,15 @@ def _reappend_notes(entities: list[ChemicalEntity], notes_by_idx: dict[int, list
         ent.oracle_notes = f"{ent.oracle_notes}; {suffix}" if ent.oracle_notes else suffix
 
 
-def _formula_of_agrees_with(
-    smiles: str, expected_formula: str, *, context: str = ""
-) -> bool:
-    from rdkit import Chem
-    from rdkit.Chem import rdMolDescriptors
-
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
+def _has_prose_flags(finding: Optional[OracleFinding]) -> bool:
+    """True when an OracleFinding carries prose-derived constraints or expectations."""
+    if finding is None:
         return False
-    return formulas_compatible(
-        rdMolDescriptors.CalcMolFormula(mol),
-        expected_formula,
-        context=context,
+    return bool(
+        _finding_expected_formulas(finding)
+        or finding.expected_smiles
+        or finding.expected_inchi_key
+        or finding.expected_substructure_smiles
     )
 
 
@@ -234,6 +251,7 @@ def validate_and_correct_entities(
             findings = None
 
     # If client is provided and there are invalid SMILES or oracle mismatches, enter retry loop
+    trust_drawing_reasons: dict[int, Optional[str]] = {}
     if client is not None and max_retries > 0:
         noop_indices: set[int] = set()
         for attempt in range(1, max_retries + 1):
@@ -268,13 +286,29 @@ def validate_and_correct_entities(
                 "{context}", ctx_text
             )
 
+            is_pure_syntax_only = all(not ent.smiles_valid for _, ent, _ in invalid) and not any(
+                _has_prose_flags(findings[idx] if findings and idx < len(findings) else None)
+                or any(
+                    r.startswith("ChEMBL structure issue:")
+                    for r in (findings[idx].reasons if findings and idx < len(findings) else [])
+                )
+                for idx, _, _ in invalid
+            )
+            attempt_tlevel = (
+                "low"
+                if is_pure_syntax_only
+                and resolved_tbudget is None
+                and resolved_tlevel in ("medium", "high")
+                else resolved_tlevel
+            )
+
             try:
                 contents = list(crop_paths) + [prompt]
                 gen_kwargs: dict[str, Any] = {
                     "response_schema": SmilesCorrectionResponse,
                     "stage_name": stage_name,
                     "model": resolved_model,
-                    "thinking_level": resolved_tlevel,
+                    "thinking_level": attempt_tlevel,
                 }
                 if resolved_temp is not None:
                     gen_kwargs["temperature"] = resolved_temp
@@ -291,20 +325,26 @@ def validate_and_correct_entities(
                 )
 
                 corr_map = {
-                    c.label.strip().lower(): c.corrected_smiles
+                    c.label.strip().lower(): c
                     for c in corr_res.corrections
                     if c.label
                 }
                 rejection_notes: dict[int, list[str]] = {}
                 changed_indices: set[int] = set()
                 flagged_improvements: set[int] = set()
+                markush_to_concrete_indices: set[int] = set()
 
                 for idx, ent, _ in invalid:
                     norm_label = ent.label.strip().lower()
                     if norm_label not in corr_map:
                         continue
+                    corr_item = corr_map[norm_label]
                     old_smiles = ent.smiles
-                    corrected_smiles = corr_map[norm_label]
+                    corrected_smiles = corr_item.corrected_smiles
+                    if corr_item.trust_drawing:
+                        reason = (corr_item.prose_conflict_reason or "").strip() or None
+                        trust_drawing_reasons[idx] = reason
+
                     valid, can, err = validate_and_canonicalize(corrected_smiles)
                     if not valid:
                         if ent.smiles_valid:
@@ -318,16 +358,53 @@ def validate_and_correct_entities(
                         ent.smiles = corrected_smiles
                         ent.smiles_valid = False
                         ent.rdkit_error = err
+                        if corr_item.attachment_points is not None:
+                            ent.attachment_points = list(corr_item.attachment_points)
                         if old_smiles != corrected_smiles:
                             replacements[old_smiles] = corrected_smiles
                             changed_indices.add(idx)
                         continue
 
                     if ent.smiles_valid and can == old_smiles:
+                        if corr_item.attachment_points is not None:
+                            ent.attachment_points = list(corr_item.attachment_points)
+                        if corr_item.trust_drawing:
+                            reason = trust_drawing_reasons.get(idx)
+                            rejection_notes.setdefault(idx, []).append(
+                                f"VLM trusted drawing over prose ({reason})"
+                                if reason
+                                else "VLM trusted drawing over prose"
+                            )
                         noop_indices.add(idx)
                         continue
 
                     finding = findings[idx] if findings else None
+                    if ent.smiles_valid and finding is not None:
+                        is_chembl_only = bool(
+                            finding.reasons
+                            and all(r.startswith("ChEMBL structure issue:") for r in finding.reasons)
+                        )
+                        if is_chembl_only:
+                            from rdkit import Chem
+
+                            old_mol = Chem.MolFromSmiles(old_smiles)
+                            new_mol = Chem.MolFromSmiles(can)
+                            if old_mol is not None and new_mol is not None:
+                                old_issues = check_chembl_structure_detailed(old_mol)
+                                new_issues = check_chembl_structure_detailed(new_mol)
+                                old_max = max((sev for sev, _ in old_issues), default=0)
+                                new_max = max((sev for sev, _ in new_issues), default=0)
+                                if len(new_issues) > len(old_issues) or new_max > old_max:
+                                    rejection_notes.setdefault(idx, []).append(
+                                        f"candidate '{can}' rejected: ChEMBL issues worsened "
+                                        f"(count {len(old_issues)}->{len(new_issues)}, max severity {old_max}->{new_max})"
+                                    )
+                                    logger.info(
+                                        f"Correction for '{ent.label}' rejected by ChEMBL regression gate: "
+                                        f"count {len(old_issues)}->{len(new_issues)}, max_sev {old_max}->{new_max}"
+                                    )
+                                    continue
+
                     violations = _candidate_violations(can, finding)
                     if violations:
                         if not ent.smiles_valid:
@@ -337,6 +414,10 @@ def validate_and_correct_entities(
                             ent.smiles_valid = True
                             ent.rdkit_error = None
                             ent.provenance_status = "mismatch_flagged"
+                            if corr_item.attachment_points is not None:
+                                ent.attachment_points = list(corr_item.attachment_points)
+                            if _is_markush_smiles(old_smiles) and not _is_markush_smiles(can):
+                                markush_to_concrete_indices.add(idx)
                             replacements[old_smiles] = can
                             changed_indices.add(idx)
                             flagged_improvements.add(idx)
@@ -358,12 +439,32 @@ def validate_and_correct_entities(
                     ent.smiles = can
                     ent.smiles_valid = True
                     ent.rdkit_error = None
+                    if corr_item.attachment_points is not None:
+                        ent.attachment_points = list(corr_item.attachment_points)
+                    if _is_markush_smiles(old_smiles) and not _is_markush_smiles(can):
+                        markush_to_concrete_indices.add(idx)
                     replacements[old_smiles] = can
                     changed_indices.add(idx)
 
                 if enable_oracle and changed_indices:
                     if findings and len(findings) == len(entities):
-                        for idx in sorted(changed_indices):
+                        if markush_to_concrete_indices:
+                            probe_entities = [
+                                entities[i]
+                                if i in markush_to_concrete_indices
+                                else SimpleNamespace(
+                                    label=entities[i].label,
+                                    smiles=entities[i].smiles,
+                                    smiles_valid=entities[i].smiles_valid,
+                                    rdkit_error=getattr(entities[i], "rdkit_error", None),
+                                )
+                                for i in range(len(entities))
+                            ]
+                            fresh_findings = verify_entities_with_oracle(probe_entities, context=context)
+                            if len(fresh_findings) == len(entities):
+                                for idx in sorted(markush_to_concrete_indices):
+                                    findings[idx] = fresh_findings[idx]
+                        for idx in sorted(changed_indices - markush_to_concrete_indices):
                             findings[idx] = reverify_entity_with_finding(entities[idx], findings[idx])
                     else:
                         findings = verify_entities_with_oracle(entities, context=context)
@@ -383,6 +484,7 @@ def validate_and_correct_entities(
     # the drawing disagrees on connectivity (or failed RDKit parsing), and prose constraints agree.
     if enable_oracle and findings and len(findings) == len(entities):
         override_notes: dict[int, list[str]] = {}
+        skipped_override_notes: dict[int, list[str]] = {}
         for idx, (ent, f) in enumerate(zip(entities, findings)):
             is_rdkit_invalid = not ent.smiles_valid
             if (
@@ -392,11 +494,33 @@ def validate_and_correct_entities(
                 or _is_markush_smiles(ent.smiles)
             ):
                 continue
+            if idx in trust_drawing_reasons:
+                reason = trust_drawing_reasons[idx]
+                skipped_override_notes[idx] = [
+                    f"deterministic override skipped (VLM trusted drawing: {reason})"
+                    if reason
+                    else "deterministic override skipped (VLM trusted drawing)"
+                ]
+                continue
             ok, can, _ = validate_and_canonicalize(f.expected_smiles)
             if not ok:
                 continue
             if _candidate_violations(can, f):
                 continue
+            from rdkit import Chem
+            from rdkit.Chem import rdMolDescriptors
+
+            can_mol = Chem.MolFromSmiles(can)
+            if can_mol is None or check_chembl_structure(can_mol):
+                continue
+            candidate_formulas = _finding_expected_formulas(f)
+            if candidate_formulas:
+                can_formula = rdMolDescriptors.CalcMolFormula(can_mol)
+                if not any(
+                    formulas_compatible(can_formula, exp_f, context=f.expected_adduct_context)
+                    for exp_f in candidate_formulas
+                ):
+                    continue
             replacements[ent.smiles] = can
             ent.smiles = can
             ent.smiles_valid = True
@@ -406,5 +530,7 @@ def validate_and_correct_entities(
             for idx in sorted(override_notes):
                 findings[idx] = reverify_entity_with_finding(entities[idx], findings[idx])
             _reappend_notes(entities, override_notes)
+        if skipped_override_notes:
+            _reappend_notes(entities, skipped_override_notes)
 
     return entities, replacements

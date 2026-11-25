@@ -668,5 +668,95 @@ def test_service_composite_failed_element_remains_unparsed(tmp_path, mock_ingest
     assert '<element id="Fig_1/panel_b"' in rec.rendered_markdown
 
 
+def test_service_populates_mismatch_flagged_smiles_in_summary(tmp_path, mock_ingestion_config, monkeypatch):
+    from ae.ingestion.parsers.gemini.schemas import PageLocalization, PipelineSummary
+
+    doc_id = "doc_mismatch_summary"
+    artifacts = ArtifactManager(doc_id, base_dir=mock_ingestion_config.ingestion_dir)
+    doc_md = artifacts.document_md_path
+    doc_md.parent.mkdir(parents=True, exist_ok=True)
+    doc_md.write_text(
+        "<!-- document_id: doc_mismatch_summary -->\n\n"
+        '<visual id="Scheme_1" type="molecular_structure">\nScheme 1\n> Single scheme\n</visual>\n\n'
+        '<visual id="Scheme_2" type="molecular_structure">\nScheme 2\n> Composite scheme\n</visual>',
+        encoding="utf-8",
+    )
+    artifacts.save_json(artifacts.summary_json_path, PipelineSummary(total_placeholders=2, total_manifest_visuals=2))
+
+    artifacts.save_page_bboxes(
+        1,
+        PageLocalization(
+            page=1,
+            boxes=[
+                VisualBox(id="Scheme_1", found=True, box_2d=[0, 0, 400, 400]),
+                VisualBox(id="Scheme_2", found=True, box_2d=[400, 0, 800, 400]),
+            ],
+        ),
+    )
+    artifacts.crops_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts.crops_dir / "Scheme_1__p1.png").write_bytes(b"fake_png")
+    (artifacts.crops_dir / "Scheme_2__p1.png").write_bytes(b"fake_png")
+    artifacts.decompositions_dir.mkdir(parents=True, exist_ok=True)
+    artifacts.save_json(
+        artifacts.decompositions_dir / "Scheme_1.json",
+        VisualDecomposition(mode="single", single_type="molecular_structure"),
+    )
+    artifacts.save_json(
+        artifacts.decompositions_dir / "Scheme_2.json",
+        VisualDecomposition(
+            mode="composite",
+            composition_template='<element id="mol_a" />',
+            elements=[
+                ElementManifestItem(element_id="mol_a", type="molecular_structure", label="2", description="Comp 2"),
+            ],
+        ),
+    )
+    artifacts.element_bboxes_dir.mkdir(parents=True, exist_ok=True)
+    artifacts.save_json(
+        artifacts.element_bboxes_dir / "Scheme_2.json",
+        ElementLocalizationResult(boxes=[]),
+    )
+
+    def _mock_parse(client, mv, *args, **kwargs):
+        if mv.id == "Scheme_1":
+            return MolecularParseResult(
+                entities=[
+                    ChemicalEntity(label="1a", smiles="CCO", provenance_status="mismatch_flagged", oracle_notes="Formula mismatch"),
+                    ChemicalEntity(label="1b", smiles="CCC", provenance_status="verified_exact"),
+                ]
+            )
+        return MolecularParseResult(
+            entities=[
+                ChemicalEntity(label="2", smiles="CCN", provenance_status="mismatch_flagged", oracle_notes="IUPAC mismatch"),
+            ]
+        )
+
+    monkeypatch.setattr("ae.ingestion.service.parse_single_visual", _mock_parse)
+    (tmp_path / f"{doc_id}.pdf").write_bytes(b"%PDF-1.4 dummy")
+    import pymupdf as fitz
+
+    mock_page = MagicMock()
+    mock_page.rect = fitz.Rect(0, 0, 600, 800)
+    mock_doc = MagicMock()
+    mock_doc.__getitem__.return_value = mock_page
+    monkeypatch.setattr("ae.ingestion.service.fitz.open", lambda *args, **kwargs: mock_doc)
+
+    service = VisualParsingService(
+        config=mock_ingestion_config,
+        pdf_dir=tmp_path,
+        ingestion_dir=mock_ingestion_config.ingestion_dir,
+    )
+    service._client = MagicMock()
+
+    service.parse_visuals(doc_id, ["Scheme_1", "Scheme_2"])
+    loaded_sum = PipelineSummary.model_validate(artifacts.load_json(artifacts.summary_json_path))
+    assert loaded_sum.mismatch_flagged_smiles == 2
+
+    # Re-running against cached visuals must be idempotent (no double counting)
+    service.parse_visuals(doc_id, ["Scheme_1", "Scheme_2"])
+    loaded_sum2 = PipelineSummary.model_validate(artifacts.load_json(artifacts.summary_json_path))
+    assert loaded_sum2.mismatch_flagged_smiles == 2
+
+
 
 
