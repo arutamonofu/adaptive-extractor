@@ -28,14 +28,19 @@ from ae.ingestion.parsers.gemini.stages.manifest_visuals import (
 )
 from ae.ingestion.parsers.gemini.stages.parse_text import (
     _extract_pdf_pages_text,
+    _extract_pdf_pages_visual_flags,
     _generate_chunk_markdown,
     _is_silent_error_guard_enabled,
     _read_prompt_template,
     assemble_parse_text_chunks,
     atomic_write_text,
     build_parse_text_batch_specs,
+    is_visual_tag_silent_error,
     strip_outer_code_fences,
     validate_and_retry_chunk_markdown,
+)
+from ae.ingestion.parsers.gemini.stages.silent_error_guard import (
+    detect_parse_text_silent_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -231,6 +236,9 @@ class GeminiParser(BaseParser):
                 "chunks": chunks,
                 "total_pages": total_pages,
                 "page_texts": _extract_pdf_pages_text(pdf_path) if (use_guard and has_uncached) else {},
+                "page_visual_flags": (
+                    _extract_pdf_pages_visual_flags(pdf_path) if (use_guard and has_uncached) else {}
+                ),
             }
 
         try:
@@ -247,6 +255,7 @@ class GeminiParser(BaseParser):
                 artifacts = state["artifacts"]
                 chunks = state["chunks"]
                 page_texts = state["page_texts"]
+                page_visual_flags = state.get("page_visual_flags", {})
                 chunk_texts: list[Optional[str]] = []
 
                 with self.client.doc_scope(artifacts.doc_name):
@@ -261,7 +270,18 @@ class GeminiParser(BaseParser):
                         chunk_md = item_res.text if (item_res and not item_res.error) else None
                         initial_max_tokens_exc: Optional[GeminiMaxTokensError] = None
 
-                        if not chunk_md or not chunk_md.strip():
+                        if (
+                            item_res is not None
+                            and getattr(item_res, "error_type", None) == "GeminiMaxTokensError"
+                        ):
+                            exc = GeminiMaxTokensError(
+                                stage="parse_text",
+                                details=item_res.error or f"Batch item '{key}' truncated at MAX_TOKENS.",
+                            )
+                            if not use_guard:
+                                raise exc
+                            initial_max_tokens_exc = exc
+                        elif not chunk_md or not chunk_md.strip():
                             logger.warning(
                                 f"Batch item '{key}' failed/empty ({getattr(item_res, 'error', None)}); "
                                 f"falling back to sync generate_text."
@@ -280,14 +300,24 @@ class GeminiParser(BaseParser):
                                 if not use_guard:
                                     raise
                                 initial_max_tokens_exc = exc
+                            except GeminiEmptyResponseError:
+                                if not use_guard:
+                                    raise
+                                chunk_md = ""
 
+                        raw_txt = ""
+                        has_visual_content = False
                         if use_guard:
                             raw_txt = "\n".join(
                                 page_texts.get(p, "") for p in range(start_page, end_page + 1)
                             )
+                            has_visual_content = any(
+                                page_visual_flags.get(p, False)
+                                for p in range(start_page, end_page + 1)
+                            )
                             chunk_md = validate_and_retry_chunk_markdown(
                                 client=self.client,
-                                chunk_md=chunk_md,
+                                chunk_md=chunk_md if chunk_md is not None else "",
                                 chunk_pdf_path=chunk_pdf_path,
                                 start_page=start_page,
                                 end_page=end_page,
@@ -297,11 +327,35 @@ class GeminiParser(BaseParser):
                                 raw_pdf_txt=raw_txt,
                                 doc_name=artifacts.doc_name,
                                 initial_max_tokens_exc=initial_max_tokens_exc,
+                                has_visual_content=has_visual_content,
                             )
                         else:
                             chunk_md = strip_outer_code_fences(chunk_md or "")
 
-                        atomic_write_text(cache_path, chunk_md)
+                        if not chunk_md or not chunk_md.strip():
+                            raise GeminiEmptyResponseError(
+                                stage="parse_text",
+                                details=(
+                                    f"Empty chunk response for '{key}' of '{artifacts.doc_name}'."
+                                ),
+                            )
+
+                        should_cache = True
+                        if use_guard:
+                            final_err = detect_parse_text_silent_error(
+                                chunk_md,
+                                pdf_page_text=raw_txt,
+                                has_visual_content=has_visual_content,
+                            )
+                            if is_visual_tag_silent_error(final_err):
+                                logger.warning(
+                                    f"Stage 1 [parse_text]: Skipping cache write for '{key}' "
+                                    f"due to unresolved visual tag error ({final_err})."
+                                )
+                                should_cache = False
+
+                        if should_cache:
+                            atomic_write_text(cache_path, chunk_md)
                         chunk_texts.append(chunk_md)
 
                     clean_md, placeholders = assemble_parse_text_chunks(
@@ -356,6 +410,26 @@ class GeminiParser(BaseParser):
                             artifacts,
                             self.cfg,
                             total_pages=total_pages,
+                        )
+                        artifacts.save_json(artifacts.manifest_json_path, manifest)
+                    elif (
+                        c_res is not None
+                        and getattr(c_res, "error_type", None) == "GeminiMaxTokensError"
+                    ):
+                        exc = GeminiMaxTokensError(
+                            stage="classify",
+                            details=c_res.error or f"Batch item '{c_key}' truncated at MAX_TOKENS.",
+                        )
+                        if not use_guard:
+                            raise exc
+                        manifest = validate_and_retry_manifest(
+                            self.client,
+                            None,
+                            placeholders,
+                            artifacts,
+                            self.cfg,
+                            total_pages=total_pages,
+                            initial_max_tokens_exc=exc,
                         )
                         artifacts.save_json(artifacts.manifest_json_path, manifest)
                     else:

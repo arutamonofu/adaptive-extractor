@@ -347,8 +347,11 @@ class ArtifactManager:
 
     def invalidate_from_stage(self, stage_name: str) -> None:
         """Delete artifacts for stage_name and all subsequent stages."""
-        if stage_name == "segment_and_crop_visuals_atoms":
-            stage_name = "segment_and_crop_visuals_elements"
+        stage_aliases = {
+            "classify": "manifest_visuals",
+            "segment_and_crop_visuals_atoms": "segment_and_crop_visuals_elements",
+        }
+        stage_name = stage_aliases.get(stage_name, stage_name)
         if stage_name not in STAGES:
             raise ValueError(
                 f"Unknown stage: {stage_name}. Valid stages: {STAGES}",

@@ -178,7 +178,7 @@ def parse_placeholders_from_markdown(
 
         visual_page = _offset_to_page(m.start())
 
-        if raw_id.startswith("Unlabeled"):
+        if raw_id.lower().startswith("unlabeled"):
             k = unlabeled_counts.get(visual_page, 0) + 1
             unlabeled_counts[visual_page] = k
             unique_id = f"Unlabeled_p{visual_page}_{k}"
@@ -276,6 +276,31 @@ def _extract_pdf_pages_text(pdf_path: Path) -> dict[int, str]:
     except Exception as exc:
         logger.debug(f"Could not extract raw PDF text for silent-error check: {exc}")
     return texts
+
+
+def _extract_pdf_pages_visual_flags(pdf_path: Path) -> dict[int, bool]:
+    """Detect per-page embedded images or vector drawings for scan-page silent-error checks."""
+    flags: dict[int, bool] = {}
+    try:
+        doc = fitz.open(pdf_path)
+        try:
+            for idx in range(len(doc)):
+                page = doc[idx]
+                flags[idx + 1] = bool(page.get_images(full=False) or page.get_drawings())
+        finally:
+            doc.close()
+    except Exception as exc:
+        logger.debug(f"Could not inspect PDF visual flags for silent-error check: {exc}")
+    return flags
+
+
+def is_visual_tag_silent_error(err_reason: Optional[str]) -> bool:
+    """Return True if err_reason indicates malformed, nested, or unbalanced <visual> tags."""
+    if not err_reason:
+        return False
+    return err_reason.startswith(
+        ("malformed_visual_tag", "unclosed_visual_tag", "stray_visual_close_tag")
+    )
 
 
 def _should_use_inline_pdf(config: Any, chunk_pdf_path: Path) -> bool:
@@ -417,6 +442,7 @@ def validate_and_retry_chunk_markdown(
     *,
     doc_name: str = "",
     initial_max_tokens_exc: Optional[GeminiMaxTokensError] = None,
+    has_visual_content: bool = False,
 ) -> str:
     """Validate a Stage 1 chunk output and retry once at temperature=0.5 on silent/truncation errors."""
     if chunk_md is not None:
@@ -426,7 +452,11 @@ def validate_and_retry_chunk_markdown(
     if initial_max_tokens_exc is not None:
         err_reason = f"max_tokens_truncation: {initial_max_tokens_exc}"
     elif chunk_md is not None:
-        err_reason = detect_parse_text_silent_error(chunk_md, pdf_page_text=raw_pdf_txt)
+        err_reason = detect_parse_text_silent_error(
+            chunk_md,
+            pdf_page_text=raw_pdf_txt,
+            has_visual_content=has_visual_content,
+        )
 
     if not err_reason:
         return chunk_md or ""
@@ -449,9 +479,9 @@ def validate_and_retry_chunk_markdown(
             config=config,
             temperature_override=0.5,
         )
-    except GeminiMaxTokensError:
+    except (GeminiMaxTokensError, GeminiEmptyResponseError):
         if initial_max_tokens_exc is not None:
-            raise
+            raise initial_max_tokens_exc
         return chunk_md or ""
 
     if not retry_md or not retry_md.strip():
@@ -460,7 +490,11 @@ def validate_and_retry_chunk_markdown(
         return chunk_md or ""
 
     retry_md = strip_outer_code_fences(retry_md)
-    retry_err = detect_parse_text_silent_error(retry_md, pdf_page_text=raw_pdf_txt)
+    retry_err = detect_parse_text_silent_error(
+        retry_md,
+        pdf_page_text=raw_pdf_txt,
+        has_visual_content=has_visual_content,
+    )
     if retry_err is None:
         return retry_md
 
@@ -507,6 +541,9 @@ def run_chunked_parse_text(
         for s, e, _ in chunks
     )
     page_texts = _extract_pdf_pages_text(pdf_path) if (use_guard and has_uncached) else {}
+    page_visual_flags = (
+        _extract_pdf_pages_visual_flags(pdf_path) if (use_guard and has_uncached) else {}
+    )
 
     max_workers = getattr(config.gemini, "max_concurrent_requests", 4)
     chunk_results: list[Optional[str]] = [None] * len(chunks)
@@ -541,23 +578,23 @@ def run_chunked_parse_text(
             if not use_guard:
                 raise
             initial_max_tokens_exc = exc
+        except GeminiEmptyResponseError:
+            if not use_guard:
+                raise
+            chunk_md = ""
 
-        if initial_max_tokens_exc is None and (not chunk_md or not chunk_md.strip()):
-            raise GeminiEmptyResponseError(
-                stage="parse_text",
-                details=(
-                    f"Gemini returned empty response for chunk {idx} "
-                    f"(pages {start_page}-{end_page}) of '{artifacts.doc_name}'."
-                ),
-            )
-
+        raw_pdf_txt = ""
+        has_visual_content = False
         if use_guard:
             raw_pdf_txt = "\n".join(
                 page_texts.get(p, "") for p in range(start_page, end_page + 1)
             )
+            has_visual_content = any(
+                page_visual_flags.get(p, False) for p in range(start_page, end_page + 1)
+            )
             chunk_md = validate_and_retry_chunk_markdown(
                 client=client,
-                chunk_md=chunk_md,
+                chunk_md=chunk_md if chunk_md is not None else "",
                 chunk_pdf_path=chunk_pdf_path,
                 start_page=start_page,
                 end_page=end_page,
@@ -567,9 +604,32 @@ def run_chunked_parse_text(
                 raw_pdf_txt=raw_pdf_txt,
                 doc_name=artifacts.doc_name,
                 initial_max_tokens_exc=initial_max_tokens_exc,
+                has_visual_content=has_visual_content,
             )
         else:
             chunk_md = strip_outer_code_fences(chunk_md or "")
+
+        if not chunk_md or not chunk_md.strip():
+            raise GeminiEmptyResponseError(
+                stage="parse_text",
+                details=(
+                    f"Gemini returned empty response for chunk {idx} "
+                    f"(pages {start_page}-{end_page}) of '{artifacts.doc_name}'."
+                ),
+            )
+
+        if use_guard:
+            final_err = detect_parse_text_silent_error(
+                chunk_md,
+                pdf_page_text=raw_pdf_txt,
+                has_visual_content=has_visual_content,
+            )
+            if is_visual_tag_silent_error(final_err):
+                logger.warning(
+                    f"Stage 1 [parse_text]: Skipping cache write for '{artifacts.doc_name}' "
+                    f"pages {start_page}-{end_page} due to unresolved visual tag error ({final_err})."
+                )
+                return chunk_md
 
         atomic_write_text(chunk_cache_path, chunk_md)
         return chunk_md

@@ -109,14 +109,26 @@ def _render_entities_table(entities: list[Any]) -> list[str]:
             aps = getattr(ent, "attachment_points", None) or []
             ap_str = "; ".join(f"`{ap.placeholder}` = {ap.variable}" for ap in aps) if aps else "-"
             lines.append(f"| **{ent.label}** | `{ent.smiles}` | {ap_str} |")
-        return lines
+    else:
+        lines = [
+            "| Label | SMILES |",
+            "| :--- | :--- |",
+        ]
+        for ent in entities:
+            lines.append(f"| **{ent.label}** | `{ent.smiles}` |")
 
-    lines = [
-        "| Label | SMILES |",
-        "| :--- | :--- |",
-    ]
+    notes: list[str] = []
     for ent in entities:
-        lines.append(f"| **{ent.label}** | `{ent.smiles}` |")
+        status = getattr(ent, "provenance_status", None)
+        oracle_notes = (getattr(ent, "oracle_notes", None) or "").strip()
+        is_override = "overrid" in oracle_notes.lower()
+        if status == "mismatch_flagged" or is_override:
+            tag = status or "oracle_note"
+            detail = oracle_notes.replace("--", "-")
+            entry = f"{ent.label}: {tag}" + (f" ({detail})" if detail else "")
+            notes.append(entry)
+    if notes:
+        lines.append(f"<!-- oracle_notes: {'; '.join(notes)} -->")
     return lines
 
 
@@ -292,7 +304,7 @@ def assemble_enriched_markdown(
         ph_id = match.group("id")
         caption = caption_map.get(ph_id)
         if caption is None:
-            raw_c = match.group("caption") or match.group("inner_content")
+            raw_c = match.group("caption")
             caption = raw_c.strip() if raw_c else ""
         vis = vis_by_id.get(ph_id)
         visuals_list = [vis] if vis else []
@@ -316,7 +328,7 @@ def assemble_manifest_markdown(
         ph_id = match.group("id")
         caption = caption_map.get(ph_id)
         if caption is None:
-            raw_c = match.group("caption") or match.group("inner_content")
+            raw_c = match.group("caption")
             caption = raw_c.strip() if raw_c else ""
 
         # Check if already parsed

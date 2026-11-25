@@ -64,6 +64,7 @@ class BatchItemResult:
     text: Optional[str] = None
     parsed: Optional[Any] = None
     error: Optional[str] = None
+    error_type: Optional[str] = None
 
 _MEDIA_RESOLUTION_MAP = {
     "high": "MEDIA_RESOLUTION_HIGH",
@@ -686,7 +687,11 @@ class GeminiClient:
                         )
                         results[spec.key] = BatchItemResult(key=spec.key, text=text, parsed=parsed)
                     except Exception as exc:
-                        results[spec.key] = BatchItemResult(key=spec.key, error=str(exc))
+                        results[spec.key] = BatchItemResult(
+                            key=spec.key,
+                            error=str(exc),
+                            error_type=type(exc).__name__,
+                        )
                 continue
 
             for idx, spec in enumerate(chunk_specs):
@@ -709,6 +714,10 @@ class GeminiClient:
                         parsed = spec.response_schema.model_validate_json(text)
                     results[spec.key] = BatchItemResult(key=spec.key, text=text, parsed=parsed)
                 except Exception as exc:
-                    results[spec.key] = BatchItemResult(key=spec.key, error=str(exc))
+                    results[spec.key] = BatchItemResult(
+                        key=spec.key,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                    )
 
         return results

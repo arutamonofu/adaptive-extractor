@@ -50,7 +50,7 @@ ingestion:
         temperature: 0.0
         max_output_tokens: 16384
         media_resolution: "medium"
-        thinking_level: "medium"
+        thinking_level: "low"
         thinking_budget: null
 
     # Stage 3 (T1): Visual block bounding box localization on page images

@@ -422,3 +422,370 @@ def test_manifest_prompt_aligned_ids_and_dup_docs():
     assert "Fig._10" in prompt
     assert "Fig.-10" not in prompt
     assert "*_dupN" in prompt
+
+
+# ---------------------------------------------------------------------------
+# 5. EXP-01A hardening follow-up tests (render, guard, artifacts, batch, yaml)
+# ---------------------------------------------------------------------------
+
+
+def test_render_self_closing_visual_without_caption_map_and_oracle_notes(tmp_path: Path):
+    from ae.ingestion.parsers.gemini.schemas import ChemicalEntity, MolecularParseResult
+    from ae.ingestion.parsers.gemini.stages.render_markdown import (
+        assemble_enriched_markdown,
+        assemble_manifest_markdown,
+        render_parse_body,
+    )
+
+    raw_md = 'Text before.\n\n<visual id="Unlabeled_p1_1" />\n\nText after.'
+    manifest = Manifest(
+        visuals=[
+            ManifestVisual(
+                id="Unlabeled_p1_1",
+                type="molecular_structure",
+                pages=[1],
+                description="Structure",
+            )
+        ],
+        discarded_ids=[],
+    )
+    artifacts = ArtifactManager("self_close_doc", base_dir=tmp_path)
+
+    # Should not crash on match.group("inner_content") when caption_map omits placeholder
+    manifest_md = assemble_manifest_markdown(raw_md, manifest, {}, artifacts)
+    assert '<visual id="Unlabeled_p1_1" type="molecular_structure">' in manifest_md
+
+    enriched_md = assemble_enriched_markdown(raw_md, manifest, {}, {})
+    assert '<visual id="Unlabeled_p1_1" type="molecular_structure">' in enriched_md
+
+    # Surface compact HTML comment for mismatch_flagged or overridden entities
+    mol_res = MolecularParseResult(
+        entities=[
+            ChemicalEntity(
+                label="15",
+                smiles="CCO",
+                provenance_status="mismatch_flagged",
+                oracle_notes="Formula mismatch",
+            ),
+            ChemicalEntity(
+                label="37",
+                smiles="CCC",
+                provenance_status="verified_exact",
+                oracle_notes="overridden from prose IUPAC heading (stereo may be lost)",
+            ),
+            ChemicalEntity(label="1", smiles="C", provenance_status="verified_exact"),
+        ]
+    )
+    rendered = render_parse_body(mol_res)
+    assert "| **15** | `CCO` |" in rendered
+    assert "| **37** | `CCC` |" in rendered
+    assert "<!-- oracle_notes:" in rendered
+    assert "15: mismatch_flagged (Formula mismatch)" in rendered
+    assert "37: verified_exact (overridden from prose IUPAC heading" in rendered
+
+
+def test_parse_text_case_insensitive_unlabeled_and_empty_retry_and_no_broken_cache(tmp_path: Path):
+    from ae.core.exceptions import GeminiEmptyResponseError
+    from ae.ingestion.parsers.gemini.stages.parse_text import parse_placeholders_from_markdown
+
+    _, phs = parse_placeholders_from_markdown(
+        '<visual id="unlabeled_a" />\n<visual id="UNLABELED_b" />',
+        start_page=3,
+    )
+    assert [p.id for p in phs] == ["Unlabeled_p3_1", "Unlabeled_p3_2"]
+
+    # Empty chunk response routes through validate_and_retry_chunk_markdown and recovers
+    pdf_path = _make_pdf(tmp_path / "empty_retry.pdf", ["Page 1 scientific text."])
+    artifacts = ArtifactManager("empty_retry", base_dir=tmp_path)
+    cfg = IngestionConfig(execution=ExecutionConfig(silent_error_guard=True))
+    mock_client = MagicMock()
+    mock_client.make_pdf_part.return_value = "pdf_part"
+    temps: list[float] = []
+
+    def _gen_empty_then_ok(contents, **kwargs):
+        temps.append(kwargs["temperature"])
+        if len(temps) == 1:
+            return "   "
+        return "Recovered text on retry."
+
+    mock_client.generate_text.side_effect = _gen_empty_then_ok
+    md, _ = run_chunked_parse_text(mock_client, pdf_path, artifacts, cfg)
+    assert temps == [0.0, 0.5]
+    assert "Recovered text on retry." in md
+    assert (artifacts.chunks_dir / "chunk_1_1.md").exists()
+
+    # Also recovers when GeminiEmptyResponseError is raised initially
+    artifacts_exc = ArtifactManager("empty_exc_retry", base_dir=tmp_path)
+    mock_client_exc = MagicMock()
+    mock_client_exc.make_pdf_part.return_value = "pdf_part"
+    mock_client_exc.generate_text.side_effect = [
+        GeminiEmptyResponseError(stage="parse_text"),
+        "Recovered from empty exception.",
+    ]
+    md_exc, _ = run_chunked_parse_text(mock_client_exc, pdf_path, artifacts_exc, cfg)
+    assert "Recovered from empty exception." in md_exc
+
+    # Unresolved malformed/unclosed visual tag after retry must NOT be cached
+    artifacts_bad = ArtifactManager("bad_tag_nocache", base_dir=tmp_path)
+    mock_client_bad = MagicMock()
+    mock_client_bad.make_pdf_part.return_value = "pdf_part"
+    mock_client_bad.generate_text.side_effect = [
+        'Text\n<visual id="Fig_1">unclosed caption',
+        'Retry\n<visual id="Bad Space" />',
+    ]
+    md_bad, _ = run_chunked_parse_text(mock_client_bad, pdf_path, artifacts_bad, cfg)
+    assert "unclosed caption" in md_bad
+    assert not (artifacts_bad.chunks_dir / "chunk_1_1.md").exists()
+
+
+def test_artifacts_invalidate_from_classify_alias(tmp_path: Path):
+    artifacts = ArtifactManager("alias_doc", base_dir=tmp_path)
+    artifacts.save_text(artifacts.text_md_path, "Stage 1 text")
+    artifacts.save_json(artifacts.placeholders_json_path, [])
+    artifacts.save_json(artifacts.manifest_json_path, {"visuals": [], "discarded_ids": []})
+    artifacts.save_json(artifacts.bboxes_json_path, {"pages": []})
+
+    artifacts.invalidate_from_stage("classify")
+    assert artifacts.has_parse_text_artifact() is True
+    assert artifacts.has_manifest_artifact() is False
+    assert artifacts.has_localize_artifact() is False
+
+
+def test_silent_error_guard_stage1_stack_boilerplate_completeness_and_scan(tmp_path: Path):
+    # Stack-based nested & out-of-order visual tags
+    assert "stray_visual_close_tag" in (
+        detect_parse_text_silent_error('</visual>\n<visual id="Fig_1">cap') or ""
+    )
+    assert "malformed_visual_tag" in (
+        detect_parse_text_silent_error('<visual id="Fig_1">\n<visual id="Fig_2">x</visual>\n</visual>')
+        or ""
+    )
+    assert "unclosed_visual_tag" in (
+        detect_parse_text_silent_error('<visual id="Fig_1">unclosed') or ""
+    )
+
+    # Narrowed boilerplate detection: prose line starting with "references" is not skipped
+    prose_with_refs_word = "\n".join(
+        [
+            "references to previous benzimidazole derivatives showed weak potency.",
+            "Compound 15 exhibited MIC = 1.5 ug/mL against MRSA.",
+            "Further SAR analysis confirmed the role of the C5 substituent.",
+        ]
+    )
+    assert _is_likely_reference_or_boilerplate_page(prose_with_refs_word) is False
+
+    # Mixed page with 4 content lines before References heading is not skipped
+    mixed_early = "\n".join(
+        [
+            "Line 1 of discussion on compound 12.",
+            "Line 2 of discussion on selectivity.",
+            "Line 3 of discussion on toxicity.",
+            "Line 4 concluding remarks.",
+            "References",
+            "[1] Doe J. 2024.",
+        ]
+    )
+    assert _is_likely_reference_or_boilerplate_page(mixed_early) is False
+
+    # Soft completeness check (< 0.15 ratio on >= 500 char non-boilerplate page without <visual>)
+    dense_pdf = "Compound 15 showed strong antibacterial activity against S. aureus. " * 12
+    assert len(dense_pdf) >= 500
+    short_md = "Compound 15 showed activity."
+    assert len(short_md) / len(dense_pdf) < 0.15
+    assert "silent_omission" in (
+        detect_parse_text_silent_error(short_md, pdf_page_text=dense_pdf) or ""
+    )
+
+    # Scan page without text layer (has_visual_content=True)
+    assert "silent_omission" in (
+        detect_parse_text_silent_error("<!-- omitted -->", pdf_page_text="", has_visual_content=True)
+        or ""
+    )
+    assert (
+        detect_parse_text_silent_error("<!-- omitted -->", pdf_page_text="", has_visual_content=False)
+        is None
+    )
+
+
+def test_silent_error_guard_stage2_all_discarded_and_tightened_drop_and_warning(caplog):
+    phs = [
+        PlaceholderItem(id="Fig_1", caption="Photo 1", page=1),
+        PlaceholderItem(id="Fig_2", caption="Photo 2", page=2),
+    ]
+    all_discarded = Manifest(visuals=[], discarded_ids=["Fig_1", "Fig_2"])
+    rec_all_disc = reconcile_manifest(all_discarded, phs)
+    assert detect_manifest_silent_error(all_discarded, rec_all_disc, phs) is None
+
+    # Tightened high_unexpected_drop: 3/10 unaccounted (30%) triggers
+    phs_10 = [PlaceholderItem(id=f"Fig_{i}", caption=f"F{i}", page=1) for i in range(10)]
+    raw_drop = Manifest(
+        visuals=[ManifestVisual(id=f"Fig_{i}", type="chart", pages=[1], description="C") for i in range(7)],
+        discarded_ids=[],
+    )
+    with caplog.at_level("WARNING"):
+        rec_drop = reconcile_manifest(raw_drop, phs_10)
+    assert "Force-discarded 3 unaccounted placeholder(s)" in caplog.text
+    err = detect_manifest_silent_error(raw_drop, rec_drop, phs_10)
+    assert err is not None and "high_unexpected_drop" in err
+
+
+def test_manifest_visuals_dup_pages_max_tokens_retry_error_reduction_and_sys_prompt(tmp_path: Path):
+    from ae.ingestion.parsers.gemini.stages.manifest_visuals import validate_and_retry_manifest
+
+    # 1. *_dupN includes p.page - 1
+    dup_phs = [PlaceholderItem(id="Table_1_dup2", caption="Table 1 (cont.)", page=4)]
+    assert get_required_pages(dup_phs) == {3, 4}
+
+    # 2. validate_and_retry_manifest rejects retry that introduces unmatched errors
+    artifacts = ArtifactManager("retry_err_red", base_dir=tmp_path)
+    (artifacts.pages_dir / "p1.png").write_bytes(b"png1")
+    phs = [
+        PlaceholderItem(id="Table_1", caption="T1", page=1),
+        PlaceholderItem(id="Table_2", caption="T2", page=1),
+        PlaceholderItem(id="Table_3", caption="T3", page=1),
+    ]
+    orig_raw = Manifest(
+        visuals=[ManifestVisual(id="Table_1", type="table", pages=[1], description="T1")],
+        discarded_ids=[],
+    )
+    worse_retry_raw = Manifest(
+        visuals=[
+            ManifestVisual(id="Table_1", type="table", pages=[1], description="T1"),
+            ManifestVisual(id="Table_2", type="table", pages=[1], description="T2"),
+            ManifestVisual(id="Ghost_1", type="table", pages=[1], description="G1"),
+            ManifestVisual(id="Ghost_2", type="table", pages=[1], description="G2"),
+            ManifestVisual(id="Ghost_3", type="table", pages=[1], description="G3"),
+        ],
+        discarded_ids=[],
+    )
+    cfg = IngestionConfig(execution=ExecutionConfig(silent_error_guard=True))
+    mock_client = MagicMock()
+    mock_client.generate_structured.return_value = worse_retry_raw
+    chosen = validate_and_retry_manifest(mock_client, orig_raw, phs, artifacts, cfg, total_pages=1)
+    assert [v.id for v in chosen.visuals] == ["Table_1"]
+
+    # 3. run_manifest_visuals handles GeminiMaxTokensError and passes system_instruction
+    artifacts_mt = ArtifactManager("manifest_max_tok", base_dir=tmp_path)
+    (artifacts_mt.pages_dir / "p1.png").write_bytes(b"png1")
+    calls: list[dict] = []
+
+    def _gen_mt(contents, **kwargs):
+        calls.append({"contents": contents, **kwargs})
+        if len(calls) == 1:
+            raise GeminiMaxTokensError(stage="classify")
+        return Manifest(
+            visuals=[ManifestVisual(id="Table_1", type="table", pages=[1], description="T1")],
+            discarded_ids=[],
+        )
+
+    mock_client_mt = MagicMock()
+    mock_client_mt.generate_structured.side_effect = _gen_mt
+    res_mt = run_manifest_visuals(
+        mock_client_mt,
+        [PlaceholderItem(id="Table_1", caption="T1", page=1)],
+        artifacts_mt,
+        cfg,
+        total_pages=1,
+    )
+    assert [v.id for v in res_mt.visuals] == ["Table_1"]
+    assert [c["temperature"] for c in calls] == [0.0, 0.5]
+    assert "system_instruction" in calls[0] and "Filtering" in calls[0]["system_instruction"]
+    assert all("Filtering" not in str(item) for item in calls[0]["contents"])
+
+    # Batch spec also puts static prompt into system_instruction
+    artifacts_bs = ArtifactManager("batch_sys", base_dir=tmp_path)
+    (artifacts_bs.pages_dir / "p1.png").write_bytes(b"png1")
+    spec = build_manifest_visuals_batch_spec(
+        [PlaceholderItem(id="Table_1", caption="T1", page=1)], artifacts_bs, cfg
+    )
+    assert spec is not None
+    assert spec.system_instruction and "Filtering" in spec.system_instruction
+    assert all("Filtering" not in str(item) for item in spec.contents)
+
+
+def test_batch_error_type_and_parser_direct_max_tokens_retry_and_no_empty_cache(
+    tmp_path: Path, monkeypatch
+):
+    from ae.core.exceptions import GeminiEmptyResponseError
+
+    # 1. client.py stores error_type on BatchItemResult for MAX_TOKENS
+    client = GeminiClient(GeminiParserConfig(), api_key="dummy")
+    mock_candidate = MagicMock()
+    mock_candidate.finish_reason = "MAX_TOKENS"
+    mock_candidate.content.parts = [MagicMock()]
+    mock_resp = MagicMock()
+    mock_resp.candidates = [mock_candidate]
+    mock_resp.prompt_feedback = None
+    mock_resp.usage_metadata = None
+    mock_ir = MagicMock(error=None, response=mock_resp)
+    mock_job = MagicMock(
+        state="JOB_STATE_SUCCEEDED",
+        dest=MagicMock(inlined_responses=[mock_ir], file_name=None),
+    )
+    client._client = MagicMock()
+    client._client.batches.create.return_value = mock_job
+
+    from ae.ingestion.parsers.gemini.client import BatchRequestSpec
+
+    batch_out = client.run_batch_requests(
+        [BatchRequestSpec(key="k1", contents=["hello"], stage_name="parse_text")]
+    )
+    assert batch_out["k1"].error_type == "GeminiMaxTokensError"
+
+    # 2. parser.parse_batch retries GeminiMaxTokensError directly at temperature=0.5 (no temp=0.0 sync call)
+    pdf_path = _make_pdf(tmp_path / "batch_mt.pdf", ["Page 1 scientific text."])
+    cfg = IngestionConfig(
+        ingestion_dir=tmp_path / "ing1",
+        execution=ExecutionConfig(use_batch_api=True, silent_error_guard=True),
+    )
+    monkeypatch.setattr(GeminiParser, "_resolve_api_key", staticmethod(lambda: "dummy"))
+    parser = GeminiParser(cfg)
+    mock_client = MagicMock()
+    mock_client.make_pdf_part.return_value = "pdf_part"
+    mock_client.get_all_stage_usage.return_value = {}
+    mock_client.get_scope_counters.return_value = {}
+
+    sync_temps: list[float] = []
+    mock_client.generate_text.side_effect = lambda *a, **kw: (
+        sync_temps.append(kw["temperature"]) or "Recovered directly at temp 0.5."
+    )
+    mock_client.run_batch_requests.side_effect = lambda specs, **kw: {
+        s.key: (
+            BatchItemResult(key=s.key, error="MAX_TOKENS", error_type="GeminiMaxTokensError")
+            if s.stage_name == "parse_text"
+            else BatchItemResult(key=s.key, parsed=Manifest(visuals=[], discarded_ids=[]))
+        )
+        for s in specs
+    }
+    parser._client = mock_client
+    out = parser.parse_batch([pdf_path])
+    assert sync_temps == [0.5]
+    assert "Recovered directly at temp 0.5." in out[pdf_path.resolve()]
+
+    # 3. parser.parse_batch with use_guard=False must NOT cache empty response
+    pdf_empty = _make_pdf(tmp_path / "batch_empty_noguard.pdf", ["Page 1 text."])
+    cfg_noguard = IngestionConfig(
+        ingestion_dir=tmp_path / "ing2",
+        execution=ExecutionConfig(use_batch_api=True, silent_error_guard=False),
+    )
+    parser2 = GeminiParser(cfg_noguard)
+    mock_client2 = MagicMock()
+    mock_client2.make_pdf_part.return_value = "pdf_part"
+    mock_client2.generate_text.return_value = "   "
+    mock_client2.run_batch_requests.return_value = {
+        "batch_empty_noguard__chunk_1_1": BatchItemResult(key="batch_empty_noguard__chunk_1_1", text="")
+    }
+    parser2._client = mock_client2
+    with pytest.raises(GeminiEmptyResponseError):
+        parser2.parse_batch([pdf_empty])
+    arts2 = ArtifactManager("batch_empty_noguard", base_dir=cfg_noguard.ingestion_dir)
+    assert not (arts2.chunks_dir / "chunk_1_1.md").exists()
+
+
+def test_ingestion_yaml_classify_thinking_level_low():
+    import yaml
+
+    yaml_path = Path(__file__).resolve().parents[3] / "config" / "ingestion.yaml"
+    raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    cfg = IngestionConfig.model_validate(raw["ingestion"])
+    assert cfg.stages.classify.model.thinking_level == "low"

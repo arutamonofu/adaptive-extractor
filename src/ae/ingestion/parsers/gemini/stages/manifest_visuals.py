@@ -14,6 +14,7 @@ from typing import Any, Optional, Union
 
 import pymupdf as fitz
 
+from ae.core.exceptions import GeminiMaxTokensError
 from ae.ingestion.parsers.gemini.artifacts import ArtifactManager
 from ae.ingestion.parsers.gemini.client import BatchRequestSpec, GeminiClient
 from ae.ingestion.parsers.gemini.schemas import (
@@ -27,6 +28,8 @@ from ae.ingestion.parsers.gemini.stages.silent_error_guard import (
 
 logger = logging.getLogger(__name__)
 
+_DUP_ID_RE = re.compile(r"_dup\d+$", re.IGNORECASE)
+
 
 def _read_prompt_template() -> str:
     prompt_file = (
@@ -38,11 +41,21 @@ def _read_prompt_template() -> str:
     return prompt_file.read_text(encoding="utf-8")
 
 
+def _split_manifest_prompt_template() -> tuple[str, str]:
+    """Split manifest_visuals.txt into static system_instruction and dynamic user prompt."""
+    template = _read_prompt_template()
+    marker = "Placeholders:"
+    if marker in template:
+        idx = template.index(marker)
+        return template[:idx].strip(), template[idx:].strip()
+    return template.replace("{placeholders_list}", "").strip(), "Placeholders:\n{placeholders_list}"
+
+
 def get_required_pages(source: Union[list[PlaceholderItem], Manifest]) -> set[int]:
     """Get the union of 1-based page numbers required by placeholders or manifest visuals.
 
-    For Unlabeled_* placeholders on page N (N > 1), also includes page N - 1 so multi-page
-    tables have visual context of previous table headers during classification.
+    For Unlabeled_* and *_dupN placeholders on page N (N > 1), also includes page N - 1
+    so multi-page tables/continuations have visual context of previous pages during classification.
     """
     pages: set[int] = set()
     if isinstance(source, Manifest):
@@ -52,7 +65,8 @@ def get_required_pages(source: Union[list[PlaceholderItem], Manifest]) -> set[in
         for p in source:
             if hasattr(p, "page") and p.page and p.page >= 1:
                 pages.add(p.page)
-                if getattr(p, "id", "").lower().startswith("unlabeled") and p.page > 1:
+                pid = getattr(p, "id", "") or ""
+                if (pid.lower().startswith("unlabeled") or _DUP_ID_RE.search(pid)) and p.page > 1:
                     pages.add(p.page - 1)
     return pages
 
@@ -149,15 +163,17 @@ def _is_silent_error_guard_enabled(cfg: Any) -> bool:
 def _build_manifest_contents(
     placeholders: list[PlaceholderItem],
     artifacts: ArtifactManager,
+    user_template: Optional[str] = None,
 ) -> list[Any]:
     """Build multimodal prompt contents for Stage 02 manifest classification."""
-    template = _read_prompt_template()
+    if user_template is None:
+        _, user_template = _split_manifest_prompt_template()
     placeholders_list_str = json.dumps(
         [{"id": p.id, "caption": p.caption, "page": p.page} for p in placeholders],
         indent=2,
         ensure_ascii=False,
     )
-    prompt = template.replace("{placeholders_list}", placeholders_list_str)
+    prompt = user_template.replace("{placeholders_list}", placeholders_list_str)
 
     target_pages = get_required_pages(placeholders)
     contents: list[Any] = []
@@ -245,9 +261,18 @@ def reconcile_manifest(
         if resolved_d is not None:
             discarded.add(resolved_d)
 
+    force_discarded: list[str] = []
     for p in expected_placeholders:
         if p.id not in seen_ids:
+            if p.id not in discarded:
+                force_discarded.append(p.id)
             discarded.add(p.id)
+
+    if force_discarded:
+        logger.warning(
+            f"Stage 02 [manifest_visuals]: Force-discarded {len(force_discarded)} unaccounted "
+            f"placeholder(s) omitted by model: {force_discarded}"
+        )
 
     discarded = {d for d in discarded if d not in seen_ids}
 
@@ -257,23 +282,58 @@ def reconcile_manifest(
     )
 
 
+def _manifest_error_metrics(
+    raw_manifest: Manifest,
+    reconciled_manifest: Manifest,
+    expected_placeholders: list[PlaceholderItem],
+) -> tuple[int, int]:
+    """Return (unaccounted_count, rejected_raw_count) for comparing manifest quality."""
+    expected_ids = {p.id for p in expected_placeholders}
+    norm_map: dict[str, list[str]] = {}
+    for eid in expected_ids:
+        norm_map.setdefault(_normalize_visual_id(eid), []).append(eid)
+
+    def _resolve_id(raw_id: str) -> Optional[str]:
+        if raw_id in expected_ids:
+            return raw_id
+        cands = norm_map.get(_normalize_visual_id(raw_id), [])
+        return cands[0] if len(cands) == 1 else None
+
+    raw_visuals = getattr(raw_manifest, "visuals", []) or []
+    raw_discarded = getattr(raw_manifest, "discarded_ids", []) or []
+    reconciled_vis_ids = {v.id for v in (getattr(reconciled_manifest, "visuals", []) or [])}
+    raw_discarded_matched = {
+        resolved
+        for d in raw_discarded
+        if (resolved := _resolve_id(d)) is not None
+    }
+    unaccounted_count = len(expected_ids - (reconciled_vis_ids | raw_discarded_matched))
+    rejected_raw_count = sum(1 for v in raw_visuals if _resolve_id(v.id) is None)
+    return unaccounted_count, rejected_raw_count
+
+
 def validate_and_retry_manifest(
     client: GeminiClient,
-    raw_manifest: Manifest,
+    raw_manifest: Optional[Manifest],
     placeholders: list[PlaceholderItem],
     artifacts: ArtifactManager,
     cfg: Any,
     *,
     total_pages: Optional[int] = None,
+    initial_max_tokens_exc: Optional[GeminiMaxTokensError] = None,
 ) -> Manifest:
-    """Reconcile manifest and retry once at temperature=0.5 if Stage 2 silent error is detected."""
-    manifest = reconcile_manifest(raw_manifest, placeholders, total_pages=total_pages)
-    if not _is_silent_error_guard_enabled(cfg):
-        return manifest
-
-    err_reason = detect_manifest_silent_error(raw_manifest, manifest, placeholders)
-    if not err_reason:
-        return manifest
+    """Reconcile manifest and retry once at temperature=0.5 if Stage 2 silent/truncation error occurs."""
+    manifest: Optional[Manifest] = None
+    if initial_max_tokens_exc is not None:
+        err_reason: Optional[str] = f"max_tokens_truncation: {initial_max_tokens_exc}"
+    else:
+        assert raw_manifest is not None
+        manifest = reconcile_manifest(raw_manifest, placeholders, total_pages=total_pages)
+        if not _is_silent_error_guard_enabled(cfg):
+            return manifest
+        err_reason = detect_manifest_silent_error(raw_manifest, manifest, placeholders)
+        if not err_reason:
+            return manifest
 
     logger.warning(
         f"Silent-Error Guard triggered on Stage 02 manifest for '{artifacts.doc_name}' "
@@ -283,28 +343,50 @@ def validate_and_retry_manifest(
         client.record_event("silent_error_retries")
 
     stage_cfg = cfg.gemini.get_stage_config("classify")
-    contents = _build_manifest_contents(placeholders, artifacts)
+    static_sys_prompt, user_tpl = _split_manifest_prompt_template()
+    contents = _build_manifest_contents(placeholders, artifacts, user_template=user_tpl)
     try:
         retry_raw = client.generate_structured(
             contents,
             response_schema=Manifest,
             stage_name="classify",
             model=stage_cfg.model,
+            system_instruction=static_sys_prompt,
             temperature=0.5,
             max_output_tokens=stage_cfg.max_output_tokens,
             media_resolution=stage_cfg.media_resolution,
             thinking_level=stage_cfg.thinking_level,
             thinking_budget=stage_cfg.thinking_budget,
         )
+    except GeminiMaxTokensError:
+        if initial_max_tokens_exc is not None:
+            raise
+        assert manifest is not None
+        return manifest
     except Exception as exc:
         logger.warning(
             f"Silent-Error Guard Stage 02 retry failed for '{artifacts.doc_name}': {exc}"
         )
+        if initial_max_tokens_exc is not None:
+            raise initial_max_tokens_exc from exc
+        assert manifest is not None
         return manifest
 
     retry_manifest = reconcile_manifest(retry_raw, placeholders, total_pages=total_pages)
     retry_err = detect_manifest_silent_error(retry_raw, retry_manifest, placeholders)
-    if retry_err is None or len(retry_manifest.visuals) > len(manifest.visuals):
+    if initial_max_tokens_exc is not None:
+        return retry_manifest
+    assert raw_manifest is not None and manifest is not None
+    if retry_err is None:
+        return retry_manifest
+
+    orig_unaccounted, orig_rejected = _manifest_error_metrics(raw_manifest, manifest, placeholders)
+    retry_unaccounted, retry_rejected = _manifest_error_metrics(
+        retry_raw, retry_manifest, placeholders
+    )
+    if (retry_unaccounted + retry_rejected) < (orig_unaccounted + orig_rejected) and (
+        retry_rejected <= orig_rejected
+    ):
         return retry_manifest
     return manifest
 
@@ -344,19 +426,28 @@ def run_manifest_visuals(
         f"Stage 02 [manifest_visuals]: Classifying {len(placeholders)} placeholders via Gemini…",
     )
     stage_cfg = cfg.gemini.get_stage_config("classify")
-    contents = _build_manifest_contents(placeholders, artifacts)
+    static_sys_prompt, user_tpl = _split_manifest_prompt_template()
+    contents = _build_manifest_contents(placeholders, artifacts, user_template=user_tpl)
 
-    raw_manifest = client.generate_structured(
-        contents,
-        response_schema=Manifest,
-        stage_name="classify",
-        model=stage_cfg.model,
-        temperature=stage_cfg.temperature,
-        max_output_tokens=stage_cfg.max_output_tokens,
-        media_resolution=stage_cfg.media_resolution,
-        thinking_level=stage_cfg.thinking_level,
-        thinking_budget=stage_cfg.thinking_budget,
-    )
+    initial_max_tokens_exc: Optional[GeminiMaxTokensError] = None
+    raw_manifest: Optional[Manifest] = None
+    try:
+        raw_manifest = client.generate_structured(
+            contents,
+            response_schema=Manifest,
+            stage_name="classify",
+            model=stage_cfg.model,
+            system_instruction=static_sys_prompt,
+            temperature=stage_cfg.temperature,
+            max_output_tokens=stage_cfg.max_output_tokens,
+            media_resolution=stage_cfg.media_resolution,
+            thinking_level=stage_cfg.thinking_level,
+            thinking_budget=stage_cfg.thinking_budget,
+        )
+    except GeminiMaxTokensError as exc:
+        if not _is_silent_error_guard_enabled(cfg):
+            raise
+        initial_max_tokens_exc = exc
 
     manifest = validate_and_retry_manifest(
         client,
@@ -365,6 +456,7 @@ def run_manifest_visuals(
         artifacts,
         cfg,
         total_pages=total_pages,
+        initial_max_tokens_exc=initial_max_tokens_exc,
     )
     artifacts.save_json(artifacts.manifest_json_path, manifest)
 
@@ -394,13 +486,15 @@ def build_manifest_visuals_batch_spec(
         return None
 
     stage_cfg = cfg.gemini.get_stage_config("classify")
-    contents = _build_manifest_contents(placeholders, artifacts)
+    static_sys_prompt, user_tpl = _split_manifest_prompt_template()
+    contents = _build_manifest_contents(placeholders, artifacts, user_template=user_tpl)
 
     return BatchRequestSpec(
         key=f"{artifacts.doc_name}__classify",
         contents=contents,
         stage_name="classify",
         model=stage_cfg.model,
+        system_instruction=static_sys_prompt,
         max_output_tokens=stage_cfg.max_output_tokens,
         temperature=stage_cfg.temperature,
         media_resolution=stage_cfg.media_resolution,
