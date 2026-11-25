@@ -60,6 +60,7 @@ flowchart LR
   - `EXP-03` — двухметрический `RecordMatcher` (Strict+Semantic), валидаторы `pint`/`simpleeval`, POT-разметка и судья `gemma-4-31b-it` (κ = 0.9748, 21.2 с) → [ADR-008](#adr-008-двухметрическая-оценка-strictsemantic-с-детерминированными-валидаторами-и-судьёй-gemma-4-31b-it-2026-11-22-принято).
   - `EXP-04` — защитные механизмы семантической оптимизации (Pareto Auto-Rollback, `min_enum_doc_support`): val Semantic Micro-F1 = 0.9968 (при просадке `strict bacteria = 0.5159`) → [ADR-009](#adr-009-защищённая-семантическая-оптимизация-semopt-guarded-2026-11-22-принято).
   - `EXP-05` — поузловой подбор моделей (треки 5.1–5.6): точечные замены подтверждены для вспомогательных узлов (`glm-5.3-flash`), но в `config/*.yaml` **не применены** (тяжёлые стадии остаются на Gemini, `deepseek` провалил matched-effort пробу на `RJC`, e2e-связка просела) → [`2026-11-22_exp05_model_routing`](../research/experiments/2026-11-22_exp05_model_routing/report.md).
+- **Пост-аудитное укрепление контуров `EXP-01..05` (25 ноября):** проведён сквозной архитектурный аудит и закрыты граничные кейсы во всех 5 контурах (`merged_from` и ремонт `<visual>`-тегов, `trust_drawing` против ложного override в OCSR, продолжение ReAct до `finalize_evidence` и защита идентификаторов в дедупликации, auto-режим `thousands_sep=None` и `llm.semantic_judge`, защита от base drift и адаптивный Pareto-порог, `tier_4a_model`, учёт `thoughts_token_count`; 566/566 unit-тестов).
 
 ---
 
@@ -124,12 +125,12 @@ flowchart LR
 
 ### ADR-008. Двухметрическая оценка Strict+Semantic с детерминированными валидаторами и судьёй `gemma-4-31b-it` (2026-11-22, Принято)
 - **Контекст:** единый семантический F1 скрывал строгие расхождения, венгерское выравнивание давало ложные пары, а судья `gemini-3.8-flash` был медленным (104.7 с) и совпадал с Student ([`EXP-03`](../research/experiments/2026-11-22_exp03_evaluation_and_validators/report.md)).
-- **Решение:** одновременный расчёт `strict_f1` и `semantic_f1` в [`matcher.py`](../src/ae/core/evaluation/matcher.py), пиннинг кэша по `(judge_model_id, schema_constraints_hash)`, пост-хок разметка `POT`/`RapidFuzz` и плагины [`quantity_validators.py`](../src/ae/core/schema/quantity_validators.py) (`pint`, `numeric_quantity`, `simpleeval`). Для `SemanticJudge` валидирован `google/gemma-4-31b-it` (OpenRouter; переключение из `gemini-3.8-flash` в конфигах отложено).
+- **Решение:** одновременный расчёт `strict_f1` (без судьи, с учётом валидаторов) и `semantic_f1` в [`matcher.py`](../src/ae/core/evaluation/matcher.py), пиннинг кэша по `(judge_model_id, schema_constraints_hash)`, пост-хок разметка `POT`/`RapidFuzz` и плагины [`quantity_validators.py`](../src/ae/core/schema/quantity_validators.py) (`pint`, `numeric_quantity`, `simpleeval`). Добавлен опциональный слот `llm.semantic_judge` (с fallback на `student`); для `SemanticJudge` валидирован `google/gemma-4-31b-it` (в `config/*.yaml` по умолчанию оставлен `student`).
 - **Последствия:** κ по 80-парному эталону `0.9247` → **`0.9748`** (+валидаторы) при ускорении в **4.9×** (`104.7 → 21.2 с`); `pint` закрыл 100% юнит-кейсов.
 
 ### ADR-009. Защищённая семантическая оптимизация (`SemOpt-Guarded`) (2026-11-22, Принято)
 - **Контекст:** итерации `SemanticOptimizationGraph` могли ухудшать отдельные колонки и закрывать `enum` по малому числу документов ([`EXP-04`](../research/experiments/2026-11-22_exp04_semantic_opt_hardening/report.md)).
-- **Решение:** в [`graph.py`](../src/ae/semantic_optimization/graph.py) добавлен Per-Column Pareto Auto-Rollback (`pareto_regression_threshold = 0.01`), порог `min_enum_doc_support = 4` и фильтрация `CASE_PATCH`-инструкций из правил строк.
+- **Решение:** в [`graph.py`](../src/ae/semantic_optimization/graph.py) добавлен Per-Column Pareto Auto-Rollback (адаптивный порог `max(pareto_regression_threshold=0.01, 1.0/field_total + 1e-6)`, защита от base drift и откат `02_consolidation/`), порог `min_enum_doc_support = 4` и фильтрация `CASE_PATCH`-инструкций из правил строк.
 - **Последствия:** Semantic Micro-F1 на `val` = **0.9968** без регрессий колонок по semantic-метрике; при этом в живом прогоне просел `strict_per_field_f1.bacteria` (`0.5159`), а часть защит не имела триггеров.
 
 ### ADR-010. Oracle-guided самокоррекция OCSR: prose-hints, gate и детерминированный override (2026-11-24, Принято)
