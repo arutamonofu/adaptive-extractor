@@ -173,11 +173,12 @@ class TaskMetric:
             ground_truth_records = self._extract_records(example)
             predicted_records = self._extract_records(prediction)
 
-            # Calculate detailed metrics using RecordMatcher
+            # Calculate detailed metrics using RecordMatcher (skip heavy POT diagnostics since only F1 is returned)
             report = self.matcher.get_detailed_report(
                 predicted_records,
                 ground_truth_records,
                 task_name=self.task_name,
+                include_diagnostics=False,
             )
             score = report["f1"]
 

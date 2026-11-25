@@ -653,3 +653,120 @@ def test_residual_pu_trigger_and_pot_duplicate_prioritization():
     assert grouped[1]["diagnostic_tag"] == "duplicate_of_tp"
     assert grouped[2]["pu_status"] == "unlabeled"
 
+
+def test_residual_analysis_wraps_workers_in_tier_4a_context(tmp_path: Path):
+    """Residual worker signatures execute inside context.tier_4a_context() when tier_4a_lm is configured."""
+    rows = [
+        {
+            "pdf": "doc_t4a",
+            "compound_id": "5a",
+            "smiles": "c1ccccc1",
+            "target_type": "MIC",
+            "target_relation": "=",
+            "target_value": "10",
+            "target_units": "µg/mL",
+            "bacteria": "S. aureus",
+        },
+        {
+            "pdf": "doc_t4a",
+            "compound_id": "5b",
+            "smiles": "Cc1ccccc1",
+            "target_type": "MIC",
+            "target_relation": "=",
+            "target_value": "20",
+            "target_units": "µg/mL",
+            "bacteria": "E. coli",
+        },
+    ]
+    lm_4b = dspy.LM("openai/mock-4b")
+    lm_4a = dspy.LM("openai/mock-4a")
+    ctx = _setup_residual_context(
+        tmp_path,
+        rows,
+        {"doc_t4a": "Compounds 5a, 5b, and control Penicillin."},
+        tier_4a_lm=lm_4a,
+    )
+
+    fake_extractor = MagicMock()
+    fake_extractor.forward.return_value = dspy.Prediction(
+        extracted_data={
+            "records": [
+                {
+                    "compound_id": "5a",
+                    "smiles": "c1ccccc1",
+                    "target_type": "MIC",
+                    "target_relation": "=",
+                    "target_value": "10",
+                    "target_units": "µg/mL",
+                    "bacteria": "S.a.",
+                },
+                {
+                    "compound_id": "Penicillin",
+                    "smiles": "CC(=O)N",
+                    "target_type": "MIC",
+                    "target_relation": "=",
+                    "target_value": "1",
+                    "target_units": "µg/mL",
+                    "bacteria": "B. subtilis",
+                },
+            ]
+        }
+    )
+    ctx.re_client.create_validation_extractor.return_value = fake_extractor
+
+    observed_lms: dict[str, object] = {}
+
+    def fake_predict(sig):
+        sig_name = getattr(sig, "__name__", str(sig))
+
+        def _invoke(**kwargs):
+            observed_lms[sig_name] = dspy.settings.lm
+            if sig_name == "ResidualPositiveRowAnalysis":
+                return MagicMock(
+                    analysis=PositiveRowsOutput(
+                        rows=[
+                            RowAnalysis(
+                                row_id="row_2",
+                                Row_Instantiation_Trigger_class="Single_Entity",
+                                Row_Instantiation_Trigger_description="Missed",
+                                Entity_System_Role_class="Target",
+                                Entity_System_Role_description="Target",
+                                Entity_Filtration_Boundary_class="Exhaustive_Set",
+                                Entity_Filtration_Boundary_description="All",
+                            )
+                        ]
+                    )
+                )
+            if sig_name == "PositiveColumnAnalysis":
+                return MagicMock(
+                    analysis=PositiveColumnsOutput(
+                        fields=[_field_analysis("row_2", "bacteria", "E. coli", "E. coli")]
+                    )
+                )
+            if sig_name == "ResidualNegativeRowAnalysis":
+                return MagicMock(analysis=NegativeRowsOutput(gap_rows=[]))
+            if sig_name == "ResidualColumnAnalysis":
+                return MagicMock(
+                    analysis=ResidualColumnsOutput(
+                        positive_fields=[_field_analysis("row_1", "bacteria", "S.a.", "S. aureus")],
+                        negative_fields=[],
+                    )
+                )
+            raise AssertionError(f"Unexpected signature: {sig_name}")
+
+        return _invoke
+
+    with dspy.context(lm=lm_4b):
+        with patch("ae.semantic_optimization.steps.residual_analysis.dspy.Predict", side_effect=fake_predict):
+            run_residual_analysis(ctx)
+        assert dspy.settings.lm is lm_4b
+
+    assert set(observed_lms.keys()) == {
+        "ResidualPositiveRowAnalysis",
+        "PositiveColumnAnalysis",
+        "ResidualNegativeRowAnalysis",
+        "ResidualColumnAnalysis",
+    }
+    assert all(lm is lm_4a for lm in observed_lms.values())
+
+

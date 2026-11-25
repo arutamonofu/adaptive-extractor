@@ -15,6 +15,7 @@ import re
 import shutil
 import tempfile
 import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -32,16 +33,27 @@ _FORMULA_CANDIDATE_RE = re.compile(
     r"(?:[^.\n;]|\.(?=\d)){0,80}?([A-Z][A-Za-z0-9_{}\\]*H\d+[A-Za-z0-9_{}\\]*)",
     re.IGNORECASE,
 )
+_ADDUCT_TOKENS_RE = r"Na|K|NH4|Cl|HCOO|2H|H\s*-\s*H2O"
 _ADDUCT_SUFFIX_RE = re.compile(
-    r"(?:\[\s*M\s*\+\s*(Na|K|NH4)\s*\]|\(\s*M\s*\+\s*(Na|K|NH4)\s*\)|\bM\s*\+\s*(Na|K|NH4)\s*\^?\s*\+)",
+    rf"(?:\[\s*M\s*\+\s*({_ADDUCT_TOKENS_RE})\s*\](?:\s*\^?\s*(?:2\+|2-|\+|-))?"
+    rf"|\(\s*M\s*\+\s*({_ADDUCT_TOKENS_RE})\s*\)(?:\s*\^?\s*(?:2\+|2-|\+|-))?"
+    rf"|\bM\s*\+\s*({_ADDUCT_TOKENS_RE})\s*\^?\s*(?:2\+|2-|\+|-))",
     re.IGNORECASE,
 )
-_BARE_FORMULA_RE = re.compile(r"\b(C\d{1,3}H\d{1,3}(?:[A-Z][a-z]?\d*)*)\b")
+_ADDUCT_TAG_MAP = {
+    "NA": "[M+Na]+",
+    "K": "[M+K]+",
+    "NH4": "[M+NH4]+",
+    "CL": "[M+Cl]-",
+    "HCOO": "[M+HCOO]-",
+    "2H": "[M+2H]2+",
+    "H-H2O": "[M+H-H2O]+",
+}
 _SUBSTITUENT_LOCANT_RE = re.compile(
-    r"\b(\d+(?:,\d+)*-(?:[a-z]+-)+\d*-[a-z]+(?:phenyl|pyridin-\d-yl|benzyl|benzoyl)"
-    r"|\d+-(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro|hydroxy|amino|trifluoromethyl)(?:phenyl|pyridin-\d-yl|benzyl|benzoyl)"
+    r"\b(\d+(?:,\d+)*-(?:[a-z]+-)+(?:\d+(?:,\d+)*-)?[a-z]+(?:phenyl|pyridin-\d-yl|benzyl|benzoyl)"
+    r"|\d+(?:,\d+)*-(?:di|tri|tetra)?(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro|hydroxy|amino|trifluoromethyl)(?:phenyl|pyridin-\d-yl|benzyl|benzoyl)"
     r"|(?:[omp]-|pyridin-[234]-yl\b)"
-    r"(?:(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro)(?:phenyl|benzyl|benzoyl))?)",
+    r"(?:(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro)(?:phenyl|benzyl|benzoyl))?)\b",
     re.IGNORECASE,
 )
 _IUPAC_HEADING_RE = re.compile(
@@ -50,9 +62,17 @@ _IUPAC_HEADING_RE = re.compile(
     r"\s*\(\s*(?P<label>[A-Za-z0-9\-]+)\s*\)(?:\*{1,2})?(?:\s|$)",
     re.MULTILINE,
 )
+_EXPLICIT_COMPOUND_ID_RE = re.compile(
+    r"\b(?:Compound|compd\.?|hybrid)\s+([A-Za-z0-9][A-Za-z0-9\-]{0,7})\b"
+    r"|\(([0-9]{1,3}[a-z]?)\)"
+    r"|(?<!Scheme\s)(?<!Figure\s)(?<!Fig\.\s)(?<!Fig\s)(?<!Table\s)(?<!Chart\s)(?<!Entry\s)(?<!Page\s)(?<!Section\s)"
+    r"\b([0-9]{1,3}[a-z]?)(?=\s*(?:,(?!\d)|which|had|with|showed|:))",
+    re.IGNORECASE,
+)
 
-# In-process cache for py2opsin lookups to keep CPU overhead negligible on repeated calls
-_OPSIN_CACHE: dict[tuple[str, bool], Optional[str]] = {}
+# Bounded LRU in-process cache for py2opsin lookups to keep CPU overhead negligible
+_OPSIN_CACHE_MAX_SIZE = 4096
+_OPSIN_CACHE: OrderedDict[tuple[str, bool], Optional[str]] = OrderedDict()
 _OPSIN_CACHE_LOCK = threading.Lock()
 
 
@@ -66,6 +86,7 @@ class OracleFinding:
     reasons: list[str] = field(default_factory=list)
     expected_iupac: Optional[str] = None
     expected_formula: Optional[str] = None
+    expected_formulas: list[str] = field(default_factory=list)
     expected_adduct_context: str = ""
     expected_inchi_key: Optional[str] = None
     predicted_inchi_key: Optional[str] = None
@@ -103,7 +124,7 @@ def parse_formula_counts(formula: str) -> dict[str, int]:
 
 
 def _extract_adducts(text: str) -> set[str]:
-    """Extract normalized HRMS/ESI-MS adduct ion keys ('NA', 'K', 'NH4') from text."""
+    """Extract normalized HRMS/ESI-MS adduct ion keys from text."""
     if not text:
         return set()
     cleaned = _clean_latex_chemical_text(text)
@@ -111,7 +132,7 @@ def _extract_adducts(text: str) -> set[str]:
     for match in _ADDUCT_SUFFIX_RE.finditer(cleaned):
         token = next((g for g in match.groups() if g), None)
         if token:
-            adducts.add(token.upper())
+            adducts.add(re.sub(r"\s+", "", token).upper())
     return adducts
 
 
@@ -159,6 +180,27 @@ def formulas_compatible(
             adjusted["H"] -= 4
             if adjusted["H"] == 0:
                 del adjusted["H"]
+        elif adduct == "CL" and adjusted.get("Cl", 0) >= 1:
+            adjusted["Cl"] -= 1
+            if adjusted["Cl"] == 0:
+                del adjusted["Cl"]
+        elif (
+            adduct == "HCOO"
+            and adjusted.get("C", 0) >= 1
+            and adjusted.get("H", 0) >= 1
+            and adjusted.get("O", 0) >= 2
+        ):
+            for elem, n in (("C", 1), ("H", 1), ("O", 2)):
+                adjusted[elem] -= n
+                if adjusted[elem] == 0:
+                    del adjusted[elem]
+        elif adduct == "2H" and adjusted.get("H", 0) >= 2:
+            adjusted["H"] -= 2
+            if adjusted["H"] == 0:
+                del adjusted["H"]
+        elif adduct == "H-H2O":
+            adjusted["H"] = adjusted.get("H", 0) + 1
+            adjusted["O"] = adjusted.get("O", 0) + 1
         else:
             continue
         if _formula_counts_match(pred_counts, adjusted):
@@ -177,15 +219,40 @@ def _radical_pattern(rad_mol: Any):
 
 
 def same_connectivity(mol_a: Any, mol_b: Any) -> bool:
-    """True when both molecules embed each other as stereo-insensitive subgraphs.
+    """True when two molecules share graph connectivity (tautomer/stereo-invariant).
 
-    Bidirectional match equalizes heavy-atom counts, so tautomer shifts (H positions)
-    and stereo differences do not register as connectivity conflicts.
+    Checks InChIKey[:14] first, falling back to stereo-stripped bidirectional SMARTS
+    matching only when InChIKey is unavailable (e.g., dummy-atom radicals).
     """
+    from rdkit import Chem
+
+    if mol_a is None or mol_b is None:
+        return False
+
+    ik_a = ""
+    ik_b = ""
+    try:
+        ik_a = Chem.MolToInchiKey(mol_a) or ""
+        ik_b = Chem.MolToInchiKey(mol_b) or ""
+    except Exception:
+        ik_a = ""
+        ik_b = ""
+
+    if len(ik_a) >= 14 and len(ik_b) >= 14:
+        return ik_a[:14] == ik_b[:14]
+
     pat_a, pat_b = _radical_pattern(mol_a), _radical_pattern(mol_b)
     if pat_a is None or pat_b is None:
         return False
     return bool(mol_a.HasSubstructMatch(pat_b) and mol_b.HasSubstructMatch(pat_a))
+
+
+def _finding_expected_formulas(finding: OracleFinding) -> list[str]:
+    if finding.expected_formulas:
+        return list(finding.expected_formulas)
+    if finding.expected_formula:
+        return [finding.expected_formula]
+    return []
 
 
 def substructure_violations(mol: Any, finding: OracleFinding) -> list[str]:
@@ -205,15 +272,20 @@ def substructure_violations(mol: Any, finding: OracleFinding) -> list[str]:
 
     violations: list[str] = []
 
-    if finding.expected_formula:
+    candidate_formulas = _finding_expected_formulas(finding)
+    if candidate_formulas:
         pred_f = rdMolDescriptors.CalcMolFormula(mol)
-        if not formulas_compatible(
-            pred_f,
-            finding.expected_formula,
-            context=finding.expected_adduct_context,
+        if not any(
+            formulas_compatible(
+                pred_f,
+                exp_f,
+                context=finding.expected_adduct_context,
+            )
+            for exp_f in candidate_formulas
         ):
+            expected_desc = " or ".join(candidate_formulas)
             violations.append(
-                f"formula '{pred_f}' incompatible with prose '{finding.expected_formula}'"
+                f"formula '{pred_f}' incompatible with prose '{expected_desc}'"
             )
 
     for sub_name, rad_smi in zip(
@@ -246,13 +318,15 @@ def substructure_violations(mol: Any, finding: OracleFinding) -> list[str]:
 
 
 def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = False) -> dict[str, Optional[str]]:
-    """Resolve IUPAC names or radical substituents via local py2opsin with thread-safe caching."""
+    """Resolve IUPAC names or radical substituents via local py2opsin with thread-safe LRU caching."""
     results: dict[str, Optional[str]] = {}
     missing: list[str] = []
     with _OPSIN_CACHE_LOCK:
         for name in names:
             key = (name, wildcard_radicals)
             if key in _OPSIN_CACHE:
+                if hasattr(_OPSIN_CACHE, "move_to_end"):
+                    _OPSIN_CACHE.move_to_end(key)
                 results[name] = _OPSIN_CACHE[key]
             elif name not in missing:
                 missing.append(name)
@@ -318,7 +392,15 @@ def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = Fals
         val = str(raw_list[idx]).strip() if idx < len(raw_list) and raw_list[idx] else None
         if succeeded:
             with _OPSIN_CACHE_LOCK:
-                _OPSIN_CACHE[(name, wildcard_radicals)] = val
+                key = (name, wildcard_radicals)
+                _OPSIN_CACHE[key] = val
+                if hasattr(_OPSIN_CACHE, "move_to_end"):
+                    _OPSIN_CACHE.move_to_end(key)
+                while len(_OPSIN_CACHE) > _OPSIN_CACHE_MAX_SIZE:
+                    if isinstance(_OPSIN_CACHE, OrderedDict):
+                        _OPSIN_CACHE.popitem(last=False)
+                    else:
+                        _OPSIN_CACHE.pop(next(iter(_OPSIN_CACHE)))
         results[name] = val
 
     return results
@@ -336,6 +418,27 @@ def check_chembl_structure(mol: Any) -> list[str]:
     except Exception as exc:
         logger.debug(f"ChEMBL structure check skipped/failed: {exc}")
         return []
+
+
+def _has_other_compound_ids(text: str, target_label: str) -> bool:
+    """True if text explicitly references a compound label other than target_label."""
+    norm_target = target_label.strip().lower()
+    for m in _EXPLICIT_COMPOUND_ID_RE.finditer(text):
+        cand = next((g for g in m.groups() if g), "")
+        if cand and cand.strip().lower() != norm_target:
+            return True
+    return False
+
+
+def _label_sentence_pattern(lbl: str) -> str:
+    """Regex for matching a compound label at sentence level (anchored for numeric IDs)."""
+    esc_lbl = re.escape(lbl)
+    if lbl.isdigit():
+        return (
+            rf"(?:\bCompound\s+{esc_lbl}\b|\bcompd\.?\s*{esc_lbl}\b"
+            rf"|\({esc_lbl}\)|\b{esc_lbl}\b(?=\s*(?:,(?!\d)|which|had|with|showed|:)))"
+        )
+    return rf"(?:\b{esc_lbl}\b|\({esc_lbl}\))"
 
 
 def extract_context_cues_for_labels(
@@ -362,38 +465,77 @@ def extract_context_cues_for_labels(
                 cues[lbl]["iupac_names"].append(cand_name)
 
     # 2. Paragraph- and sentence-level formula + substituent anchoring
-    paragraphs = re.split(r"\n{2,}", clean_ctx)
-    active_heading_labels: list[str] = []
-    for para in paragraphs:
-        p_str = para.strip()
-        if not p_str:
-            continue
+    raw_paras = [p.strip() for p in re.split(r"\n{2,}", clean_ctx) if p.strip()]
+    section_prefixes = (
+        ("Preceding text:", "preceding"),
+        ("Following text:", "following"),
+        ("Cross-referenced paragraphs:", "cross_ref"),
+        ("In-text callouts:", "callout"),
+    )
+    para_sections: list[str] = []
+    cur_section = "unsectioned"
+    for p_str in raw_paras:
+        for prefix, sec_name in section_prefixes:
+            if p_str.startswith(prefix):
+                cur_section = sec_name
+                break
+        para_sections.append(cur_section)
+    has_sections = any(sec != "unsectioned" for sec in para_sections)
+    last_preceding_idx = max(
+        (i for i, sec in enumerate(para_sections) if sec == "preceding"),
+        default=-1,
+    )
+    first_following_idx = next(
+        (i for i, sec in enumerate(para_sections) if sec == "following"),
+        -1,
+    )
 
+    active_heading_labels: list[str] = []
+    other_heading_active = False
+    for p_idx, p_str in enumerate(raw_paras):
         # Identify which target labels are explicitly mentioned in this paragraph
         matched_labels: list[str] = []
         for lbl in labels:
             esc_lbl = re.escape(lbl)
             if re.search(
-                rf"(?:\bCompound\s+{esc_lbl}\b|\bcompd\.?\s*{esc_lbl}\b|\({esc_lbl}\)|\b{esc_lbl}\b(?=\s*(?:,|which|had|with|showed|:)))",
+                rf"(?:\bCompound\s+{esc_lbl}\b|\bcompd\.?\s*{esc_lbl}\b|\({esc_lbl}\)|\b{esc_lbl}\b(?=\s*(?:,(?!\d)|which|had|with|showed|:)))",
                 p_str,
                 re.IGNORECASE,
             ):
                 matched_labels.append(lbl)
 
-        is_heading_line = p_str.startswith("#") or bool(_IUPAC_HEADING_RE.search(p_str))
+        is_heading_line = any(
+            ln.lstrip().startswith("#") for ln in p_str.splitlines()
+        ) or bool(_IUPAC_HEADING_RE.search(p_str))
         if is_heading_line and matched_labels:
             active_heading_labels = list(matched_labels)
+            other_heading_active = False
+        elif is_heading_line and any(_has_other_compound_ids(p_str, lbl) for lbl in labels):
+            active_heading_labels = []
+            other_heading_active = True
         elif not matched_labels and active_heading_labels:
             # Characterization paragraph immediately following an experimental heading
             if _FORMULA_CANDIDATE_RE.search(p_str):
                 matched_labels = list(active_heading_labels)
             active_heading_labels = []
+            other_heading_active = False
+        elif not matched_labels and other_heading_active:
+            active_heading_labels = []
+            other_heading_active = False
+            continue
         else:
             active_heading_labels = []
+            other_heading_active = False
 
         if not matched_labels and len(labels) == 1:
-            # Single-entity visual: check if formula/HRMS appears directly in context
-            if _FORMULA_CANDIDATE_RE.search(p_str):
+            # Single-entity fallback: restrict so arbitrary unrelated paragraphs from
+            # adjacent pages or other compounds are not blindly bound to labels[0].
+            if has_sections:
+                is_adjacent = p_idx in (last_preceding_idx, first_following_idx)
+            else:
+                is_adjacent = len(raw_paras) <= 2 or p_idx in (0, len(raw_paras) - 1)
+            no_other_ids = not _has_other_compound_ids(p_str, labels[0])
+            if _FORMULA_CANDIDATE_RE.search(p_str) and no_other_ids and is_adjacent:
                 matched_labels = [labels[0]]
 
         if not matched_labels:
@@ -405,9 +547,17 @@ def extract_context_cues_for_labels(
             sent_labels = [
                 lbl
                 for lbl in matched_labels
-                if re.search(rf"(?:\b{re.escape(lbl)}\b|\({re.escape(lbl)}\))", sent)
+                if re.search(
+                    _label_sentence_pattern(lbl),
+                    sent,
+                    re.IGNORECASE if lbl.isdigit() else 0,
+                )
             ]
-            if not sent_labels and len(matched_labels) == 1:
+            if (
+                not sent_labels
+                and len(matched_labels) == 1
+                and not _has_other_compound_ids(sent, matched_labels[0])
+            ):
                 sent_labels = matched_labels
 
             if len(sent_labels) == 1:
@@ -415,12 +565,13 @@ def extract_context_cues_for_labels(
                 for fm in _FORMULA_CANDIDATE_RE.finditer(sent):
                     raw_f = fm.group(1)
                     if parse_formula_counts(raw_f):
-                        cues[target_lbl]["formulas"].append(raw_f)
+                        if raw_f not in cues[target_lbl]["formulas"]:
+                            cues[target_lbl]["formulas"].append(raw_f)
                         sent_adducts = _extract_adducts(sent)
                         if not sent_adducts and len(matched_labels) == 1:
                             sent_adducts = _extract_adducts(p_str)
                         for add in sorted(sent_adducts):
-                            tag = f"[M+{add}]+" if add != "NA" else "[M+Na]+"
+                            tag = _ADDUCT_TAG_MAP.get(add, f"[M+{add}]+")
                             if tag not in cues[target_lbl]["adducts"]:
                                 cues[target_lbl]["adducts"].append(tag)
                 # Explicit substituent phrases like "2-chloro-6-fluorophenyl"
@@ -438,6 +589,140 @@ def extract_context_cues_for_labels(
 
 def _is_markush_smiles(smiles: str) -> bool:
     return bool(re.search(r"\[\*:\d+\]|\[\d+\*\]", smiles or ""))
+
+
+def reverify_entity_with_finding(
+    ent: Any,
+    finding: OracleFinding,
+    *,
+    enable_chembl: bool = True,
+) -> OracleFinding:
+    """Re-verify a single entity against pre-resolved prose expectations in ``finding``.
+
+    Updates ``finding`` and sets ``provenance_status`` / ``oracle_notes`` on ``ent``
+    without re-parsing prose context or touching other entities.
+    """
+    from rdkit import Chem
+
+    smiles = getattr(ent, "smiles", "")
+    smiles_valid = getattr(ent, "smiles_valid", True)
+    is_markush = _is_markush_smiles(smiles)
+
+    finding.passed = True
+    finding.reasons = []
+    finding.provenance_status = "unverified_valid"
+    finding.predicted_inchi_key = None
+    finding.connectivity_conflict = False
+
+    if not smiles_valid or not smiles:
+        finding.passed = False
+        finding.provenance_status = "mismatch_flagged"
+        finding.reasons.append(getattr(ent, "rdkit_error", None) or "Invalid SMILES")
+        ent.provenance_status = "mismatch_flagged"
+        ent.oracle_notes = "; ".join(finding.reasons)
+        return finding
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        finding.passed = False
+        finding.provenance_status = "mismatch_flagged"
+        finding.reasons.append(f"RDKit parse failed for {smiles!r}")
+        if hasattr(ent, "smiles_valid"):
+            ent.smiles_valid = False
+        ent.provenance_status = "mismatch_flagged"
+        ent.oracle_notes = "; ".join(finding.reasons)
+        return finding
+
+    # 1. ChEMBL structure check (skip dummy-atom Markush templates)
+    if enable_chembl and not is_markush:
+        chembl_issues = check_chembl_structure(mol)
+        if chembl_issues:
+            finding.passed = False
+            finding.reasons.append(f"ChEMBL structure issue: {', '.join(chembl_issues)}")
+
+    pred_formula = ""
+    pred_inchikey = ""
+    if not is_markush:
+        from rdkit.Chem import rdMolDescriptors
+
+        pred_formula = rdMolDescriptors.CalcMolFormula(mol)
+        try:
+            pred_inchikey = Chem.MolToInchiKey(mol)
+        except Exception:
+            pred_inchikey = ""
+        finding.predicted_inchi_key = pred_inchikey or None
+
+    # 2. Image vs prose-name connectivity conflict (gates the deterministic override)
+    if finding.expected_smiles and not is_markush:
+        exp_mol = Chem.MolFromSmiles(finding.expected_smiles)
+        if exp_mol is not None and not same_connectivity(mol, exp_mol):
+            finding.connectivity_conflict = True
+
+    verified_exact = False
+
+    # 3. Formula / HRMS check across all candidate formulas
+    candidate_formulas = _finding_expected_formulas(finding)
+    if candidate_formulas and not is_markush:
+        matched_formula = next(
+            (
+                exp_f
+                for exp_f in candidate_formulas
+                if formulas_compatible(
+                    pred_formula, exp_f, context=finding.expected_adduct_context
+                )
+            ),
+            None,
+        )
+        if matched_formula is not None:
+            finding.expected_formula = matched_formula
+            verified_exact = True
+        else:
+            finding.passed = False
+            expected_desc = " or ".join(candidate_formulas)
+            finding.reasons.append(
+                f"Formula mismatch: predicted '{pred_formula}' != expected '{expected_desc}'"
+            )
+
+    # 4. Full IUPAC -> InChIKey (14/27) check
+    if finding.expected_inchi_key and not is_markush and pred_inchikey:
+        exp_ik = finding.expected_inchi_key
+        if pred_inchikey == exp_ik:
+            verified_exact = True
+        elif pred_inchikey[:14] == exp_ik[:14]:
+            # Connectivity identical; check tautomer-canonical equivalence before flagging stereo/tautomer diff
+            verified_exact = True
+        else:
+            finding.passed = False
+            finding.reasons.append(
+                f"IUPAC InChIKey mismatch for '{finding.expected_iupac}': "
+                f"predicted {pred_inchikey[:14]} != expected {exp_ik[:14]}"
+            )
+
+    # 5. Explicit substituent motif substructure check (e.g. "2-chloro-6-fluorophenyl")
+    if not is_markush:
+        for sub_name, rad_smi in zip(
+            finding.expected_substructure_names, finding.expected_substructure_smiles
+        ):
+            rad_mol = Chem.MolFromSmiles(rad_smi)
+            if rad_mol is None:
+                continue
+            pat = _radical_pattern(rad_mol)
+            if pat is not None and not mol.HasSubstructMatch(pat):
+                finding.passed = False
+                finding.reasons.append(
+                    f"Substituent motif mismatch: prose specifies '{sub_name}', which is absent in predicted SMILES"
+                )
+
+    if not finding.passed:
+        finding.provenance_status = "mismatch_flagged"
+    elif verified_exact:
+        finding.provenance_status = "verified_exact"
+    else:
+        finding.provenance_status = "unverified_valid"
+
+    ent.provenance_status = finding.provenance_status
+    ent.oracle_notes = "; ".join(finding.reasons) if finding.reasons else None
+    return finding
 
 
 def verify_entities_with_oracle(
@@ -478,7 +763,6 @@ def verify_entities_with_oracle(
     for ent in entities:
         label = getattr(ent, "label", "")
         smiles = getattr(ent, "smiles", "")
-        smiles_valid = getattr(ent, "smiles_valid", True)
         finding = OracleFinding(label=label)
         is_markush = _is_markush_smiles(smiles)
         lbl_cues = cues_by_label.get(label, {})
@@ -486,8 +770,9 @@ def verify_entities_with_oracle(
         # Resolve prose expectations once, so hints survive even when the
         # predicted SMILES cannot be parsed at all.
         if not is_markush:
-            formulas = lbl_cues.get("formulas", [])
+            formulas = list(dict.fromkeys(lbl_cues.get("formulas", [])))
             if formulas:
+                finding.expected_formulas = formulas
                 finding.expected_formula = formulas[0]
             adducts = lbl_cues.get("adducts", [])
             if adducts:
@@ -515,106 +800,7 @@ def verify_entities_with_oracle(
                     finding.expected_substructure_smiles.append(rad_smi)
                     finding.expected_substructure_names.append(sub_name)
 
-        if not smiles_valid or not smiles:
-            finding.passed = False
-            finding.provenance_status = "mismatch_flagged"
-            finding.reasons.append(getattr(ent, "rdkit_error", None) or "Invalid SMILES")
-            ent.provenance_status = "mismatch_flagged"
-            ent.oracle_notes = "; ".join(finding.reasons)
-            findings.append(finding)
-            continue
-
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            finding.passed = False
-            finding.provenance_status = "mismatch_flagged"
-            finding.reasons.append(f"RDKit parse failed for {smiles!r}")
-            if hasattr(ent, "smiles_valid"):
-                ent.smiles_valid = False
-            ent.provenance_status = "mismatch_flagged"
-            ent.oracle_notes = "; ".join(finding.reasons)
-            findings.append(finding)
-            continue
-
-        # 1. ChEMBL structure check (skip dummy-atom Markush templates)
-        if enable_chembl and not is_markush:
-            chembl_issues = check_chembl_structure(mol)
-            if chembl_issues:
-                finding.passed = False
-                finding.reasons.append(f"ChEMBL structure issue: {', '.join(chembl_issues)}")
-
-        pred_formula = ""
-        pred_inchikey = ""
-        if not is_markush:
-            from rdkit.Chem import rdMolDescriptors
-
-            pred_formula = rdMolDescriptors.CalcMolFormula(mol)
-            try:
-                pred_inchikey = Chem.MolToInchiKey(mol)
-            except Exception:
-                pred_inchikey = ""
-            finding.predicted_inchi_key = pred_inchikey or None
-
-        # 2. Image vs prose-name connectivity conflict (gates the deterministic override)
-        if finding.expected_smiles and not is_markush:
-            exp_mol = Chem.MolFromSmiles(finding.expected_smiles)
-            if exp_mol is not None and not same_connectivity(mol, exp_mol):
-                finding.connectivity_conflict = True
-
-        verified_exact = False
-
-        # 3. Formula / HRMS check
-        if finding.expected_formula and not is_markush:
-            exp_f = finding.expected_formula
-            if not formulas_compatible(
-                pred_formula, exp_f, context=finding.expected_adduct_context
-            ):
-                finding.passed = False
-                finding.reasons.append(
-                    f"Formula mismatch: predicted '{pred_formula}' != expected '{exp_f}'"
-                )
-            else:
-                verified_exact = True
-
-        # 4. Full IUPAC -> InChIKey (14/27) check
-        if finding.expected_inchi_key and not is_markush and pred_inchikey:
-            exp_ik = finding.expected_inchi_key
-            if pred_inchikey == exp_ik:
-                verified_exact = True
-            elif pred_inchikey[:14] == exp_ik[:14]:
-                # Connectivity identical; check tautomer-canonical equivalence before flagging stereo/tautomer diff
-                verified_exact = True
-            else:
-                finding.passed = False
-                finding.reasons.append(
-                    f"IUPAC InChIKey mismatch for '{finding.expected_iupac}': "
-                    f"predicted {pred_inchikey[:14]} != expected {exp_ik[:14]}"
-                )
-
-        # 5. Explicit substituent motif substructure check (e.g. "2-chloro-6-fluorophenyl")
-        if not is_markush:
-            for sub_name, rad_smi in zip(
-                finding.expected_substructure_names, finding.expected_substructure_smiles
-            ):
-                rad_mol = Chem.MolFromSmiles(rad_smi)
-                if rad_mol is None:
-                    continue
-                pat = _radical_pattern(rad_mol)
-                if pat is not None and not mol.HasSubstructMatch(pat):
-                    finding.passed = False
-                    finding.reasons.append(
-                        f"Substituent motif mismatch: prose specifies '{sub_name}', which is absent in predicted SMILES"
-                    )
-
-        if not finding.passed:
-            finding.provenance_status = "mismatch_flagged"
-        elif verified_exact:
-            finding.provenance_status = "verified_exact"
-        else:
-            finding.provenance_status = "unverified_valid"
-
-        ent.provenance_status = finding.provenance_status
-        ent.oracle_notes = "; ".join(finding.reasons) if finding.reasons else None
+        reverify_entity_with_finding(ent, finding, enable_chembl=enable_chembl)
         findings.append(finding)
 
     return findings

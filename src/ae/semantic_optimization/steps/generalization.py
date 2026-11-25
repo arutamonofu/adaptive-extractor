@@ -128,6 +128,9 @@ _BENIGN_QUOTED_TOKENS = frozenset(
         "not detected",
         "not tested",
         "inactive",
+        "n.d.",
+        "resistant",
+        "sensitive",
     }
 )
 _OPERATOR_LITERAL_RE = re.compile(r"^[<>≤≥=~!±/%]+$")
@@ -241,11 +244,11 @@ def _is_case_patch_instruction(
     if _INSTANCE_PATCH_RE.search(stripped):
         return True, "instance_specific_patch_phrase"
 
-    if (
+    has_single_doc_support = (
         attr is not None
-        and active_doc_count >= 2
         and len({normalize_document_key(d) for d in attr.supporting_doc_ids if d}) == 1
-    ):
+    )
+    if active_doc_count >= 3 and (has_single_doc_support or attr is None):
         quoted = [
             q.strip()
             for q in _QUOTED_LITERAL_RE.findall(stripped)
@@ -253,7 +256,12 @@ def _is_case_patch_instruction(
         ]
         has_specific_number = bool(re.search(r"\b\d+\.\d{2,}\b|\b\d{4,}\b", stripped))
         if quoted or has_specific_number:
-            return True, "single_doc_support_with_hardcoded_literal"
+            reason = (
+                "single_doc_support_with_hardcoded_literal"
+                if has_single_doc_support
+                else "unattributed_rule_with_hardcoded_literal"
+            )
+            return True, reason
 
     return False, ""
 

@@ -403,6 +403,7 @@ class PipelineSummary(BaseModel):
     discarded_placeholder_ids: list[str] = Field(default_factory=list)
     not_localized_visual_ids: list[str] = Field(default_factory=list)
     invalid_smiles: list[dict[str, Any]] = Field(default_factory=list)
+    mismatch_flagged_smiles: int = 0
     t4_skipped_calls: int = 0
     t4_fallback_calls: int = 0
     silent_error_retries: int = 0

@@ -14,6 +14,8 @@ semantic_optimization:
     row_batch_size: 5             # Number of GT rows grouped per column analysis LLM call
     max_rows_per_doc: 20          # Max representative GT rows analyzed per document (0 disables sampling)
     harmonize_prompt: true        # Run final cross-column LLM prompt harmonization
+    min_enum_doc_support: 4       # Minimum active training documents required before closing a field as an enum
+    pareto_regression_threshold: 0.01 # Per-column F1 drop threshold triggering Pareto Auto-Rollback
     enable_semantic_judge: true   # Enable LLM Semantic Judge during validation and residual alignment
     residual_enabled: true        # Enable Hybrid Anchor (iter 1) + Residual (iter >= 2) mode
     residual_fallback_threshold: 0.35 # Fallback to full analysis if doc F1 < threshold or Recall < threshold

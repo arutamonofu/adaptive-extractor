@@ -731,6 +731,75 @@ class TestLLMProviders:
         )
         assert json_payload["response_format"] == {"type": "json_object"}
 
+    @pytest.mark.parametrize(
+        "delimiter",
+        [
+            "[[ ## positive_rows_analyses ## ]]\n",
+            "[[ ## positive_columns_analyses ## ]]\n",
+            "[[ ## draft_prompt ## ]]\n",
+            "[[ ## column_profiles ## ]]\n",
+        ],
+    )
+    def test_apply_prompt_caching_generalization_and_schema_delimiters(self, delimiter: str):
+        """Generalization and schema_refinement delimiters split static schema/baseline prefix from dynamic payloads."""
+        from ae.core.llm.provider import apply_prompt_caching
+
+        messages = [
+            {"role": "system", "content": "Generalization System"},
+            {
+                "role": "user",
+                "content": (
+                    "[[ ## extraction_schema ## ]]\nSchema YAML\n"
+                    "[[ ## baseline_prompt ## ]]\nBase Prompt\n"
+                    f"{delimiter}Dynamic JSON payload\n"
+                ),
+            },
+        ]
+        cached = apply_prompt_caching(messages)
+        assert len(cached) == 2
+        assert cached[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert cached[1]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert cached[1]["content"][0]["text"].endswith(delimiter)
+        assert "cache_control" not in cached[1]["content"][1]
+        assert cached[1]["content"][1]["text"] == "Dynamic JSON payload\n"
+
+    def test_gemini_lm_uses_model_pricing_fallback(self, circuit_breaker):
+        """GeminiLM falls back to MODEL_PRICING when explicit per-1M prices are unset."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        from pydantic import SecretStr
+        from ae.core.config.llm_settings import LLMInstanceConfig
+        from ae.core.llm.provider import GeminiLM, MODEL_PRICING
+
+        cfg = LLMInstanceConfig(
+            provider="gemini",
+            model="gemini-3.8-flash",
+            api_key=SecretStr("test-key"),
+            max_retries=1,
+            temperature=0.0,
+            top_p=1.0,
+            enable_cache=False,
+        )
+        fake_usage = SimpleNamespace(
+            prompt_token_count=1_000_000,
+            candidates_token_count=1_000_000,
+            thoughts_token_count=0,
+            cached_content_token_count=0,
+            total_token_count=2_000_000,
+        )
+        fake_response = SimpleNamespace(text="ok", usage_metadata=fake_usage)
+        fake_client = MagicMock()
+        fake_client.models.generate_content.return_value = fake_response
+
+        with patch("google.genai.Client", return_value=fake_client):
+            lm = GeminiLM(cfg, circuit_breaker=circuit_breaker)
+            lm("ping")
+
+        expected_cost = MODEL_PRICING["gemini-3.8-flash"]["input"] + MODEL_PRICING["gemini-3.8-flash"]["output"]
+        assert lm.cumulative_cost == pytest.approx(expected_cost)
+        assert lm.history[-1]["usage"]["cost"] == pytest.approx(expected_cost)
+
+
 
 
 

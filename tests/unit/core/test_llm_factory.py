@@ -149,3 +149,38 @@ def test_create_chat_model_max_retries_override():
 
     overridden_model = create_chat_model(cfg, max_retries=1)
     assert overridden_model.max_retries == 1
+
+
+def test_create_chat_model_prompt_caching_injects_cache_control():
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from langchain_openai import ChatOpenAI
+
+    cfg = LLMInstanceConfig(
+        provider="api",
+        model="qwen/qwen3.5-397b-a17b",
+        max_retries=2,
+        temperature=0.0,
+        top_p=0.95,
+        enable_cache=False,
+        timeout=60,
+        rate_limit_delay=0.0,
+        api=ApiConfig(
+            api_key=SecretStr("test-openrouter-key"),
+            max_tokens=4096,
+            base_url="https://openrouter.ai/api/v1",
+            prompt_caching=True,
+        ),
+    )
+    chat_model = create_chat_model(cfg)
+    assert isinstance(chat_model, ChatOpenAI)
+
+    payload = chat_model._get_request_payload(
+        [
+            SystemMessage(content="Static system prompt"),
+            HumanMessage(content="Dynamic user prompt"),
+        ]
+    )
+    assert payload["messages"][0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+    assert payload["messages"][0]["content"][0]["text"] == "Static system prompt"
+    assert payload["messages"][1]["content"] == "Dynamic user prompt"
+

@@ -13,8 +13,13 @@ from langchain_core.exceptions import OutputParserException
 from pydantic import BaseModel
 
 from ae.core.schema.dynamic_models import (
+    extract_compute_validators,
     extract_field_validators,
     extract_schema_field_constraints,
+)
+from ae.core.schema.quantity_validators import (
+    _extract_referenced_names,
+    validate_record_compute_validators,
 )
 from ae.core.schema.validators import validate_field_value
 
@@ -203,16 +208,18 @@ def validate_output_field_validators(
     *,
     output_model: Optional[Type[BaseModel]] = None,
 ) -> Any:
-    """Run declarative FieldSpec validators attached to ``output_model``.
+    """Run declarative FieldSpec and schema-level compute validators attached to ``output_model``.
 
     Completely domain-agnostic: delegates validation to the registered
-    ``FieldValidatorRegistry`` handlers declared on each field.
+    ``FieldValidatorRegistry`` handlers declared on each field and schema-level
+    cross-column ``compute_validators``.
     """
     if output_model is None:
         return output
 
     validators_by_field = extract_field_validators(output_model)
-    if not validators_by_field:
+    compute_validators = extract_compute_validators(output_model)
+    if not validators_by_field and not compute_validators:
         return output
 
     records = _iter_record_objects(output)
@@ -268,6 +275,26 @@ def validate_output_field_validators(
                     f"{err_detail} (value={current_val!r})"
                 )
                 break
+
+        if compute_validators:
+            compute_results = validate_record_compute_validators(rec, compute_validators)
+            for spec, res in zip(compute_validators, compute_results):
+                if res.valid:
+                    continue
+                err_detail = res.error or "compute validation failed"
+                if spec.on_error == "warn":
+                    logger.warning(
+                        f"Record {rec_idx} failed compute validator '{spec.name}' ({err_detail})"
+                    )
+                    continue
+
+                expr = str(spec.params.get("expression") or spec.params.get("expr") or "")
+                ref_fields = _extract_referenced_names(expr) & set(constraints.keys())
+                flagged_fields.update(ref_fields or {"__record__"})
+                failed_indices.add(rec_idx)
+                reasons.append(
+                    f"record {rec_idx} failed compute validator '{spec.name}': {err_detail}"
+                )
 
     if reasons:
         unique_reasons = list(dict.fromkeys(reasons))

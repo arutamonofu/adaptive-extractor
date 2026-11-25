@@ -70,9 +70,12 @@ def prepare_document_visuals(
         return doc_repo.get(norm_doc_id) or raw_text
 
     try:
+        from langchain_core.language_models.chat_models import BaseChatModel
         from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
+        from ae.core.config.llm_settings import LLMInstanceConfig
         from ae.core.config.settings import Settings
         from ae.core.llm.factory import create_chat_model
+        from ae.extraction.client import ExtractionClient
         from ae.ingestion.service import VisualParsingService
         from ae.ingestion.tool import make_visual_parsing_tool
         from ae.semantic_optimization.client import SemanticOptimizationClient
@@ -80,10 +83,43 @@ def prepare_document_visuals(
         raw_cfg = getattr(context, "config_path", None)
         cfg_path = raw_cfg if isinstance(raw_cfg, (str, Path)) else None
         settings = Settings.load(config_path=cfg_path, load_env_file=True)
-        if isinstance(getattr(context, "re_client", None), SemanticOptimizationClient):
-            chat_model = context.re_client.get_chat_model()
-        else:
-            chat_model = create_chat_model(settings.semantic_optimization.get_llm_config())
+
+        re_client = getattr(context, "re_client", None)
+        tier_4a_lm = getattr(context, "tier_4a_lm", None)
+        callbacks = None
+        if isinstance(re_client, SemanticOptimizationClient):
+            handler = re_client.get_callback_handler()
+            if handler is not None:
+                callbacks = [handler]
+
+        chat_model: Optional[BaseChatModel] = None
+        if isinstance(tier_4a_lm, BaseChatModel):
+            chat_model = tier_4a_lm
+        elif isinstance(tier_4a_lm, (SemanticOptimizationClient, ExtractionClient)):
+            chat_model = tier_4a_lm.get_chat_model()
+        elif isinstance(tier_4a_lm, LLMInstanceConfig):
+            chat_model = create_chat_model(tier_4a_lm, callbacks=callbacks)
+        elif isinstance(getattr(tier_4a_lm, "_config", None), LLMInstanceConfig):
+            chat_model = create_chat_model(tier_4a_lm._config, callbacks=callbacks)
+        elif isinstance(getattr(tier_4a_lm, "llm_config", None), LLMInstanceConfig):
+            chat_model = create_chat_model(tier_4a_lm.llm_config, callbacks=callbacks)
+
+        if chat_model is None:
+            if isinstance(re_client, SemanticOptimizationClient):
+                if getattr(re_client, "extraction_config", None) is not None:
+                    chat_model = re_client.get_validation_client().get_chat_model()
+                else:
+                    chat_model = re_client.get_chat_model()
+            else:
+                fallback_cfg = None
+                if getattr(settings, "extraction", None) is not None:
+                    try:
+                        fallback_cfg = settings.extraction.get_llm_config()
+                    except Exception:
+                        fallback_cfg = None
+                if fallback_cfg is None:
+                    fallback_cfg = settings.semantic_optimization.get_llm_config()
+                chat_model = create_chat_model(fallback_cfg)
 
         pdf_dir = getattr(context, "pdf_dir", None) or settings.paths.pdf_dir
         service = VisualParsingService(

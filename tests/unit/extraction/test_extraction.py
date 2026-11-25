@@ -438,3 +438,53 @@ class TestUniversalExtractorFallback:
             extractor._get_or_create_graph()
             mock_graph_cls.assert_called_once()
             assert mock_graph_cls.call_args.kwargs["agent_thinking_level"] == "minimal"
+
+    def test_universal_extractor_forwards_config_path_to_settings_load(self, tmp_path: Path):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+        from pydantic import BaseModel
+
+        class DummyOut(BaseModel):
+            summary: str
+
+        custom_cfg = tmp_path / "custom_cfg"
+        custom_cfg.mkdir()
+
+        mock_client = MagicMock()
+        mock_client.config_path = custom_cfg
+        mock_client.get_chat_model.return_value = MagicMock()
+        mock_client.history_recorder = None
+        mock_client.extraction_config = SimpleNamespace(
+            max_tool_iterations=3,
+            api_client=SimpleNamespace(max_retries=2, rate_limit_delay=0.0),
+            structured_output_batch_size=0,
+            max_structured_output_batches=5,
+            enable_sanity_checks=True,
+            agent_thinking_level="low",
+        )
+
+        sig = MagicMock()
+        sig.output_fields = {"extracted_data": MagicMock(annotation=DummyOut)}
+
+        extractor = UniversalExtractor(signature_class=sig, client=mock_client, ingestion_dir=tmp_path)
+        with patch("ae.core.config.settings.Settings.load", return_value=MagicMock()) as mock_load, patch(
+            "ae.extraction.graph.ExtractionGraph"
+        ) as mock_graph_cls:
+            extractor._get_or_create_graph()
+            mock_load.assert_called_once_with(config_path=custom_cfg, load_env_file=True)
+            assert mock_graph_cls.call_args.kwargs["config_path"] == custom_cfg
+
+        explicit_cfg = tmp_path / "explicit_cfg"
+        explicit_cfg.mkdir()
+        extractor2 = UniversalExtractor(
+            signature_class=sig,
+            client=mock_client,
+            ingestion_dir=tmp_path,
+            config_path=explicit_cfg,
+        )
+        with patch("ae.core.config.settings.Settings.load", return_value=MagicMock()) as mock_load2, patch(
+            "ae.extraction.graph.ExtractionGraph"
+        ) as mock_graph_cls2:
+            extractor2._get_or_create_graph()
+            mock_load2.assert_called_once_with(config_path=explicit_cfg, load_env_file=True)
+            assert mock_graph_cls2.call_args.kwargs["config_path"] == explicit_cfg

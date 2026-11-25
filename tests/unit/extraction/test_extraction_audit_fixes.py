@@ -92,7 +92,10 @@ def test_dedup_normalization_nulls_relations_and_bacteria_case_and_collection_id
     c2 = {"bacteria": "S. aureus ATCC-29213"}
     c3 = {"bacteria": "S. aureus ATCC#29213"}
     c4 = {"bacteria": "MSSA S. aureus atcc-29213"}
-    assert _record_dedup_key(c1) == _record_dedup_key(c2) == _record_dedup_key(c3) == _record_dedup_key(c4)
+    c5 = {"bacteria": "MRSA S. aureus atcc-29213"}
+    assert _record_dedup_key(c1) == _record_dedup_key(c2) == _record_dedup_key(c3)
+    assert _record_dedup_key(c4) != _record_dedup_key(c1)
+    assert _record_dedup_key(c4) != _record_dedup_key(c5)
 
 
 def test_batched_mode_does_not_call_deduplicate_output_twice(tmp_path, monkeypatch):
@@ -466,3 +469,291 @@ def test_resolve_iupac_is_applicable_heuristic_bypasses_non_iupac_docs(tmp_path)
         doc_id="doc_no_iupac",
     )
     mock_llm.bind_tools.assert_not_called()
+
+
+def test_dedup_unit_superscripts_narrow_unit_key_and_batched_flag(tmp_path):
+    # 1. µg mL-1 / µg·mL-1 / µg mL⁻¹ normalize to µg/mL before pint
+    base = {"compound_id": "1a", "target_units": "µg/mL"}
+    for variant in ("µg mL-1", "µg·mL-1", "µg mL⁻¹", "ug mL-1", "ug·mL-1"):
+        assert _record_dedup_key(base) == _record_dedup_key({**base, "target_units": variant})
+
+    # 2. Narrow unit key check: "subunit" / "community" must NOT be parsed as units (e.g. "m" vs "meter")
+    assert _record_dedup_key({"subunit": "ug/mL"}) != _record_dedup_key({"subunit": "mg/L"})
+    assert _record_dedup_key({"unit": "ug/mL"}) == _record_dedup_key({"unit": "mg/L"})
+    assert _record_dedup_key({"dose_unit": "ug/mL"}) == _record_dedup_key({"dose_unit": "mg/L"})
+    assert _record_dedup_key({"units": "ug/mL"}) == _record_dedup_key({"units": "mg/L"})
+
+    # 3. _extract_records_batched respects enable_record_dedup=False
+    mock_llm = MagicMock()
+    mock_structured = MagicMock()
+    dup_rec = _Record(compound_id="1a", smiles="CCO", target_value="8", target_units="µg/mL")
+    mock_structured.invoke.side_effect = [
+        _RecordOutput(records=[dup_rec, dup_rec]),
+        _RecordOutput(records=[]),
+    ]
+    mock_llm.with_structured_output.return_value = mock_structured
+
+    graph_no_dedup = ExtractionGraph(
+        llm=mock_llm,
+        output_model=_RecordOutput,
+        ingestion_dir=tmp_path,
+        structured_output_batch_size=5,
+        enable_record_dedup=False,
+        retry_delay=0.0,
+    )
+    res = graph_no_dedup.run(
+        document_text="<!-- document_id: doc_nodedup -->\n\nCompound 1a CCO 8 µg/mL.",
+        doc_id="doc_nodedup",
+    )
+    assert len(res["extracted_data"].records) == 2
+
+
+def test_route_after_tool_reenters_agent_on_doc_change_for_auto_remind_false_tool(tmp_path):
+    from ae.ingestion.parsers.gemini.schemas import VisualParseRecord
+    from ae.ingestion.service import VisualParsingService
+
+    passive_tool = "test_passive_crosscheck_tool"
+    seen_calls: list[str] = []
+
+    @tool(passive_tool)
+    def _passive(name: str = "x") -> str:
+        """Cross-check passive."""
+        seen_calls.append(name)
+        return json.dumps({"resolved": [{"iupac_name": name, "smiles": "CCO"}], "errors": []})
+
+    register_extraction_tool(
+        passive_tool,
+        RegisteredToolProvider(
+            name=passive_tool,
+            build_tool=lambda **_: _passive,
+            is_applicable=lambda txt: "Scheme_1" in txt or "2-chloro" in txt,
+            auto_remind=False,
+        ),
+    )
+    try:
+        mock_service = MagicMock(spec=VisualParsingService)
+        mock_service.parse_visuals.return_value = {
+            "Scheme_1": VisualParseRecord(
+                visual_id="Scheme_1",
+                status="success",
+                mode="single",
+                rendered_markdown="| cmp | smiles |\n|---|---|\n| 1a | CCO |",
+            )
+        }
+        mock_llm = MagicMock()
+        mock_bound = MagicMock()
+        mock_bound.invoke.side_effect = [
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "parse_visuals", "args": {"visual_ids": ["Scheme_1"]}, "id": "v1"}],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": passive_tool, "args": {"name": "ethanol"}, "id": "p1"}],
+            ),
+        ]
+        mock_llm.bind_tools.return_value = mock_bound
+        mock_structured = MagicMock()
+        mock_structured.invoke.return_value = _RecordOutput(records=[_Record(compound_id="1a", smiles="CCO")])
+        mock_llm.with_structured_output.return_value = mock_structured
+
+        graph = ExtractionGraph(
+            llm=mock_llm,
+            output_model=_RecordOutput,
+            service=mock_service,
+            ingestion_dir=tmp_path,
+            max_tool_iterations=4,
+            tools=[passive_tool],
+        )
+        res = graph.run(
+            document_text='<!-- document_id: doc_passive_re -->\n\n<visual id="Scheme_1">\n> Scheme 1\n</visual>\n2-chloro derivative.',
+            doc_id="doc_passive_re",
+        )
+        assert mock_bound.invoke.call_count == 2
+        assert seen_calls == ["ethanol"]
+        assert len(res["tool_results"]) == 1
+    finally:
+        unregister_extraction_tool(passive_tool)
+
+
+def test_failed_domain_tool_allows_exact_retry_and_reminder_preserves_iteration_budget(tmp_path):
+    retry_tool = "test_retryable_domain_tool"
+    calls = 0
+
+    @tool(retry_tool)
+    def _flaky(cid: str = "1a") -> str:
+        """Flaky domain tool."""
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return json.dumps({"resolved": [], "errors": [{"iupac_name": cid, "error": "transient"}]})
+        return json.dumps({"resolved": [{"iupac_name": cid, "smiles": "CCO"}], "errors": []})
+
+    register_extraction_tool(
+        retry_tool,
+        RegisteredToolProvider(
+            name=retry_tool,
+            build_tool=lambda **_: _flaky,
+            is_applicable=lambda txt: "TRIGGER" in txt,
+            policy_hint="Call test_retryable_domain_tool.",
+            auto_remind=True,
+        ),
+    )
+    try:
+        # 1. With max_tool_iterations=1, finalize_evidence reminder must NOT burn the single iteration
+        mock_llm = MagicMock()
+        mock_bound = MagicMock()
+        mock_bound.invoke.side_effect = [
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "finalize_evidence", "args": {"confirm": True}, "id": "fe_1"}],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": retry_tool, "args": {"cid": "ethanol"}, "id": "rt_1"}],
+            ),
+        ]
+        mock_llm.bind_tools.return_value = mock_bound
+        mock_structured = MagicMock()
+        mock_structured.invoke.return_value = _RecordOutput(records=[_Record(compound_id="1a", smiles="CCO")])
+        mock_llm.with_structured_output.return_value = mock_structured
+
+        calls = 0
+        graph_budget1 = ExtractionGraph(
+            llm=mock_llm,
+            output_model=_RecordOutput,
+            ingestion_dir=tmp_path,
+            max_tool_iterations=1,
+            tools=[retry_tool],
+        )
+        # First call fails completely -> test exact same sig can be retried when budget allows
+        res1 = graph_budget1.run(document_text="<!-- document_id: doc_b1 -->\n\nTRIGGER.", doc_id="doc_b1")
+        assert mock_bound.invoke.call_count == 2
+        assert calls == 1
+        assert res1["executed_tool_signatures"] == []
+        assert res1["non_visual_tools_called_since_doc_change"] == []
+
+        # 2. With max_tool_iterations=3, exact same failed signature can be retried and succeeds
+        calls = 0
+        mock_bound.invoke.reset_mock()
+        mock_bound.invoke.side_effect = [
+            AIMessage(
+                content="",
+                tool_calls=[{"name": retry_tool, "args": {"cid": "ethanol"}, "id": "rt_1"}],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": retry_tool, "args": {"cid": "ethanol"}, "id": "rt_2"}],
+            ),
+        ]
+        graph_retry = ExtractionGraph(
+            llm=mock_llm,
+            output_model=_RecordOutput,
+            ingestion_dir=tmp_path,
+            max_tool_iterations=3,
+            tools=[retry_tool],
+        )
+        res2 = graph_retry.run(document_text="<!-- document_id: doc_b2 -->\n\nTRIGGER.", doc_id="doc_b2")
+        assert calls == 2
+        assert len(res2["tool_results"]) == 1
+        assert "CCO" in res2["tool_results"][0]["output"]
+        assert retry_tool in res2["non_visual_tools_called_since_doc_change"]
+    finally:
+        unregister_extraction_tool(retry_tool)
+
+
+def test_structured_output_fast_path_requires_ai_message(tmp_path):
+    from langchain_core.messages import ToolMessage
+
+    mock_llm = MagicMock()
+    mock_structured = MagicMock()
+    expected = _RecordOutput(records=[_Record(compound_id="1a", smiles="CCO")])
+    mock_structured.invoke.return_value = expected
+    mock_llm.with_structured_output.return_value = mock_structured
+
+    graph = ExtractionGraph(
+        llm=mock_llm,
+        output_model=_RecordOutput,
+        ingestion_dir=tmp_path,
+    )
+
+    # ToolMessage with JSON (e.g. from domain tool) must NOT trigger fast-path
+    tool_state = {
+        "doc_id": "doc_fp1",
+        "document_text": "<!-- document_id: doc_fp1 -->\n\nCompound 1a.",
+        "system_instruction": "",
+        "messages": [ToolMessage(content='{"resolved": []}', tool_call_id="t1")],
+    }
+    out1 = graph._structured_output_node(tool_state)
+    assert out1["extracted_data"] == expected
+    assert mock_structured.invoke.call_count == 1
+
+    # AIMessage with valid JSON DOES trigger fast-path without calling structured_model
+    ai_state = {
+        "doc_id": "doc_fp2",
+        "document_text": "<!-- document_id: doc_fp2 -->\n\nCompound 1a.",
+        "system_instruction": "",
+        "messages": [AIMessage(content='{"records": [{"compound_id": "1a", "smiles": "CCO"}]}')],
+    }
+    out2 = graph._structured_output_node(ai_state)
+    assert out2["extracted_data"].records[0].smiles == "CCO"
+    assert mock_structured.invoke.call_count == 1
+
+
+def test_iupac_cache_lru_eviction_and_key_normalization(monkeypatch):
+    chemistry._IUPAC_CACHE.clear()
+    monkeypatch.setattr("ae.core.schema.domain_tools.chemistry.shutil.which", lambda _cmd: "/usr/bin/java")
+    monkeypatch.setattr(chemistry, "_IUPAC_CACHE_MAX_SIZE", 2)
+
+    seen_calls: list[list[str]] = []
+
+    def _fake_py2opsin(names, **_kw):
+        seen_calls.append(list(names))
+        return ["CCO" for _ in names]
+
+    monkeypatch.setitem(sys.modules, "py2opsin", types.SimpleNamespace(py2opsin=_fake_py2opsin))
+
+    try:
+        # Dash and whitespace normalization hits the same cache entry
+        r1 = chemistry.resolve_iupac_batch(["2\u2013chloro   ethanol"])
+        r2 = chemistry.resolve_iupac_batch(["2-chloro ethanol"])
+        assert r1["resolved"][0]["smiles"] == "CCO"
+        assert r2["resolved"][0]["smiles"] == "CCO"
+        assert len(seen_calls) == 1
+        assert seen_calls[0] == ["2-chloro ethanol"]
+
+        # Add a second entry, touch the first, then add a third -> second (LRU) is evicted, first survives
+        chemistry.resolve_iupac_batch(["propane"])
+        chemistry.resolve_iupac_batch(["2-chloro ethanol"])  # refresh LRU order
+        chemistry.resolve_iupac_batch(["butane"])
+
+        assert len(chemistry._IUPAC_CACHE) == 2
+        assert "2-chloro ethanol" in chemistry._IUPAC_CACHE
+        assert "butane" in chemistry._IUPAC_CACHE
+        assert "propane" not in chemistry._IUPAC_CACHE
+    finally:
+        chemistry._IUPAC_CACHE.clear()
+
+
+def test_is_iupac_applicable_excludes_solvents_and_markush_hint_is_clean(tmp_path):
+    provider = DEFAULT_TOOL_REGISTRY.resolve("resolve_iupac_to_smiles")
+    solvent_doc = (
+        "Dissolved in N,N-dimethylformamide, 1,2-dichloroethane, "
+        "2-mercaptoethanol, dimethyl sulfoxide, and tetrahydrofuran."
+    )
+    assert provider.is_applicable(solvent_doc) is False
+    assert provider.is_applicable(f"{solvent_doc} Product: 2-chloro-6-fluorophenyl analog.") is True
+
+    # Markush-only graph should not instruct about resolve_iupac_to_smiles
+    mock_llm = MagicMock()
+    graph = ExtractionGraph(
+        llm=mock_llm,
+        output_model=_RecordOutput,
+        ingestion_dir=tmp_path,
+        tools=["assemble_markush_smiles"],
+    )
+    msgs = graph._build_structured_messages(
+        {"doc_id": "doc_mk", "document_text": "Scaffold [*:1].", "system_instruction": "Extract."},
+        "Go.",
+    )
+    assert "resolve_iupac_to_smiles" not in msgs[0].content

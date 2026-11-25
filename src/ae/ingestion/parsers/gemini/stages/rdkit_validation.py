@@ -12,8 +12,10 @@ from ae.ingestion.parsers.gemini.client import GeminiClient
 from ae.ingestion.parsers.gemini.schemas import ChemicalEntity
 from ae.ingestion.parsers.gemini.stages.ocsr_oracle import (
     OracleFinding,
+    _finding_expected_formulas,
     _is_markush_smiles,
     formulas_compatible,
+    reverify_entity_with_finding,
     substructure_violations,
     verify_entities_with_oracle,
 )
@@ -49,8 +51,11 @@ def _format_prose_hints(finding: Optional[OracleFinding]) -> str:
         finding.expected_substructure_names, finding.expected_substructure_smiles
     ):
         parts.append(f'must contain substructure "{rad_smi}" (prose name: {name})')
-    if finding.expected_formula:
-        parts.append(f"molecular formula must be compatible with {finding.expected_formula}")
+    candidate_formulas = _finding_expected_formulas(finding)
+    if candidate_formulas:
+        parts.append(
+            f"molecular formula must be compatible with {' or '.join(candidate_formulas)}"
+        )
     if finding.expected_smiles:
         suffix = f" (InChIKey {finding.expected_inchi_key})" if finding.expected_inchi_key else ""
         parts.append(
@@ -191,8 +196,9 @@ def validate_and_correct_entities(
     resolved_res = cfg_res if isinstance(cfg_res, str) and cfg_res else None
     cfg_tlevel = getattr(stage_cfg, "thinking_level", None) if stage_cfg is not None else None
     resolved_tlevel = (
-        cfg_tlevel
-        if isinstance(cfg_tlevel, str) and cfg_tlevel.lower() in ("medium", "high")
+        cfg_tlevel.strip().lower()
+        if isinstance(cfg_tlevel, str)
+        and cfg_tlevel.strip().lower() in ("minimal", "low", "medium", "high")
         else "medium"
     )
     cfg_tbudget = getattr(stage_cfg, "thinking_budget", None) if stage_cfg is not None else None
@@ -284,14 +290,21 @@ def validate_and_correct_entities(
                     **gen_kwargs,
                 )
 
-                corr_map = {c.label: c.corrected_smiles for c in corr_res.corrections}
+                corr_map = {
+                    c.label.strip().lower(): c.corrected_smiles
+                    for c in corr_res.corrections
+                    if c.label
+                }
                 rejection_notes: dict[int, list[str]] = {}
+                changed_indices: set[int] = set()
+                flagged_improvements: set[int] = set()
 
                 for idx, ent, _ in invalid:
-                    if ent.label not in corr_map:
+                    norm_label = ent.label.strip().lower()
+                    if norm_label not in corr_map:
                         continue
                     old_smiles = ent.smiles
-                    corrected_smiles = corr_map[ent.label]
+                    corrected_smiles = corr_map[norm_label]
                     valid, can, err = validate_and_canonicalize(corrected_smiles)
                     if not valid:
                         if ent.smiles_valid:
@@ -307,14 +320,33 @@ def validate_and_correct_entities(
                         ent.rdkit_error = err
                         if old_smiles != corrected_smiles:
                             replacements[old_smiles] = corrected_smiles
+                            changed_indices.add(idx)
                         continue
 
                     if ent.smiles_valid and can == old_smiles:
                         noop_indices.add(idx)
+                        continue
 
                     finding = findings[idx] if findings else None
                     violations = _candidate_violations(can, finding)
                     if violations:
+                        if not ent.smiles_valid:
+                            # Accept RDKit-valid candidate as an improvement over unparseable SMILES,
+                            # while keeping mismatch_flagged + diagnostic notes.
+                            ent.smiles = can
+                            ent.smiles_valid = True
+                            ent.rdkit_error = None
+                            ent.provenance_status = "mismatch_flagged"
+                            replacements[old_smiles] = can
+                            changed_indices.add(idx)
+                            flagged_improvements.add(idx)
+                            rejection_notes.setdefault(idx, []).append(
+                                f"accepted RDKit-valid candidate '{can}' over invalid SMILES despite prose violations: {'; '.join(violations)}"
+                            )
+                            logger.info(
+                                f"Accepted RDKit-valid improvement for '{ent.label}' despite prose violations: {violations}"
+                            )
+                            continue
                         rejection_notes.setdefault(idx, []).append(
                             f"candidate '{can}' rejected: {'; '.join(violations)}"
                         )
@@ -323,25 +355,32 @@ def validate_and_correct_entities(
                         )
                         continue
 
-                    if can == old_smiles and ent.smiles_valid:
-                        continue
-
                     ent.smiles = can
                     ent.smiles_valid = True
                     ent.rdkit_error = None
                     replacements[old_smiles] = can
+                    changed_indices.add(idx)
 
-                if enable_oracle:
-                    findings = verify_entities_with_oracle(entities, context=context)
-                    if len(findings) != len(entities):
-                        findings = None
+                if enable_oracle and changed_indices:
+                    if findings and len(findings) == len(entities):
+                        for idx in sorted(changed_indices):
+                            findings[idx] = reverify_entity_with_finding(entities[idx], findings[idx])
+                    else:
+                        findings = verify_entities_with_oracle(entities, context=context)
+                        if len(findings) != len(entities):
+                            findings = None
+                for idx in flagged_improvements:
+                    entities[idx].provenance_status = "mismatch_flagged"
+                    if findings and idx < len(findings):
+                        findings[idx].provenance_status = "mismatch_flagged"
+                        findings[idx].passed = False
                 _reappend_notes(entities, rejection_notes)
             except Exception as exc:
                 logger.warning(f"RDKit/Oracle self-correction call failed: {exc}")
                 break
 
     # Deterministic last-resort override: the prose IUPAC heading resolves unambiguously,
-    # the drawing disagrees on connectivity (or failed RDKit parsing), and (when present) the prose formula agrees.
+    # the drawing disagrees on connectivity (or failed RDKit parsing), and prose constraints agree.
     if enable_oracle and findings and len(findings) == len(entities):
         override_notes: dict[int, list[str]] = {}
         for idx, (ent, f) in enumerate(zip(entities, findings)):
@@ -356,9 +395,7 @@ def validate_and_correct_entities(
             ok, can, _ = validate_and_canonicalize(f.expected_smiles)
             if not ok:
                 continue
-            if f.expected_formula and not _formula_of_agrees_with(
-                can, f.expected_formula, context=f.expected_adduct_context
-            ):
+            if _candidate_violations(can, f):
                 continue
             replacements[ent.smiles] = can
             ent.smiles = can
@@ -366,7 +403,8 @@ def validate_and_correct_entities(
             ent.rdkit_error = None
             override_notes[idx] = ["overridden from prose IUPAC heading (stereo may be lost)"]
         if override_notes:
-            verify_entities_with_oracle(entities, context=context)
+            for idx in sorted(override_notes):
+                findings[idx] = reverify_entity_with_finding(entities[idx], findings[idx])
             _reappend_notes(entities, override_notes)
 
     return entities, replacements

@@ -514,3 +514,128 @@ class TestSchemaRefinement:
         )
         assert refined_with_prompt.fields["assay_type"].choices == ["MIC", "IC50"]
 
+    def test_numeric_bounds_doc_support_gate_and_prompt_grounded_iter1_constraints(self):
+        """Numeric bounds respect doc_support gate, while explicitly prompt-grounded defaults/patterns work on iter 1."""
+        base = SchemaConfig(
+            name="antibiotics",
+            fields={
+                "target_relation": FieldSpec(type=str, required=False),
+                "target_value": FieldSpec(type=float, required=False),
+            },
+            compare_fields=["target_relation", "target_value"],
+        )
+        df_iter1 = pd.DataFrame(
+            {
+                "pdf": ["d1", "d2"],
+                "target_relation": ["=", ">"],
+                "target_value": [1.0, 50.0],
+            }
+        )
+        profiles_iter1 = build_column_profiles(
+            df_gt=df_iter1,
+            schema_config=base,
+            active_norm_ids={"d1", "d2"},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        proposal = SchemaRefinementOutput(
+            fields=[
+                FieldConstraintProposal(
+                    field_name="target_relation",
+                    description="Relation operator",
+                    is_closed_enum=False,
+                    default_value="=",
+                    pattern=r"^(?:=|>|<)$",
+                ),
+                FieldConstraintProposal(
+                    field_name="target_value",
+                    description="Numeric measurement",
+                    is_closed_enum=False,
+                    min_value=0.0,
+                    max_value=100.0,
+                ),
+            ]
+        )
+
+        # On iter 1 (2 < 4) WITH explicit prompt grounding for target_relation default & pattern:
+        # default_value and pattern are allowed, while numeric bounds (no prompt gate bypass) are blocked!
+        prompt = "target_relation: '=', '>', or '<'. If omitted, default '='."
+        refined_iter1 = apply_schema_refinements(
+            base,
+            proposal,
+            profiles_iter1,
+            min_enum_doc_support=4,
+            prompt_text=prompt,
+        )
+        assert refined_iter1.fields["target_relation"].default == "="
+        assert refined_iter1.fields["target_relation"].pattern == r"^(?:=|>|<)$"
+        assert refined_iter1.fields["target_value"].min_value is None
+        assert refined_iter1.fields["target_value"].max_value is None
+
+        # On 4 docs (>= 4), numeric bounds are applied
+        df_iter2 = pd.DataFrame(
+            {
+                "pdf": ["d1", "d2", "d3", "d4"],
+                "target_relation": ["=", ">", "<", "="],
+                "target_value": [1.0, 50.0, 10.0, 25.0],
+            }
+        )
+        profiles_iter2 = build_column_profiles(
+            df_gt=df_iter2,
+            schema_config=base,
+            active_norm_ids={"d1", "d2", "d3", "d4"},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        refined_iter2 = apply_schema_refinements(
+            base,
+            proposal,
+            profiles_iter2,
+            min_enum_doc_support=4,
+            prompt_text=prompt,
+        )
+        assert refined_iter2.fields["target_value"].min_value == 0.0
+        assert refined_iter2.fields["target_value"].max_value == 100.0
+
+    def test_run_schema_refinement_passes_dynamic_min_enum_doc_support(self, tmp_path):
+        """run_schema_refinement passes context.min_enum_doc_support into SchemaConstraintInference."""
+        schema_path = tmp_path / "schema.yaml"
+        schema_path.write_text(
+            "name: test\nfloat_tolerance: 0.05\nfields:\n  target_relation:\n    type: str\ncompare_fields: [target_relation]\n",
+            encoding="utf-8",
+        )
+        baseline_path = tmp_path / "baseline.txt"
+        baseline_path.write_text("Base", encoding="utf-8")
+        gt_path = tmp_path / "gt.csv"
+        pd.DataFrame({"pdf": ["d1", "d2"], "target_relation": ["=", ">"]}).to_csv(gt_path, index=False)
+
+        ctx = RunContext(
+            task_name="test",
+            doc_ids=["d1", "d2"],
+            gt_path=gt_path,
+            ingestion_dir=tmp_path / "ing",
+            baseline_prompt_path=baseline_path,
+            schema_path=schema_path,
+            teacher_lm=MagicMock(),
+            artifacts_dir=tmp_path / "art",
+            generated_prompt_path=tmp_path / "gen.txt",
+            generated_schema_path=tmp_path / "gen.yaml",
+            min_enum_doc_support=2,
+            interactive=False,
+        )
+        ctx.current_iteration = 1
+
+        mock_predictor = MagicMock(return_value=MagicMock(refinement=SchemaRefinementOutput(fields=[])))
+        with patch("ae.semantic_optimization.steps.schema_refinement.dspy.Predict", return_value=mock_predictor):
+            run_schema_refinement(
+                context=ctx,
+                df_gt=pd.read_csv(gt_path),
+                id_col="pdf",
+                compiled_columns={},
+                final_prompt="Final prompt",
+                active_norm_ids={"d1", "d2"},
+            )
+
+        assert mock_predictor.call_args.kwargs["min_enum_doc_support"] == 2
+
+

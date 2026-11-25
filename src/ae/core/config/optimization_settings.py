@@ -546,6 +546,9 @@ class IngestionConfig(BaseModel):
                             "validate_rdkit": molecules_raw.get("validate_rdkit", True)
                             if isinstance(molecules_raw, dict)
                             else getattr(molecules_raw, "validate_rdkit", True),
+                            "enable_ocsr_oracle": molecules_raw.get("enable_ocsr_oracle", True)
+                            if isinstance(molecules_raw, dict)
+                            else getattr(molecules_raw, "enable_ocsr_oracle", True),
                             "max_retries": molecules_raw.get(
                                 "max_rdkit_retries",
                                 molecules_raw.get("max_retries", 1),
@@ -971,6 +974,7 @@ class SemanticOptimizationConfig(BaseModel):
             k in data for k in [
                 "use_split", "val_split", "f1_threshold", "initial_docs", "step_size",
                 "row_batch_size", "max_rows_per_doc", "harmonize_prompt", "infer_schema_constraints",
+                "min_enum_doc_support", "pareto_regression_threshold",
                 "enable_semantic_judge", "residual_enabled", "residual_fallback_threshold",
                 "residual_skip_f1", "residual_max_examples_per_sig",
                 "residual_max_fn_rows", "residual_max_fp_rows", "max_tool_iterations",

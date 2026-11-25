@@ -409,6 +409,17 @@ class FieldValidatorRegistry:
                 if syntax_err:
                     errors.append(f"validator {spec.name!r}: {syntax_err}")
 
+            when_expr = spec.params.get("when")
+            if when_expr is not None:
+                if not isinstance(when_expr, str) or not when_expr.strip():
+                    errors.append(f"validator {spec.name!r}: 'when' must be a non-empty string")
+                else:
+                    from ae.core.schema.quantity_validators import validate_compute_syntax
+
+                    when_err = validate_compute_syntax(when_expr)
+                    if when_err:
+                        errors.append(f"validator {spec.name!r} 'when': {when_err}")
+
         return errors
 
 

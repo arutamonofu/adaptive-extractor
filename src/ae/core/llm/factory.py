@@ -114,6 +114,27 @@ def create_chat_model(
             chat_kwargs["callbacks"] = list(callbacks)
 
         logger.info(f"Instantiating ChatOpenAI (model={config.model}, base_url={base_url})")
+        if getattr(config.api, "prompt_caching", False):
+            from ae.core.llm.provider import apply_prompt_caching
+
+            class _PromptCachingChatOpenAI(ChatOpenAI):
+                """ChatOpenAI subclass applying ephemeral cache_control breakpoints when prompt_caching=True."""
+
+                def _get_request_payload(
+                    self,
+                    input_: Any,
+                    *,
+                    stop: list[str] | None = None,
+                    **kwargs: Any,
+                ) -> dict[str, Any]:
+                    payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+                    messages = payload.get("messages")
+                    if isinstance(messages, list) and messages:
+                        payload["messages"] = apply_prompt_caching(messages)
+                    return payload
+
+            return _PromptCachingChatOpenAI(**chat_kwargs)
+
         return ChatOpenAI(**chat_kwargs)
 
     raise ValueError(f"Unsupported provider for create_chat_model: '{config.provider}'")
