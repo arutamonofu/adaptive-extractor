@@ -1,6 +1,7 @@
 """Evaluation engine for comparing extracted structured records against ground truth."""
 
 import ast
+from collections import OrderedDict
 import difflib
 import functools
 import hashlib
@@ -188,6 +189,7 @@ class RecordMatcher:
         field_validators: Optional[Dict[str, List[Any]]] = None,
         max_judge_batch_size: int = 15,
         min_alignment_score: float = 0.25,
+        max_cache_size: int = 10000,
     ):
         """Initialize the RecordMatcher.
 
@@ -201,6 +203,7 @@ class RecordMatcher:
             field_validators: Optional declarative validators per field (canonical equivalence).
             max_judge_batch_size: Max aligned pairs to evaluate in a single batched LLM call.
             min_alignment_score: Minimum similarity score in [0.0, 1.0] to keep a Hungarian pair.
+            max_cache_size: Maximum LRU entries retained in judge verdict/reasoning caches.
 
         Raises:
             ValueError: If fields_to_compare is empty or float_tolerance is invalid.
@@ -229,11 +232,12 @@ class RecordMatcher:
                     ]
         self.max_judge_batch_size = max(1, int(max_judge_batch_size))
         self.min_alignment_score = float(min_alignment_score)
+        self._max_cache_size = max(1, int(max_cache_size))
         self._schema_constraints_hash = self._compute_schema_constraints_hash()
         self._cache_lock = threading.Lock()
         self._judge_counter_local = threading.local()
-        self._verdict_cache: Dict[Tuple[Any, ...], Dict[str, str]] = {}
-        self._reasoning_cache: Dict[Tuple[Any, ...], Dict[str, str]] = {}
+        self._verdict_cache: OrderedDict[Tuple[Any, ...], Dict[str, str]] = OrderedDict()
+        self._reasoning_cache: OrderedDict[Tuple[Any, ...], Dict[str, str]] = OrderedDict()
         self._prompt_hash_cache: Dict[Tuple[str, bool], str] = {}
         self._validator_compare_cache: Dict[
             Tuple[str, str, str], Tuple[Optional[bool], Optional[str]]
@@ -277,7 +281,15 @@ class RecordMatcher:
         )
         temperature = getattr(self.student_llm, "temperature", getattr(target, "temperature", None))
         top_p = getattr(self.student_llm, "top_p", getattr(target, "top_p", None))
-        max_tokens = getattr(self.student_llm, "max_tokens", getattr(target, "max_tokens", None))
+        max_tokens = None
+        for obj in (self.student_llm, target):
+            for attr in ("max_tokens", "max_output_tokens", "num_predict"):
+                val = getattr(obj, attr, None)
+                if val is not None:
+                    max_tokens = val
+                    break
+            if max_tokens is not None:
+                break
         thinking_payload = {
             "thinking_level": getattr(target, "thinking_level", None),
             "thinking_budget": getattr(target, "thinking_budget", None),
@@ -306,6 +318,38 @@ class RecordMatcher:
             thinking_repr,
             extra_repr,
         )
+
+    def _get_judge_call_kwargs(self) -> Dict[str, Any]:
+        """Return optional provider-supported kwargs (e.g. response_format) for judge calls."""
+        if self.student_llm is None:
+            return {}
+        inner = getattr(self.student_llm, "provider", None)
+        target = inner if inner is not None and not isinstance(inner, str) else self.student_llm
+        if getattr(target, "provider", None) == "OpenRouter" and hasattr(target, "response_format"):
+            if getattr(target, "response_format", None) is None:
+                return {"response_format": {"type": "json_object"}}
+        return {}
+
+    def _cache_get(
+        self, cache: OrderedDict[Tuple[Any, ...], Dict[str, str]], key: Tuple[Any, ...]
+    ) -> Optional[Dict[str, str]]:
+        """Get a cache entry and refresh its LRU recency (caller holds _cache_lock)."""
+        val = cache.get(key)
+        if val is not None:
+            cache.move_to_end(key)
+        return val
+
+    def _cache_set(
+        self,
+        cache: OrderedDict[Tuple[Any, ...], Dict[str, str]],
+        key: Tuple[Any, ...],
+        value: Dict[str, str],
+    ) -> None:
+        """Insert/update an LRU-bounded cache entry (caller holds _cache_lock)."""
+        cache[key] = value
+        cache.move_to_end(key)
+        while len(cache) > self._max_cache_size:
+            cache.popitem(last=False)
 
     def _record_judge_counter(self, key: str, delta: int = 1) -> None:
         """Increment an active per-evaluation judge error/parse counter if tracking is enabled."""
@@ -632,7 +676,6 @@ class RecordMatcher:
 
         n_preds, n_gts = len(preds), len(gts)
         cost_matrix = np.zeros((n_preds, n_gts))
-        disc_score_matrix = np.zeros((n_preds, n_gts)) if total_disc_weight > 0.0 else None
         n_fields = len(self.fields)
 
         for i, p in enumerate(preds):
@@ -647,12 +690,11 @@ class RecordMatcher:
                         field_equivalence_fn=field_equivalence_fn,
                     )
                     sim_sum += f_sim
-                    if disc_score_matrix is not None:
+                    if total_disc_weight > 0.0:
                         disc_sum += weights[field] * f_sim
                 uniform_score = sim_sum / n_fields if n_fields else 0.0
-                if disc_score_matrix is not None:
+                if total_disc_weight > 0.0:
                     disc_score = disc_sum / total_disc_weight
-                    disc_score_matrix[i, j] = disc_score
                     combined_score = 0.7 * disc_score + 0.3 * uniform_score
                     cost_matrix[i, j] = 1.0 - combined_score
                 else:
@@ -666,11 +708,7 @@ class RecordMatcher:
         for r_raw, c_raw in zip(row_inds, col_inds):
             r, c = int(r_raw), int(c_raw)
             if threshold > 0.0:
-                pair_score = (
-                    float(disc_score_matrix[r, c])
-                    if disc_score_matrix is not None
-                    else float(1.0 - cost_matrix[r, c])
-                )
+                pair_score = float(1.0 - cost_matrix[r, c])
                 if pair_score < threshold:
                     continue
             matched_pred_indices.add(r)
@@ -784,6 +822,7 @@ Evaluate EACH discrepancy strictly using the following criteria:
 1. Factual Contradiction (Mutation): Both Ground Truth and Predicted contain values, but they convey different facts, magnitudes, entities, roles, or incomplete/extra list elements (e.g., GT lists 3 items, Pred lists 2).
 2. Schema / Format Violation: Predicted violates explicit schema constraints (e.g., invalid enum choice, wrong pattern, prohibited formatting) or changes a coupled unit without converting the numeric magnitude.
 3. Missing or Unsupported Value: Either Ground Truth or Predicted is null/empty while the other is populated, or Predicted introduces unverified information not present in Ground Truth.
+4. Dropped Uncertainty or Relation Qualifiers: Predicted drops or alters uncertainty/deviation bounds (e.g., "0.5" vs "0.5 ± 0.05"), interval endpoints, or inequality/relation signs (e.g., "128" vs ">128", "<10" vs "≤10").
 
 {output_section}"""
 
@@ -991,7 +1030,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
 
         cache_key = self._make_discrepancy_cache_key(task_name, gt_json, pred_json, eval_fields)
         with self._cache_lock:
-            cached = self._verdict_cache.get(cache_key)
+            cached = self._cache_get(self._verdict_cache, cache_key)
         if cached is not None:
             for f in eval_fields:
                 verdicts[f] = cached.get(f, "NO")
@@ -1011,7 +1050,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 f"[SemanticJudge] Evaluating fields {eval_fields} via "
                 f"{getattr(self.student_llm, 'model', type(self.student_llm).__name__)}..."
             )
-            response = self.student_llm(messages)
+            call_kwargs = self._get_judge_call_kwargs()
+            response = self.student_llm(messages, **call_kwargs)
             response_text = response[0] if isinstance(response, list) else response
             cleaned = _clean_judge_response(response_text)
             parsed = _parse_judge_json(cleaned)
@@ -1022,17 +1062,29 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 )
                 return {}
 
+            missing_fields = [f for f in eval_fields if f not in parsed]
             evaluated_verdicts = {
-                f: _extract_field_verdict(parsed.get(f))
+                f: _extract_field_verdict(parsed[f])
                 for f in eval_fields
+                if f in parsed
             }
             evaluated_reasonings = {
-                f: _extract_field_reasoning(parsed.get(f))
+                f: _extract_field_reasoning(parsed[f])
                 for f in eval_fields
+                if f in parsed
             }
-            with self._cache_lock:
-                self._verdict_cache[cache_key] = dict(evaluated_verdicts)
-                self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
+            if missing_fields:
+                self._record_judge_counter("judge_parse_failures")
+                logger.warning(
+                    f"[SemanticJudge] Missing field(s) {missing_fields} in judge JSON response; "
+                    "defaulting missing fields to 'NO' without caching."
+                )
+                for f in missing_fields:
+                    verdicts[f] = "NO"
+            else:
+                with self._cache_lock:
+                    self._cache_set(self._verdict_cache, cache_key, dict(evaluated_verdicts))
+                    self._cache_set(self._reasoning_cache, cache_key, dict(evaluated_reasonings))
             verdicts.update(evaluated_verdicts)
             return verdicts
 
@@ -1072,7 +1124,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                     f"[SemanticJudge] Batch evaluating {len(chunk)} discrepancy pair(s) via "
                     f"{getattr(self.student_llm, 'model', type(self.student_llm).__name__)}..."
                 )
-                response = self.student_llm(messages)
+                call_kwargs = self._get_judge_call_kwargs()
+                response = self.student_llm(messages, **call_kwargs)
                 response_text = response[0] if isinstance(response, list) else response
                 cleaned = _clean_judge_response(response_text)
                 parsed = _parse_judge_json(cleaned)
@@ -1100,17 +1153,31 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                         )
                         continue
 
+                    missing_fields = [f for f in eval_fields if f not in pair_verdicts]
                     evaluated = {
-                        f: _extract_field_verdict(pair_verdicts.get(f))
+                        f: _extract_field_verdict(pair_verdicts[f])
                         for f in eval_fields
+                        if f in pair_verdicts
                     }
                     evaluated_reasonings = {
-                        f: _extract_field_reasoning(pair_verdicts.get(f))
+                        f: _extract_field_reasoning(pair_verdicts[f])
                         for f in eval_fields
+                        if f in pair_verdicts
                     }
-                    with self._cache_lock:
-                        self._verdict_cache[cache_key] = dict(evaluated)
-                        self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
+                    if missing_fields:
+                        self._record_judge_counter("judge_parse_failures")
+                        logger.warning(
+                            f"[SemanticJudge] Missing field(s) {missing_fields} for batch pair '{idx}'; "
+                            "defaulting missing fields to 'NO' without caching."
+                        )
+                        for f in missing_fields:
+                            evaluated[f] = "NO"
+                    else:
+                        with self._cache_lock:
+                            self._cache_set(self._verdict_cache, cache_key, dict(evaluated))
+                            self._cache_set(
+                                self._reasoning_cache, cache_key, dict(evaluated_reasonings)
+                            )
                     batch_results[cache_key] = evaluated
             except json.JSONDecodeError as e:
                 self._record_judge_counter("judge_parse_failures")
@@ -1327,8 +1394,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 verdicts.update(judge_verdicts)
                 with self._cache_lock:
                     cached_reasonings = dict(
-                        self._reasoning_cache.get(reasoning_key)
-                        or self._reasoning_cache.get(single_key)
+                        self._cache_get(self._reasoning_cache, reasoning_key)
+                        or self._cache_get(self._reasoning_cache, single_key)
                         or {}
                     )
 
@@ -1485,56 +1552,74 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         import ot
         from rapidfuzz import fuzz
 
+        def _entity_pair_similarity(
+            ent_a: ExperimentEntity,
+            ent_b: ExperimentEntity,
+            weights_map: Dict[str, float],
+            total_weight: float,
+        ) -> float:
+            sim_sum = 0.0
+            disc_sum = 0.0
+            n_f = len(self.fields)
+            for field in self.fields:
+                va = getattr(ent_a, field, None)
+                vb = getattr(ent_b, field, None)
+                a_na, b_na = self._is_empty_or_na(va), self._is_empty_or_na(vb)
+                if a_na and b_na:
+                    f_sim = 0.1
+                elif a_na or b_na:
+                    f_sim = 0.0
+                elif self._is_field_match(
+                    field, va, vb, field_equivalence_fn=field_equivalence_fn
+                ):
+                    f_sim = 1.0
+                else:
+                    sa = " ".join(str(va).translate(_DASH_MAP).lower().split())
+                    sb = " ".join(str(vb).translate(_DASH_MAP).lower().split())
+                    f_sim = 0.5 * (fuzz.token_set_ratio(sa, sb) + fuzz.ratio(sa, sb)) / 100.0
+                sim_sum += f_sim
+                if total_weight > 0.0:
+                    disc_sum += weights_map[field] * f_sim
+            uniform = sim_sum / n_f if n_f else 0.0
+            if total_weight > 0.0:
+                return 0.7 * (disc_sum / total_weight) + 0.3 * uniform
+            return uniform
+
         weights, total_disc_weight = self._compute_discriminative_field_weights(gts)
         n_preds, n_gts = len(preds), len(gts)
-        n_fields = len(self.fields)
         sim_matrix = np.zeros((n_preds, n_gts))
 
         for i, p in enumerate(preds):
             for j, g in enumerate(gts):
-                sim_sum = 0.0
-                disc_sum = 0.0
-                for field in self.fields:
-                    vp = getattr(p, field, None)
-                    vg = getattr(g, field, None)
-                    p_na, g_na = self._is_empty_or_na(vp), self._is_empty_or_na(vg)
-                    if p_na and g_na:
-                        f_sim = 0.1
-                    elif p_na or g_na:
-                        f_sim = 0.0
-                    elif self._is_field_match(
-                        field, vp, vg, field_equivalence_fn=field_equivalence_fn
-                    ):
-                        f_sim = 1.0
-                    else:
-                        sp, sg = str(vp).strip(), str(vg).strip()
-                        fuzz_score = 0.5 * (
-                            fuzz.token_set_ratio(sp, sg) + fuzz.ratio(sp, sg)
-                        )
-                        f_sim = fuzz_score / 100.0
-                    sim_sum += f_sim
-                    if total_disc_weight > 0.0:
-                        disc_sum += weights[field] * f_sim
-                uniform_score = sim_sum / n_fields if n_fields else 0.0
-                if total_disc_weight > 0.0:
-                    disc_score = disc_sum / total_disc_weight
-                    sim_matrix[i, j] = 0.7 * disc_score + 0.3 * uniform_score
-                else:
-                    sim_matrix[i, j] = uniform_score
+                sim_matrix[i, j] = _entity_pair_similarity(p, g, weights, total_disc_weight)
 
         cost_matrix = 1.0 - sim_matrix
         try:
-            transport = ot.unbalanced.sinkhorn_knopp_unbalanced(
+            transport = ot.unbalanced.sinkhorn_unbalanced(
                 np.ones(n_preds),
                 np.ones(n_gts),
                 cost_matrix,
                 reg=0.05,
                 reg_m=0.5,
+                method="sinkhorn_stabilized",
             )
             if not np.all(np.isfinite(transport)):
+                logger.warning(
+                    "POT sinkhorn_stabilized produced non-finite transport at reg=0.05; retrying with reg=0.1"
+                )
+                transport = ot.unbalanced.sinkhorn_unbalanced(
+                    np.ones(n_preds),
+                    np.ones(n_gts),
+                    cost_matrix,
+                    reg=0.1,
+                    reg_m=0.5,
+                    method="sinkhorn_stabilized",
+                )
+            if not np.all(np.isfinite(transport)):
+                logger.warning("POT unbalanced OT produced non-finite transport; skipping diagnostics.")
                 return diagnostics
         except Exception as exc:
-            logger.debug(f"POT unbalanced OT skipped due to solver error: {exc}")
+            logger.warning(f"POT unbalanced OT skipped due to solver error: {exc}")
             return diagnostics
 
         row_sums = transport.sum(axis=1, keepdims=True)
@@ -1549,16 +1634,26 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         fn_indices = {int(r["gt_index"]) for r in fn_entries}
         tagged_dup_preds: set[int] = set()
 
-        # 1. duplicate_of_tp: FP pred couples strongly to a GT already matched as TP
+        # 1. duplicate_of_tp: FP pred couples strongly to a GT already matched as TP (or partial field_mismatch)
         for pi in sorted(fp_indices):
             j_best = int(np.argmax(transport[pi]))
             t_val = float(transport[pi, j_best])
             row_share = t_val / max(float(row_sums[pi, 0]), 1e-12)
             s_val = float(sim_matrix[pi, j_best])
             gt_entry = gt_pair_by_idx.get(j_best)
+            gt_status = gt_entry.get("status") if gt_entry is not None else None
+            is_dup_target = gt_status == "tp"
+            if gt_status == "field_mismatch":
+                matched_pi = gt_entry.get("pred_index") if gt_entry is not None else None
+                if matched_pi is not None:
+                    # Only treat FP as duplicate of a field_mismatch pair when the two predictions
+                    # are themselves near-duplicates (unlike row_split where predictions are disjoint fragments).
+                    pred_dup_sim = _entity_pair_similarity(
+                        preds[pi], preds[int(matched_pi)], weights, total_disc_weight
+                    )
+                    is_dup_target = pred_dup_sim >= 0.80
             if (
-                gt_entry is not None
-                and gt_entry.get("status") == "tp"
+                is_dup_target
                 and s_val >= 0.80
                 and (t_val >= 0.15 or row_share >= 0.35)
             ):
@@ -1707,8 +1802,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                         resolved_task, gt_json, pred_json, eval_fields, is_batch=True
                     )
                     with self._cache_lock:
-                        cached_single = self._verdict_cache.get(single_key)
-                        cached_batch = self._verdict_cache.get(batch_key)
+                        cached_single = self._cache_get(self._verdict_cache, single_key)
+                        cached_batch = self._cache_get(self._verdict_cache, batch_key)
                     if cached_batch is not None:
                         pre_cached_verdicts[batch_key] = dict(cached_batch)
                     elif cached_single is not None:

@@ -50,12 +50,15 @@ _KNOWN_POS_EXP_UNITS = (
     "m", "s", "h", "L",
 )
 _UNIT_POS_EXP_RE = re.compile(rf"\b({'|'.join(_KNOWN_POS_EXP_UNITS)})(\d+)\b")
-_MCG_WORD_RE = re.compile(r"\bmcg\b")
+_MCG_WORD_RE = re.compile(r"\bmcg\b", re.IGNORECASE)
 
 _REL_PREFIX_RE = re.compile(r"^\s*(>=|<=|≥|≤|>|<|=|~|≈)\s*(.+)$")
 _STD_SPLIT_RE = re.compile(r"^(.+?)\s*(?:±|\+/-|\+-)\s*(.+)$")
 _NUM_TOKEN = r"[+-]?(?:\d+(?:[.,]\d+)*|[.,]\d+)(?:[eE][+-]?\d+)?"
 _THOUSANDS_COMMA_RE = re.compile(r"^[+-]?[1-9]\d{0,2}(?:,\d{3})+(?:[eE][+-]?\d+)?$")
+_US_THOUSANDS_RE = re.compile(r"^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?(?:[eE][+-]?\d+)?$")
+_EU_THOUSANDS_RE = re.compile(r"^[+-]?\d{1,3}(?:\.\d{3})+(?:,\d+)?(?:[eE][+-]?\d+)?$")
+_AMBIGUOUS_COMMA_RE = re.compile(r"^[+-]?[1-9]\d{0,2},\d{3}(?:[eE][+-]?\d+)?$")
 _RANGE_SPLIT_RE = re.compile(
     rf"^\s*({_NUM_TOKEN})\s*(?:-|–|—|−|\.\.|to)\s*({_NUM_TOKEN})\s*$"
 )
@@ -76,6 +79,7 @@ _FORBIDDEN_AST_NODES = (
 
 _SAFE_COMPUTE_MAX_EXPR_LEN = 512
 _SAFE_COMPUTE_MAX_EXP = 1000.0
+_SAFE_COMPUTE_MAX_POW_BITS = 4096
 
 
 @functools.lru_cache(maxsize=1)
@@ -87,7 +91,12 @@ def _get_unit_registry() -> Any:
         raise RuntimeError(
             "Pint is required for the 'unit' field validator (`pip install pint`)."
         ) from exc
-    return pint.UnitRegistry()
+    ureg = pint.UnitRegistry()
+    try:
+        ureg.define("ppb = 1e-9")
+    except Exception:
+        pass
+    return ureg
 
 
 def normalize_unit_expression(raw: str) -> str:
@@ -191,6 +200,14 @@ def compare_unit_values(
         return None, None
 
     if u_a.dimensionality != u_b.dimensionality:
+        ureg = _get_unit_registry()
+        temp_dim = ureg.Unit("kelvin").dimensionality
+        sa, sb = val_a.strip(), val_b.strip()
+        # Bare "C" / "F" (coulomb / farad) often result from OCR/LLM dropping "°" on °C / °F.
+        if (sa in ("C", "F") and u_b.dimensionality == temp_dim) or (
+            sb in ("C", "F") and u_a.dimensionality == temp_dim
+        ):
+            return None, None
         return False, "incompatible_units"
 
     ureg = _get_unit_registry()
@@ -238,7 +255,7 @@ class ParsedQuantity:
         return f"{prefix}{self.value:g}"
 
 
-def _parse_decimal_number(token: str, *, thousands_sep: bool = False) -> Optional[float]:
+def _parse_decimal_number(token: str, *, thousands_sep: Optional[bool] = None) -> Optional[float]:
     """Parse numeric token supporting thousands separators and European decimal commas."""
     s = token.strip().replace(" ", "").replace("\u00a0", "")
     if not s:
@@ -246,22 +263,35 @@ def _parse_decimal_number(token: str, *, thousands_sep: bool = False) -> Optiona
     if "," in s and "." in s:
         if s.rfind(",") > s.rfind("."):
             # European format: e.g. "1.500,25"
+            if not _EU_THOUSANDS_RE.match(s):
+                return None
             s = s.replace(".", "").replace(",", ".")
         else:
-            # US/English format: e.g. "1,500.25", "1,250.5"
+            # US/English format: e.g. "1,500.25", "1,250.5" (reject malformed "1,23.45")
+            if not _US_THOUSANDS_RE.match(s):
+                return None
             s = s.replace(",", "")
     elif "," in s:
-        if s.count(",") >= 2 and _THOUSANDS_COMMA_RE.match(s):
-            # Multiple thousands groups without decimal point: e.g. "1,000,000"
-            s = s.replace(",", "")
-        elif thousands_sep and _THOUSANDS_COMMA_RE.match(s):
-            # Explicit thousands_sep=True: e.g. "1,250", "1,000"
-            s = s.replace(",", "")
-        elif s.count(",") == 1:
-            # Decimal comma: e.g. "19,1", "0,001", "1,250"
+        if s.count(",") >= 2:
+            if _THOUSANDS_COMMA_RE.match(s):
+                # Multiple thousands groups without decimal point: e.g. "1,000,000"
+                s = s.replace(",", "")
+            else:
+                return None
+        elif thousands_sep is True:
+            if _US_THOUSANDS_RE.match(s):
+                # Explicit thousands_sep=True: e.g. "1,250", "1,000"
+                s = s.replace(",", "")
+            else:
+                return None
+        elif thousands_sep is False:
+            # Explicit European decimal comma: e.g. "19,1", "0,001", "1,250"
             s = s.replace(",", ".")
         else:
-            return None
+            # Auto mode (thousands_sep is None): escalate ambiguous "1,000" / "1,250" to judge
+            if _AMBIGUOUS_COMMA_RE.match(s):
+                return None
+            s = s.replace(",", ".")
     try:
         val = float(s)
     except ValueError:
@@ -272,7 +302,7 @@ def _parse_decimal_number(token: str, *, thousands_sep: bool = False) -> Optiona
 def parse_numeric_quantity(
     raw: Any,
     *,
-    thousands_sep: bool = False,
+    thousands_sep: Optional[bool] = None,
 ) -> Tuple[Optional[ParsedQuantity], Optional[str]]:
     """Parse a numeric quantity supporting decimal commas, ± std, ranges, and >/<."""
     if isinstance(raw, bool):
@@ -340,7 +370,7 @@ def validate_numeric_quantity(
     allow_std: bool = True,
     min_value: Optional[float] = None,
     max_value: Optional[float] = None,
-    thousands_sep: bool = False,
+    thousands_sep: Optional[bool] = None,
     **_: Any,
 ) -> FieldValidationResult:
     """Validate and optionally canonicalize a numeric quantity string."""
@@ -383,7 +413,7 @@ def compare_numeric_quantity_values(
     rel_tol: float = 1e-9,
     abs_tol: float = 0.0,
     require_std_match: bool = True,
-    thousands_sep: bool = False,
+    thousands_sep: Optional[bool] = None,
     **_: Any,
 ) -> Tuple[Optional[bool], Optional[str]]:
     """Compare two numeric quantities preserving inequality relations, ± std, and intervals."""
@@ -424,9 +454,34 @@ setattr(validate_numeric_quantity, "compare_values", compare_numeric_quantity_va
 
 
 def _safe_pow(base: Any, exp: Any) -> Any:
-    if isinstance(exp, (int, float)) and abs(float(exp)) > _SAFE_COMPUTE_MAX_EXP:
-        raise ValueError(f"exponent {exp} exceeds safe limit {_SAFE_COMPUTE_MAX_EXP}")
-    return base**exp
+    if isinstance(exp, complex) or isinstance(base, complex):
+        raise ValueError("complex exponentiation is not permitted")
+    if isinstance(exp, (int, float)) and not isinstance(exp, bool):
+        exp_f = float(exp)
+        if not math.isfinite(exp_f) or abs(exp_f) > _SAFE_COMPUTE_MAX_EXP:
+            raise ValueError(f"exponent {exp} exceeds safe limit {_SAFE_COMPUTE_MAX_EXP}")
+        if isinstance(base, int) and not isinstance(base, bool):
+            if base.bit_length() > _SAFE_COMPUTE_MAX_POW_BITS:
+                raise ValueError("base integer exceeds safe bit-length limit")
+            if abs(base) > 1 and exp_f > 0 and base.bit_length() * exp_f > _SAFE_COMPUTE_MAX_POW_BITS:
+                raise ValueError("exponentiation result exceeds safe bit-length limit")
+    res = base**exp
+    if isinstance(res, int) and not isinstance(res, bool) and res.bit_length() > _SAFE_COMPUTE_MAX_POW_BITS:
+        raise ValueError("exponentiation result exceeds safe bit-length limit")
+    return res
+
+
+def _no_str_order(op_fn: Any) -> Any:
+    """Reject lexicographic ordering comparisons when either operand is a string."""
+
+    def _compare(left: Any, right: Any) -> bool:
+        if isinstance(left, str) or isinstance(right, str):
+            raise TypeError(
+                f"ordering comparison is not supported for string operands ({left!r}, {right!r})"
+            )
+        return bool(op_fn(left, right))
+
+    return _compare
 
 
 def _coerce_variable_value(val: Any) -> Any:
@@ -478,6 +533,8 @@ def evaluate_compute_expression(expression: str, variables: Dict[str, Any]) -> A
 
     operators = simpleeval.DEFAULT_OPERATORS.copy()
     operators[ast.Pow] = _safe_pow
+    for cmp_node in (ast.Lt, ast.LtE, ast.Gt, ast.GtE):
+        operators[cmp_node] = _no_str_order(operators[cmp_node])
     functions = {
         "abs": abs,
         "min": min,
@@ -593,6 +650,34 @@ def _has_non_scalar_referenced_variable(expression: str, variables: Dict[str, An
     return has_skippable
 
 
+def _evaluate_with_non_scalar_skip(expression: str, variables: Dict[str, Any]) -> bool:
+    """Evaluate expression, skipping TypeError from None/non-scalar quantities without swallowing False conjuncts."""
+    try:
+        return bool(evaluate_compute_expression(expression, variables))
+    except TypeError as exc:
+        try:
+            tree = ast.parse(expression, mode="eval")
+        except SyntaxError:
+            raise exc
+        if isinstance(tree.body, ast.BoolOp) and isinstance(tree.body.op, ast.And):
+            any_false = False
+            first_unskippable: Optional[TypeError] = None
+            for sub_node in tree.body.values:
+                sub_expr = ast.unparse(sub_node)
+                try:
+                    if not _evaluate_with_non_scalar_skip(sub_expr, variables):
+                        any_false = True
+                except TypeError as sub_exc:
+                    if first_unskippable is None:
+                        first_unskippable = sub_exc
+            if first_unskippable is not None:
+                raise first_unskippable
+            return not any_false
+        if _has_non_scalar_referenced_variable(expression, variables):
+            return True
+        raise
+
+
 def validate_compute_expression(
     value: Any,
     *,
@@ -620,20 +705,10 @@ def validate_compute_expression(
 
     try:
         if when:
-            try:
-                should_run = bool(evaluate_compute_expression(str(when), variables))
-            except TypeError:
-                if _has_non_scalar_referenced_variable(str(when), variables):
-                    return FieldValidationResult(valid=True, value=value)
-                raise
+            should_run = _evaluate_with_non_scalar_skip(str(when), variables)
             if not should_run:
                 return FieldValidationResult(valid=True, value=value)
-        try:
-            outcome = evaluate_compute_expression(str(target_expr), variables)
-        except TypeError:
-            if _has_non_scalar_referenced_variable(str(target_expr), variables):
-                return FieldValidationResult(valid=True, value=value)
-            raise
+        outcome = _evaluate_with_non_scalar_skip(str(target_expr), variables)
     except Exception as exc:
         return FieldValidationResult(
             valid=False,

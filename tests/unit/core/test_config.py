@@ -225,3 +225,32 @@ circuit_breaker:
         assert ing_cfg.stages.parse_visuals.molecule.validation.enable_ocsr_oracle is False
         assert ing_cfg.gemini.molecules.enable_ocsr_oracle is False
 
+    def test_llm_config_optional_semantic_judge_fallback_and_override(self, monkeypatch):
+        from ae.core.config.llm_settings import ApiConfig, LLMConfig, LLMInstanceConfig
+
+        student_cfg = LLMInstanceConfig(
+            provider="gemini",
+            model="gemini-3.8-flash",
+            max_retries=2,
+            temperature=0.0,
+            top_p=0.95,
+            enable_cache=False,
+        )
+        llm_default = LLMConfig(student=student_cfg)
+        assert llm_default.semantic_judge == student_cfg
+
+        judge_cfg = LLMInstanceConfig(
+            provider="api",
+            model="google/gemma-4-31b-it",
+            timeout=60,
+            max_retries=2,
+            temperature=0.0,
+            rate_limit_delay=0.0,
+            top_p=0.95,
+            enable_cache=False,
+            api=ApiConfig(max_tokens=1024, api_key="sk-or-test"),
+        )
+        llm_override = LLMConfig(student=student_cfg, semantic_judge=judge_cfg)
+        assert llm_override.semantic_judge is not None
+        assert llm_override.semantic_judge.model == "google/gemma-4-31b-it"
+

@@ -522,21 +522,34 @@ compute_validators:
         )
 
         # Thousands separator vs decimal comma vs mixed European/US
-        # Single comma group like "1,000" or "1,250" defaults to European decimal unless thousands_sep=True
-        assert parse_numeric_quantity("1,250")[0].value == 1.25
-        assert parse_numeric_quantity("1,000")[0].value == 1.0
+        # Auto mode (thousands_sep=None): ambiguous single comma + 3 digits ("1,000", "1,250") escalates
+        assert parse_numeric_quantity("1,250")[0] is None
+        assert parse_numeric_quantity("1,000")[0] is None
+        assert compare_numeric_quantity_values("1,250", "1.25") == (None, None)
+        assert compare_numeric_quantity_values("1,000", "1000") == (None, None)
+        assert compare_numeric_quantity_values("1,000", "1.0") == (None, None)
+
+        # Explicit thousands_sep=False preserves European decimal comma parsing
+        assert parse_numeric_quantity("1,250", thousands_sep=False)[0].value == 1.25
+        assert parse_numeric_quantity("1,000", thousands_sep=False)[0].value == 1.0
+        assert compare_numeric_quantity_values("1,250", "1.25", thousands_sep=False) == (True, None)
+        assert compare_numeric_quantity_values("1,250", "1250", thousands_sep=False) == (False, "numeric_mismatch")
+        assert compare_numeric_quantity_values("1,000", "1.0", thousands_sep=False) == (True, None)
+
+        # Explicit thousands_sep=True parses US grouping and rejects malformed "1,23.45"
         assert parse_numeric_quantity("1,250", thousands_sep=True)[0].value == 1250.0
         assert parse_numeric_quantity("1,000", thousands_sep=True)[0].value == 1000.0
+        assert parse_numeric_quantity("1,23.45", thousands_sep=True)[0] is None
+        assert parse_numeric_quantity("1,23.45")[0] is None
+        assert compare_numeric_quantity_values("1,000", "1000", thousands_sep=True) == (True, None)
+
+        # Unambiguous European / US formats work in auto mode
         assert parse_numeric_quantity("1,000,000")[0].value == 1000000.0
         assert parse_numeric_quantity("19,1")[0].value == 19.1
         assert parse_numeric_quantity("0,001")[0].value == 0.001
         assert parse_numeric_quantity("1.500,25")[0].value == 1500.25
         assert parse_numeric_quantity("1,500.25")[0].value == 1500.25
         assert parse_numeric_quantity("1,250.5")[0].value == 1250.5
-        assert compare_numeric_quantity_values("1,250", "1.25") == (True, None)
-        assert compare_numeric_quantity_values("1,250", "1250") == (False, "numeric_mismatch")
-        assert compare_numeric_quantity_values("1,000", "1.0") == (True, None)
-        assert compare_numeric_quantity_values("1,000", "1000", thousands_sep=True) == (True, None)
         assert compare_numeric_quantity_values("1.500,25", "1500.25") == (True, None)
 
         # Unparseable/non-standard expressions escalate as (None, None)
@@ -696,3 +709,44 @@ compute_validators:
             )
         assert exc_info.value.failed_record_indices == [1]
         assert "pMIC inconsistent with MIC" in str(exc_info.value)
+
+    def test_pint_case_insensitive_mcg_ppb_and_bare_temp_escalation(self):
+        pytest.importorskip("pint")
+        from ae.core.schema.quantity_validators import compare_unit_values
+
+        spec = FieldValidatorSpec(name="unit")
+        assert validate_field_value(spec, "MCG/mL", field_name="unit").valid is True
+        assert compare_unit_values("MCG/mL", "µg/mL") == (True, None)
+        assert validate_field_value(spec, "ppb", field_name="unit").valid is True
+        assert compare_unit_values("ppb", "ppm") == (None, None)
+
+        # Bare C / F vs temperature units escalate to judge instead of hard False (Coulomb / Farad)
+        assert compare_unit_values("C", "°C") == (None, None)
+        assert compare_unit_values("°C", "C") == (None, None)
+        assert compare_unit_values("F", "°F") == (None, None)
+        assert compare_unit_values("C", "K") == (None, None)
+        assert compare_unit_values("C", "µg/mL") == (False, "incompatible_units")
+
+    def test_simpleeval_no_lex_string_compare_and_conjunct_safety_and_pow_dos(self):
+        pytest.importorskip("simpleeval")
+        from ae.core.schema.quantity_validators import validate_record_compute_validators
+
+        # 1. Lexicographic comparison on non-scalar quantity strings must skip (not evaluate as string order)
+        range_specs = [{"name": "compute_validators", "expression": "low <= high"}]
+        assert validate_record_compute_validators({"low": "20 ± 1", "high": "5 ± 1"}, range_specs)[0].valid is True
+        assert validate_record_compute_validators({"low": "9 ± 1", "high": "10 ± 1"}, range_specs)[0].valid is True
+        assert validate_record_compute_validators({"low": ">10", "high": ">2"}, range_specs)[0].valid is True
+        assert validate_record_compute_validators({"low": "20", "high": "5"}, range_specs)[0].valid is False
+        assert validate_record_compute_validators({"low": "garbage", "high": "other"}, range_specs)[0].valid is False
+
+        # 2. And-conjunction must not swallow False conjunct when another conjunct has None
+        and_specs = [{"name": "compute_validators", "expression": "max_val > mic and mic > 0"}]
+        assert validate_record_compute_validators({"mic": "-5", "max_val": None}, and_specs)[0].valid is False
+        assert validate_record_compute_validators({"mic": "5", "max_val": None}, and_specs)[0].valid is True
+        assert validate_record_compute_validators({"mic": "bad", "max_val": None}, and_specs)[0].valid is False
+
+        # 3. Nested exponentiation DoS must be blocked by bit-length guard
+        pow_specs = [{"name": "compute_validators", "expression": "(9 ** 999) ** 999 > 0"}]
+        res_pow = validate_record_compute_validators({"mic": "1"}, pow_specs)[0]
+        assert res_pow.valid is False
+        assert "bit-length" in (res_pow.error or "").lower() or "limit" in (res_pow.error or "").lower()
