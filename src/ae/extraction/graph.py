@@ -9,9 +9,12 @@ import json
 import logging
 import math
 import operator
+import os
 import random
 import re
 import ssl
+import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Annotated, Any, Callable, NotRequired, Optional, Sequence, Type, TypedDict, get_args, get_origin
@@ -215,10 +218,51 @@ _DASH_TRANS = str.maketrans(
 )
 _WS_RE = re.compile(r"\s+")
 _FLOAT_STR_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$")
+_IDENT_FIELD_RE = re.compile(r"(?:^|_)ids?(?:$|_)", re.IGNORECASE)
 _COLLECTION_ID_RE = re.compile(
-    r"\b(ATCC|MTCC|NCTC|DSM|CMCC|CGMCC|NBRC|JCM|NCIM|CIP|LMG|CCM|KCTC|BCRC)\s*[-#]?\s*([A-Za-z0-9]+)\b",
+    r"\b(CGMCC|CCTCC|NCIMB|ATCC|MTCC|NCTC|CMCC|NBRC|NCIM|KCTC|BCRC|KCCM|CECT|PTCC|DSM|JCM|CIP|LMG|CCM)\s*[-#]?\s*([A-Za-z0-9]+)\b",
     re.IGNORECASE,
 )
+
+_DOC_FILE_LOCKS: dict[Path, threading.Lock] = {}
+_DOC_FILE_LOCKS_GUARD = threading.Lock()
+
+
+def _get_doc_file_lock(path: Path) -> threading.Lock:
+    """Return a per-file threading.Lock for coordinating disk reads/writes."""
+    resolved = path.resolve()
+    with _DOC_FILE_LOCKS_GUARD:
+        lock = _DOC_FILE_LOCKS.get(resolved)
+        if lock is None:
+            lock = threading.Lock()
+            _DOC_FILE_LOCKS[resolved] = lock
+        return lock
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Atomically write UTF-8 text via a sibling temporary file and os.replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(path.parent),
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            tmp_file.write(content)
+            tmp_file.flush()
+            tmp_path = Path(tmp_file.name)
+        os.replace(tmp_path, path)
+        tmp_path = None
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 @functools.lru_cache(maxsize=1)
@@ -227,6 +271,52 @@ def _get_unit_registry() -> Any:
     import pint
 
     return pint.UnitRegistry()
+
+
+def _is_identifier_field(key: str) -> bool:
+    """Return True if field name represents an identifier/label rather than a numeric value."""
+    key_l = key.lower()
+    if any(tok in key_l for tok in ("code", "label", "name", "compound", "identifier")):
+        return True
+    return bool(_IDENT_FIELD_RE.search(key_l))
+
+
+def _preprocess_unit_str(cleaned: str) -> str:
+    """Normalize micro symbols, middle dots, and inverse-unit exponents before pint parsing."""
+    s = re.sub(r"\bug\b", "\u00b5g", cleaned, flags=re.IGNORECASE)
+    s = re.sub(r"\buM\b", "\u00b5M", s)
+    s = re.sub(r"\s*[·•⋅]\s*", " ", s)
+    # Fix double-inversion OCR typos like "µg/mL⁻¹" or "mg/L^-1" before slash/space rewriting
+    s = re.sub(r"(/\s*[A-Za-zµ]+)\s*(?:\^\s*-1|[-⁻]1|⁻¹)(?=\s|$)", r"\1", s)
+    s = re.sub(
+        r"\s+([A-Za-zµ]+)\s*(?:\^\s*-1|[-⁻]1|⁻¹)(?=\s|$)",
+        r"/\1",
+        s,
+    )
+    s = re.sub(
+        r"\b([A-Za-zµ]+)\s*(?:\^\s*-(\d+)|-(\d+))\b",
+        lambda m: f"{m.group(1)}**-{m.group(2) or m.group(3)}",
+        s,
+    )
+    return s
+
+
+def _extract_finite_float(raw_val: Any) -> Optional[float]:
+    """Parse finite float from numeric or numeric-string scalar; return None otherwise."""
+    if isinstance(raw_val, bool) or raw_val is None:
+        return None
+    if isinstance(raw_val, (int, float)):
+        num = float(raw_val)
+        return num if math.isfinite(num) else None
+    if isinstance(raw_val, str):
+        cleaned = _WS_RE.sub(" ", raw_val.translate(_DASH_TRANS)).strip()
+        if _FLOAT_STR_RE.match(cleaned):
+            try:
+                num = float(cleaned)
+                return num if math.isfinite(num) else None
+            except (ValueError, OverflowError):
+                return None
+    return None
 
 
 @functools.lru_cache(maxsize=4096)
@@ -274,6 +364,8 @@ def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
     if isinstance(value, float):
         if math.isnan(value):
             return None
+        if math.isinf(value):
+            return str(value)
         return int(value) if value.is_integer() else value
     if not isinstance(value, str):
         return value
@@ -287,35 +379,32 @@ def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
         return _canonicalize_smiles_for_dedup(cleaned)
 
     if key_l == "unit" or key_l.endswith(("_unit", "_units", "units")):
-        cleaned = re.sub(r"\bug\b", "\u00b5g", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\buM\b", "\u00b5M", cleaned)
-        cleaned = re.sub(r"\s*[·•⋅]\s*", " ", cleaned)
-        cleaned = re.sub(
-            r"\s+([A-Za-zµ]+)\s*(?:\^\s*-1|[-⁻]1|⁻¹)(?=\s|$)",
-            r"/\1",
-            cleaned,
-        )
-        cleaned = re.sub(
-            r"\b([A-Za-zµ]+)\s*(?:\^\s*-(\d+)|-(\d+))\b",
-            lambda m: f"{m.group(1)}**-{m.group(2) or m.group(3)}",
-            cleaned,
-        )
+        pre_unit = _preprocess_unit_str(cleaned)
         try:
             ureg = _get_unit_registry()
-            base_qty = ureg.Quantity(1.0, cleaned).to_base_units()
-            return f"{base_qty.magnitude:.12g}|{base_qty.units}"
+            base_qty = ureg.Quantity(1.0, pre_unit).to_base_units()
+            if math.isfinite(base_qty.magnitude):
+                return f"{base_qty.magnitude:.12g}|{base_qty.units}"
         except Exception:
-            return cleaned
+            pass
+        return pre_unit
 
     if any(tok in key_l for tok in ("bacteria", "strain", "organism")):
-        norm = _COLLECTION_ID_RE.sub(r"\1 \2", cleaned)
+        norm = re.sub(r"[()\[\]]+", " ", cleaned)
+        norm = re.sub(r"\b([A-Za-z]{1,6})\.([A-Za-z]{2,})\b", r"\1. \2", norm)
+        norm = _COLLECTION_ID_RE.sub(r"\1 \2", norm)
         if _COLLECTION_ID_RE.search(norm):
-            norm = re.sub(r"[\(\)\[\]\|,;/]+", " ", norm)
+            norm = re.sub(r"[|,;/]+", " ", norm)
         return _WS_RE.sub(" ", norm).strip().lower()
 
-    if _FLOAT_STR_RE.match(cleaned):
+    if "±" in cleaned:
+        cleaned = re.sub(r"\s*±\s*", " ± ", cleaned)
+
+    if not _is_identifier_field(key) and _FLOAT_STR_RE.match(cleaned):
         try:
             num = float(cleaned)
+            if math.isnan(num) or math.isinf(num):
+                return cleaned
             return str(int(num)) if num.is_integer() else f"{num:g}"
         except (ValueError, OverflowError):
             pass
@@ -323,11 +412,58 @@ def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
     return cleaned
 
 
+def _normalize_value_unit_pairs(raw_dict: dict[Any, Any], norm_dict: dict[Any, Any]) -> None:
+    """Jointly normalize matching (value, unit) field pairs to SI base units via pint."""
+    lower_to_key = {str(k).lower(): k for k in raw_dict}
+    for unit_key, raw_unit in raw_dict.items():
+        uk_l = str(unit_key).lower()
+        if uk_l in ("unit", "units"):
+            candidate_val_lowers = ("value",)
+        elif uk_l.endswith("_unit"):
+            prefix = uk_l[:-5]
+            candidate_val_lowers = (f"{prefix}_value", prefix)
+        elif uk_l.endswith("_units"):
+            prefix = uk_l[:-6]
+            candidate_val_lowers = (f"{prefix}_value", prefix)
+        else:
+            continue
+
+        if not isinstance(raw_unit, str):
+            continue
+        cleaned_unit = _WS_RE.sub(" ", raw_unit.translate(_DASH_TRANS)).strip()
+        if not cleaned_unit or cleaned_unit.lower() == "nan":
+            continue
+
+        val_key = None
+        for cand_l in candidate_val_lowers:
+            if cand_l in lower_to_key and not _is_identifier_field(cand_l):
+                val_key = lower_to_key[cand_l]
+                break
+        if val_key is None:
+            continue
+
+        num_val = _extract_finite_float(raw_dict.get(val_key))
+        if num_val is None:
+            continue
+
+        pre_unit = _preprocess_unit_str(cleaned_unit)
+        try:
+            ureg = _get_unit_registry()
+            base_qty = ureg.Quantity(num_val, pre_unit).to_base_units()
+            if math.isfinite(base_qty.magnitude):
+                norm_dict[val_key] = f"{base_qty.magnitude:.12g}"
+                norm_dict[unit_key] = f"1|{base_qty.units}"
+        except Exception:
+            continue
+
+
 def _normalize_for_dedup(value: Any, *, field_key: str = "") -> Any:
     if isinstance(value, list):
         return [_normalize_for_dedup(v, field_key=field_key) for v in value]
     if isinstance(value, dict):
-        return {k: _normalize_for_dedup(v, field_key=str(k)) for k, v in value.items()}
+        norm_dict = {k: _normalize_for_dedup(v, field_key=str(k)) for k, v in value.items()}
+        _normalize_value_unit_pairs(value, norm_dict)
+        return norm_dict
     return _normalize_scalar_for_dedup(field_key, value)
 
 
@@ -552,6 +688,7 @@ class ExtractionGraph:
             if history_recorder is not None
             else None
         )
+        self._state_cache_lock = threading.Lock()
         self._last_document_texts: dict[str, str] = {}
         self._last_disk_texts: dict[str, str] = {}
 
@@ -644,7 +781,8 @@ class ExtractionGraph:
 
     def get_last_document_text(self, doc_id: str) -> Optional[str]:
         """Return the latest in-memory document text recorded for doc_id, if any."""
-        return self._last_document_texts.get(doc_id)
+        with self._state_cache_lock:
+            return self._last_document_texts.get(doc_id)
 
     def _record_history_event(
         self,
@@ -803,16 +941,20 @@ class ExtractionGraph:
         if doc_file and doc_file.exists():
             try:
                 manifest_md_file = doc_file.parent / "02_manifest_visuals" / "manifest_enriched_text.md"
-                if manifest_md_file.is_file() and manifest_md_file.stat().st_size > 0:
-                    raw_text = manifest_md_file.read_text(encoding="utf-8")
-                    doc_file.write_text(raw_text, encoding="utf-8")
-                    logger.debug(
-                        f"Reset document '{doc_id}' from clean manifest stubs {manifest_md_file}"
-                    )
-                else:
-                    raw_text = doc_file.read_text(encoding="utf-8")
-                    logger.debug(f"Re-read fresh document text for '{doc_id}' from {doc_file}")
-                self._last_disk_texts[doc_id] = raw_text
+                with _get_doc_file_lock(doc_file):
+                    if manifest_md_file.is_file() and manifest_md_file.stat().st_size > 0:
+                        raw_text = manifest_md_file.read_text(encoding="utf-8")
+                        existing_doc = doc_file.read_text(encoding="utf-8") if doc_file.exists() else None
+                        if existing_doc != raw_text:
+                            _atomic_write_text(doc_file, raw_text)
+                        logger.debug(
+                            f"Reset document '{doc_id}' from clean manifest stubs {manifest_md_file}"
+                        )
+                    else:
+                        raw_text = doc_file.read_text(encoding="utf-8")
+                        logger.debug(f"Re-read fresh document text for '{doc_id}' from {doc_file}")
+                with self._state_cache_lock:
+                    self._last_disk_texts[doc_id] = raw_text
             except Exception as e:
                 logger.warning(f"Could not read document file {doc_file}: {e}")
 
@@ -820,7 +962,8 @@ class ExtractionGraph:
         if not raw_text.startswith(f"<!-- document_id: {doc_id} -->"):
             raw_text = f"<!-- document_id: {doc_id} -->\n\n" + raw_text
 
-        self._last_document_texts[doc_id] = raw_text
+        with self._state_cache_lock:
+            self._last_document_texts[doc_id] = raw_text
         update_extraction_log_context(doc_id=doc_id, node="prepare_input", stage="prepare_input")
 
         sys_inst = state.get("system_instruction", "")
@@ -1102,9 +1245,12 @@ class ExtractionGraph:
 
         if cleaned in partial_visuals:
             if norm_hint is not None:
+                hint_key = f"{cleaned}::hint::{norm_hint}"
+                if hint_key in attempt_counts:
+                    return attempt_counts[hint_key] < self.max_visual_attempts
                 if norm_hint in attempted_hints.get(cleaned, set()):
                     return False
-                return attempt_counts.get(f"{cleaned}::hint::{norm_hint}", 0) < self.max_visual_attempts
+                return True
             return attempt_counts.get(f"{cleaned}::__full__", 0) < self.max_visual_attempts
 
         if norm_hint is not None:
@@ -1326,20 +1472,22 @@ class ExtractionGraph:
         enriched_content = ""
         if doc_file and doc_file.exists():
             try:
-                enriched_content = doc_file.read_text(encoding="utf-8")
+                with _get_doc_file_lock(doc_file):
+                    enriched_content = doc_file.read_text(encoding="utf-8")
             except Exception:
                 pass
 
-        prev_disk = self._last_disk_texts.get(doc_id)
-        if enriched_content and enriched_content != prev_disk:
-            updated_doc_text = enriched_content
-            self._last_disk_texts[doc_id] = enriched_content
-        else:
-            updated_doc_text = state["document_text"]
-            if tool_messages:
-                updated_doc_text = _merge_tool_visuals_into_document(
-                    updated_doc_text, tool_messages
-                )
+        with self._state_cache_lock:
+            prev_disk = self._last_disk_texts.get(doc_id)
+            if enriched_content and enriched_content != prev_disk:
+                updated_doc_text = enriched_content
+                self._last_disk_texts[doc_id] = enriched_content
+            else:
+                updated_doc_text = state["document_text"]
+                if tool_messages:
+                    updated_doc_text = _merge_tool_visuals_into_document(
+                        updated_doc_text, tool_messages
+                    )
 
         # Classify each executed visual outcome after merging so partial/failed visuals remain retryable
         for eligible_ids, norm_hint, batch_res in executed_batches:
@@ -1366,6 +1514,7 @@ class ExtractionGraph:
                         hint_list = hints_map.setdefault(root_id, [])
                         if norm_hint not in hint_list:
                             hint_list.append(norm_hint)
+                        attempt_counts.pop(f"{root_id}::hint::{norm_hint}", None)
                     else:
                         full_key = f"{root_id}::__full__"
                         attempt_counts[full_key] = attempt_counts.get(full_key, 0) + 1
@@ -1386,7 +1535,17 @@ class ExtractionGraph:
                             full_key = f"{root_id}::__full__"
                             attempt_counts[full_key] = attempt_counts.get(full_key, 0) + 1
 
-        self._last_document_texts[doc_id] = updated_doc_text
+        with self._state_cache_lock:
+            self._last_document_texts[doc_id] = updated_doc_text
+
+        eligible_remaining = self._eligible_unparsed_visuals(
+            updated_doc_text,
+            set(attempted),
+            set(completed),
+            set(partial),
+            {k: set(v) for k, v in hints_map.items()},
+            attempt_counts,
+        )
 
         newly_active_hint = ""
         sent_reminder = bool(state.get("domain_reminder_sent", False))
@@ -1409,8 +1568,13 @@ class ExtractionGraph:
             if pending_providers:
                 pending_names = ", ".join(p.name for p in pending_providers)
                 policy_txt = self._format_domain_tools_policy(pending_providers)
+                status_prefix = (
+                    "Visual parsing is complete, but active domain tool(s) "
+                    if not eligible_remaining
+                    else "Active domain tool(s) "
+                )
                 newly_active_hint = (
-                    f"\n\n[ACTION REQUIRED: Visual parsing is complete, but active domain tool(s) "
+                    f"[ACTION REQUIRED: {status_prefix}"
                     f"({pending_names}) have not been called yet. Call `{pending_names}` before finalizing.]"
                 )
                 if policy_txt:
@@ -1420,14 +1584,6 @@ class ExtractionGraph:
 
         new_iterations = state.get("tool_iterations", 0) + (0 if is_domain_reminder_intercept else 1)
         remaining = max(0, self.max_tool_iterations - new_iterations)
-        eligible_remaining = self._eligible_unparsed_visuals(
-            updated_doc_text,
-            set(attempted),
-            set(completed),
-            set(partial),
-            {k: set(v) for k, v in hints_map.items()},
-            attempt_counts,
-        )
 
         if tool_messages:
             if remaining == 1:
@@ -1442,8 +1598,13 @@ class ExtractionGraph:
                     f"{remaining} remaining; {len(eligible_remaining)} eligible unparsed/partial visual(s).]"
                 )
             last_tool_msg = tool_messages[-1]
+            if is_domain_reminder_intercept and last_tool_msg.content == "Evidence gathering finalized.":
+                combined_content = f"{newly_active_hint}{budget_note}"
+            else:
+                hint_suffix = f"\n\n{newly_active_hint}" if newly_active_hint else ""
+                combined_content = f"{last_tool_msg.content}{hint_suffix}{budget_note}"
             tool_messages[-1] = ToolMessage(
-                content=f"{last_tool_msg.content}{newly_active_hint}{budget_note}",
+                content=combined_content,
                 tool_call_id=last_tool_msg.tool_call_id,
             )
 
@@ -1495,6 +1656,8 @@ class ExtractionGraph:
         if active_names - called_names:
             return "agent"
         if state.get("last_turn_had_tool_error", False):
+            return "agent"
+        if state.get("last_turn_had_non_visual", False):
             return "agent"
         return "structured_output"
 
@@ -1609,6 +1772,8 @@ class ExtractionGraph:
         self,
         state: ExtractionState,
         exc: StructuredOutputSanityError,
+        *,
+        is_retry: bool = False,
     ) -> Optional[Any]:
         """Attempt targeted repair of a small number of failing records without full regeneration."""
         partial = exc.partial_output
@@ -1660,18 +1825,32 @@ class ExtractionGraph:
 
         repair_messages = self._build_structured_messages(state, repair_instruction)
         target_repair_llm = self.repair_llm if self.repair_llm is not None else self.llm
-        repair_model = self._apply_retry_temperature(
-            target_repair_llm.with_structured_output(patched_output_model),
-            True,
-            base_llm=target_repair_llm,
-        )
-        repair_res = self._invoke_with_retry(
-            f"local_record_repair[{state.get('doc_id', '')}]",
-            lambda: self._call_structured_model(
+        base_repair_model = target_repair_llm.with_structured_output(patched_output_model)
+        is_repair_retry = is_retry
+
+        def _call_repair() -> Any:
+            repair_model = self._apply_retry_temperature(
+                base_repair_model,
+                is_repair_retry,
+                base_llm=target_repair_llm,
+            )
+            return self._call_structured_model(
                 repair_model,
                 repair_messages,
                 base_llm=target_repair_llm,
-            ),
+            )
+
+        def _on_repair_retry(_attempt: int, retry_exc: Exception) -> None:
+            nonlocal is_repair_retry
+            if isinstance(retry_exc, StructuredOutputSanityError) or _is_parse_or_truncation_error(
+                retry_exc
+            ):
+                is_repair_retry = True
+
+        repair_res = self._invoke_with_retry(
+            f"local_record_repair[{state.get('doc_id', '')}]",
+            _call_repair,
+            on_retry=_on_repair_retry,
             max_retries=min(self.max_retries, 2),
         )
 
@@ -1704,9 +1883,13 @@ class ExtractionGraph:
             return self._validate_structured_result(raw_res, state)
         except StructuredOutputSanityError as exc:
             current_exc: StructuredOutputSanityError = exc
-            for _ in range(max_local_repairs):
+            for repair_attempt in range(max_local_repairs):
                 try:
-                    repaired = self._attempt_local_record_repair(state, current_exc)
+                    repaired = self._attempt_local_record_repair(
+                        state,
+                        current_exc,
+                        is_retry=repair_attempt > 0,
+                    )
                     if repaired is not None:
                         return repaired
                     break

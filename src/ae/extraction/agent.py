@@ -129,6 +129,14 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
             max_batches = getattr(ext_cfg, "max_structured_output_batches", 10)
             enable_sanity_checks = getattr(ext_cfg, "enable_sanity_checks", True)
             agent_thinking_level = getattr(ext_cfg, "agent_thinking_level", "low")
+            exec_cfg = getattr(ext_cfg, "execution", None)
+            enable_record_dedup = bool(
+                getattr(
+                    ext_cfg,
+                    "enable_record_dedup",
+                    getattr(exec_cfg, "enable_record_dedup", True) if exec_cfg is not None else True,
+                )
+            )
             ingestion_dir = self._ingestion_dir or settings.paths.ingestion_dir
 
             history_recorder = getattr(self._client, "history_recorder", None)
@@ -145,6 +153,7 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
                 history_recorder=history_recorder,
                 enable_sanity_checks=enable_sanity_checks,
                 agent_thinking_level=agent_thinking_level,
+                enable_record_dedup=enable_record_dedup,
                 config_path=cfg_path,
             )
             return self._graph

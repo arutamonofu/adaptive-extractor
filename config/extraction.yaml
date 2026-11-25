@@ -12,6 +12,7 @@ extraction:
     structured_output_batch_size: 0    # Max records per structured output call (0 disables batching)
     max_structured_output_batches: 10  # Max continuation batches for dense documents
     agent_thinking_level: "low"        # Thinking level for agent tool-routing node
+    enable_record_dedup: true          # Canonical post-extraction record deduplication
 
   # ---------------------------------------------------------------------------
   # 2. API Client & Network Transport
