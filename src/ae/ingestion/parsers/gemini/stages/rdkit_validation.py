@@ -109,14 +109,38 @@ def _reappend_notes(entities: list[ChemicalEntity], notes_by_idx: dict[int, list
         ent.oracle_notes = f"{ent.oracle_notes}; {suffix}" if ent.oracle_notes else suffix
 
 
-def _formula_of_agrees_with(smiles: str, expected_formula: str) -> bool:
+def _formula_of_agrees_with(
+    smiles: str, expected_formula: str, *, context: str = ""
+) -> bool:
     from rdkit import Chem
     from rdkit.Chem import rdMolDescriptors
 
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return False
-    return formulas_compatible(rdMolDescriptors.CalcMolFormula(mol), expected_formula)
+    return formulas_compatible(
+        rdMolDescriptors.CalcMolFormula(mol),
+        expected_formula,
+        context=context,
+    )
+
+
+def _resolve_molecule_stage_cfg(config: Any) -> Any:
+    """Safely fetch StageModelConfig for parse_visuals/molecule if available."""
+    if config is None:
+        return None
+    gemini_cfg = getattr(config, "gemini", None)
+    if gemini_cfg is not None and callable(getattr(gemini_cfg, "get_stage_config", None)):
+        try:
+            return gemini_cfg.get_stage_config("parse_visuals", sub_stage="molecule")
+        except Exception:
+            return None
+    if callable(getattr(config, "get_stage_config", None)):
+        try:
+            return config.get_stage_config("parse_visuals", sub_stage="molecule")
+        except Exception:
+            return None
+    return None
 
 
 def validate_and_correct_entities(
@@ -139,8 +163,44 @@ def validate_and_correct_entities(
     enable_oracle = getattr(mol_cfg, "enable_ocsr_oracle", True) if mol_cfg else True
     if max_attempts is not None:
         max_retries = max_attempts
+    elif mol_cfg is not None:
+        max_retries = getattr(
+            mol_cfg,
+            "max_retries",
+            getattr(mol_cfg, "max_rdkit_retries", 1),
+        )
     else:
-        max_retries = getattr(mol_cfg, "max_rdkit_retries", 2) if mol_cfg else 2
+        max_retries = 2
+
+    stage_cfg = _resolve_molecule_stage_cfg(config)
+    cfg_model = getattr(stage_cfg, "model", None) if stage_cfg is not None else None
+    resolved_model = stage_model or (cfg_model if isinstance(cfg_model, str) and cfg_model else None)
+    cfg_temp = getattr(stage_cfg, "temperature", None) if stage_cfg is not None else None
+    resolved_temp = (
+        float(cfg_temp)
+        if isinstance(cfg_temp, (int, float)) and not isinstance(cfg_temp, bool)
+        else None
+    )
+    cfg_tokens = getattr(stage_cfg, "max_output_tokens", None) if stage_cfg is not None else None
+    resolved_tokens = (
+        cfg_tokens
+        if isinstance(cfg_tokens, int) and not isinstance(cfg_tokens, bool)
+        else None
+    )
+    cfg_res = getattr(stage_cfg, "media_resolution", None) if stage_cfg is not None else None
+    resolved_res = cfg_res if isinstance(cfg_res, str) and cfg_res else None
+    cfg_tlevel = getattr(stage_cfg, "thinking_level", None) if stage_cfg is not None else None
+    resolved_tlevel = (
+        cfg_tlevel
+        if isinstance(cfg_tlevel, str) and cfg_tlevel.lower() in ("medium", "high")
+        else "medium"
+    )
+    cfg_tbudget = getattr(stage_cfg, "thinking_budget", None) if stage_cfg is not None else None
+    resolved_tbudget = (
+        cfg_tbudget
+        if isinstance(cfg_tbudget, int) and not isinstance(cfg_tbudget, bool)
+        else None
+    )
 
     replacements: dict[str, str] = {}
     if not should_validate or not entities:
@@ -169,9 +229,12 @@ def validate_and_correct_entities(
 
     # If client is provided and there are invalid SMILES or oracle mismatches, enter retry loop
     if client is not None and max_retries > 0:
+        noop_indices: set[int] = set()
         for attempt in range(1, max_retries + 1):
             invalid: list[tuple[int, ChemicalEntity, str]] = []
             for idx, e in enumerate(entities):
+                if idx in noop_indices:
+                    continue
                 if not e.smiles_valid:
                     invalid.append((idx, e, e.rdkit_error or "Invalid SMILES"))
                 elif enable_oracle and getattr(e, "provenance_status", "unverified_valid") == "mismatch_flagged":
@@ -201,12 +264,24 @@ def validate_and_correct_entities(
 
             try:
                 contents = list(crop_paths) + [prompt]
+                gen_kwargs: dict[str, Any] = {
+                    "response_schema": SmilesCorrectionResponse,
+                    "stage_name": stage_name,
+                    "model": resolved_model,
+                    "thinking_level": resolved_tlevel,
+                }
+                if resolved_temp is not None:
+                    gen_kwargs["temperature"] = resolved_temp
+                if resolved_tokens is not None:
+                    gen_kwargs["max_output_tokens"] = resolved_tokens
+                if resolved_res is not None:
+                    gen_kwargs["media_resolution"] = resolved_res
+                if resolved_tbudget is not None:
+                    gen_kwargs["thinking_budget"] = resolved_tbudget
+
                 corr_res: SmilesCorrectionResponse = client.generate_structured(
                     contents,
-                    response_schema=SmilesCorrectionResponse,
-                    stage_name=stage_name,
-                    model=stage_model,
-                    thinking_level="medium",
+                    **gen_kwargs,
                 )
 
                 corr_map = {c.label: c.corrected_smiles for c in corr_res.corrections}
@@ -219,12 +294,23 @@ def validate_and_correct_entities(
                     corrected_smiles = corr_map[ent.label]
                     valid, can, err = validate_and_canonicalize(corrected_smiles)
                     if not valid:
+                        if ent.smiles_valid:
+                            rejection_notes.setdefault(idx, []).append(
+                                f"invalid candidate '{corrected_smiles}' rejected ({err}); kept previous valid SMILES"
+                            )
+                            logger.info(
+                                f"Invalid correction for '{ent.label}' rejected to preserve valid SMILES: {err}"
+                            )
+                            continue
                         ent.smiles = corrected_smiles
                         ent.smiles_valid = False
                         ent.rdkit_error = err
                         if old_smiles != corrected_smiles:
                             replacements[old_smiles] = corrected_smiles
                         continue
+
+                    if ent.smiles_valid and can == old_smiles:
+                        noop_indices.add(idx)
 
                     finding = findings[idx] if findings else None
                     violations = _candidate_violations(can, finding)
@@ -236,35 +322,43 @@ def validate_and_correct_entities(
                             f"Correction for '{ent.label}' rejected by prose gate: {violations}"
                         )
                         continue
+
+                    if can == old_smiles and ent.smiles_valid:
+                        continue
+
                     ent.smiles = can
                     ent.smiles_valid = True
                     ent.rdkit_error = None
                     replacements[old_smiles] = can
 
-                findings = verify_entities_with_oracle(entities, context=context)
-                if len(findings) != len(entities):
-                    findings = None
+                if enable_oracle:
+                    findings = verify_entities_with_oracle(entities, context=context)
+                    if len(findings) != len(entities):
+                        findings = None
                 _reappend_notes(entities, rejection_notes)
             except Exception as exc:
                 logger.warning(f"RDKit/Oracle self-correction call failed: {exc}")
                 break
 
     # Deterministic last-resort override: the prose IUPAC heading resolves unambiguously,
-    # the drawing disagrees on connectivity, and (when present) the prose formula agrees.
+    # the drawing disagrees on connectivity (or failed RDKit parsing), and (when present) the prose formula agrees.
     if enable_oracle and findings and len(findings) == len(entities):
         override_notes: dict[int, list[str]] = {}
         for idx, (ent, f) in enumerate(zip(entities, findings)):
+            is_rdkit_invalid = not ent.smiles_valid
             if (
                 f.provenance_status != "mismatch_flagged"
                 or not f.expected_smiles
-                or not f.connectivity_conflict
+                or (not f.connectivity_conflict and not is_rdkit_invalid)
                 or _is_markush_smiles(ent.smiles)
             ):
                 continue
             ok, can, _ = validate_and_canonicalize(f.expected_smiles)
             if not ok:
                 continue
-            if f.expected_formula and not _formula_of_agrees_with(can, f.expected_formula):
+            if f.expected_formula and not _formula_of_agrees_with(
+                can, f.expected_formula, context=f.expected_adduct_context
+            ):
                 continue
             replacements[ent.smiles] = can
             ent.smiles = can

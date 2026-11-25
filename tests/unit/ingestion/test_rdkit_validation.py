@@ -175,8 +175,8 @@ def test_extract_molecules_rdkit_correction_exhausted():
     # Retries exhausted: entity kept, marked invalid
     assert ent.smiles_valid is False
     assert ent.rdkit_error is not None
-    # Called max_rdkit_retries times (2)
-    assert client.generate_structured.call_count == 2
+    # Called MoleculeValidationConfig.max_retries times (default 1)
+    assert client.generate_structured.call_count == 1
 
 
 def test_oracle_finding_carries_structured_expectations(primed_opsin):
@@ -322,7 +322,8 @@ def test_opsin_absent_parity(no_opsin):
         entities=entities2, crop_paths=[], client=client2, config=_default_config(),
         max_attempts=1, context=CTX_37,
     )
-    assert updated2[0].provenance_status == "unverified_valid"
+    # Without OPSIN, isomer is not flagged; matching ESI-MS formula in CTX_37 still verifies formula-level
+    assert updated2[0].provenance_status == "verified_exact"
     assert client2.generate_structured.call_count == 0
 
 
