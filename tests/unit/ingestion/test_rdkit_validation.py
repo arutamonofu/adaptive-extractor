@@ -10,9 +10,13 @@ from ae.core.config.optimization_settings import (
     GeminiDefaultsConfig,
     GeminiParserConfig,
     IngestionConfig,
+    IngestionStagesConfig,
+    MoleculeExtractStageConfig,
+    ParseVisualsStagesConfig,
+    StageModelConfig,
 )
-from ae.ingestion.parsers.gemini.schemas import ChemicalEntity
-from ae.ingestion.parsers.gemini.stages import ocsr_oracle
+from ae.ingestion.parsers.gemini.schemas import ChemicalEntity, PipelineSummary
+from ae.ingestion.parsers.gemini.stages import ocsr_oracle, rdkit_validation
 from ae.ingestion.parsers.gemini.stages.ocsr_oracle import (
     OracleFinding,
     same_connectivity,
@@ -22,6 +26,7 @@ from ae.ingestion.parsers.gemini.stages.ocsr_oracle import (
 from ae.ingestion.parsers.gemini.stages.rdkit_validation import (
     SmilesCorrectionItem,
     SmilesCorrectionResponse,
+    _read_rdkit_correction_prompt,
     validate_and_canonicalize,
     validate_and_correct_entities,
 )
@@ -338,3 +343,190 @@ def test_markush_untouched(primed_opsin):
     assert updated[0].smiles == validate_and_canonicalize(mk)[1]
     assert updated[0].provenance_status == "unverified_valid"
     assert client.generate_structured.call_count == 0
+
+
+def test_invalid_smiles_accepts_rdkit_valid_candidate_despite_substructure_violations(primed_opsin):
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="15", corrected_smiles=PARA_15)],
+    )
+    entities = [ChemicalEntity(label="15", smiles="BROKEN(((")]
+    updated, replacements = validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=1,
+        context=RJC_CTX,
+    )
+    ent15 = updated[0]
+    _, canon_para, _ = validate_and_canonicalize(PARA_15)
+    assert ent15.smiles_valid is True
+    assert ent15.smiles == canon_para
+    assert ent15.rdkit_error is None
+    assert ent15.provenance_status == "mismatch_flagged"
+    assert "accepted RDKit-valid candidate" in (ent15.oracle_notes or "")
+    assert replacements["BROKEN((("] == canon_para
+
+
+def test_noop_candidate_continues_before_substructure_violations(primed_opsin, monkeypatch):
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="15", corrected_smiles=BAD_15)],
+    )
+    viol_calls = {"count": 0}
+
+    def _spy_violations(*args, **kwargs):
+        viol_calls["count"] += 1
+        return []
+
+    monkeypatch.setattr(rdkit_validation, "_candidate_violations", _spy_violations)
+    entities = [ChemicalEntity(label="15", smiles=BAD_15)]
+    updated, replacements = validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=2,
+        context=RJC_CTX,
+    )
+    assert viol_calls["count"] == 0
+    assert client.generate_structured.call_count == 1
+    assert "rejected" not in (updated[0].oracle_notes or "")
+    assert replacements == {}
+
+
+def test_corr_map_normalizes_label_whitespace_and_case():
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="  15A ", corrected_smiles="CCO")],
+    )
+    entities = [ChemicalEntity(label="15a", smiles="INVALID_@@@")]
+    updated, replacements = validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=1,
+        context="",
+    )
+    assert updated[0].smiles == "CCO"
+    assert updated[0].smiles_valid is True
+    assert replacements["INVALID_@@@"] == "CCO"
+
+
+@pytest.mark.parametrize("level", ["minimal", "low", "medium", "high"])
+def test_thinking_level_configured_value_respected(level: str):
+    cfg = IngestionConfig(
+        stages=IngestionStagesConfig(
+            parse_visuals=ParseVisualsStagesConfig(
+                molecule=MoleculeExtractStageConfig(
+                    model=StageModelConfig(thinking_level=level),
+                )
+            )
+        )
+    )
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="1", corrected_smiles="CCO")],
+    )
+    validate_and_correct_entities(
+        entities=[ChemicalEntity(label="1", smiles="BAD(((")],
+        crop_paths=[],
+        client=client,
+        config=cfg,
+        max_attempts=1,
+    )
+    assert client.generate_structured.call_args.kwargs["thinking_level"] == level
+
+
+def test_deterministic_override_checks_expected_substructures(primed_opsin):
+    # Heading resolves to SMI_37, but prose also asserts a 2-chloro-6-fluorophenyl group
+    # absent from SMI_37 -> override must be blocked.
+    ctx = (
+        f"### 4.5.25. {NAME_37} (37)\n\n"
+        "Compound 37 also has a 2-chloro-6-fluorophenyl substituent."
+    )
+    ent = ChemicalEntity(label="37", smiles=BAD_37)
+    _, canon_bad, _ = validate_and_canonicalize(BAD_37)
+    updated, _ = validate_and_correct_entities(
+        entities=[ent],
+        crop_paths=[],
+        client=None,
+        config=_default_config(),
+        max_attempts=0,
+        context=ctx,
+    )
+    assert updated[0].smiles == canon_bad
+    assert updated[0].provenance_status == "mismatch_flagged"
+
+
+def test_unchanged_entities_not_reverified_by_full_oracle(primed_opsin, monkeypatch):
+    full_calls = {"count": 0}
+    reverify_labels: list[str] = []
+
+    orig_full = ocsr_oracle.verify_entities_with_oracle
+    orig_reverify = ocsr_oracle.reverify_entity_with_finding
+
+    def _wrapped_full(*args, **kwargs):
+        full_calls["count"] += 1
+        return orig_full(*args, **kwargs)
+
+    def _wrapped_reverify(ent, finding, *args, **kwargs):
+        reverify_labels.append(ent.label)
+        return orig_reverify(ent, finding, *args, **kwargs)
+
+    monkeypatch.setattr(rdkit_validation, "verify_entities_with_oracle", _wrapped_full)
+    monkeypatch.setattr(rdkit_validation, "reverify_entity_with_finding", _wrapped_reverify)
+
+    client = MagicMock()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="15", corrected_smiles=GOOD_15)],
+    )
+    entities = [
+        ChemicalEntity(label="15", smiles=BAD_15),
+        ChemicalEntity(label="2", smiles="CCO"),
+    ]
+    validate_and_correct_entities(
+        entities=entities,
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=1,
+        context=RJC_CTX,
+    )
+    # Initial pass calls verify_entities_with_oracle once; retry loop only re-verifies changed "15"
+    assert full_calls["count"] == 1
+    assert reverify_labels == ["15"]
+
+    # When nothing changes (rejected candidate), neither full nor reverify runs again
+    full_calls["count"] = 0
+    reverify_labels.clear()
+    client.generate_structured.return_value = SmilesCorrectionResponse(
+        corrections=[SmilesCorrectionItem(label="15", corrected_smiles=PARA_15)],
+    )
+    validate_and_correct_entities(
+        entities=[ChemicalEntity(label="15", smiles=BAD_15), ChemicalEntity(label="2", smiles="CCO")],
+        crop_paths=[],
+        client=client,
+        config=_default_config(),
+        max_attempts=1,
+        context=RJC_CTX,
+    )
+    assert full_calls["count"] == 1
+    assert reverify_labels == []
+
+
+def test_prompt_allows_keeping_drawing_on_unrelated_prose():
+    prompt = _read_rdkit_correction_prompt()
+    assert "different compound" in prompt.lower()
+    assert "keep the structure" in prompt.lower()
+
+
+def test_pipeline_summary_mismatch_flagged_smiles_field():
+    s = PipelineSummary()
+    assert s.mismatch_flagged_smiles == 0
+    s_loaded = PipelineSummary.model_validate({"total_placeholders": 2})
+    assert s_loaded.mismatch_flagged_smiles == 0
+    s_set = PipelineSummary(mismatch_flagged_smiles=3)
+    assert s_set.mismatch_flagged_smiles == 3
