@@ -285,3 +285,8 @@ class TestIngestionConfigV2:
 
         mol_cfg = cfg.get_stage_config("parse_visuals", sub_stage="molecule")
         assert mol_cfg.thinking_budget == 3072
+
+    def test_classify_render_page_max_size_preserved(self):
+        """ClassifyStageConfig must preserve render_page_max_size from config."""
+        cfg = IngestionConfig.model_validate({"stages": {"classify": {"render_page_max_size": 1024}}})
+        assert cfg.stages.classify.render_page_max_size == 1024

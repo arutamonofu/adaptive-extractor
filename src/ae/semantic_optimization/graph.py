@@ -455,7 +455,8 @@ class SemanticOptimizationGraph:
                 getattr(settings, "syntactic_optimization", None), "llm", None
             )
             judge_cfg = getattr(llm_cfg, "semantic_judge", None)
-            if isinstance(judge_cfg, LLMInstanceConfig):
+            student_cfg = getattr(llm_cfg, "student", None)
+            if isinstance(judge_cfg, LLMInstanceConfig) and judge_cfg != student_cfg:
                 try:
                     cb_cfg = getattr(settings, "circuit_breaker", None)
                     judge_lm = create_lm(
@@ -535,17 +536,24 @@ class SemanticOptimizationGraph:
 
         if hasattr(ctx, "re_client") and hasattr(ctx.re_client, "create_validation_extractor"):
             try:
-                if "ingestion_dir" in inspect.signature(ctx.re_client.create_validation_extractor).parameters:
-                    extractor = ctx.re_client.create_validation_extractor(
-                        extract_task.signature, ingestion_dir=ctx.ingestion_dir
-                    )
-                else:
-                    extractor = ctx.re_client.create_validation_extractor(extract_task.signature)
+                sig_params = inspect.signature(ctx.re_client.create_validation_extractor).parameters
+                val_ext_kwargs: dict[str, Any] = {}
+                if "ingestion_dir" in sig_params:
+                    val_ext_kwargs["ingestion_dir"] = ctx.ingestion_dir
+                cfg_path_val = getattr(ctx, "config_path", None)
+                if "config_path" in sig_params and isinstance(cfg_path_val, (str, Path)):
+                    val_ext_kwargs["config_path"] = Path(cfg_path_val)
+                extractor = ctx.re_client.create_validation_extractor(
+                    extract_task.signature, **val_ext_kwargs
+                )
             except (TypeError, ValueError):
                 extractor = ctx.re_client.create_validation_extractor(extract_task.signature)
         else:
+            cfg_path_val = getattr(ctx, "config_path", None)
             extractor = UniversalExtractor(
-                extract_task.signature, ingestion_dir=ctx.ingestion_dir
+                extract_task.signature,
+                ingestion_dir=ctx.ingestion_dir,
+                config_path=Path(cfg_path_val) if isinstance(cfg_path_val, (str, Path)) else None,
             )
 
         compare_fields = list(metric_config.get("compare_fields") or [])
@@ -764,7 +772,7 @@ class SemanticOptimizationGraph:
                 and not isinstance(total_val, bool)
                 and total_val > 0
             ):
-                return max(self.pareto_regression_threshold, 1.0 / max(float(total_val), 1.0))
+                return max(self.pareto_regression_threshold, (1.0 / max(float(total_val), 1.0)) + 1e-6)
             return self.pareto_regression_threshold
 
         for f, score_val in curr_pf.items():
@@ -1105,7 +1113,8 @@ class SemanticOptimizationGraph:
                     getattr(settings_opt, "syntactic_optimization", None), "llm", None
                 )
                 judge_cfg_opt = getattr(llm_cfg_opt, "semantic_judge", None)
-                if judge_cfg_opt is not None:
+                student_cfg_opt = getattr(llm_cfg_opt, "student", None)
+                if judge_cfg_opt is not None and judge_cfg_opt != student_cfg_opt:
                     judge_thinking_level = _safe_prim(
                         getattr(getattr(judge_cfg_opt, "gemini", None), "thinking_level", None),
                         judge_thinking_level,

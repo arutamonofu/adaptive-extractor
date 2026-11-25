@@ -964,6 +964,22 @@ def test_manifest_merged_from_reconcile_render_and_max_tokens_retry_fail(tmp_pat
     assert rec.discarded_ids == ["Fig_1"]
     assert detect_manifest_silent_error(raw, rec, phs) is None
 
+    # 1b. If model omits merged placeholder's page from pages, reconcile_manifest must union it
+    raw_omit_page = Manifest(
+        visuals=[
+            ManifestVisual(
+                id="Table_1",
+                type="table",
+                pages=[3],
+                description="MIC data for 1a-1f.",
+                merged_from=["Table_1_dup2"],
+            )
+        ],
+        discarded_ids=["Fig_1"],
+    )
+    rec_omit_page = reconcile_manifest(raw_omit_page, phs, total_pages=6)
+    assert rec_omit_page.visuals[0].pages == [3, 4]
+
     raw_md = (
         "Intro text.\n\n"
         '<visual id="Table_1">\nTable 1. MIC data.\n</visual>\n\n'

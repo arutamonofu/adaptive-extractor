@@ -243,6 +243,7 @@ def optimize_command(argv: Optional[List[str]] = None) -> int:
             cancel_event=cancel_event,
             dry_run=args.dry_run,
             enable_semantic_judge=getattr(settings.syntactic_optimization, "enable_semantic_judge", True),
+            config_path=args.config,
         )
 
     def execute_use_case(request: OptimizeAgentRequest) -> OptimizeAgentResponse:

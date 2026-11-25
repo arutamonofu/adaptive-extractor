@@ -377,7 +377,8 @@ class SyntacticOptimizationUseCase:
                     getattr(settings, "syntactic_optimization", None), "llm", None
                 )
                 judge_cfg = getattr(llm_cfg, "semantic_judge", None)
-                if isinstance(judge_cfg, LLMInstanceConfig):
+                student_cfg = getattr(llm_cfg, "student", None)
+                if isinstance(judge_cfg, LLMInstanceConfig) and judge_cfg != student_cfg:
                     judge_lm = create_lm(
                         judge_cfg,
                         circuit_breaker_config=getattr(settings, "circuit_breaker", None),

@@ -180,6 +180,11 @@ class ParseTextStageConfig(_StageWithModelConfig):
 class ClassifyStageConfig(_StageWithModelConfig):
     """Configuration for visual placeholder classification stage."""
 
+    render_page_max_size: int = Field(
+        default=768,
+        ge=64,
+        description="Maximum page image dimension (px) for Stage 2 preview rendering",
+    )
     model: StageModelConfig = Field(
         default_factory=lambda: StageModelConfig(model="gemini-3.8-flash", thinking_level="low"),
         description="Model settings for classification",

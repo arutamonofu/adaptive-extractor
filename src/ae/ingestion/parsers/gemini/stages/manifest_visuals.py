@@ -305,6 +305,12 @@ def reconcile_manifest(
     all_merged_ids: set[str] = set()
     for v in valid_visuals:
         v.merged_from = [m for m in v.merged_from if m not in seen_ids]
+        merged_pages = [ph_page_map[m] for m in v.merged_from if m in ph_page_map]
+        if merged_pages:
+            v.pages = _clean_visual_pages(
+                list(v.pages) + merged_pages,
+                total_pages=total_pages,
+            )
         all_merged_ids.update(v.merged_from)
 
     discarded: set[str] = set()

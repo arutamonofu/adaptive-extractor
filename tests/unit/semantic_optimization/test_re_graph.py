@@ -1793,6 +1793,10 @@ def test_pareto_consolidation_rollback_adaptive_threshold_raw_history_and_drift_
     assert graph._find_regressed_fields(
         {"smiles": 0.59}, {"smiles": 1.0}, {}, {}, field_totals={"smiles": 5}
     ) == ["smiles"]
+    # Rounded 1-row flip (5/6 = 0.833333 vs 1.0) must not trigger false regression due to 6-decimal rounding
+    assert graph._find_regressed_fields(
+        {"smiles": round(5 / 6, 6)}, {"smiles": 1.0}, {}, {}, field_totals={"smiles": 6}
+    ) == []
 
     # 2. _rollback_column_artifacts_and_schema also rolls back 02_consolidation/columns/smiles.json
     gen_prompt_path.write_text(iter2_prompt, encoding="utf-8")
@@ -1896,7 +1900,8 @@ def test_pareto_consolidation_rollback_adaptive_threshold_raw_history_and_drift_
         enable_cache=False,
         gemini=GeminiInstanceConfig(api_key=SecretStr("judge-key")),
     )
-    fake_llm_cfg = SimpleNamespace(student=judge_cfg, semantic_judge=judge_cfg)
+    student_cfg = judge_cfg.model_copy(update={"model": "gemini-3.8-flash"})
+    fake_llm_cfg = SimpleNamespace(student=student_cfg, semantic_judge=judge_cfg)
     fake_settings = MagicMock()
     fake_settings.syntactic_optimization.float_tolerance = 0.05
     fake_settings.llm = fake_llm_cfg

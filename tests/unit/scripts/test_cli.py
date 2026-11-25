@@ -383,6 +383,38 @@ class TestOptimizeCLI:
         result = optimize_command(["--config", str(config_dir)])
         assert result == 1
 
+    def test_optimize_cli_forwards_config_path_to_request(self, tmp_path: Path, monkeypatch):
+        """optimize_command must pass args.config into OptimizeAgentRequest.config_path."""
+        instruction = tmp_path / "instruction.txt"
+        instruction.write_text("Test instruction")
+        config_dir = tmp_path / "config"
+        parsed_dir = tmp_path / "parsed"
+        parsed_dir.mkdir()
+        write_minimal_config(config_dir, parsed_dir, instruction)
+
+        captured_requests = []
+        mock_lm = MagicMock(spec=dspy.LM)
+        mock_lm.model = "test-model"
+        monkeypatch.setattr(
+            "ae.syntactic_optimization.cli.setup_language_models",
+            lambda *args, **kwargs: (mock_lm, mock_lm),
+        )
+        monkeypatch.setattr(
+            "ae.syntactic_optimization.cli.SyntacticOptimizationUseCase.execute",
+            lambda self, req: captured_requests.append(req)
+            or MagicMock(
+                success=True,
+                agent_path=tmp_path / "agent.json",
+                final_metrics={"f1": 0.9},
+                trial_count=1,
+            ),
+        )
+
+        rc = optimize_command(["--config", str(config_dir), "--dry-run", "--no-mlflow"])
+        assert rc == 0
+        assert len(captured_requests) == 1
+        assert captured_requests[0].config_path == config_dir
+
 
 @pytest.mark.unit
 class TestIngestCLI:

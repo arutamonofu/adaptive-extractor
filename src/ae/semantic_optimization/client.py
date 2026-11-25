@@ -172,6 +172,7 @@ class SemanticOptimizationClient:
         self,
         signature_class: Any,
         ingestion_dir: Optional[Path] = None,
+        config_path: Optional[Path] = None,
     ) -> Any:
         """Create a UniversalExtractor configured with the extraction validation client."""
         from ae.extraction.agent import UniversalExtractor
@@ -181,6 +182,7 @@ class SemanticOptimizationClient:
             signature_class,
             client=val_client,
             ingestion_dir=ingestion_dir,
+            config_path=config_path,
         )
 
     def save_history(
