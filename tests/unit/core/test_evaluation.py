@@ -336,34 +336,41 @@ class TestSemanticJudgeAuditImprovements:
         assert report["recall"] == pytest.approx(5 / 6)
 
     def test_batch_judge_failure_no_retry_storm_or_cache_poisoning(self):
-        """If a batched LLM call fails, matcher falls back to single-pair calls without caching {}."""
-        calls = []
+        """API/network/CircuitBreakerError batch failures must NOT trigger 15x single-pair fallback."""
+        from ae.core.llm.circuit_breaker import CircuitBreakerError
 
-        class BrokenBatchLLM:
-            def __call__(self, messages, **kwargs):
-                calls.append(messages)
-                raise RuntimeError("API error")
+        for exc_factory in (
+            lambda: RuntimeError("API error 429 rate limit"),
+            lambda: CircuitBreakerError("Circuit open"),
+            lambda: ConnectionError("Network timeout"),
+        ):
+            calls = []
 
-        matcher = RecordMatcher(
-            fields_to_compare=["id", "name"],
-            float_tolerance=0.05,
-            student_llm=BrokenBatchLLM(),
-            enable_semantic_judge=True,
-        )
-        preds = [
-            SimpleNamespace(id="1", name="Alpha"),
-            SimpleNamespace(id="2", name="Beta"),
-        ]
-        gts = [
-            SimpleNamespace(id="1", name="A"),
-            SimpleNamespace(id="2", name="B"),
-        ]
-        report = matcher.get_detailed_report(preds, gts, task_name="test")
-        assert len(calls) == 3  # 1 failed batch call + 2 single-pair fallback calls
-        assert len(matcher._verdict_cache) == 0  # Failure not cached
-        assert report["judge_api_errors"] == 3
-        assert report["judge_parse_failures"] == 0
-        assert report["precision"] == pytest.approx(2 / 4)
+            class BrokenBatchLLM:
+                def __call__(self, messages, **kwargs):
+                    calls.append(messages)
+                    raise exc_factory()
+
+            matcher = RecordMatcher(
+                fields_to_compare=["id", "name"],
+                float_tolerance=0.05,
+                student_llm=BrokenBatchLLM(),
+                enable_semantic_judge=True,
+            )
+            preds = [
+                SimpleNamespace(id="1", name="Alpha"),
+                SimpleNamespace(id="2", name="Beta"),
+            ]
+            gts = [
+                SimpleNamespace(id="1", name="A"),
+                SimpleNamespace(id="2", name="B"),
+            ]
+            report = matcher.get_detailed_report(preds, gts, task_name="test")
+            assert len(calls) == 1  # Only 1 batch call; NO single-pair retry storm
+            assert len(matcher._verdict_cache) == 0  # Failure not cached
+            assert report["judge_api_errors"] == 1
+            assert report["judge_parse_failures"] == 0
+            assert report["precision"] == pytest.approx(2 / 4)
 
     def test_batch_judge_missing_idx_no_broadcast_and_recovers_via_single_fallback(self):
         """Flat-dict or partial batch response must never broadcast verdicts across pairs."""
@@ -1008,3 +1015,150 @@ class TestContour4AuditFixes:
             [SimpleNamespace(val_num=10.0, val_qty="10.0")],
         )
         assert rep_tight["strict_f1"] == pytest.approx(0.0)
+
+    def test_discriminative_weights_in_hungarian_pot_and_equivalence_fn(self):
+        """Hungarian and POT must weight discriminative columns above constant ones and use field_equivalence_fn."""
+        matcher = RecordMatcher(
+            fields_to_compare=["id", "c1", "c2", "c3", "c4", "val"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+        gts = [
+            SimpleNamespace(id="A1", c1="MIC", c2="=", c3="ug/mL", c4="broth", val="0.5"),
+            SimpleNamespace(id="B2", c1="MIC", c2="=", c3="ug/mL", c4="broth", val="16"),
+        ]
+        # Pred 0 matches GT 0 on discriminative 'id' and via equivalence_fn on 'val', but differs on c1..c4;
+        # Pred 1 matches c1..c4 but mismatches discriminative 'id' and 'val'.
+        preds = [
+            SimpleNamespace(id="A1", c1="MBC", c2=">", c3="mM", c4="agar", val="0.500"),
+            SimpleNamespace(id="Z9", c1="MIC", c2="=", c3="ug/mL", c4="broth", val="999"),
+        ]
+
+        def equiv_fn(fname, p, g):
+            return fname == "val" and float(str(p)) == float(str(g))
+
+        indexed = matcher.align_pairs_with_indices(
+            preds, gts, field_equivalence_fn=equiv_fn
+        )
+        assert (0, 0) in indexed
+        assert (1, None) in indexed
+        assert (None, 1) in indexed
+
+        # Unrelated FP (Pred 1) and FN (GT 1) sharing 4 constant columns must NOT trigger false row_merge/split
+        rep = matcher.evaluate_pairs(preds, gts, field_equivalence_fn=equiv_fn)
+        assert rep["diagnostics"]["row_merge"] == []
+        assert rep["diagnostics"]["row_split"] == []
+
+    def test_empty_strings_skipped_as_true_negative(self):
+        """Both pred and gt having empty/whitespace strings must skip as TN instead of inflating TP."""
+        matcher = RecordMatcher(
+            fields_to_compare=["id", "note"],
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+        preds = [SimpleNamespace(id="1", note="   ")]
+        gts = [SimpleNamespace(id="1", note="")]
+        rep = matcher.get_detailed_report(preds, gts)
+        assert rep["field_total"] == {"id": 1, "note": 0}
+        assert rep["field_correct"] == {"id": 1, "note": 0}
+        assert rep["strict_f1"] == pytest.approx(1.0)
+        assert rep["f1"] == pytest.approx(1.0)
+
+    def test_task_metric_disables_pot_diagnostics(self, monkeypatch):
+        """TaskMetric.__call__ skips POT unbalanced OT since it only returns F1."""
+        import dspy
+        from ae.core.evaluation.metrics import TaskMetric
+
+        metric = TaskMetric(
+            task_config={"name": "assay", "compare_fields": ["id", "val"]},
+            float_tolerance=0.05,
+            enable_semantic_judge=False,
+        )
+
+        def _boom(*args, **kwargs):
+            raise AssertionError("POT _annotate_structural_errors should not run in TaskMetric.__call__")
+
+        monkeypatch.setattr(metric.matcher, "_annotate_structural_errors", _boom)
+        ex = dspy.Example(extracted_data={"records": [{"id": "1", "val": "8"}, {"id": "2", "val": "16"}]})
+        pred = dspy.Prediction(extracted_data={"records": [{"id": "1", "val": "8"}, {"id": "9", "val": "99"}]})
+        score = metric(ex, pred)
+        assert 0.0 < score < 1.0
+
+    def test_judge_signature_batch_cache_key_prompt_hash_cache_and_tolerance(self):
+        """Verify extended config signature, is_batch in cache key, prompt_hash caching, and tolerance in prompt."""
+        class RichLLMStub:
+            def __init__(
+                self,
+                model="gemma-4-31b-it",
+                provider="OpenRouter",
+                temperature=0.0,
+                top_p=0.9,
+                max_tokens=1024,
+                response_format=None,
+                provider_preferences=None,
+            ):
+                self.model = model
+                self.provider = provider
+                self.temperature = temperature
+                self.top_p = top_p
+                self.max_tokens = max_tokens
+                self.response_format = response_format
+                self.provider_preferences = provider_preferences
+
+        gt = {"val": "10"}
+        pred = {"val": "10.3"}
+
+        m_base = RecordMatcher(
+            fields_to_compare=["val"],
+            float_tolerance=0.05,
+            student_llm=RichLLMStub(response_format={"type": "json_object"}, provider_preferences={"order": ["DeepInfra"]}),
+        )
+        m_top_p = RecordMatcher(
+            fields_to_compare=["val"],
+            float_tolerance=0.05,
+            student_llm=RichLLMStub(top_p=0.5, response_format={"type": "json_object"}, provider_preferences={"order": ["DeepInfra"]}),
+        )
+        m_max_tok = RecordMatcher(
+            fields_to_compare=["val"],
+            float_tolerance=0.05,
+            student_llm=RichLLMStub(max_tokens=2048, response_format={"type": "json_object"}, provider_preferences={"order": ["DeepInfra"]}),
+        )
+        m_fmt = RecordMatcher(
+            fields_to_compare=["val"],
+            float_tolerance=0.05,
+            student_llm=RichLLMStub(response_format=None, provider_preferences={"order": ["DeepInfra"]}),
+        )
+        m_pref = RecordMatcher(
+            fields_to_compare=["val"],
+            float_tolerance=0.05,
+            student_llm=RichLLMStub(response_format={"type": "json_object"}, provider_preferences={"order": ["Together"]}),
+        )
+
+        k_base = m_base._make_discrepancy_cache_key("assay", gt, pred, ["val"], is_batch=False)
+        k_batch = m_base._make_discrepancy_cache_key("assay", gt, pred, ["val"], is_batch=True)
+        assert k_base != k_batch
+        assert k_base != m_top_p._make_discrepancy_cache_key("assay", gt, pred, ["val"], is_batch=False)
+        assert k_base != m_max_tok._make_discrepancy_cache_key("assay", gt, pred, ["val"], is_batch=False)
+        assert k_base != m_fmt._make_discrepancy_cache_key("assay", gt, pred, ["val"], is_batch=False)
+        assert k_base != m_pref._make_discrepancy_cache_key("assay", gt, pred, ["val"], is_batch=False)
+
+        # Prompt includes configured float_tolerance
+        sys_prompt = m_base._build_judge_system_prompt("assay", is_batch=False)
+        assert "0.05" in sys_prompt
+        assert "5%" in sys_prompt
+
+        # prompt_hash is cached per (task_name, is_batch)
+        build_calls = []
+        orig_build = m_base._build_judge_system_prompt
+
+        def spy_build(task_name, is_batch=False):
+            build_calls.append((task_name, is_batch))
+            return orig_build(task_name, is_batch=is_batch)
+
+        m_base._build_judge_system_prompt = spy_build
+        h1 = m_base._get_judge_prompt_hash("assay_fresh", is_batch=False)
+        h2 = m_base._get_judge_prompt_hash("assay_fresh", is_batch=False)
+        h3 = m_base._get_judge_prompt_hash("assay_fresh", is_batch=True)
+        assert h1 == h2
+        assert h1 != h3
+        assert build_calls == [("assay_fresh", False), ("assay_fresh", True)]

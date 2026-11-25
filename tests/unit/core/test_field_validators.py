@@ -522,14 +522,21 @@ compute_validators:
         )
 
         # Thousands separator vs decimal comma vs mixed European/US
-        assert parse_numeric_quantity("1,000")[0].value == 1000.0
+        # Single comma group like "1,000" or "1,250" defaults to European decimal unless thousands_sep=True
+        assert parse_numeric_quantity("1,250")[0].value == 1.25
+        assert parse_numeric_quantity("1,000")[0].value == 1.0
+        assert parse_numeric_quantity("1,250", thousands_sep=True)[0].value == 1250.0
+        assert parse_numeric_quantity("1,000", thousands_sep=True)[0].value == 1000.0
         assert parse_numeric_quantity("1,000,000")[0].value == 1000000.0
         assert parse_numeric_quantity("19,1")[0].value == 19.1
         assert parse_numeric_quantity("0,001")[0].value == 0.001
         assert parse_numeric_quantity("1.500,25")[0].value == 1500.25
         assert parse_numeric_quantity("1,500.25")[0].value == 1500.25
-        assert compare_numeric_quantity_values("1,000", "1.0") == (False, "numeric_mismatch")
-        assert compare_numeric_quantity_values("1,000", "1000") == (True, None)
+        assert parse_numeric_quantity("1,250.5")[0].value == 1250.5
+        assert compare_numeric_quantity_values("1,250", "1.25") == (True, None)
+        assert compare_numeric_quantity_values("1,250", "1250") == (False, "numeric_mismatch")
+        assert compare_numeric_quantity_values("1,000", "1.0") == (True, None)
+        assert compare_numeric_quantity_values("1,000", "1000", thousands_sep=True) == (True, None)
         assert compare_numeric_quantity_values("1.500,25", "1500.25") == (True, None)
 
         # Unparseable/non-standard expressions escalate as (None, None)
@@ -556,5 +563,136 @@ compute_validators:
         ineq_specs = [
             {"name": "compute_validators", "expression": "MIC > 0 and MIC <= 10000"},
         ]
-        for rec in ({"MIC": None}, {"MIC": ">4"}, {"MIC": "0.5 ± 0.1"}):
+        for rec in ({"MIC": None}, {"MIC": ""}, {"MIC": ">4"}, {"MIC": "0.5 ± 0.1"}):
             assert validate_record_compute_validators(rec, ineq_specs)[0].valid is True
+
+    def test_pint_whitelist_mcg_and_multislash(self):
+        pytest.importorskip("pint")
+        from ae.core.schema.quantity_validators import compare_unit_values
+
+        spec = FieldValidatorSpec(name="unit")
+        # Non-unit codes like C18, F1, K2 must be rejected
+        for code in ("C18", "F1", "K2", "N2", "A2"):
+            assert validate_field_value(spec, code, field_name="unit").valid is False
+
+        # Known dimensional units with implicit positive exponents and mcg/multi-slash work
+        for u in ("cm2", "m2", "m/s2", "W/m2", "N/mm2", "mcg/mL", "mg/kg/day", "mcg/kg/day", "mg/m2/day"):
+            assert validate_field_value(spec, u, field_name="unit").valid is True
+
+        assert compare_unit_values("mcg/mL", "µg/mL") == (True, None)
+        assert compare_unit_values("mg/kg/day", "mg/(kg*day)") == (True, None)
+
+    def test_numeric_quantity_zero_abs_tol_and_leading_dot_ranges(self):
+        from ae.core.schema.quantity_validators import (
+            compare_numeric_quantity_values,
+            parse_numeric_quantity,
+        )
+
+        # abs_tol=0.0 prevents false matches for small magnitudes near 0 or 1e-13
+        assert compare_numeric_quantity_values("1e-13", "5e-13") == (False, "numeric_mismatch")
+        assert compare_numeric_quantity_values("1e-14", "0") == (False, "numeric_mismatch")
+        assert compare_numeric_quantity_values("0", "0.0") == (True, None)
+
+        # Leading-dot decimals in ranges
+        parsed_range, err = parse_numeric_quantity(".5-1.0")
+        assert err is None and parsed_range is not None
+        assert parsed_range.kind == "range"
+        assert parsed_range.low == 0.5 and parsed_range.high == 1.0
+
+        parsed_bracket, err_b = parse_numeric_quantity("[.25, .75]")
+        assert err_b is None and parsed_bracket is not None
+        assert parsed_bracket.low == 0.25 and parsed_bracket.high == 0.75
+
+        spec = FieldValidatorSpec(name="numeric_quantity")
+        assert validate_field_value(spec, ".5-1.0", field_name="target_value").valid is True
+
+    def test_compute_when_ast_validation_garbage_rejection_and_sanity_wiring(self):
+        pytest.importorskip("simpleeval")
+        from ae.core.schema.quantity_validators import validate_record_compute_validators
+        from ae.extraction.sanity import (
+            StructuredOutputSanityError,
+            validate_output_field_validators,
+            validate_structured_output_sanity,
+        )
+
+        # 1. validate_spec checks AST of 'when'
+        bad_when_cfg = SchemaConfig(
+            name="bad_when",
+            fields={"mic": FieldSpec(type=str, description="MIC")},
+            compare_fields=["mic"],
+            compute_validators=[
+                {
+                    "name": "compute_validators",
+                    "expression": "mic > 0",
+                    "when": "__import__('os').system('echo x')",
+                }
+            ],
+        )
+        assert any("'when'" in err and "forbidden" in err for err in bad_when_cfg.validate())
+
+        empty_when_cfg = SchemaConfig(
+            name="empty_when",
+            fields={"mic": FieldSpec(type=str, description="MIC")},
+            compare_fields=["mic"],
+            compute_validators=[
+                {"name": "compute_validators", "expression": "mic > 0", "when": "   "}
+            ],
+        )
+        assert any("'when'" in err for err in empty_when_cfg.validate())
+
+        # 2. Unparseable garbage strings fail instead of silently passing via TypeError catch
+        specs = [{"name": "compute_validators", "expression": "MIC > 0 and pMIC > 0"}]
+        assert validate_record_compute_validators({"MIC": "garbage", "pMIC": "5"}, specs)[0].valid is False
+        assert validate_record_compute_validators({"MIC": None, "pMIC": "bad"}, specs)[0].valid is False
+
+        cond_specs = [
+            {"name": "compute_validators", "expression": "unit == 'mg/mL' and MIC > 0"}
+        ]
+        assert validate_record_compute_validators({"unit": "mg/mL", "MIC": None}, cond_specs)[0].valid is True
+        assert validate_record_compute_validators({"unit": "mg/mL", "MIC": "bad"}, cond_specs)[0].valid is False
+
+        # 3. Schema-level compute_validators execute during sanity validation
+        cfg = SchemaConfig(
+            name="wired_compute",
+            fields={
+                "mic": FieldSpec(type=str, description="MIC"),
+                "pmic": FieldSpec(type=str, description="pMIC"),
+            },
+            compare_fields=["mic"],
+            compute_validators=[
+                {
+                    "name": "compute_validators",
+                    "expression": "abs(pmic - (-log10(mic * 1e-6))) < 0.05",
+                    "when": "mic > 0 and pmic > 0",
+                    "message": "pMIC inconsistent with MIC",
+                }
+            ],
+        )
+        assert cfg.validate() == []
+        rec_model, out_model = create_all_models(cfg)
+
+        good_out = out_model(records=[rec_model(mic="10", pmic="5.0")])
+        assert validate_output_field_validators(good_out, output_model=out_model) is good_out
+        assert (
+            validate_structured_output_sanity(
+                good_out,
+                document_text="MIC 10, pMIC 5.0",
+                output_model=out_model,
+            )
+            is good_out
+        )
+
+        bad_out = out_model(
+            records=[
+                rec_model(mic="10", pmic="5.0"),
+                rec_model(mic="10", pmic="3.0"),
+            ]
+        )
+        with pytest.raises(StructuredOutputSanityError) as exc_info:
+            validate_structured_output_sanity(
+                bad_out,
+                document_text="MIC 10, pMIC 3.0",
+                output_model=out_model,
+            )
+        assert exc_info.value.failed_record_indices == [1]
+        assert "pMIC inconsistent with MIC" in str(exc_info.value)

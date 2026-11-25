@@ -17,7 +17,7 @@ from ae.core.evaluation.entities import Record
 
 from .config import FieldPatternSpec, FieldSpec, SchemaConfig
 from .tools import ExtractionToolSpec, normalize_tool_spec
-from .validators import FieldValidatorSpec
+from .validators import FieldValidatorSpec, normalize_validator_spec
 
 if TYPE_CHECKING:
     pass
@@ -174,6 +174,10 @@ def create_record_model(
 
     # Create the dynamic model with fields
     model = create_model("Record", __base__=base_class, **fields)  # type: ignore[arg-type]
+    model.__ae_compute_validators__ = tuple(
+        normalize_validator_spec(v)
+        for v in (getattr(schema_config, "compute_validators", None) or ())
+    )
 
     logger.info(f"Created record model with {len(fields)} fields")
 
@@ -228,6 +232,10 @@ def create_output_model(
     model = create_model("ExtractionOutput", __base__=BaseOutput, **fields)
     model.__ae_extraction_tools__ = tuple(
         normalize_tool_spec(t) for t in (getattr(schema_config, "tools", None) or ())
+    )
+    model.__ae_compute_validators__ = tuple(
+        normalize_validator_spec(v)
+        for v in (getattr(schema_config, "compute_validators", None) or ())
     )
 
     logger.info("Created output model 'ExtractionOutput'")
@@ -420,6 +428,19 @@ def extract_schema_tools(output_model: Optional[Type[BaseModel]]) -> List[Extrac
         return []
     raw_tools = getattr(output_model, "__ae_extraction_tools__", None) or ()
     return [normalize_tool_spec(t) for t in raw_tools]
+
+
+def extract_compute_validators(output_model: Optional[Type[BaseModel]]) -> List[FieldValidatorSpec]:
+    """Extract schema-level compute_validators attached to an ExtractionOutput or Record model."""
+    if not output_model:
+        return []
+    raw_specs = getattr(output_model, "__ae_compute_validators__", None)
+    if not raw_specs:
+        target_model = _resolve_record_model(output_model)
+        raw_specs = getattr(target_model, "__ae_compute_validators__", None)
+    if not raw_specs:
+        return []
+    return [normalize_validator_spec(v) for v in raw_specs]
 
 
 def extract_schema_field_constraints(output_model: Type[BaseModel]) -> Dict[str, Dict[str, Any]]:

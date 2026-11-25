@@ -35,11 +35,26 @@ _SUPERSCRIPT_MAP = str.maketrans(
 )
 _SUPERSCRIPT_GROUP_RE = re.compile(r"([⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)")
 _UNIT_NEG_EXP_RE = re.compile(r"([A-Za-zµμ°%]+)-(\d+)")
-_UNIT_POS_EXP_RE = re.compile(r"([A-Za-zµμ°%]+)(\d+)")
+# Restrict implicit positive-exponent fallback (e.g. "cm2", "m/s2") to known dimensional
+# unit symbols so identifiers/codes like "C18", "F1", "K2" are rejected.
+_KNOWN_POS_EXP_UNITS = (
+    "km", "dm", "cm", "mm", "um", "µm", "nm", "pm", "fm",
+    "ms", "us", "µs", "ns", "ps", "min", "hr",
+    "mL", "uL", "µL", "dL", "nL", "pL",
+    "mg", "ug", "µg", "ng", "pg", "fg", "kg",
+    "mmol", "umol", "µmol", "nmol", "pmol", "fmol", "mol",
+    "kPa", "MPa", "GPa", "Pa",
+    "kHz", "MHz", "GHz", "Hz",
+    "keV", "MeV", "eV",
+    "rad", "deg",
+    "m", "s", "h", "L",
+)
+_UNIT_POS_EXP_RE = re.compile(rf"\b({'|'.join(_KNOWN_POS_EXP_UNITS)})(\d+)\b")
+_MCG_WORD_RE = re.compile(r"\bmcg\b")
 
 _REL_PREFIX_RE = re.compile(r"^\s*(>=|<=|≥|≤|>|<|=|~|≈)\s*(.+)$")
 _STD_SPLIT_RE = re.compile(r"^(.+?)\s*(?:±|\+/-|\+-)\s*(.+)$")
-_NUM_TOKEN = r"[+-]?\d+(?:[.,]\d+)*(?:[eE][+-]?\d+)?"
+_NUM_TOKEN = r"[+-]?(?:\d+(?:[.,]\d+)*|[.,]\d+)(?:[eE][+-]?\d+)?"
 _THOUSANDS_COMMA_RE = re.compile(r"^[+-]?[1-9]\d{0,2}(?:,\d{3})+(?:[eE][+-]?\d+)?$")
 _RANGE_SPLIT_RE = re.compile(
     rf"^\s*({_NUM_TOKEN})\s*(?:-|–|—|−|\.\.|to)\s*({_NUM_TOKEN})\s*$"
@@ -81,6 +96,7 @@ def normalize_unit_expression(raw: str) -> str:
     text = text.replace("·", "*").replace("•", "*").replace("⋅", "*").replace("×", "*")
     text = text.replace("−", "-").replace("–", "-").replace("—", "-")
     text = text.replace("μ", "µ")
+    text = _MCG_WORD_RE.sub("ug", text)
 
     def _replace_sup(match: re.Match[str]) -> str:
         ascii_exp = match.group(1).translate(_SUPERSCRIPT_MAP)
@@ -89,6 +105,10 @@ def normalize_unit_expression(raw: str) -> str:
     text = _SUPERSCRIPT_GROUP_RE.sub(_replace_sup, text)
     text = text.replace("^", "**")
     text = _UNIT_NEG_EXP_RE.sub(r"\1**-\2", text)
+    if text.count("/") > 1 and "(" not in text and ")" not in text:
+        parts = [p.strip() for p in text.split("/")]
+        if all(parts):
+            text = f"{parts[0]}/({'*'.join(parts[1:])})"
     return text
 
 
@@ -218,7 +238,7 @@ class ParsedQuantity:
         return f"{prefix}{self.value:g}"
 
 
-def _parse_decimal_number(token: str) -> Optional[float]:
+def _parse_decimal_number(token: str, *, thousands_sep: bool = False) -> Optional[float]:
     """Parse numeric token supporting thousands separators and European decimal commas."""
     s = token.strip().replace(" ", "").replace("\u00a0", "")
     if not s:
@@ -228,14 +248,17 @@ def _parse_decimal_number(token: str) -> Optional[float]:
             # European format: e.g. "1.500,25"
             s = s.replace(".", "").replace(",", ".")
         else:
-            # US/English format: e.g. "1,500.25"
+            # US/English format: e.g. "1,500.25", "1,250.5"
             s = s.replace(",", "")
     elif "," in s:
-        if _THOUSANDS_COMMA_RE.match(s):
-            # Thousands grouping without decimal point: e.g. "1,000", "1,000,000"
+        if s.count(",") >= 2 and _THOUSANDS_COMMA_RE.match(s):
+            # Multiple thousands groups without decimal point: e.g. "1,000,000"
+            s = s.replace(",", "")
+        elif thousands_sep and _THOUSANDS_COMMA_RE.match(s):
+            # Explicit thousands_sep=True: e.g. "1,250", "1,000"
             s = s.replace(",", "")
         elif s.count(",") == 1:
-            # Decimal comma: e.g. "19,1", "0,001"
+            # Decimal comma: e.g. "19,1", "0,001", "1,250"
             s = s.replace(",", ".")
         else:
             return None
@@ -246,7 +269,11 @@ def _parse_decimal_number(token: str) -> Optional[float]:
     return val if math.isfinite(val) else None
 
 
-def parse_numeric_quantity(raw: Any) -> Tuple[Optional[ParsedQuantity], Optional[str]]:
+def parse_numeric_quantity(
+    raw: Any,
+    *,
+    thousands_sep: bool = False,
+) -> Tuple[Optional[ParsedQuantity], Optional[str]]:
     """Parse a numeric quantity supporting decimal commas, ± std, ranges, and >/<."""
     if isinstance(raw, bool):
         return None, "boolean is not a numeric quantity"
@@ -276,8 +303,8 @@ def parse_numeric_quantity(raw: Any) -> Tuple[Optional[ParsedQuantity], Optional
     # 1. Check ± standard deviation notation
     std_match = _STD_SPLIT_RE.match(body)
     if std_match:
-        mean_val = _parse_decimal_number(std_match.group(1))
-        std_val = _parse_decimal_number(std_match.group(2))
+        mean_val = _parse_decimal_number(std_match.group(1), thousands_sep=thousands_sep)
+        std_val = _parse_decimal_number(std_match.group(2), thousands_sep=thousands_sep)
         if mean_val is None or std_val is None or std_val < 0:
             return None, f"invalid ± quantity {raw!r}"
         return (
@@ -288,8 +315,8 @@ def parse_numeric_quantity(raw: Any) -> Tuple[Optional[ParsedQuantity], Optional
     # 2. Check interval / range notation
     range_match = _RANGE_SPLIT_RE.match(body) or _BRACKET_RANGE_RE.match(body)
     if range_match:
-        low_val = _parse_decimal_number(range_match.group(1))
-        high_val = _parse_decimal_number(range_match.group(2))
+        low_val = _parse_decimal_number(range_match.group(1), thousands_sep=thousands_sep)
+        high_val = _parse_decimal_number(range_match.group(2), thousands_sep=thousands_sep)
         if low_val is None or high_val is None or low_val > high_val:
             return None, f"invalid numeric interval {raw!r}"
         return (
@@ -298,7 +325,7 @@ def parse_numeric_quantity(raw: Any) -> Tuple[Optional[ParsedQuantity], Optional
         )
 
     # 3. Single scalar number
-    num_val = _parse_decimal_number(body)
+    num_val = _parse_decimal_number(body, thousands_sep=thousands_sep)
     if num_val is None:
         return None, f"invalid numeric quantity {raw!r}"
     return ParsedQuantity(relation=relation, kind="point", value=num_val), None
@@ -313,10 +340,11 @@ def validate_numeric_quantity(
     allow_std: bool = True,
     min_value: Optional[float] = None,
     max_value: Optional[float] = None,
+    thousands_sep: bool = False,
     **_: Any,
 ) -> FieldValidationResult:
     """Validate and optionally canonicalize a numeric quantity string."""
-    parsed, err = parse_numeric_quantity(value)
+    parsed, err = parse_numeric_quantity(value, thousands_sep=thousands_sep)
     if parsed is None:
         return FieldValidationResult(valid=False, value=value, error=err)
 
@@ -353,12 +381,14 @@ def compare_numeric_quantity_values(
     val_b: Any,
     *,
     rel_tol: float = 1e-9,
+    abs_tol: float = 0.0,
     require_std_match: bool = True,
+    thousands_sep: bool = False,
     **_: Any,
 ) -> Tuple[Optional[bool], Optional[str]]:
     """Compare two numeric quantities preserving inequality relations, ± std, and intervals."""
-    qa, err_a = parse_numeric_quantity(val_a)
-    qb, err_b = parse_numeric_quantity(val_b)
+    qa, err_a = parse_numeric_quantity(val_a, thousands_sep=thousands_sep)
+    qb, err_b = parse_numeric_quantity(val_b, thousands_sep=thousands_sep)
     if qa is None or qb is None or err_a is not None or err_b is not None:
         # Non-standard expressions (e.g. "1.5 × 10⁻³", "50%", "10 (SD 2)") escalate to SemanticJudge.
         return None, None
@@ -371,20 +401,20 @@ def compare_numeric_quantity_values(
     if qa.kind == "range":
         assert qa.low is not None and qa.high is not None
         assert qb.low is not None and qb.high is not None
-        ok = math.isclose(qa.low, qb.low, rel_tol=rel_tol, abs_tol=1e-12) and math.isclose(
-            qa.high, qb.high, rel_tol=rel_tol, abs_tol=1e-12
+        ok = math.isclose(qa.low, qb.low, rel_tol=rel_tol, abs_tol=abs_tol) and math.isclose(
+            qa.high, qb.high, rel_tol=rel_tol, abs_tol=abs_tol
         )
         return (True, None) if ok else (False, "numeric_mismatch")
 
     assert qa.value is not None and qb.value is not None
-    if not math.isclose(qa.value, qb.value, rel_tol=rel_tol, abs_tol=1e-12):
+    if not math.isclose(qa.value, qb.value, rel_tol=rel_tol, abs_tol=abs_tol):
         return False, "numeric_mismatch"
 
     if require_std_match:
         if (qa.std is None) != (qb.std is None):
             return False, "std_mismatch"
         if qa.std is not None and qb.std is not None:
-            if not math.isclose(qa.std, qb.std, rel_tol=rel_tol, abs_tol=1e-12):
+            if not math.isclose(qa.std, qb.std, rel_tol=rel_tol, abs_tol=abs_tol):
                 return False, "std_mismatch"
 
     return True, None
@@ -499,15 +529,68 @@ def _extract_referenced_names(expression: str) -> set[str]:
     }
 
 
+def _extract_numeric_context_names(expression: str) -> set[str]:
+    """Return identifier names used in numeric/ordering operations (where strings trigger TypeError)."""
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError:
+        return set()
+
+    numeric_names: set[str] = set()
+
+    def _collect(node: ast.AST, in_numeric: bool) -> None:
+        if isinstance(node, ast.Name) and isinstance(getattr(node, "ctx", None), ast.Load):
+            if in_numeric:
+                numeric_names.add(node.id)
+            return
+        if isinstance(node, (ast.BinOp, ast.UnaryOp, ast.Call)):
+            for child in ast.iter_child_nodes(node):
+                _collect(child, True)
+            return
+        if isinstance(node, ast.Compare):
+            has_order_op = any(
+                isinstance(op, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)) for op in node.ops
+            )
+            _collect(node.left, in_numeric or has_order_op)
+            for comp in node.comparators:
+                _collect(comp, in_numeric or has_order_op)
+            return
+        for child in ast.iter_child_nodes(node):
+            _collect(child, in_numeric)
+
+    _collect(tree.body, False)
+    return numeric_names
+
+
 def _has_non_scalar_referenced_variable(expression: str, variables: Dict[str, Any]) -> bool:
-    """Return True if any referenced variable in ``expression`` is None or a non-numeric string."""
-    for name in _extract_referenced_names(expression):
+    """Return True if TypeError is caused by None/empty/valid non-scalar quantities (not garbage strings)."""
+    referenced = _extract_referenced_names(expression)
+    numeric_ctx_names = _extract_numeric_context_names(expression)
+    has_skippable = False
+    for name in referenced:
         if name not in variables:
             continue
-        coerced = _coerce_variable_value(variables[name])
-        if coerced is None or isinstance(coerced, str):
-            return True
-    return False
+        raw_val = variables[name]
+        if raw_val is None:
+            has_skippable = True
+            continue
+        coerced = _coerce_variable_value(raw_val)
+        if coerced is None:
+            has_skippable = True
+            continue
+        if isinstance(coerced, str):
+            if not coerced:
+                has_skippable = True
+                continue
+            parsed, err = parse_numeric_quantity(raw_val)
+            if err is None and parsed is not None:
+                # Valid non-scalar numeric quantity (e.g. ">4", "0.5 ± 0.1", "10-25")
+                has_skippable = True
+                continue
+            if name in numeric_ctx_names or not numeric_ctx_names:
+                # Unparseable garbage string in numeric/ordering context must fail, not skip
+                return False
+    return has_skippable
 
 
 def validate_compute_expression(
