@@ -200,7 +200,7 @@ def parse_single_visual(
             config=config,
             stage_model=stage_cfg.model,
             max_attempts=max_attempts,
-            stage_name=f"parse_{visual.type}",
+            stage_name="rdkit_correction",
             context=context,
         )
         res.entities = corrected_entities

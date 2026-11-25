@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from functools import wraps
 from threading import Lock
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import dspy
 import requests
@@ -39,9 +39,9 @@ from ae.core.llm.history_logger import format_error_payload, get_extraction_log_
 
 logger = logging.getLogger(__name__)
 
-# Global rate limiters shared across all LM instances of the same provider.
-# Key: provider base_url, Value: RateLimiter instance.
-_PROVIDER_RATE_LIMITERS: Dict[str, "RateLimiter"] = {}
+# Global rate limiters shared across all LM instances of the same (base_url, model).
+# Key: (provider base_url, model), Value: RateLimiter instance.
+_PROVIDER_RATE_LIMITERS: Dict[Tuple[str, str], "RateLimiter"] = {}
 _PROVIDER_RATE_LIMITERS_LOCK = threading.Lock()
 
 
@@ -366,8 +366,10 @@ class BaseHTTPProvider(BaseLMProvider, ABC):
             elif config.provider == "api" and config.api:
                 provider_url = (config.api.base_url or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
             else:
-                provider_url = f"{config.provider}-{config.model}"
-            self._rate_limiter = _get_provider_rate_limiter(provider_url, config.rate_limit_delay)
+                provider_url = f"{config.provider}"
+            self._rate_limiter = _get_provider_rate_limiter(
+                provider_url, config.rate_limit_delay, model=config.model
+            )
 
         # Thread-local storage for latency tracking
         import threading
@@ -788,6 +790,7 @@ class OpenRouterLM(BaseHTTPProvider):
         import uuid
         self.session_id = getattr(api_cfg, "session_id", None) or f"ae-{uuid.uuid4().hex[:12]}"
         self.provider_preferences = getattr(api_cfg, "provider", None)
+        self.response_format = getattr(api_cfg, "response_format", None)
 
         if api_cfg.api_key is None:
             raise ValueError(
@@ -829,6 +832,10 @@ class OpenRouterLM(BaseHTTPProvider):
         reasoning = kwargs.get("reasoning", self.reasoning)
         if reasoning is not None:
             payload["reasoning"] = reasoning
+
+        response_format = kwargs.pop("response_format", self.response_format)
+        if response_format is not None:
+            payload["response_format"] = response_format
 
         if session_id is not None:
             payload["session_id"] = session_id
@@ -1203,21 +1210,25 @@ class RateLimiter:
         return wrapper
 
 
-def _get_provider_rate_limiter(base_url: str, delay: float) -> RateLimiter:
-    """Get or create a global rate limiter for a provider base_url.
+def _get_provider_rate_limiter(
+    base_url: str, delay: float, model: Optional[str] = None
+) -> RateLimiter:
+    """Get or create a global rate limiter for a (base_url, model) pair.
 
     Args:
-        base_url: The provider's base URL (used as unique key).
+        base_url: The provider's base URL.
         delay: Rate limit delay in seconds.
+        model: Model identifier so different models on the same gateway do not share limits.
 
     Returns:
-        Shared RateLimiter instance for this provider.
+        Shared RateLimiter instance for this (base_url, model).
     """
+    key = (base_url, model or "")
     with _PROVIDER_RATE_LIMITERS_LOCK:
-        if base_url not in _PROVIDER_RATE_LIMITERS:
-            _PROVIDER_RATE_LIMITERS[base_url] = RateLimiter(delay)
-            logger.debug(f"Created global rate limiter for {base_url} (delay={delay}s)")
-        return _PROVIDER_RATE_LIMITERS[base_url]
+        if key not in _PROVIDER_RATE_LIMITERS:
+            _PROVIDER_RATE_LIMITERS[key] = RateLimiter(delay)
+            logger.debug(f"Created global rate limiter for {key} (delay={delay}s)")
+        return _PROVIDER_RATE_LIMITERS[key]
 
 
 class LLMProviderRegistry:

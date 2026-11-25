@@ -37,7 +37,7 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 16384
+        max_output_tokens: 32768
         media_resolution: "high"
         thinking_level: "low"
         thinking_budget: null
@@ -60,7 +60,7 @@ ingestion:
         provider: "gemini"
         model: "gemini-3.8-flash"
         temperature: 0.0
-        max_output_tokens: 4096
+        max_output_tokens: 8192
         media_resolution: "high"
         thinking_level: "low"
         thinking_budget: null
@@ -93,7 +93,7 @@ ingestion:
           provider: "gemini"
           model: "gemini-3.8-flash"
           temperature: 0.0
-          max_output_tokens: 16384
+          max_output_tokens: 32768
           media_resolution: "high"
           thinking_level: "medium"
           thinking_budget: null
@@ -104,7 +104,7 @@ ingestion:
           provider: "gemini"
           model: "gemini-3.8-flash"
           temperature: 0.0
-          max_output_tokens: 16384
+          max_output_tokens: 32768
           media_resolution: "high"
           thinking_level: "medium"
           thinking_budget: null
@@ -115,7 +115,7 @@ ingestion:
           provider: "gemini"
           model: "gemini-3.8-flash"
           temperature: 0.0
-          max_output_tokens: 16384
+          max_output_tokens: 32768
           media_resolution: "high"
           thinking_level: "medium"
           thinking_budget: null

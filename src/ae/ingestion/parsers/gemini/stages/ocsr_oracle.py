@@ -11,10 +11,10 @@ Verifies VLM-extracted SMILES against:
 from __future__ import annotations
 
 import logging
-import os
 import re
 import shutil
 import tempfile
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -29,15 +29,19 @@ _SUBSCRIPT_TRANSLATION = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "012345
 _FORMULA_ELEMENT_RE = re.compile(r"([A-Z][a-z]?)(\d*)")
 _FORMULA_CANDIDATE_RE = re.compile(
     r"(?:HRMS|ESI-?MS|MS|Anal\.?\s*Calcd\.?(?:\s+for)?|Calcd\.?\s+for|Molecular\s+Formula)"
-    r"[^.\n;]{0,80}?([A-Z][A-Za-z0-9_{}\\]*H\d+[A-Za-z0-9_{}\\]*)",
+    r"(?:[^.\n;]|\.(?=\d)){0,80}?([A-Z][A-Za-z0-9_{}\\]*H\d+[A-Za-z0-9_{}\\]*)",
+    re.IGNORECASE,
+)
+_ADDUCT_SUFFIX_RE = re.compile(
+    r"(?:\[\s*M\s*\+\s*(Na|K|NH4)\s*\]|\(\s*M\s*\+\s*(Na|K|NH4)\s*\)|\bM\s*\+\s*(Na|K|NH4)\s*\^?\s*\+)",
     re.IGNORECASE,
 )
 _BARE_FORMULA_RE = re.compile(r"\b(C\d{1,3}H\d{1,3}(?:[A-Z][a-z]?\d*)*)\b")
 _SUBSTITUENT_LOCANT_RE = re.compile(
     r"\b(\d+(?:,\d+)*-(?:[a-z]+-)+\d*-[a-z]+(?:phenyl|pyridin-\d-yl|benzyl|benzoyl)"
-    r"|\d+-(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro|hydroxy|amino|trifluoromethyl)(?:phenyl|pyridin-\d-yl|benzyl)"
+    r"|\d+-(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro|hydroxy|amino|trifluoromethyl)(?:phenyl|pyridin-\d-yl|benzyl|benzoyl)"
     r"|(?:[omp]-|pyridin-[234]-yl\b)"
-    r"(?:(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro)(?:phenyl|benzyl))?)",
+    r"(?:(?:chloro|fluoro|bromo|iodo|methyl|methoxy|nitro)(?:phenyl|benzyl|benzoyl))?)",
     re.IGNORECASE,
 )
 _IUPAC_HEADING_RE = re.compile(
@@ -49,6 +53,7 @@ _IUPAC_HEADING_RE = re.compile(
 
 # In-process cache for py2opsin lookups to keep CPU overhead negligible on repeated calls
 _OPSIN_CACHE: dict[tuple[str, bool], Optional[str]] = {}
+_OPSIN_CACHE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -61,6 +66,7 @@ class OracleFinding:
     reasons: list[str] = field(default_factory=list)
     expected_iupac: Optional[str] = None
     expected_formula: Optional[str] = None
+    expected_adduct_context: str = ""
     expected_inchi_key: Optional[str] = None
     predicted_inchi_key: Optional[str] = None
     expected_smiles: Optional[str] = None
@@ -70,15 +76,16 @@ class OracleFinding:
 
 
 def _clean_latex_chemical_text(text: str) -> str:
-    """Normalize LaTeX/Markdown formatting inside chemical names and formulas."""
+    """Normalize LaTeX/Markdown formatting inside chemical names and formulas, preserving newlines."""
     cleaned = text.translate(_SUBSCRIPT_TRANSLATION)
     cleaned = re.sub(r"\\text\{([^}]*)\}", r"\1", cleaned)
     cleaned = re.sub(r"\\mathbf\{([^}]*)\}", r"\1", cleaned)
     cleaned = cleaned.replace("$", "").replace("*", "")
     cleaned = re.sub(r"_\{(\d+)\}", r"\1", cleaned)
     cleaned = re.sub(r"_(\d+)", r"\1", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
+    cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in cleaned.split("\n")]
+    return "\n".join(lines).strip()
 
 
 def parse_formula_counts(formula: str) -> dict[str, int]:
@@ -95,22 +102,69 @@ def parse_formula_counts(formula: str) -> dict[str, int]:
     return counts
 
 
-def formulas_compatible(predicted_formula: str, expected_formula: str) -> bool:
-    """Compare predicted neutral formula against prose formula (allowing [M+H]+ H diff)."""
-    pred_counts = parse_formula_counts(predicted_formula)
-    exp_counts = parse_formula_counts(expected_formula)
-    if not pred_counts or not exp_counts:
-        return True
+def _extract_adducts(text: str) -> set[str]:
+    """Extract normalized HRMS/ESI-MS adduct ion keys ('NA', 'K', 'NH4') from text."""
+    if not text:
+        return set()
+    cleaned = _clean_latex_chemical_text(text)
+    adducts: set[str] = set()
+    for match in _ADDUCT_SUFFIX_RE.finditer(cleaned):
+        token = next((g for g in match.groups() if g), None)
+        if token:
+            adducts.add(token.upper())
+    return adducts
 
-    # Heavy atoms must match identically
+
+def _formula_counts_match(pred_counts: dict[str, int], exp_counts: dict[str, int]) -> bool:
+    """Compare element counts allowing +/- 1 H difference ([M+H]+)."""
     pred_heavy = {k: v for k, v in pred_counts.items() if k != "H"}
     exp_heavy = {k: v for k, v in exp_counts.items() if k != "H"}
     if pred_heavy != exp_heavy:
         return False
-
-    # Allow exact H match or +/- 1 H (common when ESI-MS writes [M+H]+ formula directly)
     h_diff = abs(pred_counts.get("H", 0) - exp_counts.get("H", 0))
     return h_diff <= 1
+
+
+def formulas_compatible(
+    predicted_formula: str,
+    expected_formula: str,
+    *,
+    context: str = "",
+) -> bool:
+    """Compare predicted neutral formula against prose formula (allowing [M+H]+ and contextual adducts)."""
+    pred_counts = parse_formula_counts(predicted_formula)
+    exp_cleaned = _ADDUCT_SUFFIX_RE.sub(" ", _clean_latex_chemical_text(expected_formula))
+    exp_counts = parse_formula_counts(exp_cleaned)
+    if not pred_counts or not exp_counts:
+        return True
+
+    if _formula_counts_match(pred_counts, exp_counts):
+        return True
+
+    adducts = _extract_adducts(f"{expected_formula}\n{context}")
+    for adduct in adducts:
+        adjusted = dict(exp_counts)
+        if adduct == "NA" and adjusted.get("Na", 0) >= 1:
+            adjusted["Na"] -= 1
+            if adjusted["Na"] == 0:
+                del adjusted["Na"]
+        elif adduct == "K" and adjusted.get("K", 0) >= 1:
+            adjusted["K"] -= 1
+            if adjusted["K"] == 0:
+                del adjusted["K"]
+        elif adduct == "NH4" and adjusted.get("N", 0) >= 1 and adjusted.get("H", 0) >= 4:
+            adjusted["N"] -= 1
+            if adjusted["N"] == 0:
+                del adjusted["N"]
+            adjusted["H"] -= 4
+            if adjusted["H"] == 0:
+                del adjusted["H"]
+        else:
+            continue
+        if _formula_counts_match(pred_counts, adjusted):
+            return True
+
+    return False
 
 
 def _radical_pattern(rad_mol: Any):
@@ -153,7 +207,11 @@ def substructure_violations(mol: Any, finding: OracleFinding) -> list[str]:
 
     if finding.expected_formula:
         pred_f = rdMolDescriptors.CalcMolFormula(mol)
-        if not formulas_compatible(pred_f, finding.expected_formula):
+        if not formulas_compatible(
+            pred_f,
+            finding.expected_formula,
+            context=finding.expected_adduct_context,
+        ):
             violations.append(
                 f"formula '{pred_f}' incompatible with prose '{finding.expected_formula}'"
             )
@@ -188,22 +246,22 @@ def substructure_violations(mol: Any, finding: OracleFinding) -> list[str]:
 
 
 def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = False) -> dict[str, Optional[str]]:
-    """Resolve IUPAC names or radical substituents via local py2opsin with caching."""
+    """Resolve IUPAC names or radical substituents via local py2opsin with thread-safe caching."""
     results: dict[str, Optional[str]] = {}
     missing: list[str] = []
-    for name in names:
-        key = (name, wildcard_radicals)
-        if key in _OPSIN_CACHE:
-            results[name] = _OPSIN_CACHE[key]
-        elif name not in missing:
-            missing.append(name)
+    with _OPSIN_CACHE_LOCK:
+        for name in names:
+            key = (name, wildcard_radicals)
+            if key in _OPSIN_CACHE:
+                results[name] = _OPSIN_CACHE[key]
+            elif name not in missing:
+                missing.append(name)
 
     if not missing:
         return results
 
     if not shutil.which("java"):
         for name in missing:
-            _OPSIN_CACHE[(name, wildcard_radicals)] = None
             results[name] = None
         return results
 
@@ -211,31 +269,56 @@ def _resolve_iupac_via_opsin(names: list[str], *, wildcard_radicals: bool = Fals
         from py2opsin import py2opsin
     except ImportError:
         for name in missing:
-            _OPSIN_CACHE[(name, wildcard_radicals)] = None
             results[name] = None
         return results
 
-    tmp_fpath = str(Path(tempfile.gettempdir()) / f"ae_oracle_opsin_{os.getpid()}.txt")
+    tmp_fpath: Optional[str] = None
+    raw_list: list[Optional[str]] = [None] * len(missing)
+    succeeded = False
     try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            prefix="ae_oracle_opsin_",
+            suffix=".txt",
+            delete=False,
+            encoding="utf-8",
+        ) as tmp_file:
+            tmp_fpath = tmp_file.name
+
         raw = py2opsin(
             missing,
             allow_radicals=wildcard_radicals,
             wildcard_radicals=wildcard_radicals,
             tmp_fpath=tmp_fpath,
         )
-        raw_list = [raw] if isinstance(raw, str) else list(raw or [])
+        if isinstance(raw, bool) or raw is None:
+            logger.debug("py2opsin oracle lookup returned failure sentinel")
+        elif isinstance(raw, str):
+            raw_list = [raw]
+            succeeded = len(missing) == 1
+        else:
+            raw_seq = list(raw)
+            if len(raw_seq) == len(missing):
+                raw_list = raw_seq
+                succeeded = True
+            else:
+                logger.debug(
+                    f"py2opsin oracle lookup length mismatch: expected {len(missing)}, got {len(raw_seq)}"
+                )
     except Exception as exc:
         logger.debug(f"py2opsin oracle lookup failed: {exc}")
-        raw_list = [None] * len(missing)
     finally:
-        try:
-            Path(tmp_fpath).unlink(missing_ok=True)
-        except Exception:
-            pass
+        if tmp_fpath:
+            try:
+                Path(tmp_fpath).unlink(missing_ok=True)
+            except Exception:
+                pass
 
     for idx, name in enumerate(missing):
         val = str(raw_list[idx]).strip() if idx < len(raw_list) and raw_list[idx] else None
-        _OPSIN_CACHE[(name, wildcard_radicals)] = val
+        if succeeded:
+            with _OPSIN_CACHE_LOCK:
+                _OPSIN_CACHE[(name, wildcard_radicals)] = val
         results[name] = val
 
     return results
@@ -261,7 +344,7 @@ def extract_context_cues_for_labels(
 ) -> dict[str, dict[str, Any]]:
     """Extract anchored Formula/HRMS, IUPAC names, and explicit substituent motifs per compound label."""
     cues: dict[str, dict[str, Any]] = {
-        lbl: {"formulas": [], "iupac_names": [], "substituents": []}
+        lbl: {"formulas": [], "adducts": [], "iupac_names": [], "substituents": []}
         for lbl in labels
     }
     if not context or not context.strip() or not labels:
@@ -333,10 +416,20 @@ def extract_context_cues_for_labels(
                     raw_f = fm.group(1)
                     if parse_formula_counts(raw_f):
                         cues[target_lbl]["formulas"].append(raw_f)
+                        sent_adducts = _extract_adducts(sent)
+                        if not sent_adducts and len(matched_labels) == 1:
+                            sent_adducts = _extract_adducts(p_str)
+                        for add in sorted(sent_adducts):
+                            tag = f"[M+{add}]+" if add != "NA" else "[M+Na]+"
+                            if tag not in cues[target_lbl]["adducts"]:
+                                cues[target_lbl]["adducts"].append(tag)
                 # Explicit substituent phrases like "2-chloro-6-fluorophenyl"
                 for sm in _SUBSTITUENT_LOCANT_RE.finditer(sent):
                     sub_txt = sm.group(1).strip()
-                    if len(sub_txt) >= 8 and ("phenyl" in sub_txt.lower() or "pyridin" in sub_txt.lower()):
+                    sub_lower = sub_txt.lower()
+                    if len(sub_txt) >= 8 and any(
+                        tok in sub_lower for tok in ("phenyl", "pyridin", "benzyl", "benzoyl")
+                    ):
                         if sub_txt not in cues[target_lbl]["substituents"]:
                             cues[target_lbl]["substituents"].append(sub_txt)
 
@@ -396,6 +489,9 @@ def verify_entities_with_oracle(
             formulas = lbl_cues.get("formulas", [])
             if formulas:
                 finding.expected_formula = formulas[0]
+            adducts = lbl_cues.get("adducts", [])
+            if adducts:
+                finding.expected_adduct_context = " ".join(adducts)
 
             for nm in lbl_cues.get("iupac_names", []):
                 cand_smi = iupac_smiles_map.get(nm)
@@ -433,6 +529,8 @@ def verify_entities_with_oracle(
             finding.passed = False
             finding.provenance_status = "mismatch_flagged"
             finding.reasons.append(f"RDKit parse failed for {smiles!r}")
+            if hasattr(ent, "smiles_valid"):
+                ent.smiles_valid = False
             ent.provenance_status = "mismatch_flagged"
             ent.oracle_notes = "; ".join(finding.reasons)
             findings.append(finding)
@@ -468,7 +566,9 @@ def verify_entities_with_oracle(
         # 3. Formula / HRMS check
         if finding.expected_formula and not is_markush:
             exp_f = finding.expected_formula
-            if not formulas_compatible(pred_formula, exp_f):
+            if not formulas_compatible(
+                pred_formula, exp_f, context=finding.expected_adduct_context
+            ):
                 finding.passed = False
                 finding.reasons.append(
                     f"Formula mismatch: predicted '{pred_formula}' != expected '{exp_f}'"
@@ -499,8 +599,7 @@ def verify_entities_with_oracle(
                 rad_mol = Chem.MolFromSmiles(rad_smi)
                 if rad_mol is None:
                     continue
-                smarts = Chem.MolToSmarts(rad_mol).replace("[#0]", "[!#1]")
-                pat = Chem.MolFromSmarts(smarts)
+                pat = _radical_pattern(rad_mol)
                 if pat is not None and not mol.HasSubstructMatch(pat):
                     finding.passed = False
                     finding.reasons.append(

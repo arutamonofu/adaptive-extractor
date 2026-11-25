@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -19,6 +20,9 @@ from ae.ingestion.parsers.gemini.schemas import (
     Manifest,
     ManifestVisual,
     PlaceholderItem,
+)
+from ae.ingestion.parsers.gemini.stages.silent_error_guard import (
+    detect_manifest_silent_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,12 +47,12 @@ def get_required_pages(source: Union[list[PlaceholderItem], Manifest]) -> set[in
     pages: set[int] = set()
     if isinstance(source, Manifest):
         for v in source.visuals:
-            pages.update(v.pages)
+            pages.update(p for p in v.pages if isinstance(p, int) and p >= 1)
     else:
         for p in source:
-            if hasattr(p, "page") and p.page:
+            if hasattr(p, "page") and p.page and p.page >= 1:
                 pages.add(p.page)
-                if getattr(p, "id", "").startswith("Unlabeled") and p.page > 1:
+                if getattr(p, "id", "").lower().startswith("unlabeled") and p.page > 1:
                     pages.add(p.page - 1)
     return pages
 
@@ -109,37 +113,138 @@ def run_render_pages_with_visuals(
 run_render_pages = run_render_pages_with_visuals
 
 
+def _normalize_visual_id(vis_id: str) -> str:
+    """Normalize visual ID for fuzzy fallback matching (lowercase alphanumeric only)."""
+    return re.sub(r"[^a-z0-9]+", "", vis_id.lower())
+
+
+def _clean_visual_pages(
+    pages: list[int],
+    *,
+    exp_page: Optional[int] = None,
+    total_pages: Optional[int] = None,
+) -> list[int]:
+    """Validate, union expected placeholder page, sort, and deduplicate page numbers."""
+    cleaned: set[int] = set()
+    for p in pages:
+        if not isinstance(p, int) or p < 1:
+            continue
+        if total_pages is not None and p > total_pages:
+            continue
+        cleaned.add(p)
+
+    if exp_page and exp_page >= 1 and (total_pages is None or exp_page <= total_pages):
+        cleaned.add(exp_page)
+
+    return sorted(cleaned)
+
+
+def _is_silent_error_guard_enabled(cfg: Any) -> bool:
+    guard = getattr(getattr(cfg, "execution", None), "silent_error_guard", None)
+    if guard is None:
+        guard = getattr(getattr(cfg, "gemini", None), "silent_error_guard", True)
+    return bool(guard)
+
+
+def _build_manifest_contents(
+    placeholders: list[PlaceholderItem],
+    artifacts: ArtifactManager,
+) -> list[Any]:
+    """Build multimodal prompt contents for Stage 02 manifest classification."""
+    template = _read_prompt_template()
+    placeholders_list_str = json.dumps(
+        [{"id": p.id, "caption": p.caption, "page": p.page} for p in placeholders],
+        indent=2,
+        ensure_ascii=False,
+    )
+    prompt = template.replace("{placeholders_list}", placeholders_list_str)
+
+    target_pages = get_required_pages(placeholders)
+    contents: list[Any] = []
+    for p in sorted(target_pages):
+        page_img = artifacts.pages_dir / f"p{p}.png"
+        if page_img.exists() and page_img.stat().st_size > 0:
+            contents.append(f"=== Page {p} ===")
+            contents.append(page_img)
+    contents.append(prompt)
+    return contents
+
+
 def reconcile_manifest(
     model_manifest: Manifest,
     expected_placeholders: list[PlaceholderItem],
+    total_pages: Optional[int] = None,
 ) -> Manifest:
     """Reconcile model output against expected placeholders:
 
-    - Keeps only valid visuals matching expected placeholder IDs.
+    - Keeps only valid visuals matching expected placeholder IDs (with normalized fuzzy fallback).
+    - Deduplicates visual IDs inside visuals.
     - Adds missing placeholders to discarded_ids.
-    - Ensures visuals preserve page invariants.
+    - Validates 1 <= page <= total_pages (when known) and sorts/deduplicates pages.
     """
     expected_ids = {p.id for p in expected_placeholders}
     ph_page_map = {p.id: p.page for p in expected_placeholders}
 
+    norm_map: dict[str, list[str]] = {}
+    for eid in expected_ids:
+        norm_map.setdefault(_normalize_visual_id(eid), []).append(eid)
+
+    def _resolve_expected_id(raw_id: str) -> Optional[str]:
+        if raw_id in expected_ids:
+            return raw_id
+        cands = norm_map.get(_normalize_visual_id(raw_id), [])
+        if len(cands) == 1:
+            return cands[0]
+        return None
+
     valid_visuals: list[ManifestVisual] = []
+    valid_by_id: dict[str, ManifestVisual] = {}
     seen_ids: set[str] = set()
 
     for v in model_manifest.visuals:
-        if v.id not in expected_ids:
+        resolved_id = _resolve_expected_id(v.id)
+        if resolved_id is None:
             logger.warning(
                 f"Model returned unexpected visual ID '{v.id}'. Discarding.",
             )
             continue
 
-        exp_page = ph_page_map.get(v.id)
-        if exp_page and exp_page not in v.pages:
-            v.pages = sorted(set(v.pages) | {exp_page})
+        if resolved_id != v.id:
+            logger.warning(
+                f"Fuzzy-matched visual ID '{v.id}' to expected placeholder '{resolved_id}'.",
+            )
+            v = v.model_copy(update={"id": resolved_id})
 
+        exp_page = ph_page_map.get(resolved_id)
+        cleaned_pages = _clean_visual_pages(
+            list(v.pages),
+            exp_page=exp_page,
+            total_pages=total_pages,
+        )
+
+        if resolved_id in valid_by_id:
+            logger.warning(
+                f"Model returned duplicate visual ID '{resolved_id}'. Merging pages into first entry.",
+            )
+            existing = valid_by_id[resolved_id]
+            existing.pages = _clean_visual_pages(
+                list(existing.pages) + cleaned_pages,
+                exp_page=exp_page,
+                total_pages=total_pages,
+            )
+            continue
+
+        v = v.model_copy(update={"pages": cleaned_pages})
         valid_visuals.append(v)
-        seen_ids.add(v.id)
+        valid_by_id[resolved_id] = v
+        seen_ids.add(resolved_id)
 
-    discarded = set(model_manifest.discarded_ids)
+    discarded: set[str] = set()
+    for d in model_manifest.discarded_ids:
+        resolved_d = _resolve_expected_id(d)
+        if resolved_d is not None:
+            discarded.add(resolved_d)
+
     for p in expected_placeholders:
         if p.id not in seen_ids:
             discarded.add(p.id)
@@ -152,6 +257,58 @@ def reconcile_manifest(
     )
 
 
+def validate_and_retry_manifest(
+    client: GeminiClient,
+    raw_manifest: Manifest,
+    placeholders: list[PlaceholderItem],
+    artifacts: ArtifactManager,
+    cfg: Any,
+    *,
+    total_pages: Optional[int] = None,
+) -> Manifest:
+    """Reconcile manifest and retry once at temperature=0.5 if Stage 2 silent error is detected."""
+    manifest = reconcile_manifest(raw_manifest, placeholders, total_pages=total_pages)
+    if not _is_silent_error_guard_enabled(cfg):
+        return manifest
+
+    err_reason = detect_manifest_silent_error(raw_manifest, manifest, placeholders)
+    if not err_reason:
+        return manifest
+
+    logger.warning(
+        f"Silent-Error Guard triggered on Stage 02 manifest for '{artifacts.doc_name}' "
+        f"({err_reason}); retrying at temperature=0.5..."
+    )
+    if hasattr(client, "record_event"):
+        client.record_event("silent_error_retries")
+
+    stage_cfg = cfg.gemini.get_stage_config("classify")
+    contents = _build_manifest_contents(placeholders, artifacts)
+    try:
+        retry_raw = client.generate_structured(
+            contents,
+            response_schema=Manifest,
+            stage_name="classify",
+            model=stage_cfg.model,
+            temperature=0.5,
+            max_output_tokens=stage_cfg.max_output_tokens,
+            media_resolution=stage_cfg.media_resolution,
+            thinking_level=stage_cfg.thinking_level,
+            thinking_budget=stage_cfg.thinking_budget,
+        )
+    except Exception as exc:
+        logger.warning(
+            f"Silent-Error Guard Stage 02 retry failed for '{artifacts.doc_name}': {exc}"
+        )
+        return manifest
+
+    retry_manifest = reconcile_manifest(retry_raw, placeholders, total_pages=total_pages)
+    retry_err = detect_manifest_silent_error(retry_raw, retry_manifest, placeholders)
+    if retry_err is None or len(retry_manifest.visuals) > len(manifest.visuals):
+        return retry_manifest
+    return manifest
+
+
 def run_manifest_visuals(
     client: GeminiClient,
     placeholders_or_handle: Any,
@@ -159,6 +316,8 @@ def run_manifest_visuals(
     config_or_artifacts: Any,
     config: Any = None,
     file_handle: Any = None,
+    *,
+    total_pages: Optional[int] = None,
 ) -> Manifest:
     """Execute Stage 02: manifest visuals from placeholders and page previews."""
     if isinstance(placeholders_or_handle, list):
@@ -185,31 +344,7 @@ def run_manifest_visuals(
         f"Stage 02 [manifest_visuals]: Classifying {len(placeholders)} placeholders via Gemini…",
     )
     stage_cfg = cfg.gemini.get_stage_config("classify")
-    template = _read_prompt_template()
-
-    placeholders_list_str = json.dumps(
-        [{"id": p.id, "caption": p.caption, "page": p.page} for p in placeholders],
-        indent=2,
-        ensure_ascii=False,
-    )
-    prompt = template.replace("{placeholders_list}", placeholders_list_str)
-
-    # Gather page previews for all placeholder pages
-    target_pages: set[int] = set()
-    for ph in placeholders:
-        if ph.page:
-            target_pages.add(ph.page)
-        if ph.id.startswith("Unlabeled") and ph.page > 1:
-            target_pages.add(ph.page - 1)
-
-    contents: list[Any] = []
-    for p in sorted(target_pages):
-        page_img = artifacts.pages_dir / f"p{p}.png"
-        if page_img.exists() and page_img.stat().st_size > 0:
-            contents.append(f"=== Page {p} ===")
-            contents.append(page_img)
-
-    contents.append(prompt)
+    contents = _build_manifest_contents(placeholders, artifacts)
 
     raw_manifest = client.generate_structured(
         contents,
@@ -223,7 +358,14 @@ def run_manifest_visuals(
         thinking_budget=stage_cfg.thinking_budget,
     )
 
-    manifest = reconcile_manifest(raw_manifest, placeholders)
+    manifest = validate_and_retry_manifest(
+        client,
+        raw_manifest,
+        placeholders,
+        artifacts,
+        cfg,
+        total_pages=total_pages,
+    )
     artifacts.save_json(artifacts.manifest_json_path, manifest)
 
     total_visuals = len(manifest.visuals)
@@ -252,28 +394,7 @@ def build_manifest_visuals_batch_spec(
         return None
 
     stage_cfg = cfg.gemini.get_stage_config("classify")
-    template = _read_prompt_template()
-    placeholders_list_str = json.dumps(
-        [{"id": p.id, "caption": p.caption, "page": p.page} for p in placeholders],
-        indent=2,
-        ensure_ascii=False,
-    )
-    prompt = template.replace("{placeholders_list}", placeholders_list_str)
-
-    target_pages: set[int] = set()
-    for ph in placeholders:
-        if ph.page:
-            target_pages.add(ph.page)
-        if ph.id.startswith("Unlabeled") and ph.page > 1:
-            target_pages.add(ph.page - 1)
-
-    contents: list[Any] = []
-    for p in sorted(target_pages):
-        page_img = artifacts.pages_dir / f"p{p}.png"
-        if page_img.exists() and page_img.stat().st_size > 0:
-            contents.append(f"=== Page {p} ===")
-            contents.append(page_img)
-    contents.append(prompt)
+    contents = _build_manifest_contents(placeholders, artifacts)
 
     return BatchRequestSpec(
         key=f"{artifacts.doc_name}__classify",

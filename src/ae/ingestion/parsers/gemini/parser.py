@@ -8,8 +8,10 @@ import shutil
 from pathlib import Path
 from typing import Optional, Union
 
+import pymupdf as fitz
+
 from ae.core.config.settings import IngestionConfig
-from ae.core.exceptions import GeminiEmptyResponseError
+from ae.core.exceptions import GeminiEmptyResponseError, GeminiMaxTokensError
 from ae.ingestion.parsers.base import BaseParser
 from ae.ingestion.parsers.gemini.artifacts import ArtifactManager
 from ae.ingestion.parsers.gemini.client import BatchRequestSpec, GeminiClient
@@ -22,7 +24,7 @@ from ae.ingestion.parsers.gemini.stages import (
 )
 from ae.ingestion.parsers.gemini.stages.manifest_visuals import (
     build_manifest_visuals_batch_spec,
-    reconcile_manifest,
+    validate_and_retry_manifest,
 )
 from ae.ingestion.parsers.gemini.stages.parse_text import (
     _extract_pdf_pages_text,
@@ -30,10 +32,10 @@ from ae.ingestion.parsers.gemini.stages.parse_text import (
     _is_silent_error_guard_enabled,
     _read_prompt_template,
     assemble_parse_text_chunks,
+    atomic_write_text,
     build_parse_text_batch_specs,
-)
-from ae.ingestion.parsers.gemini.stages.silent_error_guard import (
-    detect_parse_text_silent_error,
+    strip_outer_code_fences,
+    validate_and_retry_chunk_markdown,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,6 +119,9 @@ class GeminiParser(BaseParser):
         elif from_stage:
             artifacts.invalidate_from_stage(from_stage)
 
+        with fitz.open(pdf_path) as pdf_doc:
+            total_pages = len(pdf_doc)
+
         scope_cm = (
             self.client.doc_scope(doc_name)
             if hasattr(self.client, "doc_scope")
@@ -145,6 +150,7 @@ class GeminiParser(BaseParser):
                 placeholders,
                 artifacts,
                 self.cfg,
+                total_pages=total_pages,
             )
 
             # Ensure any pages introduced by manifest objects are rendered for localization
@@ -198,6 +204,9 @@ class GeminiParser(BaseParser):
             elif from_stage:
                 artifacts.invalidate_from_stage(from_stage)
 
+            with fitz.open(pdf_path) as pdf_doc:
+                total_pages = len(pdf_doc)
+
             if artifacts.has_parse_text_artifact():
                 clean_md, placeholders = run_parse_text(
                     self.client, None, artifacts, self.cfg, pdf_path=pdf_path
@@ -207,6 +216,7 @@ class GeminiParser(BaseParser):
                     "clean_md": clean_md,
                     "placeholders": placeholders,
                     "chunks": [],
+                    "total_pages": total_pages,
                 }
                 continue
 
@@ -215,10 +225,12 @@ class GeminiParser(BaseParser):
             )
             tmp_dirs.append(tmp_dir)
             all_chunk_specs.extend(specs)
+            has_uncached = len(specs) > 0
             doc_states[pdf_path] = {
                 "artifacts": artifacts,
                 "chunks": chunks,
-                "page_texts": _extract_pdf_pages_text(pdf_path) if use_guard else {},
+                "total_pages": total_pages,
+                "page_texts": _extract_pdf_pages_text(pdf_path) if (use_guard and has_uncached) else {},
             }
 
         try:
@@ -247,36 +259,15 @@ class GeminiParser(BaseParser):
                         key = f"{artifacts.doc_name}__chunk_{start_page}_{end_page}"
                         item_res = batch_chunk_results.get(key)
                         chunk_md = item_res.text if (item_res and not item_res.error) else None
+                        initial_max_tokens_exc: Optional[GeminiMaxTokensError] = None
 
                         if not chunk_md or not chunk_md.strip():
                             logger.warning(
                                 f"Batch item '{key}' failed/empty ({getattr(item_res, 'error', None)}); "
                                 f"falling back to sync generate_text."
                             )
-                            chunk_md = _generate_chunk_markdown(
-                                self.client,
-                                chunk_pdf_path,
-                                start_page,
-                                end_page,
-                                static_sys_prompt,
-                                stage1_cfg,
-                                self.cfg,
-                            )
-
-                        if use_guard:
-                            raw_txt = "\n".join(
-                                page_texts.get(p, "") for p in range(start_page, end_page + 1)
-                            )
-                            err_reason = detect_parse_text_silent_error(
-                                chunk_md, pdf_page_text=raw_txt
-                            )
-                            if err_reason:
-                                logger.warning(
-                                    f"Silent-Error Guard on batch chunk '{key}' ({err_reason}); "
-                                    f"retrying sync at temperature=0.5."
-                                )
-                                self.client.record_event("silent_error_retries")
-                                retry_md = _generate_chunk_markdown(
+                            try:
+                                chunk_md = _generate_chunk_markdown(
                                     self.client,
                                     chunk_pdf_path,
                                     start_page,
@@ -284,12 +275,33 @@ class GeminiParser(BaseParser):
                                     static_sys_prompt,
                                     stage1_cfg,
                                     self.cfg,
-                                    temperature_override=0.5,
                                 )
-                                if retry_md and retry_md.strip():
-                                    chunk_md = retry_md
+                            except GeminiMaxTokensError as exc:
+                                if not use_guard:
+                                    raise
+                                initial_max_tokens_exc = exc
 
-                        cache_path.write_text(chunk_md, encoding="utf-8")
+                        if use_guard:
+                            raw_txt = "\n".join(
+                                page_texts.get(p, "") for p in range(start_page, end_page + 1)
+                            )
+                            chunk_md = validate_and_retry_chunk_markdown(
+                                client=self.client,
+                                chunk_md=chunk_md,
+                                chunk_pdf_path=chunk_pdf_path,
+                                start_page=start_page,
+                                end_page=end_page,
+                                static_system_prompt=static_sys_prompt,
+                                stage_cfg=stage1_cfg,
+                                config=self.cfg,
+                                raw_pdf_txt=raw_txt,
+                                doc_name=artifacts.doc_name,
+                                initial_max_tokens_exc=initial_max_tokens_exc,
+                            )
+                        else:
+                            chunk_md = strip_outer_code_fences(chunk_md or "")
+
+                        atomic_write_text(cache_path, chunk_md)
                         chunk_texts.append(chunk_md)
 
                     clean_md, placeholders = assemble_parse_text_chunks(
@@ -298,6 +310,9 @@ class GeminiParser(BaseParser):
                     state["clean_md"] = clean_md
                     state["placeholders"] = placeholders
         finally:
+            for spec in all_chunk_specs:
+                for handle in getattr(spec, "uploaded_handles", []) or []:
+                    self.client.delete_file(handle)
             for td in tmp_dirs:
                 if td.exists():
                     shutil.rmtree(td, ignore_errors=True)
@@ -324,16 +339,24 @@ class GeminiParser(BaseParser):
             artifacts = state["artifacts"]
             placeholders = state["placeholders"]
             clean_md = state["clean_md"]
+            total_pages = state.get("total_pages")
             with self.client.doc_scope(artifacts.doc_name):
                 if artifacts.has_manifest_artifact():
                     manifest = run_manifest_visuals(
-                        self.client, placeholders, artifacts, self.cfg
+                        self.client, placeholders, artifacts, self.cfg, total_pages=total_pages
                     )
                 else:
                     c_key = f"{artifacts.doc_name}__classify"
                     c_res = classify_results.get(c_key)
                     if c_res and not c_res.error and isinstance(c_res.parsed, Manifest):
-                        manifest = reconcile_manifest(c_res.parsed, placeholders)
+                        manifest = validate_and_retry_manifest(
+                            self.client,
+                            c_res.parsed,
+                            placeholders,
+                            artifacts,
+                            self.cfg,
+                            total_pages=total_pages,
+                        )
                         artifacts.save_json(artifacts.manifest_json_path, manifest)
                     else:
                         logger.warning(
@@ -341,7 +364,7 @@ class GeminiParser(BaseParser):
                             f"({getattr(c_res, 'error', None)}); falling back to sync."
                         )
                         manifest = run_manifest_visuals(
-                            self.client, placeholders, artifacts, self.cfg
+                            self.client, placeholders, artifacts, self.cfg, total_pages=total_pages
                         )
 
                 run_render_pages_with_visuals(pdf_path, manifest, artifacts, self.cfg)

@@ -512,3 +512,49 @@ compute_validators:
             False,
             "topology_mismatch",
         )
+
+    def test_thousands_separator_european_decimal_and_escalation(self):
+        from ae.core.schema.quantity_validators import (
+            compare_numeric_quantity_values,
+            compare_unit_values,
+            parse_numeric_quantity,
+            validate_record_compute_validators,
+        )
+
+        # Thousands separator vs decimal comma vs mixed European/US
+        assert parse_numeric_quantity("1,000")[0].value == 1000.0
+        assert parse_numeric_quantity("1,000,000")[0].value == 1000000.0
+        assert parse_numeric_quantity("19,1")[0].value == 19.1
+        assert parse_numeric_quantity("0,001")[0].value == 0.001
+        assert parse_numeric_quantity("1.500,25")[0].value == 1500.25
+        assert parse_numeric_quantity("1,500.25")[0].value == 1500.25
+        assert compare_numeric_quantity_values("1,000", "1.0") == (False, "numeric_mismatch")
+        assert compare_numeric_quantity_values("1,000", "1000") == (True, None)
+        assert compare_numeric_quantity_values("1.500,25", "1500.25") == (True, None)
+
+        # Unparseable/non-standard expressions escalate as (None, None)
+        assert compare_numeric_quantity_values("1.5 × 10⁻³", "0.0015") == (None, None)
+        assert compare_numeric_quantity_values("50%", "0.5") == (None, None)
+        assert compare_numeric_quantity_values("10 (SD 2)", "10 ± 2") == (None, None)
+
+        # Pint offset temperature units & unparseable domain units
+        pytest.importorskip("pint")
+        assert compare_unit_values("°C", "degC") == (True, None)
+        assert compare_unit_values("°C", "K") == (None, None)
+        assert compare_unit_values("°C", "K", strict_scale=True) == (False, "unit_scale_mismatch")
+        assert compare_unit_values("IU/mL", "U/mL") == (None, None)
+        assert compare_unit_values("CFU/mL", "cells/mL") == (None, None)
+
+        # Compute validators preserve columns named value/val/x and safely handle None/inequalities
+        pytest.importorskip("simpleeval")
+        col_specs = [
+            {"name": "compute_validators", "expression": "value > 0 and val == 2 and x == 5"},
+        ]
+        assert validate_record_compute_validators({"value": "10", "val": "2", "x": "5"}, col_specs)[0].valid is True
+        assert validate_record_compute_validators({"value": "-1", "val": "2", "x": "5"}, col_specs)[0].valid is False
+
+        ineq_specs = [
+            {"name": "compute_validators", "expression": "MIC > 0 and MIC <= 10000"},
+        ]
+        for rec in ({"MIC": None}, {"MIC": ">4"}, {"MIC": "0.5 ± 0.1"}):
+            assert validate_record_compute_validators(rec, ineq_specs)[0].valid is True

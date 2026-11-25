@@ -996,3 +996,387 @@ def test_per_column_pareto_auto_rollback_restores_regressed_column_only(tmp_path
     assert s2["pareto_rollback_history"][0]["accepted"] is True
     assert "iter1_smiles" in (iter2_cols / "smiles.json").read_text(encoding="utf-8")
 
+
+def test_evaluate_prompt_on_val_per_field_f1_uses_raw_counts_and_bounded_fallback(tmp_path):
+    """per_field_f1 uses raw field_correct/field_total when present and stays <= 1.0 even when n_p != n_g."""
+    import dspy
+
+    ingest_dir = tmp_path / "ingestion"
+    ingest_dir.mkdir(parents=True, exist_ok=True)
+    (ingest_dir / "val_1.md").write_text("Val 1", encoding="utf-8")
+    (ingest_dir / "val_2.md").write_text("Val 2", encoding="utf-8")
+
+    gt_path = tmp_path / "gt.csv"
+    gt_path.write_text("pdf,smiles,bacteria\nval_1,CCO,S. aureus\nval_2,CCN,E. coli\n", encoding="utf-8")
+    schema_path = tmp_path / "schema.yaml"
+    schema_path.write_text(
+        "name: test\nfloat_tolerance: 0.01\nfields:\n  smiles:\n    type: str\n  bacteria:\n    type: str\n"
+        "compare_fields:\n  - smiles\n  - bacteria\n",
+        encoding="utf-8",
+    )
+    gen_prompt = tmp_path / "generated_instruction.txt"
+    gen_prompt.write_text("Prompt", encoding="utf-8")
+
+    ctx = MagicMock(spec=RunContext)
+    ctx.schema_path = schema_path
+    ctx.generated_prompt_path = gen_prompt
+    ctx.active_gt_path = gt_path
+    ctx.ingestion_dir = ingest_dir
+    ctx.config_path = None
+    ctx.re_client = MagicMock()
+    mock_ext = MagicMock()
+    mock_ext.forward.return_value = dspy.Prediction(extracted_data={"records": []})
+    ctx.re_client.create_validation_extractor.return_value = mock_ext
+
+    # Case 1: Raw field_correct / field_total provided with n_p != n_g (e.g. 10 preds vs 5 GTs)
+    mock_matcher = MagicMock()
+    mock_matcher.fields = ["smiles", "bacteria"]
+    mock_matcher.get_detailed_report.side_effect = [
+        {
+            "f1": 0.8,
+            "strict_f1": 0.7,
+            "counts": {"preds": 10, "gts": 5},
+            "fields": {"smiles": 1.0, "bacteria": 0.5},
+            "strict_fields": {"smiles": 0.8, "bacteria": 0.5},
+            "field_correct": {"smiles": 10, "bacteria": 5},
+            "field_total": {"smiles": 10, "bacteria": 10},
+            "strict_field_correct": {"smiles": 8, "bacteria": 5},
+            "strict_field_total": {"smiles": 10, "bacteria": 10},
+        },
+        {
+            "f1": 0.9,
+            "strict_f1": 0.6,
+            "counts": {"preds": 2, "gts": 2},
+            "fields": {"smiles": 1.0, "bacteria": 1.0},
+            "strict_fields": {"smiles": 0.5, "bacteria": 1.0},
+            "field_correct": {"smiles": 2, "bacteria": 2},
+            "field_total": {"smiles": 2, "bacteria": 2},
+            "strict_field_correct": {"smiles": 1, "bacteria": 2},
+            "strict_field_total": {"smiles": 2, "bacteria": 2},
+        },
+    ]
+    mock_metric = MagicMock()
+    mock_metric.matcher = mock_matcher
+    mock_metric._extract_records.return_value = []
+
+    graph = SemanticOptimizationGraph(context=ctx, train_doc_ids=[], val_doc_ids=["val_1", "val_2"])
+    with patch("ae.core.evaluation.TaskMetric", return_value=mock_metric):
+        out = graph._evaluate_prompt_on_val(
+            ctx=ctx,
+            val_ids=["val_1", "val_2"],
+            eval_schema_path=schema_path,
+            generated_path=gen_prompt,
+            selection_metric="micro_f1",
+            enable_judge=True,
+        )
+
+    assert out["per_field_f1"]["smiles"] == 1.0
+    assert out["per_field_f1"]["bacteria"] == pytest.approx(7.0 / 12.0, abs=1e-6)
+    assert out["strict_per_field_f1"]["smiles"] == pytest.approx(9.0 / 12.0, abs=1e-6)
+    assert out["strict_per_field_f1"]["bacteria"] == pytest.approx(7.0 / 12.0, abs=1e-6)
+
+    # Case 2: Fallback without raw counts when n_p=10, n_g=5 must NEVER exceed 1.0
+    mock_matcher_legacy = MagicMock()
+    mock_matcher_legacy.fields = ["smiles", "bacteria"]
+    mock_matcher_legacy.get_detailed_report.return_value = {
+        "f1": 0.67,
+        "strict_f1": 0.67,
+        "counts": {"preds": 10, "gts": 5},
+        "fields": {"smiles": 1.0, "bacteria": 0.8},
+        "strict_fields": {"smiles": 1.0, "bacteria": 0.6},
+    }
+    mock_metric_legacy = MagicMock()
+    mock_metric_legacy.matcher = mock_matcher_legacy
+    mock_metric_legacy._extract_records.return_value = []
+
+    with patch("ae.core.evaluation.TaskMetric", return_value=mock_metric_legacy):
+        out_legacy = graph._evaluate_prompt_on_val(
+            ctx=ctx,
+            val_ids=["val_1"],
+            eval_schema_path=schema_path,
+            generated_path=gen_prompt,
+            selection_metric="micro_f1",
+            enable_judge=False,
+        )
+
+    assert out_legacy["per_field_f1"]["smiles"] == 1.0
+    assert out_legacy["per_field_f1"]["bacteria"] == 0.8
+    assert out_legacy["strict_per_field_f1"]["bacteria"] == 0.6
+
+
+def test_dual_gate_pareto_rollback_and_sync_on_rejected_rollback(tmp_path):
+    """Strict per-field regression triggers dual-gate rollback; rejected rollback syncs iter_k artifacts from best_k."""
+    from ae.semantic_optimization.context import ArtifactManager
+
+    ingest_dir = tmp_path / "ingestion"
+    ingest_dir.mkdir(parents=True, exist_ok=True)
+    (ingest_dir / "val_1.md").write_text("Val 1", encoding="utf-8")
+
+    gt_path = tmp_path / "gt.csv"
+    gt_path.write_text("pdf,smiles,bacteria\nval_1,CCO,S. aureus\n", encoding="utf-8")
+    schema_path = tmp_path / "schema.yaml"
+    schema_path.write_text(
+        "name: test\nfloat_tolerance: 0.01\nfields:\n  smiles:\n    type: str\n  bacteria:\n    type: str\n"
+        "compare_fields:\n  - smiles\n  - bacteria\n",
+        encoding="utf-8",
+    )
+    gen_prompt_path = tmp_path / "generated_instruction.txt"
+    gen_schema_path = tmp_path / "generated_schema.yaml"
+    gen_schema_path.write_text(schema_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    iter1_prompt = (
+        "Preamble\n\n---\n\n"
+        "RECORD SELECTION\n\nInclude ONLY records satisfying:\n- Best row rule.\n\n---\n\n"
+        "SMILES\n\nExtract ONLY if satisfy:\n- Best SMILES rule.\n\n---\n\n"
+        "BACTERIA\n\nExtract ONLY if satisfy:\n- Best bacteria rule.\n"
+    )
+    iter2_prompt = (
+        "Preamble\n\n---\n\n"
+        "RECORD SELECTION\n\nInclude ONLY records satisfying:\n- Bad row rule.\n\n---\n\n"
+        "SMILES\n\nExtract ONLY if satisfy:\n- Bad SMILES rule.\n\n---\n\n"
+        "BACTERIA\n\nExtract ONLY if satisfy:\n- New bacteria rule.\n"
+    )
+
+    art_dir = tmp_path / "artifacts"
+    iter1_gen = art_dir / "iterations" / "iter_1" / "04_generalization"
+    iter2_gen = art_dir / "iterations" / "iter_2" / "04_generalization"
+    (iter1_gen / "columns").mkdir(parents=True, exist_ok=True)
+    (iter2_gen / "columns").mkdir(parents=True, exist_ok=True)
+
+    (iter1_gen / "candidate_prompt.txt").write_text(iter1_prompt, encoding="utf-8")
+    (iter1_gen / "rows.json").write_text('{"rows": "best_rows"}', encoding="utf-8")
+    (iter1_gen / "columns" / "smiles.json").write_text('{"col": "best_smiles"}', encoding="utf-8")
+    (iter1_gen / "columns" / "bacteria.json").write_text('{"col": "best_bacteria"}', encoding="utf-8")
+    (iter1_gen / "candidate_schema.yaml").write_text("name: best_schema\nfields:\n  smiles:\n    type: str\n  bacteria:\n    type: str\n", encoding="utf-8")
+
+    (iter2_gen / "candidate_prompt.txt").write_text(iter2_prompt, encoding="utf-8")
+    (iter2_gen / "rows.json").write_text('{"rows": "bad_rows"}', encoding="utf-8")
+    (iter2_gen / "columns" / "smiles.json").write_text('{"col": "bad_smiles"}', encoding="utf-8")
+    (iter2_gen / "columns" / "bacteria.json").write_text('{"col": "bad_bacteria"}', encoding="utf-8")
+    (iter2_gen / "candidate_schema.yaml").write_text("name: bad_schema\nfields:\n  smiles:\n    type: str\n  bacteria:\n    type: str\n", encoding="utf-8")
+
+    ctx = MagicMock(spec=RunContext)
+    ctx.artifacts_dir = art_dir
+    ctx.artifacts = ArtifactManager(art_dir, resume=False)
+    ctx.schema_path = schema_path
+    ctx.generated_schema_path = gen_schema_path
+    ctx.generated_prompt_path = gen_prompt_path
+    ctx.active_gt_path = gt_path
+    ctx.ingestion_dir = ingest_dir
+    ctx.config_path = None
+    ctx.resume = False
+    ctx.enable_semantic_judge = True
+    ctx.selection_metric = "micro_f1"
+    ctx.pareto_regression_threshold = 0.01
+    ctx.re_client = MagicMock()
+    ctx.re_client.extraction_config = MagicMock(model="test-model")
+
+    graph = SemanticOptimizationGraph(
+        context=ctx, train_doc_ids=["d1", "d2"], val_doc_ids=["val_1"], pareto_regression_threshold=0.01
+    )
+
+    # Iter 1 sets best_strict_per_field_f1 = {"smiles": 1.0, "bacteria": 0.9}
+    gen_prompt_path.write_text(iter1_prompt, encoding="utf-8")
+    with patch.object(
+        graph,
+        "_evaluate_prompt_on_val",
+        return_value={
+            "f1_score": 0.90,
+            "macro_f1": 0.90,
+            "micro_f1": 0.90,
+            "strict_f1_score": 0.90,
+            "strict_micro_f1": 0.90,
+            "strict_macro_f1": 0.90,
+            "per_field_f1": {"smiles": 1.0, "bacteria": 0.9},
+            "strict_per_field_f1": {"smiles": 1.0, "bacteria": 0.9},
+            "doc_scores": {"val_1": {"f1": 0.90, "gts": 1}},
+            "evaluated_count": 1,
+        },
+    ):
+        s1 = graph._evaluate_val(
+            {
+                "context": ctx,
+                "val_doc_ids": ["val_1"],
+                "current_iteration": 1,
+                "val_f1_history": [],
+                "val_per_field_history": [],
+                "best_f1": 0.0,
+                "best_per_field_f1": {},
+                "best_strict_f1": 0.0,
+                "best_strict_per_field_f1": {},
+                "best_iteration": 1,
+                "best_prompt": "",
+                "pareto_rollback_history": [],
+            }
+        )
+
+    # Iter 2: semantic per_field_f1 stays 1.0/0.95 (masked by judge!), but strict_per_field_f1 for smiles drops 1.0 -> 0.50!
+    # Post-rollback repaired_f1=0.85 (> pre-rollback 0.70, but < best_f1=0.90) -> must be REJECTED and iter_2 synced from iter_1!
+    gen_prompt_path.write_text(iter2_prompt, encoding="utf-8")
+    eval_side_effects = [
+        {
+            "f1_score": 0.70,
+            "macro_f1": 0.70,
+            "micro_f1": 0.70,
+            "strict_f1_score": 0.60,
+            "strict_micro_f1": 0.60,
+            "strict_macro_f1": 0.60,
+            "per_field_f1": {"smiles": 1.0, "bacteria": 0.95},
+            "strict_per_field_f1": {"smiles": 0.50, "bacteria": 0.95},
+            "doc_scores": {"val_1": {"f1": 0.70, "gts": 1}},
+            "evaluated_count": 1,
+        },
+        {
+            "f1_score": 0.85,  # > 0.70 pre-rollback, but < 0.90 best_f1 -> must NOT be accepted!
+            "macro_f1": 0.85,
+            "micro_f1": 0.85,
+            "strict_f1_score": 0.85,
+            "strict_micro_f1": 0.85,
+            "strict_macro_f1": 0.85,
+            "per_field_f1": {"smiles": 1.0, "bacteria": 0.95},
+            "strict_per_field_f1": {"smiles": 1.0, "bacteria": 0.95},
+            "doc_scores": {"val_1": {"f1": 0.85, "gts": 1}},
+            "evaluated_count": 1,
+        },
+    ]
+    with patch.object(graph, "_evaluate_prompt_on_val", side_effect=eval_side_effects):
+        s2 = graph._evaluate_val(
+            {
+                "context": ctx,
+                "val_doc_ids": ["val_1"],
+                "current_iteration": 2,
+                "val_f1_history": s1["val_f1_history"],
+                "val_per_field_history": s1["val_per_field_history"],
+                "best_f1": s1["best_f1"],
+                "best_per_field_f1": s1["best_per_field_f1"],
+                "best_strict_f1": s1["best_strict_f1"],
+                "best_strict_per_field_f1": s1["best_strict_per_field_f1"],
+                "best_iteration": s1["best_iteration"],
+                "best_prompt": s1["best_prompt"],
+                "pareto_rollback_history": s1["pareto_rollback_history"],
+            }
+        )
+
+    assert len(s2["pareto_rollback_history"]) == 1
+    ev = s2["pareto_rollback_history"][0]
+    assert ev["regressed_fields"] == ["smiles"]
+    assert ev["accepted"] is False
+    # Active prompt and all iter_2 generalization artifacts must be synced from iter_1!
+    assert gen_prompt_path.read_text(encoding="utf-8") == iter1_prompt
+    assert (iter2_gen / "candidate_prompt.txt").read_text(encoding="utf-8") == iter1_prompt
+    assert (iter2_gen / "rows.json").read_text(encoding="utf-8") == '{"rows": "best_rows"}'
+    assert (iter2_gen / "columns" / "smiles.json").read_text(encoding="utf-8") == '{"col": "best_smiles"}'
+    assert (iter2_gen / "columns" / "bacteria.json").read_text(encoding="utf-8") == '{"col": "best_bacteria"}'
+    assert "best_schema" in (iter2_gen / "candidate_schema.yaml").read_text(encoding="utf-8")
+    assert "best_schema" in gen_schema_path.read_text(encoding="utf-8")
+
+
+def test_pareto_rollback_rolls_back_rows_json_when_all_columns_regress(tmp_path):
+    """When all columns regress, rollback_targets includes 'rows' and rows.json is restored from best_k."""
+    from ae.semantic_optimization.context import ArtifactManager
+
+    ingest_dir = tmp_path / "ingestion"
+    ingest_dir.mkdir(parents=True, exist_ok=True)
+    (ingest_dir / "val_1.md").write_text("Val 1", encoding="utf-8")
+    gt_path = tmp_path / "gt.csv"
+    gt_path.write_text("pdf,smiles,bacteria\nval_1,CCO,S. aureus\n", encoding="utf-8")
+    schema_path = tmp_path / "schema.yaml"
+    schema_path.write_text(
+        "name: test\nfloat_tolerance: 0.01\nfields:\n  smiles:\n    type: str\n  bacteria:\n    type: str\n"
+        "compare_fields:\n  - smiles\n  - bacteria\n",
+        encoding="utf-8",
+    )
+    gen_prompt_path = tmp_path / "generated_instruction.txt"
+
+    iter1_prompt = (
+        "Preamble\n\n---\n\n"
+        "RECORD SELECTION\n\nInclude ONLY records satisfying:\n- Best row rule.\n\n---\n\n"
+        "SMILES\n\nExtract ONLY if satisfy:\n- Good SMILES.\n\n---\n\n"
+        "BACTERIA\n\nExtract ONLY if satisfy:\n- Good bacteria.\n"
+    )
+    iter2_prompt = (
+        "Preamble\n\n---\n\n"
+        "RECORD SELECTION\n\nInclude ONLY records satisfying:\n- Broken row rule.\n\n---\n\n"
+        "SMILES\n\nExtract ONLY if satisfy:\n- Broken SMILES.\n\n---\n\n"
+        "BACTERIA\n\nExtract ONLY if satisfy:\n- Broken bacteria.\n"
+    )
+
+    art_dir = tmp_path / "artifacts"
+    iter1_gen = art_dir / "iterations" / "iter_1" / "04_generalization"
+    iter2_gen = art_dir / "iterations" / "iter_2" / "04_generalization"
+    (iter1_gen / "columns").mkdir(parents=True, exist_ok=True)
+    (iter2_gen / "columns").mkdir(parents=True, exist_ok=True)
+    (iter1_gen / "rows.json").write_text('{"rows": "iter1_rows"}', encoding="utf-8")
+    (iter2_gen / "rows.json").write_text('{"rows": "iter2_broken_rows"}', encoding="utf-8")
+
+    ctx = MagicMock(spec=RunContext)
+    ctx.artifacts_dir = art_dir
+    ctx.artifacts = ArtifactManager(art_dir, resume=False)
+    ctx.schema_path = schema_path
+    ctx.generated_schema_path = None
+    ctx.generated_prompt_path = gen_prompt_path
+    ctx.active_gt_path = gt_path
+    ctx.ingestion_dir = ingest_dir
+    ctx.config_path = None
+    ctx.resume = False
+    ctx.enable_semantic_judge = False
+    ctx.selection_metric = "micro_f1"
+    ctx.pareto_regression_threshold = 0.01
+    ctx.re_client = MagicMock()
+    ctx.re_client.extraction_config = MagicMock(model="test-model")
+
+    graph = SemanticOptimizationGraph(
+        context=ctx, train_doc_ids=["d1", "d2"], val_doc_ids=["val_1"], pareto_regression_threshold=0.01
+    )
+    gen_prompt_path.write_text(iter2_prompt, encoding="utf-8")
+
+    eval_side_effects = [
+        {
+            "f1_score": 0.50,
+            "macro_f1": 0.50,
+            "micro_f1": 0.50,
+            "strict_f1_score": 0.50,
+            "strict_micro_f1": 0.50,
+            "strict_macro_f1": 0.50,
+            "per_field_f1": {"smiles": 0.5, "bacteria": 0.5},
+            "strict_per_field_f1": {"smiles": 0.5, "bacteria": 0.5},
+            "doc_scores": {"val_1": {"f1": 0.50, "gts": 1}},
+            "evaluated_count": 1,
+        },
+        {
+            "f1_score": 0.90,
+            "macro_f1": 0.90,
+            "micro_f1": 0.90,
+            "strict_f1_score": 0.90,
+            "strict_micro_f1": 0.90,
+            "strict_macro_f1": 0.90,
+            "per_field_f1": {"smiles": 0.9, "bacteria": 0.9},
+            "strict_per_field_f1": {"smiles": 0.9, "bacteria": 0.9},
+            "doc_scores": {"val_1": {"f1": 0.90, "gts": 1}},
+            "evaluated_count": 1,
+        },
+    ]
+    with patch.object(graph, "_evaluate_prompt_on_val", side_effect=eval_side_effects):
+        s2 = graph._evaluate_val(
+            {
+                "context": ctx,
+                "val_doc_ids": ["val_1"],
+                "current_iteration": 2,
+                "val_f1_history": [0.90],
+                "val_per_field_history": [{"smiles": 0.9, "bacteria": 0.9}],
+                "best_f1": 0.90,
+                "best_per_field_f1": {"smiles": 0.9, "bacteria": 0.9},
+                "best_strict_f1": 0.90,
+                "best_strict_per_field_f1": {"smiles": 0.9, "bacteria": 0.9},
+                "best_iteration": 1,
+                "best_prompt": iter1_prompt,
+                "pareto_rollback_history": [],
+            }
+        )
+
+    assert s2["pareto_rollback_history"][0]["accepted"] is True
+    assert "rows" in s2["pareto_rollback_history"][0]["rollback_targets"]
+    assert (iter2_gen / "rows.json").read_text(encoding="utf-8") == '{"rows": "iter1_rows"}'
+    assert (iter2_gen / "rows.pre_rollback.json").exists()
+
+

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import ast
 import json
-import os
 import re
 import shutil
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -379,87 +379,159 @@ class ResolveIupacBatchInput(BaseModel):
         return parsed
 
 
+_OPSIN_LOCK = threading.Lock()
+_IUPAC_CACHE: Dict[str, str] = {}
+_IUPAC_CACHE_MAX_SIZE = 4096
+
+_IUPAC_LOCANT_PREFIX_RE = re.compile(
+    r"(?:^|[\s(\[;,])(?:\d+(?:,\d+)*|[NOS](?:,[NOS])*)-"
+    r"(?:chloro|fluoro|bromo|iodo|methyl|ethyl|propyl|butyl|pentyl|hexyl|phenyl|benzyl|"
+    r"naphthyl|methoxy|ethoxy|hydroxy|amino|amido|nitro|cyano|carboxy|acetyl|formyl|oxo|"
+    r"thio|mercapto|trifluoromethyl|trifluoromethoxy|pyridin|pyrimidin|pyrazin|pyridazin|"
+    r"piperidin|piperazin|morpholin|pyrrolidin|thiophen|furan|pyrrol|imidazol|benzimidazol|"
+    r"thiazol|oxazol|triazol|indol|quinolin|isoquinolin|purin|bis|tris|di|tri|tetra|penta)",
+    re.IGNORECASE,
+)
+_IUPAC_LOCANT_SUFFIX_RE = re.compile(
+    r"\b[a-z]{3,}-\d+-(?:yl|ylidene|ol|one|al|oic|ate|amide|amine|imine|ene|yne|thiol)\b",
+    re.IGNORECASE,
+)
+_IUPAC_RING_FUSION_RE = re.compile(
+    r"(?:\b\d+H-(?:benz|imid|pyr|ind|thi|fur|ox|triaz|quin)[a-z]+|"
+    r"\b[a-z]+\[\d*,\d*-?[a-z]+\][a-z]+|\b\d+-\(\d+-)",
+    re.IGNORECASE,
+)
+
+
+def is_iupac_applicable(doc_text: str) -> bool:
+    """Return True if ``doc_text`` contains IUPAC-style locants or systematic chemical suffixes."""
+    if not doc_text or not doc_text.strip():
+        return False
+    return bool(
+        _IUPAC_LOCANT_PREFIX_RE.search(doc_text)
+        or _IUPAC_LOCANT_SUFFIX_RE.search(doc_text)
+        or _IUPAC_RING_FUSION_RE.search(doc_text)
+    )
+
+
 def resolve_iupac_batch(iupac_names: List[str]) -> Dict[str, Any]:
     """Convert a batch of IUPAC chemical names to canonical SMILES using py2opsin."""
     cleaned_names = [str(n).strip() for n in (iupac_names or []) if str(n).strip()]
     if not cleaned_names:
         return {"resolved": [], "errors": [{"iupac_name": "", "error": "No IUPAC names provided."}]}
 
-    if not shutil.which("java"):
-        return {
-            "resolved": [],
-            "errors": [
-                {
-                    "iupac_name": name,
-                    "error": "Java runtime ('java') not found in PATH; py2opsin requires Java.",
-                }
-                for name in cleaned_names
-            ],
+    with _OPSIN_LOCK:
+        cached_map: Dict[str, str] = {
+            name: _IUPAC_CACHE[name] for name in cleaned_names if name in _IUPAC_CACHE
         }
 
-    try:
-        from py2opsin import py2opsin
-    except ImportError as exc:
-        return {
-            "resolved": [],
-            "errors": [
-                {
-                    "iupac_name": name,
-                    "error": f"py2opsin is required for IUPAC resolution: {exc}",
-                }
-                for name in cleaned_names
-            ],
-        }
+    uncached_names: List[str] = []
+    seen_uncached: set[str] = set()
+    for name in cleaned_names:
+        if name not in cached_map and name not in seen_uncached:
+            seen_uncached.add(name)
+            uncached_names.append(name)
 
-    tmp_fpath = str(Path(tempfile.gettempdir()) / f"ae_py2opsin_{os.getpid()}.txt")
-    try:
-        raw_results = py2opsin(cleaned_names, tmp_fpath=tmp_fpath)
-    except TypeError:
-        raw_results = py2opsin(cleaned_names)
-    except Exception as exc:
-        return {
-            "resolved": [],
-            "errors": [
-                {"iupac_name": name, "error": f"OPSIN conversion failed: {exc}"}
-                for name in cleaned_names
-            ],
-        }
-    finally:
-        try:
-            Path(tmp_fpath).unlink(missing_ok=True)
-        except Exception:
-            pass
+    fresh_resolved: Dict[str, str] = {}
+    fresh_errors: Dict[str, str] = {}
 
-    if isinstance(raw_results, str):
-        raw_list: List[Optional[str]] = [raw_results]
-    elif isinstance(raw_results, (list, tuple)):
-        raw_list = list(raw_results)
-    else:
-        raw_list = [None] * len(cleaned_names)
+    if uncached_names:
+        if not shutil.which("java"):
+            for name in uncached_names:
+                fresh_errors[name] = (
+                    "Java runtime ('java') not found in PATH; py2opsin requires Java."
+                )
+        else:
+            py2opsin_fn: Any = None
+            try:
+                from py2opsin import py2opsin as py2opsin_fn
+            except ImportError as exc:
+                for name in uncached_names:
+                    fresh_errors[name] = f"py2opsin is required for IUPAC resolution: {exc}"
 
-    try:
-        from rdkit import Chem, rdBase
+            if py2opsin_fn is not None:
+                raw_results: Any = None
+                io_error_msg: Optional[str] = None
+                with _OPSIN_LOCK:
+                    tmp_fpath: Optional[str] = None
+                    try:
+                        with tempfile.NamedTemporaryFile(
+                            mode="w+",
+                            suffix=".txt",
+                            prefix="ae_py2opsin_",
+                            delete=False,
+                            encoding="utf-8",
+                        ) as tmp_file:
+                            tmp_fpath = tmp_file.name
+                        try:
+                            raw_results = py2opsin_fn(uncached_names, tmp_fpath=tmp_fpath)
+                        except TypeError:
+                            raw_results = py2opsin_fn(uncached_names)
+                    except Exception as exc:
+                        io_error_msg = f"OPSIN conversion failed: {exc}"
+                    finally:
+                        if tmp_fpath is not None:
+                            try:
+                                Path(tmp_fpath).unlink(missing_ok=True)
+                            except Exception:
+                                pass
 
-        rdBase.DisableLog("rdApp.error")
-        rdBase.DisableLog("rdApp.warning")
-    except ImportError:
-        Chem = None  # type: ignore[assignment]
+                if io_error_msg is not None:
+                    for name in uncached_names:
+                        fresh_errors[name] = io_error_msg
+                elif isinstance(raw_results, bool) or not isinstance(
+                    raw_results, (str, list, tuple)
+                ):
+                    for name in uncached_names:
+                        fresh_errors[name] = "OPSIN conversion failed: subprocess/I/O error"
+                else:
+                    if isinstance(raw_results, str):
+                        raw_list: List[Optional[str]] = [raw_results]
+                    else:
+                        raw_list = list(raw_results)
+
+                    try:
+                        from rdkit import Chem, rdBase
+
+                        rdBase.DisableLog("rdApp.error")
+                        rdBase.DisableLog("rdApp.warning")
+                    except ImportError:
+                        Chem = None  # type: ignore[assignment]
+
+                    for idx, name in enumerate(uncached_names):
+                        raw_smi = raw_list[idx] if idx < len(raw_list) else None
+                        smi = str(raw_smi).strip() if raw_smi else ""
+                        if not smi:
+                            fresh_errors[name] = "OPSIN could not parse IUPAC name"
+                            continue
+                        if Chem is not None:
+                            mol = Chem.MolFromSmiles(smi)
+                            if mol is None:
+                                fresh_errors[name] = f"Invalid SMILES from OPSIN: {smi!r}"
+                                continue
+                            smi = Chem.MolToSmiles(mol, isomericSmiles=True)
+                        fresh_resolved[name] = smi
+
+                    if fresh_resolved:
+                        with _OPSIN_LOCK:
+                            if len(_IUPAC_CACHE) + len(fresh_resolved) > _IUPAC_CACHE_MAX_SIZE:
+                                _IUPAC_CACHE.clear()
+                            _IUPAC_CACHE.update(fresh_resolved)
 
     resolved: List[Dict[str, str]] = []
     errors: List[Dict[str, str]] = []
-    for idx, name in enumerate(cleaned_names):
-        raw_smi = raw_list[idx] if idx < len(raw_list) else None
-        smi = str(raw_smi).strip() if raw_smi else ""
-        if not smi:
-            errors.append({"iupac_name": name, "error": "OPSIN could not parse IUPAC name"})
-            continue
-        if Chem is not None:
-            mol = Chem.MolFromSmiles(smi)
-            if mol is None:
-                errors.append({"iupac_name": name, "error": f"Invalid SMILES from OPSIN: {smi!r}"})
-                continue
-            smi = Chem.MolToSmiles(mol, isomericSmiles=True)
-        resolved.append({"iupac_name": name, "smiles": smi})
+    for name in cleaned_names:
+        if name in cached_map:
+            resolved.append({"iupac_name": name, "smiles": cached_map[name]})
+        elif name in fresh_resolved:
+            resolved.append({"iupac_name": name, "smiles": fresh_resolved[name]})
+        else:
+            errors.append(
+                {
+                    "iupac_name": name,
+                    "error": fresh_errors.get(name, "OPSIN could not parse IUPAC name"),
+                }
+            )
 
     return {"resolved": resolved, "errors": errors}
 
@@ -488,7 +560,7 @@ def get_iupac_to_smiles_tool_provider() -> RegisteredToolProvider:
     return RegisteredToolProvider(
         name="resolve_iupac_to_smiles",
         build_tool=build_iupac_to_smiles_tool,
-        is_applicable=lambda doc_text: bool(doc_text and doc_text.strip()),
+        is_applicable=is_iupac_applicable,
         policy_hint=_IUPAC_POLICY_HINT,
         auto_remind=False,
         structured_output_hint=_CHEMISTRY_STRUCTURED_HINT,

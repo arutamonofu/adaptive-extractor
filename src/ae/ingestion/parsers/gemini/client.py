@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import inspect
 import json
 import logging
 import random
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Optional, TypeVar, Union
 
@@ -52,6 +53,7 @@ class BatchRequestSpec:
     thinking_budget: Optional[int] = None
     response_schema: Optional[type[BaseModel]] = None
     doc_scope: Optional[str] = None
+    uploaded_handles: list[Any] = field(default_factory=list, repr=False, compare=False)
 
 
 @dataclass
@@ -85,13 +87,6 @@ class GeminiClient:
 
         self._config = config
         self._genai = genai
-        self._client = genai.Client(api_key=api_key)
-
-        max_concurrent = getattr(config, "max_concurrent_requests", 4)
-        if not isinstance(max_concurrent, int):
-            max_concurrent = 4
-        self._semaphore = threading.Semaphore(max_concurrent)
-
         max_retries = getattr(config, "max_retries", 5)
         self._max_retries: int = max_retries if isinstance(max_retries, int) else 5
         retry_delay = getattr(config, "retry_delay", 2.0)
@@ -100,6 +95,34 @@ class GeminiClient:
         )
         timeout = getattr(config, "timeout", 300)
         self._timeout: int = timeout if isinstance(timeout, int) else 300
+
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if self._timeout > 0:
+            try:
+                sig = inspect.signature(genai.Client)
+                accepts_http_options = "http_options" in sig.parameters or any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+                )
+                if accepts_http_options:
+                    timeout_ms = int(self._timeout * 1000)
+                    http_options_cls = getattr(getattr(genai, "types", None), "HttpOptions", None)
+                    if http_options_cls is not None:
+                        client_kwargs["http_options"] = http_options_cls(timeout=timeout_ms)
+                    else:
+                        client_kwargs["http_options"] = {"timeout": timeout_ms}
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            self._client = genai.Client(**client_kwargs)
+        except TypeError:
+            client_kwargs.pop("http_options", None)
+            self._client = genai.Client(**client_kwargs)
+
+        max_concurrent = getattr(config, "max_concurrent_requests", 4)
+        if not isinstance(max_concurrent, int):
+            max_concurrent = 4
+        self._semaphore = threading.Semaphore(max_concurrent)
 
         # Default parameters from config.defaults
         defaults = getattr(config, "defaults", None)
@@ -220,11 +243,15 @@ class GeminiClient:
 
     @staticmethod
     def _normalize_contents(contents: list[Any]) -> list[Any]:
-        """Convert Path items to opened PIL Images."""
+        """Convert Path items to in-memory PIL Images and close file handles."""
         normalized = []
         for item in contents:
             if isinstance(item, Path):
-                normalized.append(PILImage.open(item))
+                with PILImage.open(item) as img:
+                    img.load()
+                    copied = img.copy()
+                    copied.format = img.format
+                normalized.append(copied)
             else:
                 normalized.append(item)
         return normalized
@@ -349,18 +376,12 @@ class GeminiClient:
 
         parts = getattr(getattr(candidate, "content", None), "parts", None)
         if finish_reason_str == "MAX_TOKENS":
-            if not parts and not allow_empty:
-                raise GeminiMaxTokensError(
-                    stage=stage_name,
-                    details=(
-                        f"Gemini reached MAX_TOKENS without generating "
-                        f"any content in stage '{stage_name}'."
-                    ),
-                )
-            logger.warning(
-                f"Stage '{stage_name}': Generation reached MAX_TOKENS limit; "
-                f"output may be truncated.",
+            detail = (
+                f"Gemini reached MAX_TOKENS without generating any content in stage '{stage_name}'."
+                if not parts
+                else f"Gemini generation truncated due to MAX_TOKENS limit in stage '{stage_name}'."
             )
+            raise GeminiMaxTokensError(stage=stage_name, details=detail)
 
         if not parts and not allow_empty:
             raise GeminiEmptyResponseError(

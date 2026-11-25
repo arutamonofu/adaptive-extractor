@@ -8,6 +8,7 @@ import json
 import logging
 import math
 import re
+import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeAlias, Union
 
 from pydantic import BaseModel
@@ -229,6 +230,8 @@ class RecordMatcher:
         self.max_judge_batch_size = max(1, int(max_judge_batch_size))
         self.min_alignment_score = float(min_alignment_score)
         self._schema_constraints_hash = self._compute_schema_constraints_hash()
+        self._cache_lock = threading.Lock()
+        self._judge_counter_local = threading.local()
         self._verdict_cache: Dict[Tuple[Any, ...], Dict[str, str]] = {}
         self._reasoning_cache: Dict[Tuple[Any, ...], Dict[str, str]] = {}
         self._validator_compare_cache: Dict[
@@ -236,9 +239,10 @@ class RecordMatcher:
         ] = {}
 
     def _compute_schema_constraints_hash(self) -> str:
-        """Compute deterministic hash of fields, constraints, descriptions, and validators."""
+        """Compute deterministic hash of fields, tolerance, constraints, descriptions, and validators."""
         payload = {
             "fields": list(self.fields),
+            "float_tolerance": self.tolerance,
             "field_constraints": self.field_constraints,
             "field_descriptions": self.field_descriptions,
             "field_validators": {
@@ -258,11 +262,39 @@ class RecordMatcher:
             return str(model_id)
         return type(self.student_llm).__name__
 
+    def _get_judge_config_signature(self) -> Tuple[Any, ...]:
+        """Return (model, provider, temperature, thinking_config) signature for cache pinning."""
+        if self.student_llm is None:
+            return ("none", "none", None, "")
+        inner = getattr(self.student_llm, "provider", None)
+        target = inner if inner is not None and not isinstance(inner, str) else self.student_llm
+        provider_val = getattr(target, "provider", None)
+        provider_name = (
+            str(provider_val)
+            if isinstance(provider_val, str) and provider_val
+            else type(target).__name__
+        )
+        temperature = getattr(self.student_llm, "temperature", getattr(target, "temperature", None))
+        thinking_payload = {
+            "thinking_level": getattr(target, "thinking_level", None),
+            "thinking_budget": getattr(target, "thinking_budget", None),
+            "reasoning": getattr(target, "reasoning", None),
+        }
+        thinking_repr = json.dumps(thinking_payload, sort_keys=True, default=str)
+        return (self._get_judge_model_id(), provider_name, temperature, thinking_repr)
+
+    def _record_judge_counter(self, key: str, delta: int = 1) -> None:
+        """Increment an active per-evaluation judge error/parse counter if tracking is enabled."""
+        counters = getattr(self._judge_counter_local, "counters", None)
+        if counters is not None and key in counters:
+            counters[key] += delta
+
     def clear_cache(self) -> None:
         """Clear the in-memory semantic judge verdict, reasoning, and validator caches."""
-        self._verdict_cache.clear()
-        self._reasoning_cache.clear()
-        self._validator_compare_cache.clear()
+        with self._cache_lock:
+            self._verdict_cache.clear()
+            self._reasoning_cache.clear()
+            self._validator_compare_cache.clear()
 
     def _is_na(self, val: Any) -> bool:
         """Return True if value is None or NaN."""
@@ -323,18 +355,8 @@ class RecordMatcher:
         return _normalize_text_cached(str(value))
 
     def _compare_floats(self, val_pred: float, val_gold: float) -> bool:
-        """Compare two float values with strict tolerance.
-
-        Uses math.isclose with relative tolerance 1e-9.
-
-        Args:
-            val_pred: Predicted float value.
-            val_gold: Ground truth float value.
-
-        Returns:
-            True if values are close, False otherwise.
-        """
-        return math.isclose(val_pred, val_gold, rel_tol=1e-9)
+        """Compare two float values using configured relative tolerance."""
+        return math.isclose(val_pred, val_gold, rel_tol=max(self.tolerance, 1e-9))
 
     def _is_match(self, pred: Any, gold: Any) -> bool:
         """Check if two values match according to strict rules.
@@ -372,10 +394,12 @@ class RecordMatcher:
             return None, None
 
         cache_key = (field_name, str(val_a), str(val_b))
-        if cache_key in self._validator_compare_cache:
-            return self._validator_compare_cache[cache_key]
+        with self._cache_lock:
+            if cache_key in self._validator_compare_cache:
+                return self._validator_compare_cache[cache_key]
 
         from ae.core.schema.validators import (
+            FieldValidatorSpec,
             compare_field_values_via_validator,
             supports_value_comparison,
         )
@@ -384,8 +408,24 @@ class RecordMatcher:
         for spec in specs:
             if not supports_value_comparison(spec):
                 continue
+            effective_spec = spec
+            if (
+                spec.name == "numeric_quantity"
+                and "rel_tol" not in spec.params
+                and self.tolerance > 0
+            ):
+                effective_spec = FieldValidatorSpec(
+                    name=spec.name,
+                    params={**spec.params, "rel_tol": max(self.tolerance, 1e-9)},
+                    on_error=spec.on_error,
+                    message=spec.message,
+                    callable_path=spec.callable_path,
+                    ignore_values=spec.ignore_values,
+                )
             try:
-                match_val, reason = compare_field_values_via_validator(spec, val_a, val_b)
+                match_val, reason = compare_field_values_via_validator(
+                    effective_spec, val_a, val_b
+                )
             except Exception:
                 continue
             if match_val is True:
@@ -395,7 +435,8 @@ class RecordMatcher:
                 outcome = (False, reason)
                 break
 
-        self._validator_compare_cache[cache_key] = outcome
+        with self._cache_lock:
+            self._validator_compare_cache[cache_key] = outcome
         return outcome
 
     def _is_field_match(
@@ -765,6 +806,24 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         reasons_out: Optional[Dict[str, Optional[str]]] = None,
     ) -> Tuple[List[str], List[str]]:
         """Split mismatched fields into (judge_eval_fields, deterministic_no_fields)."""
+        has_compatible_unit_discrepancy = False
+        for uf in discrepancies:
+            specs = self.field_validators.get(uf, ())
+            if not any(s.name == "unit" for s in specs):
+                continue
+            u_gt = gt_json.get(uf)
+            u_pred = pred_json.get(uf)
+            if (
+                self._is_empty_or_na(u_gt)
+                or self._is_empty_or_na(u_pred)
+                or self._violates_field_constraints(uf, u_pred)
+            ):
+                continue
+            u_match, _ = self._compare_via_validators(uf, u_pred, u_gt)
+            if u_match is not False:
+                has_compatible_unit_discrepancy = True
+                break
+
         eval_fields: List[str] = []
         deterministic_no: List[str] = []
         for f in discrepancies:
@@ -781,6 +840,13 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             if f in self.field_validators:
                 match_val, reason = self._compare_via_validators(f, pred_val, gt_val)
                 if match_val is False:
+                    if (
+                        has_compatible_unit_discrepancy
+                        and reason in ("numeric_mismatch", "std_mismatch")
+                        and any(s.name == "numeric_quantity" for s in self.field_validators[f])
+                    ):
+                        eval_fields.append(f)
+                        continue
                     deterministic_no.append(f)
                     if reasons_out is not None:
                         reasons_out[f] = reason
@@ -796,15 +862,33 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         pred_json: Dict[str, Any],
         eval_fields: List[str],
     ) -> Tuple[Any, ...]:
-        """Build hashable cache key pinned to (judge_model_id, schema_constraints_hash)."""
+        """Build hashable cache key pinned to judge config, prompt, schema, and full record context."""
+        resolved_task = task_name or "unknown"
+        prompt_hash = hashlib.sha256(
+            self._build_judge_system_prompt(resolved_task, is_batch=False).encode("utf-8")
+        ).hexdigest()[:16]
+        all_keys = sorted(set(self.fields) | set(gt_json.keys()) | set(pred_json.keys()))
+        context_payload = {
+            "gt": {
+                k: (None if self._is_na(gt_json.get(k)) else gt_json.get(k))
+                for k in all_keys
+            },
+            "pred": {
+                k: (None if self._is_na(pred_json.get(k)) else pred_json.get(k))
+                for k in all_keys
+            },
+        }
+        context_hash = hashlib.sha256(
+            json.dumps(context_payload, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+        ).hexdigest()
         return (
             self._get_judge_model_id(),
             self._schema_constraints_hash,
-            task_name or "unknown",
-            tuple(
-                (f, self._normalize_text(gt_json.get(f)), self._normalize_text(pred_json.get(f)))
-                for f in sorted(eval_fields)
-            ),
+            resolved_task,
+            self._get_judge_config_signature(),
+            prompt_hash,
+            context_hash,
+            tuple(sorted(eval_fields)),
         )
 
     def _call_semantic_judge(
@@ -842,7 +926,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             return verdicts
 
         cache_key = self._make_discrepancy_cache_key(task_name, gt_json, pred_json, eval_fields)
-        cached = self._verdict_cache.get(cache_key)
+        with self._cache_lock:
+            cached = self._verdict_cache.get(cache_key)
         if cached is not None:
             for f in eval_fields:
                 verdicts[f] = cached.get(f, "NO")
@@ -867,6 +952,7 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             cleaned = _clean_judge_response(response_text)
             parsed = _parse_judge_json(cleaned)
             if parsed is None:
+                self._record_judge_counter("judge_parse_failures")
                 logger.warning(
                     f"[SemanticJudge] No valid JSON found. Raw response: {str(response_text)[:200]}..."
                 )
@@ -880,12 +966,14 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 f: _extract_field_reasoning(parsed.get(f))
                 for f in eval_fields
             }
-            self._verdict_cache[cache_key] = dict(evaluated_verdicts)
-            self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
+            with self._cache_lock:
+                self._verdict_cache[cache_key] = dict(evaluated_verdicts)
+                self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
             verdicts.update(evaluated_verdicts)
             return verdicts
 
         except Exception as e:
+            self._record_judge_counter("judge_api_errors")
             logger.warning(f"[SemanticJudge] Failed: {e}")
             return {}
 
@@ -925,21 +1013,28 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                 cleaned = _clean_judge_response(response_text)
                 parsed = _parse_judge_json(cleaned)
                 if parsed is None:
+                    self._record_judge_counter("judge_parse_failures")
                     logger.warning(
                         f"[SemanticJudge] No valid batch JSON found. Raw response: {str(response_text)[:200]}..."
                     )
-                    for cache_key, _, _, _ in chunk:
-                        batch_results[cache_key] = {}
+                    for cache_key, gt_json, pred_json, eval_fields in chunk:
+                        batch_results[cache_key] = self._call_semantic_judge(
+                            task_name, gt_json, pred_json, eval_fields
+                        )
                     continue
 
-                for idx, (cache_key, _, _, eval_fields) in enumerate(chunk):
+                for idx, (cache_key, gt_json, pred_json, eval_fields) in enumerate(chunk):
                     pair_verdicts = parsed.get(str(idx))
                     if not isinstance(pair_verdicts, dict):
-                        if any(f in parsed for f in eval_fields):
-                            pair_verdicts = parsed
-                        else:
-                            batch_results[cache_key] = {}
-                            continue
+                        self._record_judge_counter("judge_parse_failures")
+                        logger.warning(
+                            f"[SemanticJudge] Missing or malformed batch entry for pair '{idx}'; "
+                            "falling back to single-pair judge call."
+                        )
+                        batch_results[cache_key] = self._call_semantic_judge(
+                            task_name, gt_json, pred_json, eval_fields
+                        )
+                        continue
 
                     evaluated = {
                         f: _extract_field_verdict(pair_verdicts.get(f))
@@ -949,13 +1044,17 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                         f: _extract_field_reasoning(pair_verdicts.get(f))
                         for f in eval_fields
                     }
-                    self._verdict_cache[cache_key] = dict(evaluated)
-                    self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
+                    with self._cache_lock:
+                        self._verdict_cache[cache_key] = dict(evaluated)
+                        self._reasoning_cache[cache_key] = dict(evaluated_reasonings)
                     batch_results[cache_key] = evaluated
             except Exception as e:
+                self._record_judge_counter("judge_api_errors")
                 logger.warning(f"[SemanticJudge] Batch call failed: {e}")
-                for cache_key, _, _, _ in chunk:
-                    batch_results[cache_key] = {}
+                for cache_key, gt_json, pred_json, eval_fields in chunk:
+                    batch_results[cache_key] = self._call_semantic_judge(
+                        task_name, gt_json, pred_json, eval_fields
+                    )
 
         return batch_results
 
@@ -1144,7 +1243,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
                         discrepancies=eval_fields,
                     )
                 verdicts.update(judge_verdicts)
-                cached_reasonings = dict(self._reasoning_cache.get(cache_key, {}))
+                with self._cache_lock:
+                    cached_reasonings = dict(self._reasoning_cache.get(cache_key, {}))
 
             # Log comparison table
             self._log_comparison_table(pred, gold, strict_matches, discrepancies, verdicts)
@@ -1463,148 +1563,156 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
         soft_matched_fields_count = 0
         judge_reasonings: List[Dict[str, Any]] = []
 
-        batch_verdicts: Optional[Dict[Tuple[Any, ...], Dict[str, str]]] = None
-        if (
-            self.enable_semantic_judge
-            and self.student_llm is not None
-            and getattr(self._call_semantic_judge, "__func__", None)
-            is RecordMatcher._call_semantic_judge
-        ):
-            resolved_task = task_name or "unknown"
-            uncached_by_key: Dict[
-                Tuple[Any, ...], Tuple[Tuple[Any, ...], Dict[str, Any], Dict[str, Any], List[str]]
-            ] = {}
-            for _, _, pred, gold in pair_items:
-                if pred is None or gold is None:
-                    continue
-                gt_json = {f: getattr(gold, f, None) for f in self.fields}
-                pred_json = {f: getattr(pred, f, None) for f in self.fields}
-                pair_discrepancies = [
-                    f
-                    for f in self.fields
-                    if not (self._is_na(gt_json[f]) and self._is_na(pred_json[f]))
-                    and not self._is_field_match(
-                        f, pred_json[f], gt_json[f], field_equivalence_fn=field_equivalence_fn
+        prev_counters = getattr(self._judge_counter_local, "counters", None)
+        active_counters = {"judge_parse_failures": 0, "judge_api_errors": 0}
+        self._judge_counter_local.counters = active_counters
+        try:
+            batch_verdicts: Optional[Dict[Tuple[Any, ...], Dict[str, str]]] = None
+            if (
+                self.enable_semantic_judge
+                and self.student_llm is not None
+                and getattr(self._call_semantic_judge, "__func__", None)
+                is RecordMatcher._call_semantic_judge
+            ):
+                resolved_task = task_name or "unknown"
+                uncached_by_key: Dict[
+                    Tuple[Any, ...], Tuple[Tuple[Any, ...], Dict[str, Any], Dict[str, Any], List[str]]
+                ] = {}
+                for _, _, pred, gold in pair_items:
+                    if pred is None or gold is None:
+                        continue
+                    gt_json = {f: getattr(gold, f, None) for f in self.fields}
+                    pred_json = {f: getattr(pred, f, None) for f in self.fields}
+                    pair_discrepancies = [
+                        f
+                        for f in self.fields
+                        if not (self._is_na(gt_json[f]) and self._is_na(pred_json[f]))
+                        and not self._is_field_match(
+                            f, pred_json[f], gt_json[f], field_equivalence_fn=field_equivalence_fn
+                        )
+                    ]
+                    eval_fields, _ = self._partition_discrepancies(
+                        gt_json, pred_json, pair_discrepancies
                     )
-                ]
-                eval_fields, _ = self._partition_discrepancies(
-                    gt_json, pred_json, pair_discrepancies
-                )
-                if not eval_fields:
-                    continue
-                cache_key = self._make_discrepancy_cache_key(
-                    resolved_task, gt_json, pred_json, eval_fields
-                )
-                if cache_key not in self._verdict_cache and cache_key not in uncached_by_key:
-                    uncached_by_key[cache_key] = (cache_key, gt_json, pred_json, eval_fields)
-
-            if len(uncached_by_key) > 1:
-                batch_verdicts = self._call_semantic_judge_batch(
-                    resolved_task, list(uncached_by_key.values())
-                )
-
-        pair_results: List[Dict[str, Any]] = []
-
-        for pred_idx, gt_idx, pred, gold in pair_items:
-            if pred is None and gold is not None:
-                fn_inc, field_correct, field_total = self._process_false_negative(
-                    gold, field_correct, field_total
-                )
-                fn += fn_inc
-                strict_fn += fn_inc
-                if collect_pair_results:
-                    pair_results.append(
-                        {
-                            "status": "fn",
-                            "pred_index": None,
-                            "gt_index": gt_idx,
-                            "pred": None,
-                            "gold": gold,
-                            "matched_fields": [],
-                            "soft_matched_fields": [],
-                            "mismatched_fields": {},
-                            "judge_reasoning": {},
-                            "diagnostic_tag": None,
-                        }
+                    if not eval_fields:
+                        continue
+                    cache_key = self._make_discrepancy_cache_key(
+                        resolved_task, gt_json, pred_json, eval_fields
                     )
-                continue
+                    with self._cache_lock:
+                        is_cached = cache_key in self._verdict_cache
+                    if not is_cached and cache_key not in uncached_by_key:
+                        uncached_by_key[cache_key] = (cache_key, gt_json, pred_json, eval_fields)
 
-            if gold is None and pred is not None:
-                fp_inc, field_correct, field_total = self._process_false_positive(
-                    pred, field_correct, field_total
+                if len(uncached_by_key) > 1:
+                    batch_verdicts = self._call_semantic_judge_batch(
+                        resolved_task, list(uncached_by_key.values())
+                    )
+
+            pair_results: List[Dict[str, Any]] = []
+
+            for pred_idx, gt_idx, pred, gold in pair_items:
+                if pred is None and gold is not None:
+                    fn_inc, field_correct, field_total = self._process_false_negative(
+                        gold, field_correct, field_total
+                    )
+                    fn += fn_inc
+                    strict_fn += fn_inc
+                    if collect_pair_results:
+                        pair_results.append(
+                            {
+                                "status": "fn",
+                                "pred_index": None,
+                                "gt_index": gt_idx,
+                                "pred": None,
+                                "gold": gold,
+                                "matched_fields": [],
+                                "soft_matched_fields": [],
+                                "mismatched_fields": {},
+                                "judge_reasoning": {},
+                                "diagnostic_tag": None,
+                            }
+                        )
+                    continue
+
+                if gold is None and pred is not None:
+                    fp_inc, field_correct, field_total = self._process_false_positive(
+                        pred, field_correct, field_total
+                    )
+                    fp += fp_inc
+                    strict_fp += fp_inc
+                    if collect_pair_results:
+                        pair_results.append(
+                            {
+                                "status": "fp",
+                                "pred_index": pred_idx,
+                                "gt_index": None,
+                                "pred": pred,
+                                "gold": None,
+                                "matched_fields": [],
+                                "soft_matched_fields": [],
+                                "mismatched_fields": {},
+                                "judge_reasoning": {},
+                                "diagnostic_tag": None,
+                            }
+                        )
+                    continue
+
+                if pred is None and gold is None:
+                    continue
+
+                detail: Dict[str, Any] = {}
+                tp_inc, fp_inc, fn_inc, field_correct, field_total = self._process_aligned_pair(
+                    pred,
+                    gold,
+                    field_correct,
+                    field_total,
+                    task_name,
+                    batch_verdicts=batch_verdicts,
+                    field_equivalence_fn=field_equivalence_fn,
+                    pair_detail=detail,
+                    strict_field_correct=strict_field_correct,
                 )
+                tp += tp_inc
                 fp += fp_inc
-                strict_fp += fp_inc
+                fn += fn_inc
+                s_tp_inc, s_fp_inc, s_fn_inc = detail.get("strict_counts", (tp_inc, fp_inc, fn_inc))
+                strict_tp += s_tp_inc
+                strict_fp += s_fp_inc
+                strict_fn += s_fn_inc
+
+                soft_fields = detail.get("soft_matched_fields", [])
+                soft_matched_fields_count += len(soft_fields)
+                pair_reasoning = detail.get("judge_reasoning", {})
+                if pair_reasoning:
+                    judge_reasonings.append(
+                        {
+                            "pred_index": pred_idx,
+                            "gt_index": gt_idx,
+                            "reasoning": pair_reasoning,
+                        }
+                    )
+
                 if collect_pair_results:
+                    mismatched = detail.get("mismatched_fields", {})
                     pair_results.append(
                         {
-                            "status": "fp",
+                            "status": "tp" if not mismatched else "field_mismatch",
                             "pred_index": pred_idx,
-                            "gt_index": None,
+                            "gt_index": gt_idx,
                             "pred": pred,
-                            "gold": None,
-                            "matched_fields": [],
-                            "soft_matched_fields": [],
-                            "mismatched_fields": {},
-                            "judge_reasoning": {},
+                            "gold": gold,
+                            "matched_fields": detail.get("matched_fields", []),
+                            "strict_matched_fields": detail.get("strict_matched_fields", []),
+                            "soft_matched_fields": soft_fields,
+                            "soft_match_details": detail.get("soft_match_details", {}),
+                            "mismatched_fields": mismatched,
+                            "judge_reasoning": pair_reasoning,
                             "diagnostic_tag": None,
                         }
                     )
-                continue
-
-            if pred is None and gold is None:
-                continue
-
-            detail: Dict[str, Any] = {}
-            tp_inc, fp_inc, fn_inc, field_correct, field_total = self._process_aligned_pair(
-                pred,
-                gold,
-                field_correct,
-                field_total,
-                task_name,
-                batch_verdicts=batch_verdicts,
-                field_equivalence_fn=field_equivalence_fn,
-                pair_detail=detail,
-                strict_field_correct=strict_field_correct,
-            )
-            tp += tp_inc
-            fp += fp_inc
-            fn += fn_inc
-            s_tp_inc, s_fp_inc, s_fn_inc = detail.get("strict_counts", (tp_inc, fp_inc, fn_inc))
-            strict_tp += s_tp_inc
-            strict_fp += s_fp_inc
-            strict_fn += s_fn_inc
-
-            soft_fields = detail.get("soft_matched_fields", [])
-            soft_matched_fields_count += len(soft_fields)
-            pair_reasoning = detail.get("judge_reasoning", {})
-            if pair_reasoning:
-                judge_reasonings.append(
-                    {
-                        "pred_index": pred_idx,
-                        "gt_index": gt_idx,
-                        "reasoning": pair_reasoning,
-                    }
-                )
-
-            if collect_pair_results:
-                mismatched = detail.get("mismatched_fields", {})
-                pair_results.append(
-                    {
-                        "status": "tp" if not mismatched else "field_mismatch",
-                        "pred_index": pred_idx,
-                        "gt_index": gt_idx,
-                        "pred": pred,
-                        "gold": gold,
-                        "matched_fields": detail.get("matched_fields", []),
-                        "strict_matched_fields": detail.get("strict_matched_fields", []),
-                        "soft_matched_fields": soft_fields,
-                        "soft_match_details": detail.get("soft_match_details", {}),
-                        "mismatched_fields": mismatched,
-                        "judge_reasoning": pair_reasoning,
-                        "diagnostic_tag": None,
-                    }
-                )
+        finally:
+            self._judge_counter_local.counters = prev_counters
 
         diagnostics: Dict[str, List[Dict[str, Any]]] = {
             "duplicate_of_tp": [],
@@ -1640,6 +1748,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             "recall": recall,
             "f1": f1,
             "field_scores": field_scores,
+            "field_correct": dict(field_correct),
+            "field_total": dict(field_total),
             "semantic_precision": precision,
             "semantic_recall": recall,
             "semantic_f1": f1,
@@ -1648,8 +1758,12 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             "strict_recall": strict_recall,
             "strict_f1": strict_f1,
             "strict_field_scores": strict_field_scores,
+            "strict_field_correct": dict(strict_field_correct),
+            "strict_field_total": dict(field_total),
             "soft_matched_fields_count": soft_matched_fields_count,
             "judge_reasonings": judge_reasonings,
+            "judge_parse_failures": active_counters["judge_parse_failures"],
+            "judge_api_errors": active_counters["judge_api_errors"],
             "diagnostics": diagnostics,
         }
         if collect_pair_results:
@@ -1762,6 +1876,8 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             "precision": stats["precision"],
             "recall": stats["recall"],
             "fields": stats["field_scores"],
+            "field_correct": stats["field_correct"],
+            "field_total": stats["field_total"],
             "semantic_f1": stats["semantic_f1"],
             "semantic_precision": stats["semantic_precision"],
             "semantic_recall": stats["semantic_recall"],
@@ -1770,8 +1886,12 @@ The following fields did not match strictly. Evaluate ONLY these fields based on
             "strict_precision": stats["strict_precision"],
             "strict_recall": stats["strict_recall"],
             "strict_fields": stats["strict_field_scores"],
+            "strict_field_correct": stats["strict_field_correct"],
+            "strict_field_total": stats["strict_field_total"],
             "soft_matched_fields_count": stats["soft_matched_fields_count"],
             "judge_reasonings": stats["judge_reasonings"],
+            "judge_parse_failures": stats["judge_parse_failures"],
+            "judge_api_errors": stats["judge_api_errors"],
             "diagnostics": stats["diagnostics"],
             "pair_results": stats["pair_results"],
             "counts": {"preds": len(preds), "gts": len(gts)},

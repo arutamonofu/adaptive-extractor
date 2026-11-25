@@ -383,3 +383,134 @@ class TestSchemaRefinement:
         refined_iter2 = apply_schema_refinements(base, proposal, profiles_iter2)
         assert refined_iter2.fields["target_units"].choices is None
         assert refined_iter2.fields["target_type"].choices == ["MIC", "pMIC"]
+
+    def test_distinct_count_gt_50_blocks_enum_and_regex(self):
+        """High-cardinality fields (distinct_count > 50 / all_observed_values is None) cannot be closed or regex-gated."""
+        base = SchemaConfig(
+            name="antibiotics",
+            fields={
+                "compound_id": FieldSpec(type=str, required=False),
+                "smiles": FieldSpec(type=str, required=False),
+            },
+            compare_fields=["compound_id", "smiles"],
+        )
+        df_high = pd.DataFrame(
+            {
+                "pdf": [f"doc{i % 6}" for i in range(60)],
+                "compound_id": [f"cmp_{i}" for i in range(60)],
+                "smiles": [f"C{'C' * (i % 10)}O{i}" for i in range(60)],
+            }
+        )
+        profiles = build_column_profiles(
+            df_gt=df_high,
+            schema_config=base,
+            active_norm_ids={f"doc{i}" for i in range(6)},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        assert profiles["compound_id"]["distinct_count"] == 60
+        assert "all_observed_values" not in profiles["compound_id"]
+
+        proposal = SchemaRefinementOutput(
+            fields=[
+                FieldConstraintProposal(
+                    field_name="compound_id",
+                    description="Compound identifier",
+                    is_closed_enum=True,
+                    choices=["cmp_0", "cmp_1"],
+                    pattern=r"^cmp_\d+$",
+                ),
+                FieldConstraintProposal(
+                    field_name="smiles",
+                    description="SMILES string",
+                    is_closed_enum=False,
+                    pattern=r"^C+O\d+$",
+                ),
+            ]
+        )
+        refined = apply_schema_refinements(base, proposal, profiles)
+        assert refined.fields["compound_id"].choices is None
+        assert refined.fields["compound_id"].pattern is None
+        assert refined.fields["smiles"].pattern is None
+
+    def test_proportional_enum_doc_support_prompt_backed_singleton_and_pattern_default_gating(self):
+        """Enum allows >=80% multi-doc ratio or prompt-backed singletons; pattern/default respect min_enum_doc_support."""
+        base = SchemaConfig(
+            name="antibiotics",
+            fields={
+                "target_relation": FieldSpec(type=str, required=False),
+                "assay_type": FieldSpec(type=str, required=False),
+            },
+            compare_fields=["target_relation", "assay_type"],
+        )
+        proposal = SchemaRefinementOutput(
+            fields=[
+                FieldConstraintProposal(
+                    field_name="target_relation",
+                    description="Relation operator",
+                    is_closed_enum=True,
+                    choices=["=", ">", "<", ">=", "<="],
+                    default_value="=",
+                    pattern=r"^(?:=|>|<|>=|<=)$",
+                ),
+                FieldConstraintProposal(
+                    field_name="assay_type",
+                    description="Assay type",
+                    is_closed_enum=True,
+                    choices=["MIC", "IC50"],
+                ),
+            ]
+        )
+
+        # Case A: active_docs_count=2 < 4 blocks default_value and pattern in addition to enum
+        df_low_docs = pd.DataFrame(
+            {
+                "pdf": ["d1", "d2"],
+                "target_relation": ["=", ">"],
+                "assay_type": ["MIC", "MIC"],
+            }
+        )
+        profiles_low = build_column_profiles(
+            df_gt=df_low_docs,
+            schema_config=base,
+            active_norm_ids={"d1", "d2"},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        refined_low = apply_schema_refinements(base, proposal, profiles_low, min_enum_doc_support=4)
+        assert refined_low.fields["target_relation"].choices is None
+        assert refined_low.fields["target_relation"].default is None
+        assert refined_low.fields["target_relation"].pattern is None
+
+        # Case B: 5 distinct values across 4 docs, 4 with doc_count >= 2 and 1 rare ('<=' with doc_count=1) -> 4/5 = 0.80 >= 0.80
+        # Meanwhile assay_type has 2 values ('MIC' doc_count=4, 'IC50' doc_count=1) -> 1/2 = 0.50, blocked WITHOUT prompt mention,
+        # but allowed WITH explicit prompt mention!
+        df_rich = pd.DataFrame(
+            {
+                "pdf": ["d1", "d1", "d2", "d2", "d3", "d3", "d4", "d4", "d4"],
+                "target_relation": ["=", ">", "=", "<", ">=", "<", ">", ">=", "<="],
+                "assay_type": ["MIC", "MIC", "MIC", "MIC", "MIC", "MIC", "MIC", "MIC", "IC50"],
+            }
+        )
+        profiles_rich = build_column_profiles(
+            df_gt=df_rich,
+            schema_config=base,
+            active_norm_ids={"d1", "d2", "d3", "d4"},
+            id_col="pdf",
+            compiled_columns={},
+        )
+        refined_no_prompt = apply_schema_refinements(base, proposal, profiles_rich, min_enum_doc_support=4)
+        assert refined_no_prompt.fields["target_relation"].choices == ["=", ">", "<", ">=", "<="]
+        assert refined_no_prompt.fields["target_relation"].default == "="
+        assert refined_no_prompt.fields["target_relation"].pattern == r"^(?:=|>|<|>=|<=)$"
+        assert refined_no_prompt.fields["assay_type"].choices is None
+
+        refined_with_prompt = apply_schema_refinements(
+            base,
+            proposal,
+            profiles_rich,
+            min_enum_doc_support=4,
+            prompt_text="Extract assay_type as MIC or IC50.",
+        )
+        assert refined_with_prompt.fields["assay_type"].choices == ["MIC", "IC50"]
+
