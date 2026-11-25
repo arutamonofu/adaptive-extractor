@@ -219,10 +219,6 @@ _COLLECTION_ID_RE = re.compile(
     r"\b(ATCC|MTCC|NCTC|DSM|CMCC|CGMCC|NBRC|JCM|NCIM|CIP|LMG|CCM|KCTC|BCRC)\s*[-#]?\s*([A-Za-z0-9]+)\b",
     re.IGNORECASE,
 )
-_PHENOTYPE_TAG_RE = re.compile(
-    r"\b(MSSA|MRSA|VRE|VRSA|ESBL|MDR|XDR|PRSP|CRKP|CRPA|CRAB)\b",
-    re.IGNORECASE,
-)
 
 
 @functools.lru_cache(maxsize=1)
@@ -290,9 +286,20 @@ def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
     if "smiles" in key_l:
         return _canonicalize_smiles_for_dedup(cleaned)
 
-    if "unit" in key_l:
+    if key_l == "unit" or key_l.endswith(("_unit", "_units", "units")):
         cleaned = re.sub(r"\bug\b", "\u00b5g", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\buM\b", "\u00b5M", cleaned)
+        cleaned = re.sub(r"\s*[·•⋅]\s*", " ", cleaned)
+        cleaned = re.sub(
+            r"\s+([A-Za-zµ]+)\s*(?:\^\s*-1|[-⁻]1|⁻¹)(?=\s|$)",
+            r"/\1",
+            cleaned,
+        )
+        cleaned = re.sub(
+            r"\b([A-Za-zµ]+)\s*(?:\^\s*-(\d+)|-(\d+))\b",
+            lambda m: f"{m.group(1)}**-{m.group(2) or m.group(3)}",
+            cleaned,
+        )
         try:
             ureg = _get_unit_registry()
             base_qty = ureg.Quantity(1.0, cleaned).to_base_units()
@@ -303,7 +310,6 @@ def _normalize_scalar_for_dedup(key: str, value: Any) -> Any:
     if any(tok in key_l for tok in ("bacteria", "strain", "organism")):
         norm = _COLLECTION_ID_RE.sub(r"\1 \2", cleaned)
         if _COLLECTION_ID_RE.search(norm):
-            norm = _PHENOTYPE_TAG_RE.sub("", norm)
             norm = re.sub(r"[\(\)\[\]\|,;/]+", " ", norm)
         return _WS_RE.sub(" ", norm).strip().lower()
 
@@ -474,6 +480,7 @@ class ExtractionState(TypedDict):
     non_visual_tools_called_since_doc_change: NotRequired[list[str]]
     last_turn_had_non_visual: NotRequired[bool]
     last_turn_had_tool_error: NotRequired[bool]
+    last_turn_doc_changed: NotRequired[bool]
     domain_reminder_sent: NotRequired[bool]
     extracted_data: Optional[Any]
     rationale: Optional[str]
@@ -514,10 +521,12 @@ class ExtractionGraph:
         enable_record_dedup: bool = True,
         agent_llm: Optional[BaseChatModel] = None,
         repair_llm: Optional[BaseChatModel] = None,
+        config_path: Optional[Path] = None,
     ) -> None:
         self.llm = llm
         self.agent_llm = agent_llm
         self.repair_llm = repair_llm
+        self.config_path = Path(config_path) if config_path else None
         self.output_model = output_model
         self.service = service
         self.max_tool_iterations = max_tool_iterations
@@ -719,7 +728,11 @@ class ExtractionGraph:
         if self.service is not None:
             return self.service
         try:
-            settings = Settings.load(load_env_file=True)
+            settings = (
+                Settings.load(config_path=self.config_path, load_env_file=True)
+                if self.config_path is not None
+                else Settings.load(load_env_file=True)
+            )
             self.service = VisualParsingService(
                 config=settings.ingestion,
                 pdf_dir=settings.paths.pdf_dir,
@@ -831,7 +844,7 @@ class ExtractionGraph:
             "2. Manifest Plausibility Gate (No Blind Hunting & No Premature Null):\n"
             "   - Do NOT call `finalize_evidence` if target data is missing from text, but there are unparsed visuals whose manifest metadata (`> description` or caption) indicates relevant entity IDs, metrics, categories, or column names.\n"
             "   - Do NOT call `parse_visuals` blindly if missing fields are absent from text AND none of the remaining unparsed visual manifest stubs describe such data. In that case, missing fields should remain null — call `finalize_evidence`.\n"
-            f"3. Output Constraint: This is a tool-routing step ONLY — do NOT mentally extract, transcribe, or draft table/record data, and do NOT write prose explanations. When no (more) tool calls are needed, call `finalize_evidence`.{domain_part}"
+            f"3. Output Constraint: This is a tool-routing step ONLY — do NOT output prose explanations or text drafts of the final extracted records. You MAY read and cross-reference parsed tables/visuals and document prose to gather accurate arguments for domain tool calls. When no (more) tool calls are needed, call `finalize_evidence`.{domain_part}"
         ).strip()
 
         human_prompt = f"Document `{doc_id}`:\n\n{raw_text}"
@@ -853,6 +866,7 @@ class ExtractionGraph:
             ),
             "last_turn_had_non_visual": False,
             "last_turn_had_tool_error": False,
+            "last_turn_doc_changed": False,
             "messages": [
                 SystemMessage(content=sys_prompt),
                 HumanMessage(content=human_prompt),
@@ -1289,11 +1303,11 @@ class ExtractionGraph:
                         res = json.dumps({"error": f"Tool execution failed: {exc}"})
                         ran_non_visual_error = True
                         tool_failed_completely = True
-                    executed_sigs.append(sig)
-                    executed_sigs_set.add(sig)
-                    if tool_name not in non_visual_called:
-                        non_visual_called.append(tool_name)
                     if not tool_failed_completely:
+                        executed_sigs.append(sig)
+                        executed_sigs_set.add(sig)
+                        if tool_name not in non_visual_called:
+                            non_visual_called.append(tool_name)
                         new_tool_results.append(
                             {"tool": tool_name, "args": tool_args, "output": res}
                         )
@@ -1376,7 +1390,9 @@ class ExtractionGraph:
 
         newly_active_hint = ""
         sent_reminder = bool(state.get("domain_reminder_sent", False))
-        if updated_doc_text != prev_doc_text:
+        doc_changed = updated_doc_text != prev_doc_text
+        is_domain_reminder_intercept = False
+        if doc_changed:
             non_visual_called = []
             sent_reminder = False
             curr_active = self._active_domain_tools(updated_doc_text)
@@ -1400,8 +1416,9 @@ class ExtractionGraph:
                 if policy_txt:
                     newly_active_hint += f"\n{policy_txt}"
                 sent_reminder = True
+                is_domain_reminder_intercept = True
 
-        new_iterations = state.get("tool_iterations", 0) + 1
+        new_iterations = state.get("tool_iterations", 0) + (0 if is_domain_reminder_intercept else 1)
         remaining = max(0, self.max_tool_iterations - new_iterations)
         eligible_remaining = self._eligible_unparsed_visuals(
             updated_doc_text,
@@ -1443,6 +1460,7 @@ class ExtractionGraph:
             "non_visual_tools_called_since_doc_change": non_visual_called,
             "last_turn_had_non_visual": ran_non_visual,
             "last_turn_had_tool_error": ran_non_visual_error,
+            "last_turn_doc_changed": doc_changed,
             "domain_reminder_sent": sent_reminder,
         }
         if new_tool_results:
@@ -1465,9 +1483,14 @@ class ExtractionGraph:
         )
         if eligible:
             return "agent"
-        active_names = {
-            p.name for p in self._active_domain_tools(doc_text) if getattr(p, "auto_remind", True)
-        }
+        doc_changed = bool(state.get("last_turn_doc_changed", False))
+        active_providers = self._active_domain_tools(doc_text)
+        if doc_changed:
+            active_names = {p.name for p in active_providers}
+        else:
+            active_names = {
+                p.name for p in active_providers if getattr(p, "auto_remind", True)
+            }
         called_names = set(state.get("non_visual_tools_called_since_doc_change", []))
         if active_names - called_names:
             return "agent"
@@ -1806,9 +1829,12 @@ class ExtractionGraph:
             batch_records = list(getattr(batch_res, "records", []) or [])
             new_records: list[Any] = []
             for rec in batch_records:
-                key = _record_dedup_key(rec)
-                if key not in seen_keys:
-                    seen_keys.add(key)
+                if self.enable_record_dedup:
+                    key = _record_dedup_key(rec)
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        new_records.append(rec)
+                else:
                     new_records.append(rec)
 
             accumulated.extend(new_records)
@@ -1846,7 +1872,12 @@ class ExtractionGraph:
         logger.info(f"Producing structured output for doc '{state['doc_id']}'...")
         # Fast path: if last message already contains valid JSON, avoid 2nd LLM call
         if state["messages"]:
-            last_content = getattr(state["messages"][-1], "content", "")
+            last_msg = state["messages"][-1]
+            last_content = (
+                getattr(last_msg, "content", "")
+                if isinstance(last_msg, AIMessage)
+                else ""
+            )
             if isinstance(last_content, str) and last_content.strip().startswith("{"):
                 try:
                     parsed = self.output_model.model_validate_json(last_content.strip())
@@ -1945,6 +1976,7 @@ class ExtractionGraph:
             "non_visual_tools_called_since_doc_change": [],
             "last_turn_had_non_visual": False,
             "last_turn_had_tool_error": False,
+            "last_turn_doc_changed": False,
             "extracted_data": None,
             "rationale": None,
         }

@@ -8,7 +8,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol, Type, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Type, Union, runtime_checkable
 
 import dspy
 
@@ -68,6 +68,7 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
         client: Optional[Any] = None,
         chat_model: Optional[Any] = None,
         ingestion_dir: Optional[Path] = None,
+        config_path: Optional[Union[str, Path]] = None,
     ):
         """Initialize the UniversalExtractor."""
         BaseAgent.__init__(self)
@@ -77,7 +78,17 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
         self._client = client
         self._chat_model = chat_model
         self._ingestion_dir = Path(ingestion_dir) if ingestion_dir else None
+        self._config_path = Path(config_path) if config_path else None
         self._graph: Optional[Any] = None
+
+    def _resolve_config_path(self) -> Optional[Path]:
+        """Return explicit config_path from self or attached client when available."""
+        if isinstance(self._config_path, Path):
+            return self._config_path
+        raw_cfg = getattr(self._client, "config_path", None)
+        if isinstance(raw_cfg, (str, Path)):
+            return Path(raw_cfg)
+        return None
 
     def _get_or_create_graph(self) -> Optional[Any]:
         """Lazy initialization of ExtractionGraph from application settings."""
@@ -94,7 +105,12 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
             if output_model is None or not (isinstance(output_model, type) and issubclass(output_model, object)):
                 return None
 
-            settings = Settings.load(load_env_file=True)
+            cfg_path = self._resolve_config_path()
+            settings = (
+                Settings.load(config_path=cfg_path, load_env_file=True)
+                if cfg_path is not None
+                else Settings.load(load_env_file=True)
+            )
             if self._chat_model is not None:
                 llm = self._chat_model
             elif self._client is not None:
@@ -129,6 +145,7 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
                 history_recorder=history_recorder,
                 enable_sanity_checks=enable_sanity_checks,
                 agent_thinking_level=agent_thinking_level,
+                config_path=cfg_path,
             )
             return self._graph
         except Exception as e:
@@ -159,7 +176,12 @@ class UniversalExtractor(BaseAgent, dspy.Module, metaclass=UniversalExtractorMet
                 if ingestion_dir is None:
                     from ae.core.config.settings import Settings
 
-                    ingestion_dir = Settings.load(load_env_file=False).paths.ingestion_dir
+                    cfg_path = self._resolve_config_path()
+                    ingestion_dir = (
+                        Settings.load(config_path=cfg_path, load_env_file=False)
+                        if cfg_path is not None
+                        else Settings.load(load_env_file=False)
+                    ).paths.ingestion_dir
                 disk_text = DocumentRepository(ingestion_dir).get(doc_id)
 
             if disk_text:

@@ -2021,7 +2021,7 @@ def _make_dummy_tool(name: str):
     return _dummy
 
 
-def test_canonical_dedup_strips_phenotype_only_with_collection_id():
+def test_canonical_dedup_preserves_distinct_phenotypes_with_collection_id():
     from ae.extraction.graph import _record_dedup_key
 
     base = {
@@ -2031,13 +2031,21 @@ def test_canonical_dedup_strips_phenotype_only_with_collection_id():
         "target_units": "µg/mL",
         "bacteria": "S. aureus ATCC 29213",
     }
-    same_mssa = {**base, "bacteria": "MSSA S. aureus ATCC 29213"}
-    same_pipe = {**base, "bacteria": "MSSA | S. aureus ATCC 29213"}
+    mssa = {**base, "bacteria": "MSSA S. aureus ATCC 29213"}
+    mssa_pipe = {**base, "bacteria": "MSSA | S. aureus ATCC-29213"}
+    mrsa = {**base, "bacteria": "MRSA S. aureus ATCC 29213"}
+    mdr = {**base, "bacteria": "MDR S. aureus ATCC 29213"}
+    vre = {**base, "bacteria": "VRE E. faecalis ATCC 29212"}
+    plain_ef = {**base, "bacteria": "E. faecalis ATCC 29212"}
     diff_atcc = {**base, "bacteria": "MRSA S. aureus ATCC 43300"}
     no_coll_mrsa = {**base, "bacteria": "MRSA N315"}
     no_coll_mssa = {**base, "bacteria": "MSSA N315"}
 
-    assert _record_dedup_key(base) == _record_dedup_key(same_mssa)
-    assert _record_dedup_key(base) == _record_dedup_key(same_pipe)
-    assert _record_dedup_key(base) != _record_dedup_key(diff_atcc)
+    assert _record_dedup_key(mssa) == _record_dedup_key(mssa_pipe)
+    assert _record_dedup_key(base) != _record_dedup_key(mssa)
+    assert _record_dedup_key(base) != _record_dedup_key(mrsa)
+    assert _record_dedup_key(base) != _record_dedup_key(mdr)
+    assert _record_dedup_key(mssa) != _record_dedup_key(mrsa)
+    assert _record_dedup_key(vre) != _record_dedup_key(plain_ef)
+    assert _record_dedup_key(mrsa) != _record_dedup_key(diff_atcc)
     assert _record_dedup_key(no_coll_mrsa) != _record_dedup_key(no_coll_mssa)

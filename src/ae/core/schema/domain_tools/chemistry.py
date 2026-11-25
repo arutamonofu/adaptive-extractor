@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections import OrderedDict
 import json
 import re
 import shutil
@@ -334,9 +335,10 @@ _CHEMISTRY_STRUCTURED_HINT = (
     "- Always cross-check substituent positions, positional isomers (e.g. 2-chloro-6-fluorophenyl vs "
     "5-chloro-2-fluorophenyl, 6-methylpyridin-3-yl vs 2-methylpyridin-4-yl), and scaffolds parsed in "
     "`<visual>` tables/registries against explicit IUPAC names and compound descriptions in the document "
-    "text/experimental section and computed tool results.\n"
-    "- If a `<visual>` SMILES contradicts unambiguous chemical nomenclature in the prose or computed "
-    "`resolve_iupac_to_smiles` output, the prose IUPAC nomenclature / computed SMILES takes precedence."
+    "text/experimental section and any computed tool results (if present).\n"
+    "- If a `<visual>` SMILES contradicts unambiguous chemical nomenclature in the prose or authoritative "
+    "computed SMILES in `--- COMPUTED TOOL RESULTS (AUTHORITATIVE) ---` (when provided), the prose IUPAC "
+    "nomenclature / computed SMILES takes precedence."
 )
 
 
@@ -380,8 +382,37 @@ class ResolveIupacBatchInput(BaseModel):
 
 
 _OPSIN_LOCK = threading.Lock()
-_IUPAC_CACHE: Dict[str, str] = {}
+_IUPAC_CACHE: OrderedDict[str, str] = OrderedDict()
 _IUPAC_CACHE_MAX_SIZE = 4096
+_IUPAC_DASH_TRANS = str.maketrans(
+    {
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2015": "-",
+        "\u2212": "-",
+    }
+)
+_IUPAC_WS_RE = re.compile(r"\s+")
+
+
+def _normalize_iupac_cache_key(name: str) -> str:
+    """Normalize Unicode dashes and whitespace in IUPAC cache keys."""
+    return _IUPAC_WS_RE.sub(" ", name.translate(_IUPAC_DASH_TRANS)).strip()
+
+
+_COMMON_LAB_SOLVENTS_RE = re.compile(
+    r"(?<![A-Za-z0-9-])(?:"
+    r"N\s*,\s*N\s*[-−–—]\s*dimethylformamide|"
+    r"1\s*,\s*2\s*[-−–—]\s*dichloroethane|"
+    r"2\s*[-−–—]\s*mercaptoethanol|"
+    r"dimethyl\s+sulfoxide|"
+    r"tetrahydrofuran"
+    r")(?![A-Za-z0-9-])",
+    re.IGNORECASE,
+)
 
 _IUPAC_LOCANT_PREFIX_RE = re.compile(
     r"(?:^|[\s(\[;,])(?:\d+(?:,\d+)*|[NOS](?:,[NOS])*)-"
@@ -407,10 +438,11 @@ def is_iupac_applicable(doc_text: str) -> bool:
     """Return True if ``doc_text`` contains IUPAC-style locants or systematic chemical suffixes."""
     if not doc_text or not doc_text.strip():
         return False
+    scrubbed = _COMMON_LAB_SOLVENTS_RE.sub(" ", doc_text)
     return bool(
-        _IUPAC_LOCANT_PREFIX_RE.search(doc_text)
-        or _IUPAC_LOCANT_SUFFIX_RE.search(doc_text)
-        or _IUPAC_RING_FUSION_RE.search(doc_text)
+        _IUPAC_LOCANT_PREFIX_RE.search(scrubbed)
+        or _IUPAC_LOCANT_SUFFIX_RE.search(scrubbed)
+        or _IUPAC_RING_FUSION_RE.search(scrubbed)
     )
 
 
@@ -420,17 +452,22 @@ def resolve_iupac_batch(iupac_names: List[str]) -> Dict[str, Any]:
     if not cleaned_names:
         return {"resolved": [], "errors": [{"iupac_name": "", "error": "No IUPAC names provided."}]}
 
+    name_to_key = {name: _normalize_iupac_cache_key(name) for name in cleaned_names}
+
     with _OPSIN_LOCK:
-        cached_map: Dict[str, str] = {
-            name: _IUPAC_CACHE[name] for name in cleaned_names if name in _IUPAC_CACHE
-        }
+        cached_map: Dict[str, str] = {}
+        for key in name_to_key.values():
+            if key in _IUPAC_CACHE and key not in cached_map:
+                _IUPAC_CACHE.move_to_end(key)
+                cached_map[key] = _IUPAC_CACHE[key]
 
     uncached_names: List[str] = []
     seen_uncached: set[str] = set()
     for name in cleaned_names:
-        if name not in cached_map and name not in seen_uncached:
-            seen_uncached.add(name)
-            uncached_names.append(name)
+        key = name_to_key[name]
+        if key not in cached_map and key not in seen_uncached:
+            seen_uncached.add(key)
+            uncached_names.append(key)
 
     fresh_resolved: Dict[str, str] = {}
     fresh_errors: Dict[str, str] = {}
@@ -514,22 +551,26 @@ def resolve_iupac_batch(iupac_names: List[str]) -> Dict[str, Any]:
 
                     if fresh_resolved:
                         with _OPSIN_LOCK:
-                            if len(_IUPAC_CACHE) + len(fresh_resolved) > _IUPAC_CACHE_MAX_SIZE:
-                                _IUPAC_CACHE.clear()
-                            _IUPAC_CACHE.update(fresh_resolved)
+                            for key, smi in fresh_resolved.items():
+                                if key in _IUPAC_CACHE:
+                                    _IUPAC_CACHE.move_to_end(key)
+                                _IUPAC_CACHE[key] = smi
+                                while len(_IUPAC_CACHE) > _IUPAC_CACHE_MAX_SIZE:
+                                    _IUPAC_CACHE.popitem(last=False)
 
     resolved: List[Dict[str, str]] = []
     errors: List[Dict[str, str]] = []
     for name in cleaned_names:
-        if name in cached_map:
-            resolved.append({"iupac_name": name, "smiles": cached_map[name]})
-        elif name in fresh_resolved:
-            resolved.append({"iupac_name": name, "smiles": fresh_resolved[name]})
+        key = name_to_key[name]
+        if key in cached_map:
+            resolved.append({"iupac_name": name, "smiles": cached_map[key]})
+        elif key in fresh_resolved:
+            resolved.append({"iupac_name": name, "smiles": fresh_resolved[key]})
         else:
             errors.append(
                 {
                     "iupac_name": name,
-                    "error": fresh_errors.get(name, "OPSIN could not parse IUPAC name"),
+                    "error": fresh_errors.get(key, "OPSIN could not parse IUPAC name"),
                 }
             )
 
