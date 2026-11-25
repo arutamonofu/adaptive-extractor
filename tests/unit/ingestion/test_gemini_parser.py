@@ -1314,7 +1314,7 @@ def test_manifest_prompt_contains_multipage_figure_instructions():
 
 
 def test_rdkit_correction_passes_thinking_level():
-    """Verify validate_and_correct_entities passes thinking_level='medium' to generate_structured."""
+    """Verify validate_and_correct_entities forwards configured thinking_level to generate_structured."""
     mock_client = MagicMock()
     mock_client.generate_structured.return_value = SmilesCorrectionResponse(
         corrections=[SmilesCorrectionItem(label="1", corrected_smiles="CC")],
@@ -1331,7 +1331,7 @@ def test_rdkit_correction_passes_thinking_level():
 
     assert mock_client.generate_structured.call_count == 1
     call_kwargs = mock_client.generate_structured.call_args[1]
-    assert call_kwargs.get("thinking_level") == "medium"
+    assert call_kwargs.get("thinking_level") == "low"
     assert call_kwargs.get("stage_name") == "rdkit_correction"
 
 
