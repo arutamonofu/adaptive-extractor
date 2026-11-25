@@ -187,3 +187,41 @@ circuit_breaker:
 
         settings = Settings.load(load_env_file=False)
         assert settings.extraction.agent_thinking_level == "low"
+
+    def test_semantic_optimization_and_legacy_migrations(self):
+        from ae.core.config.optimization_settings import IngestionConfig, SemanticOptimizationConfig
+
+        # 1. ApiConfig exposes response_format
+        api_cfg = ApiConfig(max_tokens=256, response_format={"type": "json_object"})
+        assert api_cfg.response_format == {"type": "json_object"}
+
+        # 2. SemanticOptimizationConfig legacy migration accepts min_enum_doc_support & pareto_regression_threshold
+        re_cfg = SemanticOptimizationConfig.model_validate(
+            {
+                "min_enum_doc_support": 3,
+                "pareto_regression_threshold": 0.02,
+            }
+        )
+        assert re_cfg.min_enum_doc_support == 3
+        assert re_cfg.pareto_regression_threshold == 0.02
+
+        # 3. config/semantic_optimization.yaml exposes both fields via Settings.load
+        settings = Settings.load(load_env_file=False)
+        assert settings.semantic_optimization.min_enum_doc_support == 4
+        assert settings.semantic_optimization.pareto_regression_threshold == 0.01
+
+        # 4. IngestionConfig legacy migration preserves enable_ocsr_oracle
+        ing_cfg = IngestionConfig.model_validate(
+            {
+                "gemini": {
+                    "molecules": {
+                        "validate_rdkit": True,
+                        "enable_ocsr_oracle": False,
+                        "max_rdkit_retries": 2,
+                    }
+                }
+            }
+        )
+        assert ing_cfg.stages.parse_visuals.molecule.validation.enable_ocsr_oracle is False
+        assert ing_cfg.gemini.molecules.enable_ocsr_oracle is False
+

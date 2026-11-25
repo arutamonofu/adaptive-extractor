@@ -912,6 +912,7 @@ class SemanticOptimizationGraph:
         strict_f1_score = 0.0
         per_field_f1: dict[str, float] = {}
         strict_per_field_f1: dict[str, float] = {}
+        reverted_to_best = False
         pareto_history = list(state.get("pareto_rollback_history", []))
         best_f1 = float(state.get("best_f1", 0.0))
         best_per_field_f1 = dict(state.get("best_per_field_f1", {}))
@@ -957,21 +958,24 @@ class SemanticOptimizationGraph:
                 if ext_cfg is not None:
                     ext_model_id = str(getattr(ext_cfg, "model", ""))
 
-            val_cache_key = hashlib.sha256(
-                json.dumps(
-                    {
-                        "prompt": current_prompt,
-                        "schema": schema_text_for_key,
-                        "judge": enable_judge,
-                        "selection_metric": selection_metric,
-                        "val_ids": sorted(val_ids),
-                        "gt_hash": gt_hash,
-                        "val_md_hashes": val_md_hashes,
-                        "ext_model": ext_model_id,
-                    },
-                    sort_keys=True,
-                ).encode("utf-8")
-            ).hexdigest()
+            def _compute_val_cache_key(prompt_text: str, schema_text: str) -> str:
+                return hashlib.sha256(
+                    json.dumps(
+                        {
+                            "prompt": prompt_text,
+                            "schema": schema_text,
+                            "judge": enable_judge,
+                            "selection_metric": selection_metric,
+                            "val_ids": sorted(val_ids),
+                            "gt_hash": gt_hash,
+                            "val_md_hashes": val_md_hashes,
+                            "ext_model": ext_model_id,
+                        },
+                        sort_keys=True,
+                    ).encode("utf-8")
+                ).hexdigest()
+
+            val_cache_key = _compute_val_cache_key(current_prompt, schema_text_for_key)
 
             val_cache_path: Optional[Path] = None
             artifacts_mgr = getattr(ctx, "artifacts", None)
@@ -1000,6 +1004,10 @@ class SemanticOptimizationGraph:
                         )
                         per_field_f1 = dict(cached_val.get("per_field_f1", {}))
                         strict_per_field_f1 = dict(cached_val.get("strict_per_field_f1", {}))
+                        reverted_to_best = bool(
+                            cached_val.get("reverted_to_best", False)
+                            or ((cached_val.get("pareto_rollback") or {}).get("accepted") is False)
+                        )
                         used_cache = True
                         logger.info(
                             f"Iter {iter_num}: Loaded cached validation F1={f1_score:.4f} from {val_cache_path}"
@@ -1029,22 +1037,24 @@ class SemanticOptimizationGraph:
                 per_field_f1 = dict(eval_out.get("per_field_f1", {}))
                 strict_per_field_f1 = dict(eval_out.get("strict_per_field_f1", {}))
                 pareto_event: Optional[dict[str, Any]] = None
+                reverted_to_best = False
 
-                # Per-Column Dual-Gate (semantic + strict) Pareto Auto-Rollback when iter >= 2
-                if (
-                    iter_num >= 2
-                    and best_per_field_f1
-                    and per_field_f1
-                    and best_prompt
-                    and current_prompt
-                ):
-                    regressed_fields = self._find_regressed_fields(
-                        per_field_f1,
-                        best_per_field_f1,
-                        strict_per_field_f1,
-                        best_strict_per_field_f1,
+                # Per-Column Dual-Gate (semantic + strict) & Row-Level Pareto Auto-Rollback when iter >= 2
+                if iter_num >= 2 and best_prompt and current_prompt:
+                    regressed_fields = (
+                        self._find_regressed_fields(
+                            per_field_f1,
+                            best_per_field_f1,
+                            strict_per_field_f1,
+                            best_strict_per_field_f1,
+                        )
+                        if (best_per_field_f1 and per_field_f1)
+                        else []
                     )
-                    if regressed_fields:
+                    row_only_regression = not regressed_fields and (
+                        f1_score < best_f1 - self.pareto_regression_threshold
+                    )
+                    if regressed_fields or row_only_regression:
                         deltas = {
                             f: round(per_field_f1[f] - best_per_field_f1[f], 6)
                             for f in regressed_fields
@@ -1055,17 +1065,28 @@ class SemanticOptimizationGraph:
                             for f in regressed_fields
                             if f in strict_per_field_f1 and f in best_strict_per_field_f1
                         }
-                        logger.warning(
-                            f"Iter {iter_num}: Pareto Auto-Rollback triggered for regressed fields "
-                            f"{regressed_fields} (deltas={deltas}, strict_deltas={strict_deltas}, "
-                            f"threshold=-{self.pareto_regression_threshold})"
-                        )
-                        uniform_all_regressed = (
-                            len(regressed_fields) == len(per_field_f1) and len(per_field_f1) > 1
-                        )
-                        rollback_targets = (
-                            ["rows"] + regressed_fields if uniform_all_regressed else regressed_fields
-                        )
+                        if row_only_regression:
+                            logger.warning(
+                                f"Iter {iter_num}: Row-only Pareto regression detected "
+                                f"(F1 {f1_score:.4f} vs best {best_f1:.4f}, "
+                                f"strict_F1 {strict_f1_score:.4f} vs best {best_strict_f1:.4f}, "
+                                f"threshold=-{self.pareto_regression_threshold}); rolling back 'rows'."
+                            )
+                            rollback_targets = ["rows"]
+                        else:
+                            logger.warning(
+                                f"Iter {iter_num}: Pareto Auto-Rollback triggered for regressed fields "
+                                f"{regressed_fields} (deltas={deltas}, strict_deltas={strict_deltas}, "
+                                f"threshold=-{self.pareto_regression_threshold})"
+                            )
+                            uniform_all_regressed = (
+                                len(regressed_fields) == len(per_field_f1) and len(per_field_f1) > 1
+                            )
+                            rollback_targets = (
+                                ["rows"] + regressed_fields
+                                if uniform_all_regressed
+                                else regressed_fields
+                            )
                         repaired_prompt = replace_prompt_sections(
                             current_prompt, best_prompt, rollback_targets
                         )
@@ -1112,22 +1133,32 @@ class SemanticOptimizationGraph:
                             )
                             repaired_pf = dict(repaired_out.get("per_field_f1", {}))
                             repaired_strict_pf = dict(repaired_out.get("strict_per_field_f1", {}))
-                            still_regressed = self._find_regressed_fields(
-                                repaired_pf,
-                                best_per_field_f1,
-                                repaired_strict_pf,
-                                best_strict_per_field_f1,
+                            still_regressed = (
+                                self._find_regressed_fields(
+                                    repaired_pf,
+                                    best_per_field_f1,
+                                    repaired_strict_pf,
+                                    best_strict_per_field_f1,
+                                )
+                                if (best_per_field_f1 and repaired_pf)
+                                else []
                             )
-                            accepted = (repaired_f1 >= best_f1 - 1e-9) and not still_regressed
+                            accepted = (
+                                (repaired_f1 >= best_f1 - 1e-9)
+                                and (repaired_strict_f1 >= best_strict_f1 - self.pareto_regression_threshold)
+                                and not still_regressed
+                            )
 
                             pareto_event = {
                                 "iteration": iter_num,
                                 "regressed_fields": regressed_fields,
                                 "rollback_targets": rollback_targets,
                                 "pre_rollback_f1": round(f1_score, 6),
+                                "pre_rollback_strict_f1": round(strict_f1_score, 6),
                                 "pre_rollback_per_field_f1": dict(per_field_f1),
                                 "pre_rollback_strict_per_field_f1": dict(strict_per_field_f1),
                                 "post_rollback_f1": round(repaired_f1, 6),
+                                "post_rollback_strict_f1": round(repaired_strict_f1, 6),
                                 "post_rollback_per_field_f1": repaired_pf,
                                 "post_rollback_strict_per_field_f1": repaired_strict_pf,
                                 "still_regressed": still_regressed,
@@ -1148,8 +1179,10 @@ class SemanticOptimizationGraph:
                                 strict_per_field_f1 = repaired_strict_pf
                             else:
                                 logger.warning(
-                                    f"Iter {iter_num}: Per-column rollback did not restore Pareto frontier "
-                                    f"({repaired_f1:.4f} vs best {best_f1:.4f}, still_regressed={still_regressed}); "
+                                    f"Iter {iter_num}: Rollback did not restore Pareto frontier "
+                                    f"({repaired_f1:.4f} vs best {best_f1:.4f}, "
+                                    f"strict {repaired_strict_f1:.4f} vs best {best_strict_f1:.4f}, "
+                                    f"still_regressed={still_regressed}); "
                                     f"reverting active prompt and iter_{iter_num} generalization artifacts to iter_{best_iteration}."
                                 )
                                 self._sync_iteration_generalization_from_best(
@@ -1160,6 +1193,12 @@ class SemanticOptimizationGraph:
                                     eval_schema_path=eval_schema_path,
                                     generated_path=generated_path,
                                 )
+                                current_prompt = best_prompt
+                                f1_score = best_f1
+                                strict_f1_score = best_strict_f1
+                                per_field_f1 = dict(best_per_field_f1)
+                                strict_per_field_f1 = dict(best_strict_per_field_f1)
+                                reverted_to_best = True
                         else:
                             logger.warning(
                                 f"Iter {iter_num}: Section replacement produced no diff for {rollback_targets}; "
@@ -1170,9 +1209,11 @@ class SemanticOptimizationGraph:
                                 "regressed_fields": regressed_fields,
                                 "rollback_targets": rollback_targets,
                                 "pre_rollback_f1": round(f1_score, 6),
+                                "pre_rollback_strict_f1": round(strict_f1_score, 6),
                                 "pre_rollback_per_field_f1": dict(per_field_f1),
                                 "pre_rollback_strict_per_field_f1": dict(strict_per_field_f1),
                                 "post_rollback_f1": round(f1_score, 6),
+                                "post_rollback_strict_f1": round(strict_f1_score, 6),
                                 "post_rollback_per_field_f1": dict(per_field_f1),
                                 "post_rollback_strict_per_field_f1": dict(strict_per_field_f1),
                                 "still_regressed": list(regressed_fields),
@@ -1187,6 +1228,69 @@ class SemanticOptimizationGraph:
                                 eval_schema_path=eval_schema_path,
                                 generated_path=generated_path,
                             )
+                            current_prompt = best_prompt
+                            f1_score = best_f1
+                            strict_f1_score = best_strict_f1
+                            per_field_f1 = dict(best_per_field_f1)
+                            strict_per_field_f1 = dict(best_strict_per_field_f1)
+                            reverted_to_best = True
+                    elif (f1_score < best_f1 - 1e-9) or (
+                        abs(f1_score - best_f1) <= 1e-9
+                        and strict_f1_score < best_strict_f1 - 1e-9
+                    ):
+                        logger.info(
+                            f"Iter {iter_num}: Validation score ({f1_score:.4f}, strict={strict_f1_score:.4f}) "
+                            f"below best ({best_f1:.4f}, strict={best_strict_f1:.4f}) with regressed_fields=[]; "
+                            f"syncing active prompt and iter_{iter_num} generalization artifacts from iter_{best_iteration} to prevent base drift."
+                        )
+                        self._sync_iteration_generalization_from_best(
+                            ctx=ctx,
+                            iter_num=iter_num,
+                            best_k=best_iteration,
+                            best_prompt=best_prompt,
+                            eval_schema_path=eval_schema_path,
+                            generated_path=generated_path,
+                        )
+                        current_prompt = best_prompt
+                        f1_score = best_f1
+                        strict_f1_score = best_strict_f1
+                        per_field_f1 = dict(best_per_field_f1)
+                        strict_per_field_f1 = dict(best_strict_per_field_f1)
+                        reverted_to_best = True
+
+                final_schema_text = (
+                    eval_schema_path.read_text(encoding="utf-8")
+                    if eval_schema_path.exists()
+                    else ""
+                )
+                val_cache_key = _compute_val_cache_key(current_prompt, final_schema_text)
+                if reverted_to_best:
+                    best_cached_payload: dict[str, Any] = {}
+                    if artifacts_mgr is not None and hasattr(artifacts_mgr, "get_path"):
+                        best_cache_p = artifacts_mgr.get_path(
+                            "", "", "val_metrics.json", iteration=best_iteration
+                        )
+                        if isinstance(best_cache_p, Path) and best_cache_p.exists():
+                            try:
+                                best_cached_payload = json.loads(
+                                    best_cache_p.read_text(encoding="utf-8")
+                                )
+                            except Exception:
+                                best_cached_payload = {}
+                    eval_out = {
+                        "evaluated_count": eval_out.get("evaluated_count", 1),
+                        "macro_f1": best_cached_payload.get("macro_f1", best_f1),
+                        "micro_f1": best_cached_payload.get("micro_f1", best_f1),
+                        "strict_micro_f1": best_cached_payload.get(
+                            "strict_micro_f1", best_strict_f1
+                        ),
+                        "strict_macro_f1": best_cached_payload.get(
+                            "strict_macro_f1", best_strict_f1
+                        ),
+                        "doc_scores": best_cached_payload.get(
+                            "doc_scores", eval_out.get("doc_scores", {})
+                        ),
+                    }
 
                 if val_cache_path is not None and eval_out.get("evaluated_count", 0) > 0:
                     try:
@@ -1206,6 +1310,7 @@ class SemanticOptimizationGraph:
                                     "strict_per_field_f1": strict_per_field_f1,
                                     "doc_scores": eval_out["doc_scores"],
                                     "pareto_rollback": pareto_event,
+                                    "reverted_to_best": reverted_to_best,
                                 },
                                 indent=2,
                             ),
@@ -1231,13 +1336,27 @@ class SemanticOptimizationGraph:
                 best_strict_per_field_f1,
             )
         )
-        if not has_uncompensated_col_regression and (
-            f1_score > best_f1
-            or (
-                f1_score == best_f1
-                and current_prompt
-                and (not best_prompt or iter_num > best_iteration)
+        strict_ok_for_best = (
+            not best_prompt
+            or strict_f1_score >= best_strict_f1 - self.pareto_regression_threshold
+        )
+        is_strictly_better_f1 = (f1_score > best_f1 + 1e-9) and strict_ok_for_best
+        is_tie_better = (
+            abs(f1_score - best_f1) <= 1e-9
+            and bool(current_prompt)
+            and (
+                not best_prompt
+                or (strict_f1_score > best_strict_f1 + 1e-9)
+                or (
+                    abs(strict_f1_score - best_strict_f1) <= 1e-9
+                    and iter_num > best_iteration
+                )
             )
+        )
+        if (
+            not reverted_to_best
+            and not has_uncompensated_col_regression
+            and (is_strictly_better_f1 or is_tie_better)
         ):
             logger.info(
                 f"Updating best validation F1 score: {f1_score:.4f} (previous: {best_f1:.4f}) "

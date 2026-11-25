@@ -198,6 +198,10 @@ class ApiConfig(BaseModel):
         default=None,
         description="Optional OpenRouter provider routing preferences"
     )
+    response_format: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional OpenAI/OpenRouter response_format configuration (e.g., {'type': 'json_object'})"
+    )
 
     @field_validator("api_key", mode="after")
     @classmethod

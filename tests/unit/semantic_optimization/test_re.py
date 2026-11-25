@@ -1870,5 +1870,158 @@ def test_run_generalization_never_emits_empty_record_inclusion_section(tmp_path)
     assert bad_row_inst not in text
 
 
+def test_case_patch_min_doc_3_benign_tokens_and_missing_attributions_guard():
+    """Verify active_doc_count >= 3 threshold, expanded benign tokens, and attr=None bypass guard."""
+    from ae.semantic_optimization.models import RuleAttribution
+    from ae.semantic_optimization.steps.generalization import filter_case_patch_instructions
+
+    single_doc_literal_rule = "Map 'Special-Alias-99' to compound_id."
+    benign_rule = "Record 'n.d.', 'resistant', and 'sensitive' verbatim."
+    unattributed_literal_rule = "Map 'Only-Paper-XYZ' to 12.345."
+    general_unattributed = "Preserve general measurement formatting (e.g., 'CustomExample')."
+
+    # At active_doc_count=2, single_doc_support_with_hardcoded_literal does NOT fire prematurely
+    kept_2, blocked_2 = filter_case_patch_instructions(
+        [single_doc_literal_rule],
+        [
+            RuleAttribution(
+                rule_text=single_doc_literal_rule,
+                rule_kind="GENERALIZED_RULE",
+                supporting_doc_ids=["doc1"],
+            )
+        ],
+        known_doc_ids={"doc1", "doc2"},
+        active_doc_count=2,
+        scope="column:compound_id",
+    )
+    assert kept_2 == [single_doc_literal_rule]
+    assert blocked_2 == []
+
+    # At active_doc_count=3:
+    # - single_doc_literal_rule is blocked
+    # - benign tokens ('n.d.', 'resistant', 'sensitive') are kept even with 1 supporting doc
+    # - unattributed literal rule (Rule_Attributions missing / attr is None) is blocked!
+    # - general unattributed rule with only parenthetical example is kept
+    kept_3, blocked_3 = filter_case_patch_instructions(
+        [single_doc_literal_rule, benign_rule, unattributed_literal_rule, general_unattributed],
+        [
+            RuleAttribution(
+                rule_text=single_doc_literal_rule,
+                rule_kind="GENERALIZED_RULE",
+                supporting_doc_ids=["doc1"],
+            ),
+            RuleAttribution(
+                rule_text=benign_rule,
+                rule_kind="GENERALIZED_RULE",
+                supporting_doc_ids=["doc1"],
+            ),
+        ],
+        known_doc_ids={"doc1", "doc2", "doc3"},
+        active_doc_count=3,
+        scope="column:compound_id",
+    )
+    assert kept_3 == [benign_rule, general_unattributed]
+    assert [b["reason"] for b in blocked_3] == [
+        "single_doc_support_with_hardcoded_literal",
+        "unattributed_rule_with_hardcoded_literal",
+    ]
+
+
+def test_visual_prep_prefers_tier_4a_and_validation_chat_model(temp_dir):
+    """prepare_document_visuals uses tier_4a_lm or validation client instead of 397B reasoning model."""
+    from types import SimpleNamespace
+    from langchain_core.messages import AIMessage
+    from pydantic import SecretStr
+    from ae.core.config.llm_settings import GeminiInstanceConfig, LLMInstanceConfig
+    from ae.core.config.optimization_settings import ExtractionConfig, SemanticOptimizationConfig
+    from ae.core.storage.documents import DocumentRepository
+    from ae.semantic_optimization.client import SemanticOptimizationClient
+    from ae.semantic_optimization.steps.visual_prep import prepare_document_visuals
+
+    ingestion_dir = temp_dir / "ingestion"
+    doc_dir = ingestion_dir / "doc_vp"
+    doc_dir.mkdir(parents=True)
+    raw_text = '<visual id="v1" type="table">Table 1\n> desc</visual>'
+    (doc_dir / "document.md").write_text(raw_text, encoding="utf-8")
+    doc_repo = DocumentRepository(ingestion_dir)
+
+    # 1. When tier_4a_lm (with _config) is present on context, use it instead of re_client.get_chat_model()
+    tier_4a_cfg = LLMInstanceConfig(
+        provider="gemini",
+        model="gemini-3.8-flash",
+        max_retries=1,
+        temperature=0.0,
+        top_p=0.95,
+        enable_cache=False,
+        gemini=GeminiInstanceConfig(api_key=SecretStr("test-key")),
+    )
+    mock_tier_4a = SimpleNamespace(_config=tier_4a_cfg)
+    mock_re_client = MagicMock(spec=SemanticOptimizationClient)
+    ctx_tier = SimpleNamespace(
+        ingestion_dir=ingestion_dir,
+        re_client=mock_re_client,
+        tier_4a_lm=mock_tier_4a,
+        artifacts=None,
+        config_path=None,
+        pdf_dir=None,
+        schema="",
+        baseline_prompt="",
+        max_tool_iterations=1,
+    )
+
+    mock_chat = MagicMock()
+    mock_bound = MagicMock()
+    mock_bound.invoke.return_value = AIMessage(content="READY", tool_calls=[])
+    mock_chat.bind_tools.return_value = mock_bound
+
+    with patch("ae.core.llm.factory.create_chat_model", return_value=mock_chat) as mock_factory, \
+         patch("ae.ingestion.service.VisualParsingService"), \
+         patch("ae.ingestion.tool.make_visual_parsing_tool"):
+        prepare_document_visuals(
+            norm_doc_id="doc_vp",
+            raw_text=raw_text,
+            gt_table_csv="a\n1",
+            context=ctx_tier,
+            doc_repo=doc_repo,
+        )
+
+    assert mock_factory.call_count == 1
+    assert mock_factory.call_args[0][0] is tier_4a_cfg
+    mock_re_client.get_chat_model.assert_not_called()
+
+    # 2. When tier_4a_lm is None and re_client has extraction_config, use validation client's chat model
+    re_client = SemanticOptimizationClient(
+        config=SemanticOptimizationConfig(model={"provider": "gemini", "model": "qwen/qwen3.5-397b-a17b"}),
+        extraction_config=ExtractionConfig(model={"provider": "gemini", "model": "gemini-3.8-flash"}),
+    )
+    mock_val_client = MagicMock()
+    mock_val_client.get_chat_model.return_value = mock_chat
+    ctx_val = SimpleNamespace(
+        ingestion_dir=ingestion_dir,
+        re_client=re_client,
+        tier_4a_lm=None,
+        artifacts=None,
+        config_path=None,
+        pdf_dir=None,
+        schema="",
+        baseline_prompt="",
+        max_tool_iterations=1,
+    )
+    with patch.object(re_client, "get_validation_client", return_value=mock_val_client) as spy_val, \
+         patch.object(re_client, "get_chat_model", side_effect=AssertionError("Must not call 397B chat model")), \
+         patch("ae.ingestion.service.VisualParsingService"), \
+         patch("ae.ingestion.tool.make_visual_parsing_tool"):
+        prepare_document_visuals(
+            norm_doc_id="doc_vp",
+            raw_text=raw_text,
+            gt_table_csv="a\n1",
+            context=ctx_val,
+            doc_repo=doc_repo,
+        )
+    spy_val.assert_called_once()
+    mock_val_client.get_chat_model.assert_called_once()
+
+
+
 
 

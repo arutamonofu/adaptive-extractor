@@ -597,6 +597,10 @@ _CACHE_SPLIT_DELIMITERS = (
     "[[ ## mismatched_rows_context ## ]]\n",
     "[[ ## missed_gt_rows ## ]]\n",
     "[[ ## false_positive_rows ## ]]\n",
+    "[[ ## positive_rows_analyses ## ]]\n",
+    "[[ ## positive_columns_analyses ## ]]\n",
+    "[[ ## draft_prompt ## ]]\n",
+    "[[ ## column_profiles ## ]]\n",
 )
 
 _RE_BATCH_DELIMITERS = (
@@ -606,6 +610,10 @@ _RE_BATCH_DELIMITERS = (
     "[[ ## mismatched_rows_context ## ]]\n",
     "[[ ## missed_gt_rows ## ]]\n",
     "[[ ## false_positive_rows ## ]]\n",
+    "[[ ## positive_rows_analyses ## ]]\n",
+    "[[ ## positive_columns_analyses ## ]]\n",
+    "[[ ## draft_prompt ## ]]\n",
+    "[[ ## column_profiles ## ]]\n",
 )
 
 
@@ -1105,11 +1113,23 @@ class GeminiLM(BaseHTTPProvider):
             total_tokens = int(
                 getattr(usage, "total_token_count", 0) or (prompt_tokens + completion_tokens)
             )
-            in_price = (getattr(self._config, "input_price_per_1m", None) if self._config else None) or 0.0
-            out_price = (getattr(self._config, "output_price_per_1m", None) if self._config else None) or 0.0
+            in_price = getattr(self._config, "input_price_per_1m", None) if self._config else None
+            out_price = getattr(self._config, "output_price_per_1m", None) if self._config else None
             cache_read_price = (
                 getattr(self._config, "cache_read_price_per_1m", None) if self._config else None
             )
+            if in_price is None or out_price is None:
+                pricing = (
+                    MODEL_PRICING.get(self.model)
+                    or MODEL_PRICING.get(f"google/{self.model}")
+                    or {"input": 0.0, "output": 0.0, "cache_read": 0.0}
+                )
+                if in_price is None:
+                    in_price = pricing["input"]
+                if out_price is None:
+                    out_price = pricing["output"]
+                if cache_read_price is None:
+                    cache_read_price = pricing.get("cache_read", in_price * 0.1)
             if cache_read_price is None:
                 cache_read_price = in_price * 0.1
             non_cached_prompt_tokens = max(0, prompt_tokens - cached_tokens)

@@ -206,6 +206,69 @@ def _passes_enum_doc_support_gate(
     return True
 
 
+def _is_quoted_or_word_explicit_in_prompt(value: str, prompt_text: str) -> bool:
+    """Return True if a literal value appears explicitly (quoted if 1-char) in prompt_text."""
+    if not prompt_text or not value:
+        return False
+    val = value.strip()
+    if not val:
+        return False
+    if len(val) == 1:
+        return f"'{val}'" in prompt_text or f'"{val}"' in prompt_text
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", val):
+        return bool(
+            re.search(rf"(?<![A-Za-z0-9_]){re.escape(val)}(?![A-Za-z0-9_])", prompt_text)
+        )
+    return val in prompt_text
+
+
+def _is_default_prompt_grounded(field_name: str, default_val: str, prompt_text: str) -> bool:
+    """Return True when default_val is explicitly grounded in prompt_text."""
+    if not prompt_text or not default_val:
+        return False
+    val = default_val.strip()
+    if not val:
+        return False
+    if len(val) == 1:
+        return f"'{val}'" in prompt_text or f'"{val}"' in prompt_text
+    if not _is_quoted_or_word_explicit_in_prompt(val, prompt_text):
+        return False
+    low_prompt = prompt_text.lower()
+    return (
+        field_name.lower() in low_prompt
+        or "default" in low_prompt
+        or "omitted" in low_prompt
+        or "not stated" in low_prompt
+        or "if absent" in low_prompt
+        or "if missing" in low_prompt
+    )
+
+
+def _is_pattern_prompt_grounded(field_name: str, pattern: str, prompt_text: str) -> bool:
+    """Return True when regex pattern (or its explicit closed alternatives) is grounded in prompt_text."""
+    if not prompt_text or not pattern:
+        return False
+    pat = pattern.strip()
+    if not pat:
+        return False
+    core = re.sub(r"^\^|\$$", "", pat)
+    if (len(pat) >= 4 and pat in prompt_text) or (len(core) >= 4 and core in prompt_text):
+        return True
+    m = re.fullmatch(r"\^?\((?:\?:)?([^()]+)\)\$?", pat)
+    if m and "|" in m.group(1):
+        branches = [b.strip() for b in m.group(1).split("|") if b.strip()]
+        if branches and all(
+            _is_quoted_or_word_explicit_in_prompt(b.replace("\\", ""), prompt_text)
+            for b in branches
+        ):
+            return field_name.lower() in prompt_text.lower() or all(
+                f"'{b}'" in prompt_text or f'"{b}"' in prompt_text
+                for b in branches
+                if len(b) == 1
+            )
+    return False
+
+
 def _passes_constraint_doc_support_gate(
     field_name: str,
     profile: Dict[str, Any],
@@ -280,32 +343,38 @@ def apply_schema_refinements(
                     )
 
         # 3. Default value (only for optional fields without existing default + doc_support gate)
-        if (
-            not spec.required
-            and spec.default is None
-            and proposal.default_value is not None
-            and _passes_constraint_doc_support_gate(
-                field_name, profile, min_enum_doc_support, "default_value"
-            )
-        ):
+        if not spec.required and spec.default is None and proposal.default_value is not None:
             cand_default = str(proposal.default_value).strip()
             if cand_default:
-                if not spec.choices or cand_default in spec.choices:
-                    spec.default = cand_default
-                else:
-                    logger.warning(
-                        f"Skipping proposed default {cand_default!r} for '{field_name}': not in choices {spec.choices}"
-                    )
+                default_min_support = (
+                    1
+                    if _is_default_prompt_grounded(field_name, cand_default, prompt_text)
+                    else min_enum_doc_support
+                )
+                if _passes_constraint_doc_support_gate(
+                    field_name, profile, default_min_support, "default_value"
+                ):
+                    if not spec.choices or cand_default in spec.choices:
+                        spec.default = cand_default
+                    else:
+                        logger.warning(
+                            f"Skipping proposed default {cand_default!r} for '{field_name}': not in choices {spec.choices}"
+                        )
 
         # 4. Regex pattern (conservative: doc_support gate, full observed coverage, no >50 bypass)
         if spec.type is str and not spec.pattern and proposal.pattern:
+            pattern_min_support = (
+                1
+                if _is_pattern_prompt_grounded(field_name, proposal.pattern, prompt_text)
+                else min_enum_doc_support
+            )
             if exceeds_exhaustive or not observed_values:
                 logger.warning(
                     f"Skipping proposed pattern {proposal.pattern!r} for '{field_name}': "
                     "cannot verify regex against full observed values (empty or distinct_count > 50)"
                 )
             elif _passes_constraint_doc_support_gate(
-                field_name, profile, min_enum_doc_support, "pattern"
+                field_name, profile, pattern_min_support, "pattern"
             ):
                 try:
                     compiled_re = re.compile(proposal.pattern)
@@ -319,19 +388,25 @@ def apply_schema_refinements(
                 except re.error as exc:
                     logger.warning(f"Skipping invalid regex pattern {proposal.pattern!r} for '{field_name}': {exc}")
 
-        # 5. Numeric bounds (only for int/float fields and consistent with observed values)
-        if spec.type in (int, float):
-            obs_min = profile.get("numeric_min")
-            obs_max = profile.get("numeric_max")
-            cand_min = proposal.min_value if spec.min_value is None else spec.min_value
-            cand_max = proposal.max_value if spec.max_value is None else spec.max_value
+        # 5. Numeric bounds (only for int/float fields, gated by doc_support and consistent with observed values)
+        if spec.type in (int, float) and (
+            (spec.min_value is None and proposal.min_value is not None)
+            or (spec.max_value is None and proposal.max_value is not None)
+        ):
+            if _passes_constraint_doc_support_gate(
+                field_name, profile, min_enum_doc_support, "numeric_bounds"
+            ):
+                obs_min = profile.get("numeric_min")
+                obs_max = profile.get("numeric_max")
+                cand_min = proposal.min_value if spec.min_value is None else spec.min_value
+                cand_max = proposal.max_value if spec.max_value is None else spec.max_value
 
-            if cand_min is not None and (obs_min is None or cand_min <= obs_min):
-                if cand_max is None or cand_min <= cand_max:
-                    spec.min_value = cand_min
-            if cand_max is not None and (obs_max is None or cand_max >= obs_max):
-                if spec.min_value is None or spec.min_value <= cand_max:
-                    spec.max_value = cand_max
+                if cand_min is not None and (obs_min is None or cand_min <= obs_min):
+                    if cand_max is None or cand_min <= cand_max:
+                        spec.min_value = cand_min
+                if cand_max is not None and (obs_max is None or cand_max >= obs_max):
+                    if spec.min_value is None or spec.min_value <= cand_max:
+                        spec.max_value = cand_max
 
     return refined
 
@@ -369,6 +444,13 @@ def run_schema_refinement(
         "generalization", "", "schema_refinement.json", iteration=iter_num
     )
 
+    raw_min_support = getattr(context, "min_enum_doc_support", _DEFAULT_MIN_ENUM_DOC_SUPPORT)
+    min_support = (
+        raw_min_support
+        if isinstance(raw_min_support, int) and raw_min_support >= 1
+        else _DEFAULT_MIN_ENUM_DOC_SUPPORT
+    )
+
     def _compute_refinement() -> SchemaRefinementOutput:
         predictor = dspy.Predict(SchemaConstraintInference)
         profiles_json = json.dumps(column_profiles, ensure_ascii=False, indent=2)
@@ -377,6 +459,7 @@ def run_schema_refinement(
             baseline_prompt=context.baseline_prompt,
             generated_prompt=final_prompt,
             column_profiles=profiles_json,
+            min_enum_doc_support=min_support,
         )
         return resp.refinement
 
@@ -387,6 +470,7 @@ def run_schema_refinement(
                 "baseline_prompt": context.baseline_prompt,
                 "generated_prompt": final_prompt,
                 "column_profiles": column_profiles,
+                "min_enum_doc_support": min_support,
             },
             sort_keys=True,
             ensure_ascii=False,
@@ -401,12 +485,6 @@ def run_schema_refinement(
         cache_key=cache_key,
     )
 
-    raw_min_support = getattr(context, "min_enum_doc_support", _DEFAULT_MIN_ENUM_DOC_SUPPORT)
-    min_support = (
-        raw_min_support
-        if isinstance(raw_min_support, int) and raw_min_support >= 1
-        else _DEFAULT_MIN_ENUM_DOC_SUPPORT
-    )
     combined_prompt_text = "\n\n".join(
         p for p in (getattr(context, "baseline_prompt", "") or "", final_prompt or "") if p
     )

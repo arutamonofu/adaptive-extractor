@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -996,222 +997,225 @@ def run_residual_analysis(
         analyzed_mismatch_row_ids: list[str] = []
         grouped_signatures: dict[str, int] = {}
 
-        # A. False Negative Rows -> ResidualPositiveRowAnalysis + PositiveColumnAnalysis
-        if fn_pairs:
-            fn_row_ids = [
-                gt_row_ids[p["gt_index"]]
-                for p in fn_pairs
-                if p.get("gt_index") is not None and 0 <= p["gt_index"] < len(gt_row_ids)
-            ]
-            fn_df = df_doc_with_id[df_doc_with_id["row_id"].isin(fn_row_ids)].copy()
-            sampled_fn_df = select_representative_rows(fn_df, raw_text, max_rows=max_fn_rows)
-            analyzed_fn_row_ids = [str(r) for r in sampled_fn_df["row_id"].tolist()]
+        tier_ctx_fn = getattr(context, "tier_4a_context", None)
+        tier_ctx = tier_ctx_fn() if callable(tier_ctx_fn) else contextlib.nullcontext()
+        with tier_ctx:
+            # A. False Negative Rows -> ResidualPositiveRowAnalysis + PositiveColumnAnalysis
+            if fn_pairs:
+                fn_row_ids = [
+                    gt_row_ids[p["gt_index"]]
+                    for p in fn_pairs
+                    if p.get("gt_index") is not None and 0 <= p["gt_index"] < len(gt_row_ids)
+                ]
+                fn_df = df_doc_with_id[df_doc_with_id["row_id"].isin(fn_row_ids)].copy()
+                sampled_fn_df = select_representative_rows(fn_df, raw_text, max_rows=max_fn_rows)
+                analyzed_fn_row_ids = [str(r) for r in sampled_fn_df["row_id"].tolist()]
 
-            tp_row_ids = [
-                gt_row_ids[p["gt_index"]]
-                for p in tp_pairs
-                if p.get("gt_index") is not None and 0 <= p["gt_index"] < len(gt_row_ids)
-            ][:2]
-            contrast_tp_df = df_doc_with_id[df_doc_with_id["row_id"].isin(tp_row_ids)].copy()
-            contrast_csv = contrast_tp_df.to_csv(index=False) if not contrast_tp_df.empty else ""
+                tp_row_ids = [
+                    gt_row_ids[p["gt_index"]]
+                    for p in tp_pairs
+                    if p.get("gt_index") is not None and 0 <= p["gt_index"] < len(gt_row_ids)
+                ][:2]
+                contrast_tp_df = df_doc_with_id[df_doc_with_id["row_id"].isin(tp_row_ids)].copy()
+                contrast_csv = contrast_tp_df.to_csv(index=False) if not contrast_tp_df.empty else ""
 
-            if not sampled_fn_df.empty:
-                logger.info(
-                    f"Calling ResidualPositiveRowAnalysis for {norm_doc_id} on {len(sampled_fn_df)} FN row(s)"
-                )
-                pos_row_resp = res_pos_row_pred(
-                    extraction_schema=context.schema,
-                    current_prompt=current_prompt,
-                    raw_text=raw_text,
-                    gt_table=gt_table_csv,
-                    missed_gt_rows=sampled_fn_df.to_csv(index=False),
-                    contrast_tp_rows=contrast_csv,
-                )
-                pos_row_path = context.artifacts.get_path(
-                    "positive", "rows", f"{norm_doc_id}.json", iteration=None
-                )
-                context.artifacts.load_or_compute(
-                    pos_row_path,
-                    lambda out=pos_row_resp.analysis: out,
-                    PositiveRowsOutput,
-                    force_recompute=True,
-                )
-                doc_scopes.add("rows")
+                if not sampled_fn_df.empty:
+                    logger.info(
+                        f"Calling ResidualPositiveRowAnalysis for {norm_doc_id} on {len(sampled_fn_df)} FN row(s)"
+                    )
+                    pos_row_resp = res_pos_row_pred(
+                        extraction_schema=context.schema,
+                        current_prompt=current_prompt,
+                        raw_text=raw_text,
+                        gt_table=gt_table_csv,
+                        missed_gt_rows=sampled_fn_df.to_csv(index=False),
+                        contrast_tp_rows=contrast_csv,
+                    )
+                    pos_row_path = context.artifacts.get_path(
+                        "positive", "rows", f"{norm_doc_id}.json", iteration=None
+                    )
+                    context.artifacts.load_or_compute(
+                        pos_row_path,
+                        lambda out=pos_row_resp.analysis: out,
+                        PositiveRowsOutput,
+                        force_recompute=True,
+                    )
+                    doc_scopes.add("rows")
 
-                # Populate column analyses for missed FN rows only when no TP rows exist or column already has mismatches
-                mismatched_col_names = {
-                    fname.lower().strip()
-                    for p in mismatch_pairs
-                    for fname in p.get("mismatched_fields", {}).keys()
-                }
-                if not tp_pairs or mismatched_col_names:
-                    non_empty_fn_indices: list[int] = []
-                    for pos_i in range(len(sampled_fn_df)):
-                        row_slice = sampled_fn_df.iloc[[pos_i]]
-                        pop_cols = [
-                            c
-                            for c in row_slice.columns
-                            if c != "row_id"
-                            and pd.notna(row_slice[c].values[0])
-                            and str(row_slice[c].values[0]).strip() != ""
-                            and (not tp_pairs or c.lower().strip() in mismatched_col_names)
+                    # Populate column analyses for missed FN rows only when no TP rows exist or column already has mismatches
+                    mismatched_col_names = {
+                        fname.lower().strip()
+                        for p in mismatch_pairs
+                        for fname in p.get("mismatched_fields", {}).keys()
+                    }
+                    if not tp_pairs or mismatched_col_names:
+                        non_empty_fn_indices: list[int] = []
+                        for pos_i in range(len(sampled_fn_df)):
+                            row_slice = sampled_fn_df.iloc[[pos_i]]
+                            pop_cols = [
+                                c
+                                for c in row_slice.columns
+                                if c != "row_id"
+                                and pd.notna(row_slice[c].values[0])
+                                and str(row_slice[c].values[0]).strip() != ""
+                                and (not tp_pairs or c.lower().strip() in mismatched_col_names)
+                            ]
+                            if pop_cols:
+                                non_empty_fn_indices.append(pos_i)
+                                for c in pop_cols:
+                                    doc_scopes.add(f"column:{c}")
+
+                        for start_i in range(0, len(non_empty_fn_indices), batch_size):
+                            b_pos = non_empty_fn_indices[start_i : start_i + batch_size]
+                            batch_df = sampled_fn_df.iloc[b_pos]
+                            batch_row_ids = [str(r) for r in batch_df["row_id"].tolist()]
+                            logger.info(
+                                f"Calling PositiveColumnAnalysis for missed FN rows {norm_doc_id} {batch_row_ids}"
+                            )
+                            fn_col_resp = pos_col_pred(
+                                extraction_schema=context.schema,
+                                baseline_prompt=current_prompt,
+                                raw_text=raw_text,
+                                gt_table=gt_table_csv,
+                                target_gt_row=batch_df.to_csv(index=False),
+                            )
+                            partitioned = _partition_items_by_row(
+                                fn_col_resp.analysis.fields, batch_row_ids
+                            )
+                            for r_id in batch_row_ids:
+                                _save_merged_positive_columns(
+                                    context,
+                                    norm_doc_id,
+                                    r_id,
+                                    partitioned[r_id],
+                                    overwrite_existing=(r_id not in written_pos_rows),
+                                )
+                                written_pos_rows.add(r_id)
+
+            # B. False Positive Rows -> ResidualNegativeRowAnalysis
+            if fp_pairs:
+                grouped_fps = _group_fp_rows(
+                    fp_pairs,
+                    compare_fields,
+                    max_per_sig=max_per_sig,
+                    max_total=max_fp_rows,
+                )
+                if grouped_fps:
+                    logger.info(
+                        f"Calling ResidualNegativeRowAnalysis for {norm_doc_id} on {len(grouped_fps)} grouped FP(s)"
+                    )
+                    neg_row_resp = res_neg_row_pred(
+                        extraction_schema=context.schema,
+                        current_prompt=current_prompt,
+                        raw_text=raw_text,
+                        gt_table=gt_table_csv,
+                        false_positive_rows=json.dumps(grouped_fps, ensure_ascii=False, indent=2),
+                    )
+                    neg_row_path = context.artifacts.get_path(
+                        "negative", "rows", f"{norm_doc_id}.json", iteration=None
+                    )
+                    context.artifacts.load_or_compute(
+                        neg_row_path,
+                        lambda out=neg_row_resp.analysis: out,
+                        NegativeRowsOutput,
+                        force_recompute=True,
+                    )
+                    doc_scopes.add("rows")
+
+            # C. Aligned Field Mismatches -> ResidualColumnAnalysis (grouped by error signature)
+            if mismatch_pairs:
+                enriched_mismatches: list[dict[str, Any]] = []
+                for p in mismatch_pairs:
+                    gt_idx = p.get("gt_index")
+                    if gt_idx is None or not (0 <= gt_idx < len(gt_row_ids)):
+                        continue
+                    r_id = gt_row_ids[gt_idx]
+                    row_ctx = _record_to_dict(p["gold"], compare_fields)
+                    enriched_mismatches.append(
+                        {
+                            "row_id": r_id,
+                            "row_context": row_ctx,
+                            "mismatched_fields": p["mismatched_fields"],
+                        }
+                    )
+
+                selected_mismatches, grouped_signatures = _group_mismatch_pairs(
+                    enriched_mismatches, max_per_sig=max_per_sig
+                )
+                analyzed_mismatch_row_ids = [item["row_id"] for item in selected_mismatches]
+
+                for item in selected_mismatches:
+                    for fname in item["mismatched_fields"].keys():
+                        doc_scopes.add(f"column:{fname}")
+
+                for start_i in range(0, len(selected_mismatches), batch_size):
+                    batch_items = selected_mismatches[start_i : start_i + batch_size]
+                    batch_row_ids = [item["row_id"] for item in batch_items]
+                    payload = []
+                    for item in batch_items:
+                        occ = item["occurrence_count_in_doc"]
+                        m_list = [
+                            {
+                                "field_name": fname,
+                                "predicted_value": (
+                                    None
+                                    if _is_value_na(info["pred"])
+                                    else str(info["pred"]).strip()
+                                ),
+                                "gt_value": (
+                                    None
+                                    if _is_value_na(info["gold"])
+                                    else str(info["gold"]).strip()
+                                ),
+                                "mismatch_type": _classify_field_mismatch(
+                                    info["pred"], info["gold"], info.get("reason")
+                                ),
+                                "occurrence_count_in_doc": occ,
+                            }
+                            for fname, info in sorted(item["mismatched_fields"].items())
                         ]
-                        if pop_cols:
-                            non_empty_fn_indices.append(pos_i)
-                            for c in pop_cols:
-                                doc_scopes.add(f"column:{c}")
+                        payload.append(
+                            {
+                                "row_id": item["row_id"],
+                                "row_context": item["row_context"],
+                                "mismatches": m_list,
+                            }
+                        )
 
-                    for start_i in range(0, len(non_empty_fn_indices), batch_size):
-                        b_pos = non_empty_fn_indices[start_i : start_i + batch_size]
-                        batch_df = sampled_fn_df.iloc[b_pos]
-                        batch_row_ids = [str(r) for r in batch_df["row_id"].tolist()]
-                        logger.info(
-                            f"Calling PositiveColumnAnalysis for missed FN rows {norm_doc_id} {batch_row_ids}"
-                        )
-                        fn_col_resp = pos_col_pred(
-                            extraction_schema=context.schema,
-                            baseline_prompt=current_prompt,
-                            raw_text=raw_text,
-                            gt_table=gt_table_csv,
-                            target_gt_row=batch_df.to_csv(index=False),
-                        )
-                        partitioned = _partition_items_by_row(
-                            fn_col_resp.analysis.fields, batch_row_ids
-                        )
-                        for r_id in batch_row_ids:
+                    logger.info(
+                        f"Calling ResidualColumnAnalysis for {norm_doc_id} batch {batch_row_ids}"
+                    )
+                    col_resp = res_col_pred(
+                        extraction_schema=context.schema,
+                        current_prompt=current_prompt,
+                        raw_text=raw_text,
+                        gt_table=gt_table_csv,
+                        mismatched_rows_context=json.dumps(payload, ensure_ascii=False, indent=2),
+                    )
+                    res_out: ResidualColumnsOutput = col_resp.analysis
+
+                    pos_by_row = _partition_items_by_row(res_out.positive_fields, batch_row_ids)
+                    neg_by_row = _partition_items_by_row(res_out.negative_fields, batch_row_ids)
+
+                    for r_id in batch_row_ids:
+                        if pos_by_row[r_id]:
                             _save_merged_positive_columns(
                                 context,
                                 norm_doc_id,
                                 r_id,
-                                partitioned[r_id],
+                                pos_by_row[r_id],
                                 overwrite_existing=(r_id not in written_pos_rows),
                             )
                             written_pos_rows.add(r_id)
-
-        # B. False Positive Rows -> ResidualNegativeRowAnalysis
-        if fp_pairs:
-            grouped_fps = _group_fp_rows(
-                fp_pairs,
-                compare_fields,
-                max_per_sig=max_per_sig,
-                max_total=max_fp_rows,
-            )
-            if grouped_fps:
-                logger.info(
-                    f"Calling ResidualNegativeRowAnalysis for {norm_doc_id} on {len(grouped_fps)} grouped FP(s)"
-                )
-                neg_row_resp = res_neg_row_pred(
-                    extraction_schema=context.schema,
-                    current_prompt=current_prompt,
-                    raw_text=raw_text,
-                    gt_table=gt_table_csv,
-                    false_positive_rows=json.dumps(grouped_fps, ensure_ascii=False, indent=2),
-                )
-                neg_row_path = context.artifacts.get_path(
-                    "negative", "rows", f"{norm_doc_id}.json", iteration=None
-                )
-                context.artifacts.load_or_compute(
-                    neg_row_path,
-                    lambda out=neg_row_resp.analysis: out,
-                    NegativeRowsOutput,
-                    force_recompute=True,
-                )
-                doc_scopes.add("rows")
-
-        # C. Aligned Field Mismatches -> ResidualColumnAnalysis (grouped by error signature)
-        if mismatch_pairs:
-            enriched_mismatches: list[dict[str, Any]] = []
-            for p in mismatch_pairs:
-                gt_idx = p.get("gt_index")
-                if gt_idx is None or not (0 <= gt_idx < len(gt_row_ids)):
-                    continue
-                r_id = gt_row_ids[gt_idx]
-                row_ctx = _record_to_dict(p["gold"], compare_fields)
-                enriched_mismatches.append(
-                    {
-                        "row_id": r_id,
-                        "row_context": row_ctx,
-                        "mismatched_fields": p["mismatched_fields"],
-                    }
-                )
-
-            selected_mismatches, grouped_signatures = _group_mismatch_pairs(
-                enriched_mismatches, max_per_sig=max_per_sig
-            )
-            analyzed_mismatch_row_ids = [item["row_id"] for item in selected_mismatches]
-
-            for item in selected_mismatches:
-                for fname in item["mismatched_fields"].keys():
-                    doc_scopes.add(f"column:{fname}")
-
-            for start_i in range(0, len(selected_mismatches), batch_size):
-                batch_items = selected_mismatches[start_i : start_i + batch_size]
-                batch_row_ids = [item["row_id"] for item in batch_items]
-                payload = []
-                for item in batch_items:
-                    occ = item["occurrence_count_in_doc"]
-                    m_list = [
-                        {
-                            "field_name": fname,
-                            "predicted_value": (
-                                None
-                                if _is_value_na(info["pred"])
-                                else str(info["pred"]).strip()
-                            ),
-                            "gt_value": (
-                                None
-                                if _is_value_na(info["gold"])
-                                else str(info["gold"]).strip()
-                            ),
-                            "mismatch_type": _classify_field_mismatch(
-                                info["pred"], info["gold"], info.get("reason")
-                            ),
-                            "occurrence_count_in_doc": occ,
-                        }
-                        for fname, info in sorted(item["mismatched_fields"].items())
-                    ]
-                    payload.append(
-                        {
-                            "row_id": item["row_id"],
-                            "row_context": item["row_context"],
-                            "mismatches": m_list,
-                        }
-                    )
-
-                logger.info(
-                    f"Calling ResidualColumnAnalysis for {norm_doc_id} batch {batch_row_ids}"
-                )
-                col_resp = res_col_pred(
-                    extraction_schema=context.schema,
-                    current_prompt=current_prompt,
-                    raw_text=raw_text,
-                    gt_table=gt_table_csv,
-                    mismatched_rows_context=json.dumps(payload, ensure_ascii=False, indent=2),
-                )
-                res_out: ResidualColumnsOutput = col_resp.analysis
-
-                pos_by_row = _partition_items_by_row(res_out.positive_fields, batch_row_ids)
-                neg_by_row = _partition_items_by_row(res_out.negative_fields, batch_row_ids)
-
-                for r_id in batch_row_ids:
-                    if pos_by_row[r_id]:
-                        _save_merged_positive_columns(
-                            context,
-                            norm_doc_id,
-                            r_id,
-                            pos_by_row[r_id],
-                            overwrite_existing=(r_id not in written_pos_rows),
-                        )
-                        written_pos_rows.add(r_id)
-                    if neg_by_row[r_id]:
-                        _save_merged_negative_columns(
-                            context,
-                            norm_doc_id,
-                            r_id,
-                            neg_by_row[r_id],
-                            overwrite_existing=(r_id not in written_neg_rows),
-                        )
-                        written_neg_rows.add(r_id)
+                        if neg_by_row[r_id]:
+                            _save_merged_negative_columns(
+                                context,
+                                norm_doc_id,
+                                r_id,
+                                neg_by_row[r_id],
+                                overwrite_existing=(r_id not in written_neg_rows),
+                            )
+                            written_neg_rows.add(r_id)
 
         doc_report = ResidualDocReport(
             doc_id=norm_doc_id,

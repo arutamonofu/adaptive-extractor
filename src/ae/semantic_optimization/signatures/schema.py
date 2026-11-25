@@ -13,7 +13,7 @@ Analyze the task schema, extraction instructions, and empirical training column 
 <execution_constraints>
 1. CLOSED ENUM VS OPEN VOCABULARY:
    - Set `is_closed_enum = true` ONLY if the field represents a genuinely finite, closed set of discrete categories, operators, flags, or assay/measurement types defined by the task ontology or instructions.
-   - DOCUMENT SUPPORT GATE: NEVER set `is_closed_enum = true` if `active_docs_count < 4` or if observed values in `column_profiles` keep appearing in only 1 document (`doc_count == 1`), because cross-document vocabulary saturation has not been established.
+   - DOCUMENT SUPPORT GATE: NEVER set `is_closed_enum = true` if `active_docs_count < min_enum_doc_support` or if observed values in `column_profiles` keep appearing in only 1 document (`doc_count == 1`), because cross-document vocabulary saturation has not been established.
    - NEVER set `is_closed_enum = true` for open-vocabulary entities, identifiers, chemical structures/formulas, species/names, unit notations with cross-paper surface variants, free-text descriptions, or arbitrary numeric measurements, even if the training sample has only a few distinct values.
    - When `is_closed_enum = true`, `choices` MUST include ALL observed empirical values from `column_profiles` PLUS any other valid options explicitly stated in `baseline_prompt` or `generated_prompt` (e.g., if training data has `["=", ">"]` and the prompt also allows `"<"`, include `["=", ">", "<"]`).
 2. DEFAULT VALUES:
@@ -30,6 +30,9 @@ Analyze the task schema, extraction instructions, and empirical training column 
     generated_prompt: str = dspy.InputField(desc="Synthesized extraction prompt (.txt)")
     column_profiles: str = dspy.InputField(
         desc="JSON summary of empirical training GT statistics and synthesized column rules per field"
+    )
+    min_enum_doc_support: int = dspy.InputField(
+        desc="Minimum active training document count required before closing a field as an enum"
     )
 
     refinement: SchemaRefinementOutput = dspy.OutputField(
