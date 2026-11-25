@@ -1465,7 +1465,7 @@ def test_extraction_graph_activates_domain_tool_after_visual_parsing(tmp_path):
         )
         res = graph.run(document_text=doc_text, doc_id="doc_two_stage")
         assert mock_service.parse_visuals.call_count == 1
-        assert mock_bound.invoke.call_count == 2
+        assert mock_bound.invoke.call_count == 3
         assert len(res["tool_results"]) == 1
         assert res["tool_results"][0]["output"] == "ASSEMBLED_5a"
     finally:
@@ -1541,7 +1541,8 @@ def test_route_after_tool_skips_idle_ready_and_retries_on_tool_error(tmp_path):
         ingestion_dir=tmp_path,
         max_tool_iterations=4,
     )
-    clean_state = {
+    # After a non-visual tool call with remaining budget, re-enter agent so sequential/multi-series calls work
+    non_visual_state = {
         "document_text": "plain text",
         "tool_iterations": 1,
         "attempted_visuals": [],
@@ -1553,9 +1554,17 @@ def test_route_after_tool_skips_idle_ready_and_retries_on_tool_error(tmp_path):
         "last_turn_had_non_visual": True,
         "last_turn_had_tool_error": False,
     }
-    assert graph._route_after_tool(clean_state) == "structured_output"
+    assert graph._route_after_tool(non_visual_state) == "agent"
 
-    error_state = dict(clean_state, last_turn_had_tool_error=True)
+    # At budget limit -> go straight to structured_output
+    budget_exhausted = dict(non_visual_state, tool_iterations=4)
+    assert graph._route_after_tool(budget_exhausted) == "structured_output"
+
+    # When no non-visual tool ran and no visuals/errors remain -> go straight to structured_output
+    idle_state = dict(non_visual_state, last_turn_had_non_visual=False)
+    assert graph._route_after_tool(idle_state) == "structured_output"
+
+    error_state = dict(idle_state, last_turn_had_tool_error=True)
     assert graph._route_after_tool(error_state) == "agent"
 
 
@@ -1848,8 +1857,76 @@ def test_retry_temperature_raised_only_on_retry_and_repair(tmp_path):
         document_text="<!-- document_id: doc_t -->\n\nCompounds 1a 1b 1c 1d.",
         doc_id="doc_t",
     )
-    assert temps_seen == [0.0, 0.7]
+    # First repair attempt runs at temperature 0.0
+    assert temps_seen == [0.0, 0.0]
     assert [r.smiles for r in res["extracted_data"].records] == ["C", "CC", "CCC", "CCCC"]
+
+    # If the first repair attempt fails with a parse error, the repair retry raises temperature to 0.7
+    temps_retry: list[float] = []
+
+    class RetryRepairChatModel(BaseChatModel):
+        repair_calls: int = 0
+
+        @property
+        def _llm_type(self) -> str:
+            return "fake-temp-retry"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
+
+        def with_structured_output(self, schema, **kwargs):
+            outer = self
+            if "PatchOutput" in schema.__name__:
+                class RepairRetryRunnable:
+                    def __init__(self, temp=0.0):
+                        self.temp = temp
+
+                    def bind(self, **kw):
+                        return RepairRetryRunnable(temp=kw.get("temperature", self.temp))
+
+                    def invoke(self, _msgs):
+                        outer.repair_calls += 1
+                        temps_retry.append(self.temp)
+                        if outer.repair_calls == 1:
+                            raise OutputParserException("Truncated repair JSON")
+                        return schema(repairs=[{"index": 0, "record": {"compound_id": "1a", "smiles": "C"}}])
+
+                return RepairRetryRunnable()
+
+            class InitRunnable:
+                def __init__(self, temp=0.0):
+                    self.temp = temp
+
+                def bind(self, **kw):
+                    return InitRunnable(temp=kw.get("temperature", self.temp))
+
+                def invoke(self, _msgs):
+                    temps_retry.append(self.temp)
+                    return out_model(
+                        records=[
+                            rec_model(compound_id="1a", smiles="c1ccc([*:1])cc1"),
+                            rec_model(compound_id="1b", smiles="CC"),
+                            rec_model(compound_id="1c", smiles="CCC"),
+                            rec_model(compound_id="1d", smiles="CCCC"),
+                        ]
+                    )
+
+            return InitRunnable()
+
+    graph_retry = ExtractionGraph(
+        llm=RetryRepairChatModel(),
+        output_model=out_model,
+        ingestion_dir=tmp_path,
+        use_streaming=False,
+        max_retries=2,
+        retry_delay=0.0,
+    )
+    res_retry = graph_retry.run(
+        document_text="<!-- document_id: doc_t_retry -->\n\nCompounds 1a 1b 1c 1d.",
+        doc_id="doc_t_retry",
+    )
+    assert temps_retry == [0.0, 0.0, 0.7]
+    assert [r.smiles for r in res_retry["extracted_data"].records] == ["C", "CC", "CCC", "CCCC"]
 
 
 def test_canonical_dedup_in_single_shot_preserves_distinct_strains(tmp_path):
