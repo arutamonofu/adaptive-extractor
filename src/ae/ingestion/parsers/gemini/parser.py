@@ -27,8 +27,7 @@ from ae.ingestion.parsers.gemini.stages.manifest_visuals import (
     validate_and_retry_manifest,
 )
 from ae.ingestion.parsers.gemini.stages.parse_text import (
-    _extract_pdf_pages_text,
-    _extract_pdf_pages_visual_flags,
+    _extract_pdf_pages_metadata,
     _generate_chunk_markdown,
     _is_silent_error_guard_enabled,
     _read_prompt_template,
@@ -158,14 +157,6 @@ class GeminiParser(BaseParser):
                 total_pages=total_pages,
             )
 
-            # Ensure any pages introduced by manifest objects are rendered for localization
-            run_render_pages_with_visuals(
-                pdf_path,
-                manifest,
-                artifacts,
-                self.cfg,
-            )
-
             # Stage 4: render_manifest (embeds lightweight manifest stubs)
             manifest_md = run_render_manifest(
                 clean_md,
@@ -198,50 +189,52 @@ class GeminiParser(BaseParser):
         all_chunk_specs: list[BatchRequestSpec] = []
         tmp_dirs: list[Path] = []
 
-        # 1. Stage invalidation + prepare Stage 1 batch specs
-        for pdf_path in resolved_paths:
-            if not pdf_path.exists():
-                raise FileNotFoundError(f"PDF file not found: {pdf_path}")
-            doc_name = pdf_path.stem
-            artifacts = ArtifactManager(doc_name, base_dir=self.cfg.ingestion_dir)
-            if overwrite:
-                artifacts.invalidate_from_stage("parse_text")
-            elif from_stage:
-                artifacts.invalidate_from_stage(from_stage)
+        try:
+            # 1. Stage invalidation + prepare Stage 1 batch specs
+            for pdf_path in resolved_paths:
+                if not pdf_path.exists():
+                    raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+                doc_name = pdf_path.stem
+                artifacts = ArtifactManager(doc_name, base_dir=self.cfg.ingestion_dir)
+                if overwrite:
+                    artifacts.invalidate_from_stage("parse_text")
+                elif from_stage:
+                    artifacts.invalidate_from_stage(from_stage)
 
-            with fitz.open(pdf_path) as pdf_doc:
-                total_pages = len(pdf_doc)
+                with fitz.open(pdf_path) as pdf_doc:
+                    total_pages = len(pdf_doc)
 
-            if artifacts.has_parse_text_artifact():
-                clean_md, placeholders = run_parse_text(
-                    self.client, None, artifacts, self.cfg, pdf_path=pdf_path
+                if artifacts.has_parse_text_artifact():
+                    clean_md, placeholders = run_parse_text(
+                        self.client, None, artifacts, self.cfg, pdf_path=pdf_path
+                    )
+                    doc_states[pdf_path] = {
+                        "artifacts": artifacts,
+                        "clean_md": clean_md,
+                        "placeholders": placeholders,
+                        "chunks": [],
+                        "total_pages": total_pages,
+                    }
+                    continue
+
+                chunks, specs, tmp_dir = build_parse_text_batch_specs(
+                    self.client, pdf_path, artifacts, self.cfg
                 )
+                tmp_dirs.append(tmp_dir)
+                all_chunk_specs.extend(specs)
+                has_uncached = len(specs) > 0
+                if use_guard and has_uncached:
+                    page_texts, page_visual_flags = _extract_pdf_pages_metadata(pdf_path)
+                else:
+                    page_texts, page_visual_flags = {}, {}
                 doc_states[pdf_path] = {
                     "artifacts": artifacts,
-                    "clean_md": clean_md,
-                    "placeholders": placeholders,
-                    "chunks": [],
+                    "chunks": chunks,
                     "total_pages": total_pages,
+                    "page_texts": page_texts,
+                    "page_visual_flags": page_visual_flags,
                 }
-                continue
 
-            chunks, specs, tmp_dir = build_parse_text_batch_specs(
-                self.client, pdf_path, artifacts, self.cfg
-            )
-            tmp_dirs.append(tmp_dir)
-            all_chunk_specs.extend(specs)
-            has_uncached = len(specs) > 0
-            doc_states[pdf_path] = {
-                "artifacts": artifacts,
-                "chunks": chunks,
-                "total_pages": total_pages,
-                "page_texts": _extract_pdf_pages_text(pdf_path) if (use_guard and has_uncached) else {},
-                "page_visual_flags": (
-                    _extract_pdf_pages_visual_flags(pdf_path) if (use_guard and has_uncached) else {}
-                ),
-            }
-
-        try:
             batch_chunk_results = (
                 self.client.run_batch_requests(all_chunk_specs, display_name="ae-parse-text")
                 if all_chunk_specs
@@ -257,6 +250,7 @@ class GeminiParser(BaseParser):
                 page_texts = state["page_texts"]
                 page_visual_flags = state.get("page_visual_flags", {})
                 chunk_texts: list[Optional[str]] = []
+                has_unresolved_visual_errors = False
 
                 with self.client.doc_scope(artifacts.doc_name):
                     for start_page, end_page, chunk_pdf_path in chunks:
@@ -348,18 +342,22 @@ class GeminiParser(BaseParser):
                                 has_visual_content=has_visual_content,
                             )
                             if is_visual_tag_silent_error(final_err):
-                                logger.warning(
-                                    f"Stage 1 [parse_text]: Skipping cache write for '{key}' "
-                                    f"due to unresolved visual tag error ({final_err})."
+                                logger.error(
+                                    f"Stage 1 [parse_text]: Unresolved visual tag error for '{key}' "
+                                    f"({final_err}); skipping chunk and stage artifact cache."
                                 )
                                 should_cache = False
+                                has_unresolved_visual_errors = True
 
                         if should_cache:
                             atomic_write_text(cache_path, chunk_md)
                         chunk_texts.append(chunk_md)
 
                     clean_md, placeholders = assemble_parse_text_chunks(
-                        chunks, chunk_texts, artifacts
+                        chunks,
+                        chunk_texts,
+                        artifacts,
+                        save_artifacts=not has_unresolved_visual_errors,
                     )
                     state["clean_md"] = clean_md
                     state["placeholders"] = placeholders
@@ -377,7 +375,9 @@ class GeminiParser(BaseParser):
             artifacts = state["artifacts"]
             placeholders = state["placeholders"]
             run_render_pages_with_visuals(pdf_path, placeholders, artifacts, self.cfg)
-            spec = build_manifest_visuals_batch_spec(placeholders, artifacts, self.cfg)
+            spec = build_manifest_visuals_batch_spec(
+                placeholders, artifacts, self.cfg, total_pages=state.get("total_pages")
+            )
             if spec is not None:
                 classify_specs.append(spec)
 
@@ -441,7 +441,6 @@ class GeminiParser(BaseParser):
                             self.client, placeholders, artifacts, self.cfg, total_pages=total_pages
                         )
 
-                run_render_pages_with_visuals(pdf_path, manifest, artifacts, self.cfg)
                 manifest_md = run_render_manifest(clean_md, manifest, artifacts, self.client)
                 outputs[pdf_path] = manifest_md
 

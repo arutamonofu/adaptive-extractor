@@ -85,6 +85,27 @@ def test_extract_local_text_context_skips_unlabeled_cross_refs():
     assert "Cross-referenced paragraphs:" not in ctx
 
 
+def test_extract_local_text_context_strips_omitted_comments():
+    doc_md = (
+        "<!-- document_id: doc_omitted -->\n\n"
+        "<!-- omitted -->\n\n"
+        "<!-- page_break -->\n\n"
+        "Real prose before visual.\n\n"
+        '<visual id="Table_1" type="table">\n'
+        "Table 1. MIC data.\n"
+        "> MIC values\n"
+        "</visual>\n\n"
+        "<!-- omitted -->\n\n"
+        "<!-- page_break -->\n\n"
+        "<!-- omitted -->\n\n"
+        "Real prose after visual."
+    )
+    ctx = extract_local_text_context(doc_md, "Table_1")
+    assert "<!-- omitted -->" not in ctx
+    assert "Real prose before visual." in ctx
+    assert "Real prose after visual." in ctx
+
+
 def test_extract_element_template_context_html_and_pipe_tables():
     html_table = (
         "<table>\n"

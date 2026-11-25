@@ -184,11 +184,37 @@ def localize_page(
     return result
 
 
+def _resolve_localize_page_image(
+    artifacts: ArtifactManager,
+    page_num: int,
+    config: Any,
+    pdf_path: Optional[Path] = None,
+) -> Path:
+    """Resolve the 150-DPI localization page image, rendering on demand if pdf_path is given,
+    with fallback to the Stage 2 preview image in pages_dir."""
+    loc_cfg = config.gemini.get_stage_config("localize") if config and hasattr(config, "gemini") else None
+    page_dpi = int(getattr(loc_cfg, "page_dpi", 150) or 150)
+    loc_page_img = artifacts.visuals_geom_dir / "pages" / f"p{page_num}_dpi{page_dpi}.png"
+    if (not loc_page_img.exists() or loc_page_img.stat().st_size == 0) and pdf_path and pdf_path.exists():
+        doc = fitz.open(str(pdf_path))
+        try:
+            if 1 <= page_num <= len(doc):
+                pix = doc[page_num - 1].get_pixmap(dpi=page_dpi, alpha=False)
+                loc_page_img.parent.mkdir(parents=True, exist_ok=True)
+                pix.save(str(loc_page_img))
+        finally:
+            doc.close()
+    if loc_page_img.exists() and loc_page_img.stat().st_size > 0:
+        return loc_page_img
+    return artifacts.pages_dir / f"p{page_num}.png"
+
+
 def run_localize_visuals(
     client: GeminiClient,
     manifest: Manifest,
     artifacts: ArtifactManager,
     config: Any,
+    pdf_path: Optional[Path] = None,
 ) -> dict[int, PageLocalization]:
     """Stage 03: Localize bounding boxes for each page containing visuals."""
     if not manifest.visuals:
@@ -212,7 +238,7 @@ def run_localize_visuals(
 
     results = dict(existing)
     for p_num in missing_pages:
-        img_path = artifacts.pages_dir / f"p{p_num}.png"
+        img_path = _resolve_localize_page_image(artifacts, p_num, config, pdf_path=pdf_path)
         if not img_path.exists():
             logger.warning(
                 f"Page image {img_path} not found. Returning empty localization for p{p_num}."
@@ -416,7 +442,7 @@ def run_crop_visuals(
                 crops_by_visual[box.id].append(crop_path)
 
             if debug_boxes:
-                page_img = artifacts.pages_dir / f"p{page_num}.png"
+                page_img = _resolve_localize_page_image(artifacts, page_num, config)
                 debug_path = artifacts.debug_dir / f"p{page_num}_localized_bboxes.png"
                 padding = getattr(crop_cfg, "padding_ratio", 0.05) if crop_cfg else 0.05
                 generate_debug_overlay(page_img, debug_boxes, debug_path, padding_ratio=padding)

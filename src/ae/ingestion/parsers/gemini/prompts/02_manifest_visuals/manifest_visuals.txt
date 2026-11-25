@@ -4,13 +4,13 @@ Build the document visual manifest from the page previews and `<visual>` placeho
 - **Keep (`visuals`)**: Blocks containing extractable data—tables (`table`), quantitative plots/spectra (`chart`), 2D chemical structures/schemes (`molecular_structure`), or combinations thereof (`mixed`).
 - **Discard (`discarded_ids`)**: Blocks without extractable tabular, numerical, or 2D structural data (graphical abstracts/TOCs, photographs, microscopy/gels, 3D protein/docking renders, conceptual cartoons).
 - **Multi-page continuations & split figures**: When a visual (table, chemical scheme, chart, or composite figure) spans multiple adjacent pages:
-  - **Table continuations** (caption usually on first page): merge all spanned pages into the primary table's `pages` (e.g., `Table_1` on p. 3 continued as `Unlabeled_p4_1` on p. 4 -> `Table_1` with `pages: [3, 4]`; add `Unlabeled_p4_1` to `discarded_ids`).
-  - **Duplicate-ID continuations (`*_dupN`)**: When a continued visual carries a repeated caption on page N+1 (e.g., `Table_1` on p. 3 and `Table_1_dup2` on p. 4 for "Table 1 (continued)"), merge all spanned pages into the primary ID (`Table_1` with `pages: [3, 4]`) and add `Table_1_dup2` to `discarded_ids`.
+  - **Table continuations** (caption usually on first page): merge all spanned pages into the primary table's `pages` (e.g., `Table_1` on p. 3 continued as `Unlabeled_p4_1` on p. 4 -> `Table_1` with `pages: [3, 4]` and `merged_from: ["Unlabeled_p4_1"]`).
+  - **Duplicate-ID continuations (`*_dupN`)**: When a continued visual carries a repeated caption on page N+1 (e.g., `Table_1` on p. 3 and `Table_1_dup2` on p. 4 for "Table 1 (continued)"), merge all spanned pages into the primary ID (`Table_1` with `pages: [3, 4]` and `merged_from: ["Table_1_dup2"]`).
   - **Figure & scheme continuations** (caption usually on last page): when an uncaptioned scheme, scaffold, or substituent table on page N belongs to the same figure or chemical series as the captioned figure on page N+1 (e.g., `Unlabeled_p6_1` containing compounds 19–23 and Ar substituent table on p. 6, followed by `Fig._10` containing compounds 24–33 on p. 7):
     - Merge both pages into the captioned visual (`Fig._10` with `pages: [6, 7]`).
-    - Add the uncaptioned placeholder (`Unlabeled_p6_1`) to `discarded_ids`.
+    - Record the merged uncaptioned placeholder in `merged_from` (`merged_from: ["Unlabeled_p6_1"]`) instead of keeping it standalone.
     - In `description`, synthesize the scope from ALL spanned pages (e.g., "Chemical structures of derivatives 19–33 with Ar substituent table").
-  - **Shared R-group tables & legends**: When a substituent table or scaffold is placed on page N and the corresponding core structures continue on page N+1 (or vice versa), merge them into the single designated visual ID.
+  - **Shared R-group tables & legends**: When a substituent table or scaffold is placed on page N and the corresponding core structures continue on page N+1 (or vice versa), merge them into the single designated visual ID and list the absorbed placeholder ID(s) in `merged_from`.
   - **Standalone uncaptioned structures**: Only keep an `Unlabeled_*` placeholder as an independent visual if it is truly isolated and does NOT belong to the series, scaffold, or legend of any neighboring figure/table.
 
 ### 2. High-Level Content Index (`description`)

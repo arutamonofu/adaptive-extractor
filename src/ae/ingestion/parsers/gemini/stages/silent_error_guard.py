@@ -7,10 +7,12 @@ from collections import Counter
 from typing import Any, Optional
 
 _VALID_VISUAL_BLOCK_RE = re.compile(
-    r"<visual\s+id=[\"'][\w.\-]+[\"'](?:\s*/>|\s*>.*?</visual>)",
+    r"<visual\s+id=[\"'](?!\.\.?[\"'])[A-Za-z0-9_.-]+[\"'](?:\s*/>|\s*>.*?</visual>)",
     re.DOTALL,
 )
-_VALID_VISUAL_OPEN_OR_SELF_RE = re.compile(r"^<visual\s+id=[\"'][\w.\-]+[\"']\s*/?>$")
+_VALID_VISUAL_OPEN_OR_SELF_RE = re.compile(
+    r"^<visual\s+id=[\"'](?!\.\.?[\"'])[A-Za-z0-9_.-]+[\"']\s*/?>$"
+)
 _ANY_VISUAL_PREFIX_RE = re.compile(r"<visual\b", re.IGNORECASE)
 _ANY_VISUAL_OPEN_RE = re.compile(r"<visual\b[^>]*>", re.IGNORECASE)
 _VISUAL_TOKEN_RE = re.compile(r"<visual\b[^>]*>|</visual\s*>", re.IGNORECASE)
@@ -27,14 +29,31 @@ _BOILERPLATE_HEADING_RE = re.compile(
     r")\s*[:.]?\s*$",
     re.IGNORECASE,
 )
+_SUBSTANTIVE_HEADING_RE = re.compile(
+    r"^(?:#{1,6}\s+)?(?:\d+(?:\.\d+)*\.?\s+)?(?:"
+    r"methods|materials\s+and\s+methods|experimental(?:\s+(?:section|procedures?|details?))?|"
+    r"appendix(?:\s+[A-Z0-9]+)?|supplementary(?:\s+(?:information|methods|data|material))?|"
+    r"results(?:\s+and\s+discussion)?|discussion|conclusions?"
+    r")\b[:.]?\s*$",
+    re.IGNORECASE,
+)
 
 
 def _is_likely_reference_or_boilerplate_page(raw_pdf_text: str) -> bool:
     lines = [ln.strip() for ln in raw_pdf_text.splitlines() if ln.strip()]
     if lines:
-        if any(_BOILERPLATE_HEADING_RE.match(ln) for ln in lines[:3]):
-            return True
+        bp_indices = [idx for idx, ln in enumerate(lines[:3]) if _BOILERPLATE_HEADING_RE.match(ln)]
+        if bp_indices:
+            first_bp = bp_indices[0]
+            has_substantive_after = any(
+                _SUBSTANTIVE_HEADING_RE.match(ln) for ln in lines[first_bp + 1 :]
+            )
+            if not has_substantive_after:
+                return True
+            return False
     if len(lines) >= 6:
+        if any(_SUBSTANTIVE_HEADING_RE.match(ln) for ln in lines):
+            return False
         ref_lines = sum(
             1 for ln in lines if re.match(r"^(?:\[\d+\]|\d+\.\s+[A-Z]|\([a-z]\)\s+[A-Z])", ln)
         )
@@ -97,17 +116,37 @@ def detect_parse_text_silent_error(
         return f"unclosed_visual_tag: {len(visual_stack)} unclosed <visual> tag(s)"
 
     # 3. Soft completeness check for dense text pages truncated silently
-    if (
-        not has_valid_visual
-        and len(raw_pdf_text) >= 500
-        and not _is_likely_reference_or_boilerplate_page(raw_pdf_text)
-        and (len(stripped) / len(raw_pdf_text)) < 0.15
-    ):
-        return (
-            f"silent_omission: PDF page has {len(raw_pdf_text)} chars of extractable text "
-            f"but transcription returned only {len(stripped)} chars "
-            f"({len(stripped) / len(raw_pdf_text):.1%})"
-        )
+    prose_outside = _VALID_VISUAL_BLOCK_RE.sub("", stripped).strip()
+    if len(raw_pdf_text) >= 500 and not _is_likely_reference_or_boilerplate_page(raw_pdf_text):
+        if not has_valid_visual:
+            if (len(prose_outside) / len(raw_pdf_text)) < 0.15:
+                return (
+                    f"silent_omission: PDF page has {len(raw_pdf_text)} chars of extractable text "
+                    f"but transcription returned only {len(stripped)} chars "
+                    f"({len(stripped) / len(raw_pdf_text):.1%})"
+                )
+        else:
+            prose_hint_chars = sum(
+                len(ln)
+                for ln in raw_pdf_text.splitlines()
+                if len(re.findall(r"[A-Za-z]{2,}", ln)) >= 6
+            )
+            if (
+                "\n" not in raw_pdf_text
+                and len(re.findall(r"[A-Za-z]{2,}", raw_pdf_text)) >= 12
+                and re.search(r"[.!?]\s+[A-Z]", raw_pdf_text)
+            ):
+                prose_hint_chars = max(prose_hint_chars, len(raw_pdf_text))
+            if (
+                len(raw_pdf_text) >= 600
+                and prose_hint_chars >= 400
+                and (len(prose_outside) / len(raw_pdf_text)) < 0.05
+            ):
+                return (
+                    f"silent_omission: PDF page has {len(raw_pdf_text)} chars of extractable text "
+                    f"({prose_hint_chars} prose-like chars) but prose outside <visual> is only "
+                    f"{len(prose_outside)} chars ({len(prose_outside) / len(raw_pdf_text):.1%})"
+                )
 
     # 4. Severe line repetition / decoding collapse
     lines = [ln.strip() for ln in stripped.splitlines() if ln.strip() and len(ln.strip()) >= 8]
@@ -151,12 +190,17 @@ def detect_manifest_silent_error(
         return f"empty_manifest: 0/{len(expected_ids)} placeholders classified"
 
     reconciled_vis_ids = {v.id for v in reconciled_visuals}
+    reconciled_merged_ids = {
+        m
+        for v in reconciled_visuals
+        for m in (getattr(v, "merged_from", None) or [])
+    }
     raw_discarded_matched = {
         resolved
         for d in raw_discarded
         if (resolved := _resolve_id(d)) is not None
     }
-    accounted_ids = reconciled_vis_ids | raw_discarded_matched
+    accounted_ids = reconciled_vis_ids | reconciled_merged_ids | raw_discarded_matched
     unaccounted_count = len(expected_ids - accounted_ids)
     rejected_raw_count = sum(1 for v in raw_visuals if _resolve_id(v.id) is None)
 
@@ -164,9 +208,7 @@ def detect_manifest_silent_error(
         if not expected_ids.issubset(raw_discarded_matched):
             return f"empty_reconciled_visuals: 0/{len(expected_ids)} placeholders manifested"
 
-    if (unaccounted_count >= 2 and (unaccounted_count / len(expected_ids)) >= 0.3) or (
-        unaccounted_count >= 1 and (unaccounted_count / len(expected_ids)) >= 0.5
-    ):
+    if unaccounted_count >= 1:
         return f"high_unexpected_drop: {unaccounted_count}/{len(expected_ids)} placeholders unaccounted"
 
     if rejected_raw_count > 0 and (rejected_raw_count / max(1, len(raw_visuals))) >= 0.5:

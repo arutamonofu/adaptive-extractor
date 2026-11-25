@@ -10,7 +10,10 @@ _ANY_VISUAL_RE = re.compile(
     r"|<visual\s+id=[\"'](?P<self_id>[^\"']+)[\"'][^>]*/>",
     re.DOTALL,
 )
-_COMMENT_RE = re.compile(r"<!--\s*(?:page_break|document_id:[^>]*)\s*-->")
+_COMMENT_RE = re.compile(
+    r"<!--\s*(?:page_break|omitted|document_id:[^>]*)\s*-->",
+    re.IGNORECASE,
+)
 _HEADING_RE = re.compile(r"^#{1,6}\s+.+$", re.MULTILINE)
 _TR_RE = re.compile(r"<tr\b[^>]*>.*?</tr>", re.DOTALL | re.IGNORECASE)
 _PIPE_SEP_RE = re.compile(r"^\s*\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*\|?\s*$")
